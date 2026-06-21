@@ -12,5 +12,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 // Exposed to public routes for application verification
 Route::livewire('/application/{token}', 'application.verify-application')->name('application.verify');
+Route::livewire('/application/{token}/form', 'application.application-form')->name('application.form');
 
 require __DIR__.'/settings.php';

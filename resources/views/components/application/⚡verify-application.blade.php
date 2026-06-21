@@ -15,11 +15,22 @@ new #[Layout('layouts.auth')] class extends Component
         $this->token = $token;
 
         $this->application = EducationApplication::where('token', $token)
-            ->where('status', 'pending')
             ->first();
 
         if (! $this->application) {
             abort(404);
+        }
+
+        if ($this->application->status === 'expired' || $this->application->expires_on < today()) {
+            abort(403, 'This application link has expired.');
+        }
+
+        if ($this->application->status === 'completed') {
+            abort(403, 'This application has already been completed.');
+        }
+
+        if ($this->application->email_verified) {
+            $this->redirect(route('application.form', ['token' => $token]));
         }
     }
 
@@ -33,6 +44,9 @@ new #[Layout('layouts.auth')] class extends Component
             $this->addError('email', 'This email address does not match our records.');
             return;
         }
+
+        $this->application->email_verified = true;
+        $this->application->save();
 
         $this->redirect(route('application.form', ['token' => $this->token]));
     }
