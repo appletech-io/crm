@@ -32,7 +32,7 @@ class AdminPanelProvider extends PanelProvider
             ->login(false)
             ->authGuard('web')
             ->colors([
-                'primary' => Color::Amber,
+                'primary' => Color::Green,
             ])
             ->userMenuItems([
                 Action::make('switch_sector')
