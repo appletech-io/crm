@@ -66,6 +66,7 @@ class AdminPanelProvider extends PanelProvider
             //->brandLogoDarkMode(asset('images/logo-dark.svg'))
             ->brandLogoHeight('3rem')
             //->favicon(asset('images/logo-icon.svg'))
+            ->favicon(asset('favicon.svg'))
             ->renderHook(
                 PanelsRenderHook::HEAD_END,
                 fn () => new HtmlString("
