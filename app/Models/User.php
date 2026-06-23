@@ -18,6 +18,7 @@ use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
+use Spatie\Permission\Traits\HasRoles;
 
 /**
  * @property int $id
@@ -39,7 +40,7 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
     /** @use HasFactory<UserFactory> */
     use BelongsToCompany;
 
-    use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
+    use HasFactory, HasRoles, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
 
     /**
      * Get the attributes that should be cast.
@@ -76,4 +77,3 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
         return true;
     }
 }
-
