@@ -20,6 +20,14 @@ class EducationCandidate extends Model
 
     protected $guarded = [];
 
+    protected $casts = [
+        'date_of_birth' => 'date',
+        'availability' => 'array',
+        'key_stages' => 'array',
+        'education_and_qualification' => 'string',
+        'employment_history' => 'string',
+    ];
+
     public function application(): HasOne
     {
         return $this->hasOne(EducationApplication::class);
@@ -28,5 +36,10 @@ class EducationCandidate extends Model
     public function consultant(): BelongsTo
     {
         return $this->belongsTo(User::class, 'consultant_id');
+    }
+
+    public function qualification(): BelongsTo
+    {
+        return $this->belongsTo(Qualification::class);
     }
 }

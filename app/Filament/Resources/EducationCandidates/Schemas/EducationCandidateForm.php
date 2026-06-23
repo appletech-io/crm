@@ -4,14 +4,14 @@ namespace App\Filament\Resources\EducationCandidates\Schemas;
 
 use App\Models\EducationCandidate;
 use App\Models\User;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
+use App\Enums\Education\Availability;
+use App\Enums\Education\KeyStage;
+use App\Models\Qualification;
+use Filament\Forms\Components\{DatePicker, Select, Textarea, TextInput, CheckboxList, RichEditor};
 
 class EducationCandidateForm
 {
@@ -104,6 +104,55 @@ class EducationCandidateForm
                                             ->tel()
                                             ->maxLength(255),
                                     ]),
+                            ]),
+                        Tab::make('Availability & Skills')
+                            ->schema([
+                                Select::make('qualification_id')
+                                    ->label('Qualification')
+                                    ->options(
+                                        Qualification::where('company_id', auth()->user()->company_id)
+                                            ->where('industry_id', active_industry_id())
+                                            ->pluck('name', 'id')
+                                    )
+                                    ->searchable()
+                                    ->columnSpanFull(),
+
+                                Textarea::make('notes')
+                                    ->label('Important Notes about this candidate')
+                                    ->rows(4)
+                                    ->columnSpanFull(),
+
+                                RichEditor::make('education_and_qualification')
+                                    ->label('Education & Qualification')
+                                    ->columnSpanFull(),
+
+                                RichEditor::make('employment_history')
+                                    ->label('Employment History')
+                                    ->columnSpanFull(),
+
+                                CheckboxList::make('availability')
+                                    ->label('Availability')
+                                    ->options(
+                                        collect(Availability::cases())
+                                            ->mapWithKeys(fn (Availability $case) => [
+                                                $case->value => $case->label(),
+                                            ])
+                                            ->toArray()
+                                    )
+                                    ->columns(3)
+                                    ->columnSpanFull(),
+
+                                CheckboxList::make('key_stages')
+                                    ->label('KeyStages')
+                                    ->options(
+                                        collect(KeyStage::cases())
+                                            ->mapWithKeys(fn (KeyStage $case) => [
+                                                $case->value => $case->label(),
+                                            ])
+                                            ->toArray()
+                                    )
+                                    ->columns(3)
+                                    ->columnSpanFull(),
                             ]),
                     ]),
             ]);
