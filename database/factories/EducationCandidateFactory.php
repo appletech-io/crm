@@ -22,7 +22,6 @@ class EducationCandidateFactory extends Factory
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'phone' => fake()->phoneNumber(),
-            'specialism' => fake()->word(),
         ];
     }
 }

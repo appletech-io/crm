@@ -6,6 +6,7 @@ use App\Models\Traits\BelongsToCompany;
 use Database\Factories\EducationCandidateFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -22,5 +23,10 @@ class EducationCandidate extends Model
     public function application(): HasOne
     {
         return $this->hasOne(EducationApplication::class);
+    }
+
+    public function consultant(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'consultant_id');
     }
 }
