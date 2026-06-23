@@ -25,9 +25,6 @@ class EducationCandidatesTable
                     ->sortable(),
                 TextColumn::make('phone')
                     ->searchable(),
-                TextColumn::make('specialism')
-                    ->searchable()
-                    ->sortable(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

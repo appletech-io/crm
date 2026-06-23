@@ -24,8 +24,6 @@ class EducationCandidateForm
                         TextInput::make('phone')
                             ->tel()
                             ->maxLength(255),
-                        TextInput::make('specialism')
-                            ->maxLength(255),
                     ]),
             ]);
     }
