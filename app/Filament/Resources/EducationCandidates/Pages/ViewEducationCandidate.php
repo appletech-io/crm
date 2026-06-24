@@ -16,4 +16,11 @@ class ViewEducationCandidate extends ViewRecord
             EditAction::make(),
         ];
     }
+
+    public function getTitle(): string
+    {
+        return $this->record->first_name
+            ? trim("{$this->record->first_name} {$this->record->last_name}")
+            : $this->record->email;
+    }
 }

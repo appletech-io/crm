@@ -22,7 +22,7 @@ class EducationCandidateResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUserGroup;
 
-    protected static ?string $recordTitleAttribute = 'display_name';
+    protected static ?string $recordTitleAttribute = 'first_name';
 
     protected static ?string $navigationLabel = 'Candidates';
 

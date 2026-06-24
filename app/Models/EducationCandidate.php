@@ -30,24 +30,6 @@ class EducationCandidate extends Model
         'employment_history' => 'string',
     ];
 
-    protected $appends = ['display_name'];
-
-    protected function displayName(): Attribute
-    {
-        return Attribute::make(
-            get: fn () => $this->first_name
-                ? trim("{$this->first_name} {$this->last_name}")
-                : $this->email,
-        );
-    }
-
-    public function getDisplayNameAttribute(): string
-    {
-        return $this->first_name
-            ? trim("{$this->first_name} {$this->last_name}")
-            : $this->email;
-    }
-
     public function application(): HasOne
     {
         return $this->hasOne(EducationApplication::class);
