@@ -9,10 +9,6 @@
 
     @if ($activities->isEmpty())
         <div class="rounded-xl border border-dashed border-gray-200 dark:border-white/10 px-4 py-12 text-center">
-            <x-filament::icon
-                icon="heroicon-o-chat-bubble-left-right"
-                class="mx-auto mb-3 h-8 w-8 text-gray-300 dark:text-gray-600"
-            />
             <p class="text-sm text-gray-400 dark:text-gray-500">No activity recorded yet.</p>
         </div>
     @else
