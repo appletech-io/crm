@@ -17,7 +17,7 @@
             @php $activities = $this->record?->activities()->with('user')->get() ?? collect(); @endphp
 
             @foreach ($activities as $activity)
-                <div style="display:flex; gap:1rem; padding:0.75rem; border-bottom:1px solid rgba(255,255,255,0.1);">
+                <div style="display:flex; gap:1rem; padding:0.75rem; border-bottom:1px solid color-mix(in srgb, currentColor 15%, transparent);">
                     <div style="width:5rem; flex-shrink:0;">
                         <x-filament::badge :color="match($activity->type) {
                     \App\Enums\ActivityType::Call  => 'success',
@@ -27,11 +27,11 @@
                 }">{{ $activity->type->label() }}</x-filament::badge>
                     </div>
                     <div style="flex:1;">
-                        <p style="font-size:0.875rem; color:#e5e7eb;">{{ $activity->note ?? $activity->body }}</p>
+                        <p class="text-sm text-gray-900 dark:text-gray-100">{{ $activity->note ?? $activity->body }}</p>
                     </div>
                     <div style="text-align:right; flex-shrink:0;">
-                        <p style="font-size:0.875rem; color:#d1d5db;">{{ $activity->user?->name ?? 'System' }}</p>
-                        <p style="font-size:0.75rem; color:#6b7280;">{{ $activity->created_at->diffForHumans() }}</p>
+                        <p class="text-sm text-gray-900 dark:text-gray-100">{{ $activity->user?->name ?? 'System' }}</p>
+                        <p class="text-sm text-gray-900 dark:text-gray-100">{{ $activity->created_at->diffForHumans() }}</p>
                     </div>
                 </div>
             @endforeach
