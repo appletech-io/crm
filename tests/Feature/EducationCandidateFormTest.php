@@ -5,9 +5,11 @@ use App\Models\EducationCandidate;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 
 beforeEach(function () {
+    Queue::fake();
     $this->seed(RoleSeeder::class);
     $this->user = User::factory()->create();
     $this->actingAs($this->user);

@@ -36,6 +36,6 @@ return [
     ],
 
     'google' => [
-        'places_key' => env('GETADDRESS_API_KEY', 'AIzaSyDeuid4JgLJnAXzfNKAhzLqc2aGeI0D9yA'),
+        'places_key' => env('GOOGLE_PLACES_API_KEY', ''),
     ],
 ];
