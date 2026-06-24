@@ -2,16 +2,23 @@
 
 namespace App\Filament\Resources\EducationCandidates\Schemas;
 
-use App\Models\EducationCandidate;
+use App\Enums\Education\Availability;
+use App\Enums\Education\KeyStage;
+use App\Filament\Widgets\CandidateActivityTimeline;
+use App\Models\Qualification;
 use App\Models\User;
+use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\RichEditor;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Livewire as LivewireComponent;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
-use App\Enums\Education\Availability;
-use App\Enums\Education\KeyStage;
-use App\Models\Qualification;
-use Filament\Forms\Components\{DatePicker, Select, Textarea, TextInput, CheckboxList, RichEditor};
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 
 class EducationCandidateForm
@@ -23,6 +30,13 @@ class EducationCandidateForm
             ->components([
                 Tabs::make('Tabs')
                     ->tabs([
+                        Tab::make('Activity')
+                            ->schema([
+                                LivewireComponent::make(CandidateActivityTimeline::class)
+                                    ->key('candidate-activity-timeline')
+                                    ->hidden(fn (?Model $record): bool => $record === null),
+                            ]),
+
                         Tab::make('Personal Details')
                             ->schema([
                                 Section::make('Personal Information')
