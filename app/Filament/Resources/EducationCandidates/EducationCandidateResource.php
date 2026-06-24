@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\EducationCandidates;
 
-use App\Filament\Resources\EducationCandidates\Pages\CreateEducationCandidate;
 use App\Filament\Resources\EducationCandidates\Pages\EditEducationCandidate;
 use App\Filament\Resources\EducationCandidates\Pages\ListEducationCandidates;
 use App\Filament\Resources\EducationCandidates\Pages\ViewEducationCandidate;
@@ -23,7 +22,7 @@ class EducationCandidateResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUserGroup;
 
-    protected static ?string $recordTitleAttribute = 'name';
+    protected static ?string $recordTitleAttribute = 'display_name';
 
     protected static ?string $navigationLabel = 'Candidates';
 
@@ -55,7 +54,6 @@ class EducationCandidateResource extends Resource
     {
         return [
             'index' => ListEducationCandidates::route('/'),
-            'create' => CreateEducationCandidate::route('/create'),
             'view' => ViewEducationCandidate::route('/{record}'),
             'edit' => EditEducationCandidate::route('/{record}/edit'),
         ];

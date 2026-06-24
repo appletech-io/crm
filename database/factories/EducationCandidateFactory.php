@@ -19,7 +19,8 @@ class EducationCandidateFactory extends Factory
     {
         return [
             'company_id' => \App\Models\Company::factory(),
-            'name' => fake()->name(),
+            'first_name' => fake()->firstName(),
+            'last_name' => fake()->lastName(),
             'email' => fake()->unique()->safeEmail(),
             'phone' => fake()->phoneNumber(),
         ];

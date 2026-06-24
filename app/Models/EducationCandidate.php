@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\BelongsToCompany;
+use Attribute;
 use Database\Factories\EducationCandidateFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -28,6 +29,24 @@ class EducationCandidate extends Model
         'education_and_qualification' => 'string',
         'employment_history' => 'string',
     ];
+
+    protected $appends = ['display_name'];
+
+    protected function displayName(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->first_name
+                ? trim("{$this->first_name} {$this->last_name}")
+                : $this->email,
+        );
+    }
+
+    public function getDisplayNameAttribute(): string
+    {
+        return $this->first_name
+            ? trim("{$this->first_name} {$this->last_name}")
+            : $this->email;
+    }
 
     public function application(): HasOne
     {
