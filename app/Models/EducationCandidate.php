@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class EducationCandidate extends Model
@@ -41,5 +42,10 @@ class EducationCandidate extends Model
     public function qualification(): BelongsTo
     {
         return $this->belongsTo(Qualification::class);
+    }
+
+    public function activities(): MorphMany
+    {
+        return $this->morphMany(CandidateActivity::class, 'model')->latest();
     }
 }

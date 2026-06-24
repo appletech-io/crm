@@ -5,10 +5,10 @@ namespace App\Filament\Resources\EducationCandidates;
 use App\Filament\Resources\EducationCandidates\Pages\CreateEducationCandidate;
 use App\Filament\Resources\EducationCandidates\Pages\EditEducationCandidate;
 use App\Filament\Resources\EducationCandidates\Pages\ListEducationCandidates;
+use App\Filament\Resources\EducationCandidates\Pages\ViewEducationCandidate;
 use App\Filament\Resources\EducationCandidates\Schemas\EducationCandidateForm;
 use App\Filament\Resources\EducationCandidates\Tables\EducationCandidatesTable;
 use App\Models\EducationCandidate;
-use App\Models\User;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -48,9 +48,7 @@ class EducationCandidateResource extends Resource
 
     public static function getRelations(): array
     {
-        return [
-            // ApplicationRelationManager::class,
-        ];
+        return [];
     }
 
     public static function getPages(): array
@@ -58,6 +56,7 @@ class EducationCandidateResource extends Resource
         return [
             'index' => ListEducationCandidates::route('/'),
             'create' => CreateEducationCandidate::route('/create'),
+            'view' => ViewEducationCandidate::route('/{record}'),
             'edit' => EditEducationCandidate::route('/{record}/edit'),
         ];
     }
