@@ -28,6 +28,8 @@ class EducationCandidate extends Model
         'key_stages' => 'array',
         'education_and_qualification' => 'string',
         'employment_history' => 'string',
+        'latitude' => 'float',
+        'longitude' => 'float',
     ];
 
     public function application(): HasOne

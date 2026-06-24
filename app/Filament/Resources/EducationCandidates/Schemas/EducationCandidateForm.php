@@ -10,6 +10,7 @@ use App\Models\Qualification;
 use App\Models\User;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -23,6 +24,7 @@ use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 
 class EducationCandidateForm
 {
@@ -110,16 +112,104 @@ class EducationCandidateForm
                                 Section::make('Address')
                                     ->columns(2)
                                     ->schema([
-                                        Textarea::make('address')
+                                        TextInput::make('address_search')
+                                            ->label('Search Address')
+                                            ->placeholder('Start typing an address or postcode...')
+                                            ->prefixIcon('heroicon-o-magnifying-glass')
+                                            ->live(debounce: 500)
+                                            ->afterStateUpdated(function (Get $get, Set $set, ?string $state) {
+                                                if (! $state || strlen($state) < 3) {
+                                                    $set('address_suggestions', []);
+
+                                                    return;
+                                                }
+
+                                                $response = Http::withHeaders([
+                                                    'X-Goog-Api-Key' => config('services.google.places_key'),
+                                                    'X-Goog-FieldMask' => 'suggestions.placePrediction.placeId,suggestions.placePrediction.text',
+                                                ])->post('https://places.googleapis.com/v1/places:autocomplete', [
+                                                    'input' => $state,
+                                                    'includedRegionCodes' => ['gb'],
+                                                ]);
+
+                                                if ($response->failed()) {
+                                                    $set('address_suggestions', []);
+
+                                                    return;
+                                                }
+
+                                                $suggestions = collect($response->json('suggestions') ?? [])
+                                                    ->mapWithKeys(fn ($s) => [
+                                                        $s['placePrediction']['placeId'] => $s['placePrediction']['text']['text'],
+                                                    ])
+                                                    ->toArray();
+
+                                                $set('address_suggestions', $suggestions);
+                                            })
+                                            ->dehydrated(false)
                                             ->columnSpanFull(),
+
+                                        Select::make('address_place_id')
+                                            ->label('Select Address')
+                                            ->options(fn (Get $get) => $get('address_suggestions') ?? [])
+                                            ->live()
+                                            ->afterStateUpdated(function (Get $get, Set $set, ?string $state) {
+                                                if (! $state) {
+                                                    return;
+                                                }
+
+                                                $response = Http::withHeaders([
+                                                    'X-Goog-Api-Key' => config('services.google.places_key'),
+                                                    'X-Goog-FieldMask' => 'addressComponents,formattedAddress',
+                                                ])->get("https://places.googleapis.com/v1/places/{$state}");
+
+                                                if ($response->failed()) {
+                                                    return;
+                                                }
+
+                                                $components = collect($response->json('addressComponents') ?? []);
+
+                                                $getComponent = fn (string $type) => $components
+                                                    ->first(fn ($c) => in_array($type, $c['types'] ?? []))['longText'] ?? '';
+
+                                                $streetNumber = $getComponent('street_number');
+                                                $route = $getComponent('route');
+
+                                                $set('address', collect([$streetNumber, $route])->filter()->implode(' '));
+                                                $set('city', $getComponent('postal_town') ?: $getComponent('locality'));
+                                                $set('county', $getComponent('administrative_area_level_2'));
+                                                $set('country', $getComponent('country'));
+                                                $set('postcode', $getComponent('postal_code'));
+                                                $set('address_search', $response->json('formattedAddress'));
+                                                $set('address_suggestions', []);
+                                            })
+                                            ->placeholder('Select an address...')
+                                            ->hidden(fn (Get $get) => empty($get('address_suggestions')))
+                                            ->dehydrated(false)
+                                            ->columnSpanFull(),
+
+                                        Hidden::make('address_suggestions')
+                                            ->dehydrated(false),
+
+                                        Textarea::make('address')
+                                            ->columnSpanFull()
+                                            ->hidden(fn (Get $get) => empty($get('address')) && empty($get('postcode'))),
+
                                         TextInput::make('postcode')
-                                            ->maxLength(255),
+                                            ->maxLength(255)
+                                            ->hidden(fn (Get $get) => empty($get('address')) && empty($get('postcode'))),
+
                                         TextInput::make('city')
-                                            ->maxLength(255),
+                                            ->maxLength(255)
+                                            ->hidden(fn (Get $get) => empty($get('address')) && empty($get('postcode'))),
+
                                         TextInput::make('county')
-                                            ->maxLength(255),
+                                            ->maxLength(255)
+                                            ->hidden(fn (Get $get) => empty($get('address')) && empty($get('postcode'))),
+
                                         TextInput::make('country')
-                                            ->maxLength(255),
+                                            ->maxLength(255)
+                                            ->hidden(fn (Get $get) => empty($get('address')) && empty($get('postcode'))),
                                     ]),
 
                                 Section::make('Emergency Contact')
@@ -132,6 +222,7 @@ class EducationCandidateForm
                                             ->maxLength(255),
                                     ]),
                             ]),
+
                         Tab::make('Availability & Skills')
                             ->schema([
                                 Select::make('qualification_id')
@@ -156,6 +247,7 @@ class EducationCandidateForm
                                 RichEditor::make('employment_history')
                                     ->label('Employment History')
                                     ->columnSpanFull(),
+
                                 Select::make('skills')
                                     ->label('Skills')
                                     ->multiple()

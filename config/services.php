@@ -35,7 +35,7 @@ return [
         ],
     ],
 
-    'getaddress' => [
-        'key' => env('GETADDRESS_API_KEY', 'sV_mZKu76UCJwr42gnZitw52769'),
+    'google' => [
+        'places_key' => env('GOOGLE_PLACES_API_KEY', ''),
     ],
 ];
