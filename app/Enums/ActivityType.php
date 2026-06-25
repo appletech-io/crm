@@ -12,6 +12,7 @@ enum ActivityType: string
     case Call = 'call';
 
     case Other = 'other';
+    case StatusAutomation = 'status_automation';
 
     public function label(): string
     {
@@ -21,6 +22,7 @@ enum ActivityType: string
             self::Meeting => 'Meeting',
             self::Call => 'Call',
             self::Other => 'Other',
+            self::StatusAutomation => 'Status Automation',
         };
     }
 
@@ -32,6 +34,7 @@ enum ActivityType: string
             self::Meeting => 'heroicon-o-calendar-days',
             self::Call => 'heroicon-o-phone',
             self::Other => 'heroicon-o-ellipsis-horizontal-circle',
+            self::StatusAutomation => 'heroicon-o-bolt',
         };
     }
 }

@@ -4,6 +4,7 @@ namespace App\Actions\Candidates;
 
 use App\Enums\ActivityType;
 // use App\Jobs\SendApplicationEmail;
+use App\Models\CandidateStatus;
 use App\Models\EducationCandidate;
 use Illuminate\Support\Str;
 use Lorisleiva\Actions\Concerns\AsAction;
@@ -22,8 +23,17 @@ class CandidateCreated
             'expires_on' => now()->addDays(7)->toDateString(),
         ]);
 
+        $onboarding = CandidateStatus::where('company_id', $candidate->company_id)
+            ->where('industry_id', active_industry_id())
+            ->where('name', 'Onboarding')
+            ->first();
+
+        if ($onboarding) {
+            $candidate->statuses()->firstOrCreate(['candidate_status_id' => $onboarding->id]);
+        }
+
         // @TODO 2. Dispatch email job - when emails are worked on
-        //SendApplicationEmail::dispatch($candidate, $application);
+        // SendApplicationEmail::dispatch($candidate, $application);
 
         // 3. Log activity
         $candidate->activities()->create([

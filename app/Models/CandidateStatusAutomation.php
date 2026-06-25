@@ -2,11 +2,16 @@
 
 namespace App\Models;
 
+use Database\Factories\CandidateStatusAutomationFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CandidateStatusAutomation extends Model
 {
+    /** @use HasFactory<CandidateStatusAutomationFactory> */
+    use HasFactory;
+
     protected $guarded = [];
 
     protected $casts = [

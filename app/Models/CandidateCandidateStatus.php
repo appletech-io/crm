@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class CandidateCandidateStatus extends Model
 {
+    protected $table = 'candidate_candidate_status';
+
     protected $guarded = [];
 
     public function model(): MorphTo
