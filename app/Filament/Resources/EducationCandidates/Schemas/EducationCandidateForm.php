@@ -4,6 +4,7 @@ namespace App\Filament\Resources\EducationCandidates\Schemas;
 
 use App\Enums\Education\Availability;
 use App\Enums\Education\KeyStage;
+use App\Enums\Nationality;
 use App\Filament\Widgets\CandidateActivityTimeline;
 use App\Models\CandidateSkill;
 use App\Models\Qualification;
@@ -51,11 +52,11 @@ class EducationCandidateForm
                                     ->schema([
                                         Select::make('title')
                                             ->options([
-                                                'Mr'   => 'Mr',
-                                                'Mrs'  => 'Mrs',
+                                                'Mr' => 'Mr',
+                                                'Mrs' => 'Mrs',
                                                 'Miss' => 'Miss',
-                                                'Ms'   => 'Ms',
-                                                'Dr'   => 'Dr',
+                                                'Ms' => 'Ms',
+                                                'Dr' => 'Dr',
                                                 'Prof' => 'Prof',
                                             ]),
                                         TextInput::make('first_name')
@@ -68,13 +69,14 @@ class EducationCandidateForm
                                             ->maxLength(255),
                                         Select::make('gender')
                                             ->options([
-                                                'male'              => 'Male',
-                                                'female'            => 'Female',
-                                                'non_binary'        => 'Non-binary',
+                                                'male' => 'Male',
+                                                'female' => 'Female',
+                                                'non_binary' => 'Non-binary',
                                                 'prefer_not_to_say' => 'Prefer not to say',
                                             ]),
-                                        TextInput::make('nationality')
-                                            ->maxLength(255),
+                                        Select::make('nationality')
+                                            ->options(Nationality::options())
+                                            ->searchable(),
                                         DatePicker::make('date_of_birth')
                                             ->label('Date of Birth')
                                             ->native(false),
@@ -146,19 +148,21 @@ class EducationCandidateForm
                                             ->afterStateUpdated(function (Get $get, Set $set, ?string $state) {
                                                 if (! $state || strlen($state) < 3) {
                                                     $set('address_suggestions', []);
+
                                                     return;
                                                 }
 
                                                 $response = Http::withHeaders([
-                                                    'X-Goog-Api-Key'   => config('services.google.places_key'),
+                                                    'X-Goog-Api-Key' => config('services.google.places_key'),
                                                     'X-Goog-FieldMask' => 'suggestions.placePrediction.placeId,suggestions.placePrediction.text',
                                                 ])->post('https://places.googleapis.com/v1/places:autocomplete', [
-                                                    'input'               => $state,
+                                                    'input' => $state,
                                                     'includedRegionCodes' => ['gb'],
                                                 ]);
 
                                                 if ($response->failed()) {
                                                     $set('address_suggestions', []);
+
                                                     return;
                                                 }
 
@@ -179,14 +183,18 @@ class EducationCandidateForm
                                             ->live()
                                             ->hidden(fn (Get $get) => empty($get('address_suggestions')) || (bool) $get('address_manual'))
                                             ->afterStateUpdated(function (Get $get, Set $set, ?string $state) {
-                                                if (! $state) return;
+                                                if (! $state) {
+                                                    return;
+                                                }
 
                                                 $response = Http::withHeaders([
-                                                    'X-Goog-Api-Key'   => config('services.google.places_key'),
+                                                    'X-Goog-Api-Key' => config('services.google.places_key'),
                                                     'X-Goog-FieldMask' => 'addressComponents,formattedAddress',
                                                 ])->get("https://places.googleapis.com/v1/places/{$state}");
 
-                                                if ($response->failed()) return;
+                                                if ($response->failed()) {
+                                                    return;
+                                                }
 
                                                 $components = collect($response->json('addressComponents') ?? []);
 
@@ -194,7 +202,7 @@ class EducationCandidateForm
                                                     ->first(fn ($c) => in_array($type, $c['types'] ?? []))['longText'] ?? '';
 
                                                 $streetNumber = $getComponent('street_number');
-                                                $route        = $getComponent('route');
+                                                $route = $getComponent('route');
 
                                                 $set('address', collect([$streetNumber, $route])->filter()->implode(' '));
                                                 $set('city', $getComponent('postal_town') ?: $getComponent('locality'));
@@ -277,7 +285,7 @@ class EducationCandidateForm
                                             ->orderByRaw('COALESCE(parent_id, candidate_skills.id), parent_id IS NOT NULL, candidate_skills.name'),
                                     )
                                     ->getOptionLabelFromRecordUsing(fn (CandidateSkill $record): string => $record->parent_id
-                                        ? '↳ ' . $record->name
+                                        ? '↳ '.$record->name
                                         : $record->name
                                     )
                                     ->searchable()

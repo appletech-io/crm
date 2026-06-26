@@ -28,6 +28,8 @@ class CandidateStatusResource extends Resource
 
     protected static string|\UnitEnum|null $navigationGroup = 'Admin';
 
+    protected static bool $shouldRegisterNavigation = false;
+
     protected static ?string $pluralModelLabel = 'Candidate Statuses';
 
     protected static ?string $modelLabel = 'Candidate Status';

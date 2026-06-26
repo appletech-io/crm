@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\CandidateSettings;
 use App\Filament\Pages\Dashboard;
 use App\Http\Middleware\SetActiveIndustry;
 use Filament\Actions\Action;
@@ -40,9 +41,14 @@ class AdminPanelProvider extends PanelProvider
                     ->icon('heroicon-o-arrows-right-left')
                     ->url(fn () => route('sector.select')),
             ])
+            ->navigationGroups([
+                'Settings',
+                'Admin',
+            ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->pages([
                 Dashboard::class,
+                CandidateSettings::class,
             ])
             ->widgets([
                 //
@@ -63,9 +69,9 @@ class AdminPanelProvider extends PanelProvider
                 SetActiveIndustry::class,
             ])
             ->brandLogo(asset('images/applebough.png'))
-            //->brandLogoDarkMode(asset('images/logo-dark.svg'))
+            // ->brandLogoDarkMode(asset('images/logo-dark.svg'))
             ->brandLogoHeight('3rem')
-            //->favicon(asset('images/logo-icon.svg'))
+            // ->favicon(asset('images/logo-icon.svg'))
             ->favicon(asset('favicon.svg'))
             ->renderHook(
                 PanelsRenderHook::HEAD_END,
