@@ -2,27 +2,37 @@
 
 namespace App\Models;
 
+use Database\Factories\CompanyFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Company extends Model
 {
-    /** @use HasFactory<\Database\Factories\CompanyFactory> */
+    /** @use HasFactory<CompanyFactory> */
     use HasFactory;
 
     protected $guarded = [];
 
-    public function users(): \Illuminate\Database\Eloquent\Relations\HasMany
+    protected function casts(): array
+    {
+        return [
+            'ms_client_secret' => 'encrypted',
+        ];
+    }
+
+    public function users(): HasMany
     {
         return $this->hasMany(User::class);
     }
 
-    public function clients(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function clients(): HasMany
     {
         return $this->hasMany(Client::class);
     }
 
-    public function industries(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    public function industries(): BelongsToMany
     {
         return $this->belongsToMany(Industry::class, 'company_industry');
     }

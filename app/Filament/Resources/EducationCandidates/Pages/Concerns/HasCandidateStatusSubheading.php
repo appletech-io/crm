@@ -14,7 +14,9 @@ trait HasCandidateStatusSubheading
         $this->record->loadMissing('statuses.status');
 
         if ($this->record->statuses->isEmpty()) {
-            return null;
+            return new HtmlString(
+                Blade::render('<x-filament::badge color="gray">No Status</x-filament::badge>')
+            );
         }
 
         $html = $this->record->statuses
