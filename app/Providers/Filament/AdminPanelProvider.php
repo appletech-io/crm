@@ -44,6 +44,7 @@ class AdminPanelProvider extends PanelProvider
             ->navigationGroups([
                 'Settings',
                 'Admin',
+                'Site Settings',
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->pages([

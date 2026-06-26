@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\EmailTemplateType;
 use App\Models\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,6 +19,7 @@ class EmailTemplate extends Model
     {
         return [
             'placeholders' => 'array',
+            'type' => EmailTemplateType::class,
         ];
     }
 
