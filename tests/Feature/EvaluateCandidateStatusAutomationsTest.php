@@ -136,6 +136,25 @@ test('ChangeCandidateStatus logs a status automation activity', function () {
     expect($body['snapshot'])->toHaveKey('first_name');
 });
 
+test('observer triggers automation check when candidate is updated', function () {
+    $candidate = EducationCandidate::factory()->create(['first_name' => 'Jane', 'email' => null]);
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'completed_fields' => ['first_name', 'email'],
+    ]);
+
+    // Automation should not fire yet — email is missing
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
+
+    // Filling in the missing field via a model update should trigger the automation
+    $candidate->update(['email' => 'jane@example.com']);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeTrue();
+});
+
 test('CheckCandidateStatusAutomations logs activity when status changes', function () {
     $candidate = EducationCandidate::factory()->create(['first_name' => 'Jane', 'email' => 'jane@example.com']);
     $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);

@@ -37,4 +37,16 @@ enum ActivityType: string
             self::StatusAutomation => 'heroicon-o-bolt',
         };
     }
+
+    public function color(): string
+    {
+        return match ($this) {
+            self::Email => 'primary',
+            self::Note => 'info',
+            self::Call => 'success',
+            self::Meeting => 'warning',
+            self::StatusAutomation => 'danger',
+            self::Other => 'gray',
+        };
+    }
 }

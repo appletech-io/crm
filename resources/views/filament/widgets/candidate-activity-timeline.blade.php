@@ -14,17 +14,14 @@
     @else
 
         <div>
-            @php $activities = $this->record?->activities()->with('user')->get() ?? collect(); @endphp
-
             @foreach ($activities as $activity)
-                <div style="display:flex; gap:1rem; padding:0.75rem; border-bottom:1px solid color-mix(in srgb, currentColor 15%, transparent);">
+                <div
+                    wire:click="mountAction('viewActivity', { activity: {{ $activity->id }} })"
+                    style="display:flex; gap:1rem; padding:0.75rem; border-bottom:1px solid color-mix(in srgb, currentColor 15%, transparent); cursor:pointer;"
+                    class="transition hover:bg-gray-50 dark:hover:bg-white/5"
+                >
                     <div style="width:5rem; flex-shrink:0;">
-                        <x-filament::badge :color="match($activity->type) {
-                    \App\Enums\ActivityType::Call  => 'success',
-                    \App\Enums\ActivityType::Note  => 'info',
-                    \App\Enums\ActivityType::Email => 'primary',
-                    default                        => 'gray',
-                }">{{ $activity->type->label() }}</x-filament::badge>
+                        <x-filament::badge :color="$activity->type->color()">{{ $activity->type->label() }}</x-filament::badge>
                     </div>
                     <div style="flex:1;">
                         <p class="text-sm text-gray-900 dark:text-gray-100">{{ $activity->note ?? $activity->body }}</p>

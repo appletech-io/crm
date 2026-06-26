@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\EducationCandidates\Tables;
 
+use App\Models\CandidateStatus;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -13,6 +14,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 
 class EducationCandidatesTable
 {
@@ -33,36 +35,29 @@ class EducationCandidatesTable
                     ->sortable(),
                 TextColumn::make('phone')
                     ->searchable(),
+                TextColumn::make('statuses.status.name')
+                    ->label('Status')
+                    ->badge()
+                    ->color('primary')
+                    ->default('No Status'),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('application.status')
-                    ->label('Application')
-                    ->default('No Application')
-                    ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'pending' => 'warning',
-                        'completed' => 'success',
-                        'expired' => 'danger',
-                        'No Application' => 'gray',
-                        default => 'gray',
-                    }),
             ])
             ->filters([
-                SelectFilter::make('application_status')
-                    ->label('Application Status')
-                    ->options([
-                        'pending' => 'Pending',
-                        'completed' => 'Completed',
-                        'expired' => 'Expired',
-                    ])
-                    ->query(fn (Builder $query, array $data) =>
-                        $query->when($data['value'], fn ($q, $value) =>
-                            $q->whereHas('application', fn ($q) =>
-                                $q->where('status', $value)
-                            )
-                        )
+                SelectFilter::make('status')
+                    ->label('Status')
+                    ->options(fn (): array => CandidateStatus::query()
+                        ->where('company_id', Auth::user()->company_id)
+                        ->where('industry_id', active_industry_id())
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->toArray()
+                    )
+                    ->query(fn (Builder $query, array $data) => $query->when($data['value'], fn ($q, $value) => $q->whereHas('statuses', fn ($q) => $q->where('candidate_status_id', $value)
+                    )
+                    )
                     ),
                 TrashedFilter::make(),
             ])

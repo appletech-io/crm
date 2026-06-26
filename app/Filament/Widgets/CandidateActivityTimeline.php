@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\ActivityType;
+use App\Models\CandidateActivity;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
@@ -62,5 +63,47 @@ class CandidateActivityTimeline extends Widget implements HasActions, HasForms
                     'body' => filled($data['body']) ? $data['body'] : null,
                 ]);
             });
+    }
+
+    public function viewActivityAction(): Action
+    {
+        return Action::make('viewActivity')
+            ->modalHeading('Activity Details')
+            ->modalWidth('md')
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Close')
+            ->fillForm(function (array $arguments): array {
+                $activity = CandidateActivity::with('user')->find($arguments['activity']);
+
+                if (! $activity) {
+                    return [];
+                }
+
+                return [
+                    'type' => $activity->type->label(),
+                    'note' => $activity->note,
+                    'body' => $activity->body,
+                    'logged_by' => $activity->user?->name ?? 'System',
+                    'logged_at' => $activity->created_at->format('d M Y, H:i'),
+                ];
+            })
+            ->schema([
+                TextInput::make('type')
+                    ->label('Type')
+                    ->disabled(),
+                TextInput::make('logged_by')
+                    ->label('Logged by')
+                    ->disabled(),
+                TextInput::make('logged_at')
+                    ->label('Date & time')
+                    ->disabled(),
+                TextInput::make('note')
+                    ->label('Summary')
+                    ->disabled(),
+                Textarea::make('body')
+                    ->label('Additional details')
+                    ->rows(4)
+                    ->disabled(),
+            ]);
     }
 }
