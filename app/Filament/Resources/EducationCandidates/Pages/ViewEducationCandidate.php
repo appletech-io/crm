@@ -3,11 +3,14 @@
 namespace App\Filament\Resources\EducationCandidates\Pages;
 
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
+use App\Filament\Resources\EducationCandidates\Pages\Concerns\HasCandidateStatusSubheading;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
 
 class ViewEducationCandidate extends ViewRecord
 {
+    use HasCandidateStatusSubheading;
+
     protected static string $resource = EducationCandidateResource::class;
 
     protected function getHeaderActions(): array

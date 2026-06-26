@@ -18,6 +18,17 @@ class CandidateStatus extends Model
 
     protected $guarded = [];
 
+    public static function colorForName(string $name): string
+    {
+        return match (strtolower(trim($name))) {
+            'live' => 'success',
+            'onboarding' => 'warning',
+            'offline' => 'gray',
+            'dnu', 'do not use' => 'danger',
+            default => 'primary',
+        };
+    }
+
     public function industry(): BelongsTo
     {
         return $this->belongsTo(Industry::class);

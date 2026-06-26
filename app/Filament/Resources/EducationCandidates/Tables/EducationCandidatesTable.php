@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\EducationCandidates\Tables;
 
 use App\Models\CandidateStatus;
+use App\Models\EducationCandidate;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -21,6 +22,7 @@ class EducationCandidatesTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $query->with('statuses.status'))
             ->columns([
                 TextColumn::make('first_name')
                     ->label('First Name')
@@ -35,11 +37,17 @@ class EducationCandidatesTable
                     ->sortable(),
                 TextColumn::make('phone')
                     ->searchable(),
-                TextColumn::make('statuses.status.name')
+                TextColumn::make('candidate_status')
                     ->label('Status')
                     ->badge()
-                    ->color('primary')
-                    ->default('No Status'),
+                    ->state(fn (EducationCandidate $record): array|string => $record->statuses->isNotEmpty()
+                        ? $record->statuses->pluck('status.name')->filter()->values()->toArray()
+                        : 'No Status'
+                    )
+                    ->color(fn (string $state): string => $state === 'No Status'
+                        ? 'gray'
+                        : CandidateStatus::colorForName($state)
+                    ),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -55,10 +63,10 @@ class EducationCandidatesTable
                         ->pluck('name', 'id')
                         ->toArray()
                     )
-                    ->query(fn (Builder $query, array $data) => $query->when($data['value'], fn ($q, $value) => $q->whereHas('statuses', fn ($q) => $q->where('candidate_status_id', $value)
-                    )
-                    )
-                    ),
+                    ->query(fn (Builder $query, array $data) => $query->when(
+                        $data['value'],
+                        fn ($q, $value) => $q->whereHas('statuses', fn ($q) => $q->where('candidate_status_id', $value))
+                    )),
                 TrashedFilter::make(),
             ])
             ->recordActions([
