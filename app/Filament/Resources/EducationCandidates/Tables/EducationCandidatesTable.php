@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\EducationCandidates\Tables;
 
+use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
 use App\Models\EducationCandidate;
 use Filament\Actions\BulkActionGroup;
@@ -66,6 +67,20 @@ class EducationCandidatesTable
                     ->query(fn (Builder $query, array $data) => $query->when(
                         $data['value'],
                         fn ($q, $value) => $q->whereHas('statuses', fn ($q) => $q->where('candidate_status_id', $value))
+                    )),
+                SelectFilter::make('skills')
+                    ->label('Skill')
+                    ->multiple()
+                    ->options(fn (): array => CandidateSkill::query()
+                        ->where('company_id', Auth::user()->company_id)
+                        ->where('industry_id', active_industry_id())
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->toArray()
+                    )
+                    ->query(fn (Builder $query, array $data) => $query->when(
+                        $data['values'],
+                        fn ($q, $values) => $q->whereHas('skills', fn ($q) => $q->whereIn('candidate_skill_candidates.candidate_skill_id', $values))
                     )),
                 TrashedFilter::make(),
             ])

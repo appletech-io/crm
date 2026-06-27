@@ -16,7 +16,6 @@ class CandidateCreated
 
     public function handle(EducationCandidate $candidate): void
     {
-        // 1. Create the application record
         /** @var EducationApplication $application */
         $application = $candidate->application()->create([
             'email' => $candidate->email,
@@ -34,16 +33,6 @@ class CandidateCreated
             $candidate->statuses()->firstOrCreate(['candidate_status_id' => $onboarding->id]);
         }
 
-        // 2. Send application email via Microsoft Graph
         SendApplicationEmail::dispatch($candidate, $application);
-
-        // 3. Log activity
-        $candidate->activities()->create([
-            'user_id' => auth()->id(),
-            'type' => ActivityType::Email->value,
-            'note' => 'Application pack sent',
-            'body' => "Application email sent to {$candidate->email} with application link.",
-            'contacted' => true,
-        ]);
     }
 }

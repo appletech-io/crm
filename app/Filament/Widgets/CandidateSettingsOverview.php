@@ -2,8 +2,10 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Resources\CandidatePools\CandidatePoolResource;
 use App\Filament\Resources\CandidateSkills\CandidateSkillResource;
 use App\Filament\Resources\CandidateStatuses\CandidateStatusResource;
+use App\Models\CandidatePool;
 use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
 use Filament\Widgets\StatsOverviewWidget;
@@ -28,6 +30,15 @@ class CandidateSettingsOverview extends StatsOverviewWidget
             ->where('industry_id', active_industry_id())
             ->count();
 
+        $poolsCount = CandidatePool::query()
+            ->where('company_id', Auth::user()->company_id)
+            ->where('industry_id', active_industry_id())
+            ->where(fn ($q) => $q
+                ->where('user_id', Auth::id())
+                ->orWhere(fn ($q) => $q->where('company_pool', true)->whereNull('user_id'))
+            )
+            ->count();
+
         return [
             Stat::make('Skills', $skillsCount)
                 ->description('Candidate skills configured')
@@ -40,6 +51,12 @@ class CandidateSettingsOverview extends StatsOverviewWidget
                 ->descriptionIcon('heroicon-m-tag')
                 ->color('primary')
                 ->url(CandidateStatusResource::getUrl('index')),
+
+            Stat::make('Candidate Pools', $poolsCount)
+                ->description('Your pools and company pools')
+                ->descriptionIcon('heroicon-m-rectangle-stack')
+                ->color('primary')
+                ->url(CandidatePoolResource::getUrl('index')),
         ];
     }
 }

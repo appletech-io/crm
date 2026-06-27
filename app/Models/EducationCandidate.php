@@ -7,9 +7,9 @@ use Database\Factories\EducationCandidateFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Schema;
 
@@ -65,9 +65,14 @@ class EducationCandidate extends Model
         return $this->belongsTo(Qualification::class);
     }
 
-    public function skills(): BelongsToMany
+    public function skills(): MorphToMany
     {
-        return $this->belongsToMany(CandidateSkill::class, 'education_candidate_skills');
+        return $this->morphToMany(CandidateSkill::class, 'candidate', 'candidate_skill_candidates');
+    }
+
+    public function candidatePools(): MorphToMany
+    {
+        return $this->morphToMany(CandidatePool::class, 'candidate', 'candidate_pool_candidates');
     }
 
     public function statuses(): MorphMany

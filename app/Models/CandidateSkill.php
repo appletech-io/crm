@@ -7,8 +7,8 @@ use Database\Factories\CandidateSkillFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 
 class CandidateSkill extends Model
 {
@@ -29,9 +29,16 @@ class CandidateSkill extends Model
         return $this->hasMany(CandidateSkill::class, 'parent_id')->withoutGlobalScopes();
     }
 
-    public function candidates(): BelongsToMany
+    public function candidates(): MorphToMany
     {
-        return $this->belongsToMany(EducationCandidate::class, 'education_candidate_skills');
+        $modelClass = Industry::candidateModelForSlug(active_industry() ?? '');
+
+        if ($modelClass === null) {
+            return $this->morphedByMany(EducationCandidate::class, 'candidate', 'candidate_skill_candidates')
+                ->whereRaw('0 = 1');
+        }
+
+        return $this->morphedByMany($modelClass, 'candidate', 'candidate_skill_candidates');
     }
 
     public function industry(): BelongsTo

@@ -302,6 +302,27 @@ class EducationCandidateForm
                                     })
                                     ->columnSpanFull(),
 
+                                Select::make('candidatePools')
+                                    ->label('Pools')
+                                    ->multiple()
+                                    ->relationship(
+                                        name: 'candidatePools',
+                                        titleAttribute: 'name',
+                                        modifyQueryUsing: fn ($query) => $query
+                                            ->where('candidate_pools.company_id', Auth::user()->company_id)
+                                            ->where('candidate_pools.industry_id', active_industry_id())
+                                            ->where(fn ($q) => $q
+                                                ->where('candidate_pools.user_id', Auth::id())
+                                                ->orWhere(fn ($q) => $q
+                                                    ->where('candidate_pools.company_pool', true)
+                                                    ->whereNull('candidate_pools.user_id')
+                                                )
+                                            ),
+                                    )
+                                    ->searchable()
+                                    ->preload()
+                                    ->columnSpanFull(),
+
                                 CheckboxList::make('availability')
                                     ->label('Availability')
                                     ->options(

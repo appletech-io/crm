@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\EmailProvider;
 use Database\Factories\CompanyFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -18,7 +19,7 @@ class Company extends Model
     protected function casts(): array
     {
         return [
-            'ms_client_secret' => 'encrypted',
+            'email_provider' => EmailProvider::class,
         ];
     }
 

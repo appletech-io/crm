@@ -1,14 +1,16 @@
 <?php
 
-namespace App\Filament\Resources\Companies\Tables;
+namespace App\Filament\Resources\CandidatePools\Tables;
 
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
-class CompaniesTable
+class CandidatePoolsTable
 {
     public static function configure(Table $table): Table
     {
@@ -17,14 +19,18 @@ class CompaniesTable
                 TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('industries.name')
-                    ->label('Sectors')
+                IconColumn::make('company_pool')
+                    ->label('Company Pool')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-building-office')
+                    ->falseIcon('')
+                    ->trueColor('primary')
+                    ->tooltip(fn ($state): ?string => $state ? 'Visible to all consultants' : null),
+                TextColumn::make('candidates_count')
+                    ->label('Candidates')
+                    ->counts('candidates')
                     ->badge()
-                    ->separator(','),
-                TextColumn::make('email_provider')
-                    ->label('Email Provider')
-                    ->badge()
-                    ->formatStateUsing(fn ($state) => $state?->label()),
+                    ->color('gray'),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -32,7 +38,8 @@ class CompaniesTable
             ])
             ->filters([])
             ->recordActions([
-                EditAction::make(),
+                EditAction::make()->label('Manage'),
+                DeleteAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
