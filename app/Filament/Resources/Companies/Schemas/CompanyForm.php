@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Companies\Schemas;
 
+use App\Enums\EmailProvider;
 use App\Models\Industry;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -45,25 +46,13 @@ class CompanyForm
                             ]),
                     ]),
 
-                Section::make('Microsoft / Outlook Settings')
-                    ->description('Configure Microsoft Graph to send emails via your Outlook mailbox.')
-                    ->columns(2)
+                Section::make('Email Settings')
                     ->schema([
-                        TextInput::make('ms_tenant_id')
-                            ->label('Tenant ID')
-                            ->helperText('Found in Azure Active Directory → Overview'),
-                        TextInput::make('ms_client_id')
-                            ->label('Client ID (Application ID)')
-                            ->helperText('Found in your Azure App Registration → Overview'),
-                        TextInput::make('ms_client_secret')
-                            ->label('Client Secret')
-                            ->helperText('Created under App Registration → Certificates & secrets')
-                            ->password()
-                            ->revealable(),
-                        TextInput::make('ms_sender_email')
-                            ->label('Sender Email')
-                            ->helperText('The mailbox emails will be sent from (must exist in your tenant)')
-                            ->email(),
+                        Select::make('email_provider')
+                            ->label('Email Provider')
+                            ->options(EmailProvider::options())
+                            ->default(EmailProvider::Microsoft->value)
+                            ->required(),
                     ]),
             ]);
     }

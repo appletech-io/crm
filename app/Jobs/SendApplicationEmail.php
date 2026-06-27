@@ -2,9 +2,12 @@
 
 namespace App\Jobs;
 
+use App\Enums\ActivityType;
+use App\Enums\EmailProvider;
 use App\Models\EducationApplication;
 use App\Models\EducationCandidate;
 use App\Models\EmailTemplate;
+use App\Services\MailgunMailer;
 use App\Services\MicrosoftGraphMailer;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -13,15 +16,23 @@ class SendApplicationEmail implements ShouldQueue
 {
     use Queueable;
 
+    public int $tries = 3;
+
+    public int $backoff = 60;
+
     public function __construct(
         public readonly EducationCandidate $candidate,
         public readonly EducationApplication $application,
     ) {}
 
+    /**
+     * @throws \Throwable
+     */
     public function handle(): void
     {
         $template = EmailTemplate::query()
             ->where('company_id', $this->candidate->company_id)
+            ->where('industry_id', $this->candidate->industry_id)
             ->where('type', 'application')
             ->first();
 
@@ -29,13 +40,29 @@ class SendApplicationEmail implements ShouldQueue
             return;
         }
 
-        $mailer = new MicrosoftGraphMailer($this->candidate->company);
+        try {
+            $mailer = match ($this->candidate->company->email_provider) {
+                EmailProvider::Mailgun => new MailgunMailer,
+                default                => new MicrosoftGraphMailer,
+            };
 
-        $mailer->send(
-            to: $this->candidate->email,
-            subject: $this->replacePlaceholders($template->subject),
-            body: $this->replacePlaceholders($template->body),
-        );
+            $mailer->send(
+                to:      $this->candidate->email,
+                subject: $this->replacePlaceholders($template->subject ?? ''),
+                body:    $this->replacePlaceholders($template->body ?? ''),
+            );
+
+            $this->candidate->activities()->create([
+                'user_id'   => $this->candidate->consultant_id ?? auth()->id(),
+                'type'      => ActivityType::Email->value,
+                'note'      => 'Application pack sent',
+                'body'      => "Application email sent to {$this->candidate->email}",
+                'contacted' => true,
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error("Failed to send application email to {$this->candidate->email}: {$e->getMessage()}");
+            throw $e;
+        }
     }
 
     private function replacePlaceholders(string $content): string
