@@ -6,6 +6,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Model;
 
 class UserForm
 {
@@ -39,6 +40,24 @@ class UserForm
                         Select::make('roles')
                             ->multiple()
                             ->relationship('roles', 'name')
+                            ->preload(),
+                    ]),
+
+                Section::make('Sectors')
+                    ->schema([
+                        Select::make('industries')
+                            ->label('Sectors')
+                            ->multiple()
+                            ->relationship(
+                                name: 'industries',
+                                titleAttribute: 'name',
+                                modifyQueryUsing: fn ($query, ?Model $record) => $query
+                                    ->whereIn('industries.id', function ($sub) use ($record) {
+                                        $sub->select('industry_id')
+                                            ->from('company_industry')
+                                            ->where('company_id', $record?->company_id ?? auth()->user()->company_id);
+                                    }),
+                            )
                             ->preload(),
                     ]),
             ]);
