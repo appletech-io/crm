@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '../../vendor/livewire/flux/dist/flux.css';
+@import 'flatpickr/dist/flatpickr.css';
 
 @source '../views';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
@@ -65,3 +66,37 @@ select:focus[data-flux-control] {
 /* \[:where(&)\]:size-4 {
     @apply size-4;
 } */
+
+/* Flatpickr dark-mode overrides */
+.dark .flatpickr-calendar {
+    background: #262626;
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+    color: #d4d4d4;
+}
+.dark .flatpickr-calendar.arrowTop::before { border-bottom-color: rgba(255, 255, 255, 0.1); }
+.dark .flatpickr-calendar.arrowTop::after  { border-bottom-color: #262626; }
+.dark .flatpickr-calendar.arrowBottom::before { border-top-color: rgba(255, 255, 255, 0.1); }
+.dark .flatpickr-calendar.arrowBottom::after  { border-top-color: #262626; }
+.dark .flatpickr-months { color: #d4d4d4; }
+.dark .flatpickr-months .flatpickr-month,
+.dark .flatpickr-current-month,
+.dark .flatpickr-monthDropdown-months,
+.dark .flatpickr-weekday { background: #262626; color: #d4d4d4; fill: #d4d4d4; }
+.dark .flatpickr-monthDropdown-months { background: #262626; }
+.dark .flatpickr-monthDropdown-month { background: #262626; }
+.dark .flatpickr-day { color: #d4d4d4; }
+.dark .flatpickr-day:hover,
+.dark .flatpickr-day:focus { background: #404040; border-color: #404040; }
+.dark .flatpickr-day.today { border-color: #737373; }
+.dark .flatpickr-day.today:hover { background: #404040; border-color: #404040; }
+.dark .flatpickr-day.selected,
+.dark .flatpickr-day.selected:hover { background: #737373; border-color: #737373; color: #fff; }
+.dark .flatpickr-day.prevMonthDay,
+.dark .flatpickr-day.nextMonthDay { color: #525252; }
+.dark .flatpickr-day.flatpickr-disabled { color: #404040; }
+.dark .flatpickr-prev-month,
+.dark .flatpickr-next-month { color: #d4d4d4; fill: #d4d4d4; }
+.dark .numInputWrapper:hover { background: #404040; }
+.dark .numInputWrapper span { border-color: rgba(255,255,255,0.1); }
+.dark .numInputWrapper span::after { border-top-color: #d4d4d4; border-bottom-color: #d4d4d4; }

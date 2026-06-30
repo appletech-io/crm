@@ -13,6 +13,7 @@
 
 @vite(['resources/css/app.css', 'resources/js/app.js'])
 @fluxAppearance
+@stack('head')
 
 <script>
     // Keep Filament (theme) and Flux (flux.appearance) in sync
