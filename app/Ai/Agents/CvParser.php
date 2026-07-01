@@ -38,6 +38,8 @@ class CvParser implements Agent, HasStructuredOutput
             'postcode' => $schema->string(),
             'phone' => $schema->string()->description('Telephone or home phone number'),
             'mobile' => $schema->string()->description('Mobile phone number'),
+            'gender' => $schema->string()->description('Gender if stated in the CV'),
+            'nationality' => $schema->string()->description('Nationality if stated in the CV'),
             'employmentHistory' => $schema->string()->description('Complete employment history as plain text with job titles, employers, dates and responsibilities'),
             'educationAndQualification' => $schema->string()->description('Education qualifications and certifications as plain text'),
             'skills' => $schema->string()->description('Key skills and competencies as a comma-separated list'),
