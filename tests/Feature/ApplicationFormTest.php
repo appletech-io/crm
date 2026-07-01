@@ -3,17 +3,19 @@
 use App\Ai\Agents\CvParser;
 use App\Models\EducationApplication;
 use App\Models\EducationCandidate;
+use App\Models\Industry;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 beforeEach(function () {
     Storage::fake('local');
+    Industry::factory()->create(['name' => 'Education', 'slug' => 'education']);
 });
 
 function makePendingApplication(): EducationApplication
 {
-    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+    $candidate = EducationCandidate::factory()->create();
 
     return EducationApplication::factory()->create([
         'education_candidate_id' => $candidate->id,
@@ -90,6 +92,10 @@ test('parseCv populates fields and advances to step 2', function () {
         ->assertSet('city', 'London')
         ->assertSet('date_of_birth', '1990-05-15')
         ->assertSet('employment_history', 'Teacher at Oakwood Primary 2020–Present');
+
+    $cvTempPath = $application->fresh()->cv_temp_path;
+    expect($cvTempPath)->not->toBeNull();
+    Storage::disk('local')->assertExists($cvTempPath);
 });
 
 test('parseCv advances to step 2 with error message when parsing fails', function () {
@@ -104,6 +110,8 @@ test('parseCv advances to step 2 with error message when parsing fails', functio
         ->call('parseCv')
         ->assertSet('currentStep', 2)
         ->assertSet('parseError', 'CV parsing failed. Please fill in your details manually below.');
+
+    expect($application->fresh()->cv_temp_path)->not->toBeNull();
 });
 
 test('saveApplication validates required personal details fields', function () {

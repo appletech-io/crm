@@ -26,6 +26,10 @@ class CvExtraction
 
     public ?string $mobile = null;
 
+    public ?string $gender = null;
+
+    public ?string $nationality = null;
+
     public ?string $employmentHistory = null;
 
     public ?string $educationAndQualification = null;

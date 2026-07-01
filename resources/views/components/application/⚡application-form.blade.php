@@ -3,6 +3,7 @@
 use App\Enums\Nationality;
 use App\Models\EducationApplication;
 use App\Services\CvParserService;
+use App\Services\Document;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -85,10 +86,14 @@ new #[Layout('layouts.auth')] class extends Component
             'cv' => ['required', 'file', 'mimes:pdf', 'max:10240'],
         ]);
 
-        $path = $this->cv->store('cv-uploads', 'local');
+        $documentPath = Document::upload($this->cv, $this->application);
+        $this->application->update(['cv_temp_path' => $documentPath]);
+
+        $localPath = 'cv-uploads/'.$this->application->id.'.pdf';
+        Storage::disk('local')->put($localPath, Storage::readStream($documentPath));
 
         try {
-            $extracted = $service->parse(Storage::disk('local')->path($path));
+            $extracted = $service->parse(Storage::disk('local')->path($localPath));
 
             $this->first_name       = $extracted->firstName ?? '';
             $this->middle_name      = $extracted->middleName ?? '';
@@ -101,13 +106,15 @@ new #[Layout('layouts.auth')] class extends Component
             $this->postcode         = $extracted->postcode ?? '';
             $this->phone            = $extracted->phone ?? '';
             $this->mobile           = $extracted->mobile ?? '';
+            $this->gender           = $extracted->gender ?? null;
+            $this->nationality      = $extracted->nationality ?? null;
             $this->employment_history = $extracted->employmentHistory ?? '';
             $this->cv_parsed_data   = (array) $extracted;
         } catch (Throwable $e) {
             $this->parseError = 'CV parsing failed. Please fill in your details manually below.';
             report($e);
         } finally {
-            Storage::delete($path);
+            Storage::disk('local')->delete($localPath);
         }
 
         $this->currentStep = 2;
@@ -346,11 +353,125 @@ new #[Layout('layouts.auth')] class extends Component
                         <flux:select.option value="prefer_not_to_say">{{ __('Prefer not to say') }}</flux:select.option>
                     </flux:select>
 
-                    <flux:select wire:model="nationality" :label="__('Nationality')" placeholder="{{ __('Select…') }}">
-                        @foreach(\App\Enums\Nationality::options() as $value => $label)
-                            <flux:select.option value="{{ $value }}">{{ $label }}</flux:select.option>
-                        @endforeach
-                    </flux:select>
+                    <div
+                        x-data="{
+                            open: false,
+                            search: '',
+                            selected: @entangle('nationality'),
+                            options: @js(\App\Enums\Nationality::options()),
+
+                            trigger: null,
+
+                            get isDark() {
+                                return document.documentElement.classList.contains('dark');
+                            },
+
+                            get filtered() {
+                                if (! this.search) return this.options;
+
+                                return Object.fromEntries(
+                                    Object.entries(this.options).filter(([value, label]) =>
+                                        label.toLowerCase().includes(this.search.toLowerCase())
+                                    )
+                                );
+                            },
+
+                            positionDropdown() {
+                                if (!this.trigger || !this.$refs.dropdown) return;
+
+                                const rect = this.trigger.getBoundingClientRect();
+
+                                this.$refs.dropdown.style.top = `${rect.bottom + 4}px`;
+                                this.$refs.dropdown.style.left = `${rect.left}px`;
+                                this.$refs.dropdown.style.width = `${rect.width}px`;
+
+                                if (this.open) {
+                                    requestAnimationFrame(() => this.positionDropdown());
+                                }
+                            },
+
+                            select(value) {
+                                this.selected = value;
+                                this.$wire.set('nationality', value);
+                                this.open = false;
+                                this.search = '';
+                            }
+                        }"
+                        class="relative"
+                    >
+                        <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                            Nationality
+                        </label>
+
+                        <button
+                            type="button"
+                            x-ref="trigger"
+                            x-init="trigger = $refs.trigger"
+                            @click="
+                                open = !open;
+
+                                if (open) {
+                                    positionDropdown();
+                                }
+                            "
+                            class="mt-1 flex h-10 w-full items-center rounded-lg border border-zinc-200 border-b-zinc-300/80 bg-white px-3 text-left text-sm shadow-xs dark:border-white/10 dark:bg-white/10"
+                        >
+                            <span
+                                x-text="options[selected] ?? 'Select nationality'"
+                                :class="selected ? 'text-zinc-700 dark:text-zinc-300' : 'text-zinc-400'"
+                            ></span>
+                        </button>
+
+                        <template x-teleport="body">
+                            <div
+                                x-ref="dropdown"
+                                x-show="open"
+                                x-transition
+                                @click.outside="open = false"
+                                :style="isDark
+                                    ? 'background-color: #27272a; border-color: rgba(255,255,255,0.1);'
+                                    : 'background-color: #ffffff; border-color: #e4e4e7;'"
+                                class="fixed z-9999 rounded-lg border shadow-xl"
+                                style="display:none;"
+                            >
+                                <input
+                                    x-model="search"
+                                    type="text"
+                                    placeholder="Search..."
+                                    :style="isDark
+                                        ? 'color: #e4e4e7; border-bottom-color: rgba(255,255,255,0.1);'
+                                        : 'color: #18181b; border-bottom-color: #e4e4e7;'"
+                                    class="w-full border-b bg-transparent px-3 py-2 text-sm outline-none placeholder:text-zinc-400"
+                                    x-init="$watch('open', value => value && $nextTick(() => $el.focus()))"
+                                />
+
+                                <div class="max-h-60 overflow-y-auto">
+                                    <template
+                                        x-for="[value, label] in Object.entries(filtered)"
+                                        :key="value"
+                                    >
+                                        <button
+                                            type="button"
+                                            @click="select(value)"
+                                            :class="isDark
+                                                ? 'text-zinc-100 hover:bg-zinc-700'
+                                                : 'text-zinc-900 hover:bg-zinc-100'"
+                                            class="block w-full px-3 py-2 text-left text-sm"
+                                            x-text="label"
+                                        ></button>
+                                    </template>
+
+                                    <div
+                                        x-show="Object.keys(filtered).length === 0"
+                                        :class="isDark ? 'text-zinc-400' : 'text-zinc-500'"
+                                        class="px-3 py-2 text-sm"
+                                    >
+                                        No results found.
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
                 </div>
             </div>
 
