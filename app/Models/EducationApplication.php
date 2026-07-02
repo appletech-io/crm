@@ -17,6 +17,7 @@ class EducationApplication extends Model
         'email',
         'email_verified',
         'status',
+        'current_step',
         'token',
         'expires_on',
         'completed_at',
@@ -29,6 +30,7 @@ class EducationApplication extends Model
         'completed_at' => 'datetime',
         'email_verified' => 'boolean',
         'cv_parsed_data' => 'array',
+        'current_step' => 'integer',
     ];
 
     public function educationCandidate(): BelongsTo

@@ -31,6 +31,7 @@ class EducationCandidate extends Model
         'employment_history' => 'string',
         'latitude' => 'float',
         'longitude' => 'float',
+        'available_from' => 'date',
     ];
 
     /** @return array<int, string> */
