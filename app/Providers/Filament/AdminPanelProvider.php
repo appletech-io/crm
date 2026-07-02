@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\CandidateSettings;
+use App\Filament\Pages\ClientSettings;
 use App\Filament\Pages\Dashboard;
 use App\Http\Middleware\SetActiveIndustry;
 use Filament\Actions\Action;
@@ -50,6 +51,7 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 Dashboard::class,
                 CandidateSettings::class,
+                ClientSettings::class,
             ])
             ->widgets([
                 //
