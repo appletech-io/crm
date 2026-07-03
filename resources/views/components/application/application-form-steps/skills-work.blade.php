@@ -68,8 +68,6 @@
     {{-- Skills --}}
     <div
         x-data="{
-            open: false,
-            search: '',
             selected: @entangle('skills'),
             options: @js($this->skillOptions->map(fn ($skill) => [
                 'id' => $skill->id,
@@ -77,140 +75,83 @@
                 'parentId' => $skill->parent_id,
             ])->values()),
 
-            trigger: null,
-
-            get isDark() {
-                return document.documentElement.classList.contains('dark');
+            get available() {
+                return this.options.filter((option) => ! this.selected.includes(option.id));
             },
 
-            get filtered() {
-                if (! this.search) return this.options;
-
-                return this.options.filter((option) => option.name.toLowerCase().includes(this.search.toLowerCase()));
+            get chosen() {
+                return this.options.filter((option) => this.selected.includes(option.id));
             },
 
-            positionDropdown() {
-                if (!this.trigger || !this.$refs.dropdown) return;
-
-                const rect = this.trigger.getBoundingClientRect();
-
-                this.$refs.dropdown.style.top = `${rect.bottom + 4}px`;
-                this.$refs.dropdown.style.left = `${rect.left}px`;
-                this.$refs.dropdown.style.width = `${rect.width}px`;
-
-                if (this.open) {
-                    requestAnimationFrame(() => this.positionDropdown());
-                }
-            },
-
-            isSelected(id) {
-                return this.selected.includes(id);
-            },
-
-            labelFor(id) {
-                return this.options.find((option) => option.id === id)?.name ?? '';
-            },
-
-            toggle(id) {
-                if (this.isSelected(id)) {
-                    this.selected = this.selected.filter((value) => value !== id);
-
-                    return;
-                }
+            select(id) {
+                if (this.selected.includes(id)) return;
 
                 this.selected = [...this.selected, id];
 
                 const option = this.options.find((option) => option.id === id);
 
-                if (option?.parentId && ! this.isSelected(option.parentId)) {
+                if (option?.parentId && ! this.selected.includes(option.parentId)) {
                     this.selected = [...this.selected, option.parentId];
                 }
             },
 
-            remove(id) {
+            deselect(id) {
                 this.selected = this.selected.filter((value) => value !== id);
             },
         }"
-        class="relative"
     >
         <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
             {{ __('Skills') }}
         </label>
 
-        <button
-            type="button"
-            x-ref="trigger"
-            x-init="trigger = $refs.trigger"
-            @click="
-                open = !open;
+        <flux:error name="skills" />
 
-                if (open) {
-                    positionDropdown();
-                }
-            "
-            class="mt-1 flex h-10 w-full items-center rounded-lg border border-zinc-200 border-b-zinc-300/80 bg-white px-3 text-left text-sm shadow-xs dark:border-white/10 dark:bg-white/10"
-        >
-            <span x-show="selected.length === 0" class="text-zinc-400">{{ __('Search and select skills…') }}</span>
-            <span x-show="selected.length > 0" class="text-zinc-700 dark:text-zinc-300" x-text="selected.length + ' skill' + (selected.length === 1 ? '' : 's') + ' selected'"></span>
-        </button>
+        <div class="mt-1 grid grid-cols-2 gap-4">
+            <div class="flex min-h-0 flex-col rounded-lg border border-zinc-200 dark:border-white/10">
+                <p class="border-b border-zinc-200 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:border-white/10 dark:text-zinc-500">
+                    {{ __('Available') }}
+                </p>
 
-        <div x-show="selected.length > 0" class="mt-2 flex flex-wrap gap-2">
-            <template x-for="id in selected" :key="id">
-                <flux:badge size="sm">
-                    <span x-text="labelFor(id)"></span>
-                    <flux:badge.close @click="remove(id)" />
-                </flux:badge>
-            </template>
-        </div>
-
-        <template x-teleport="body">
-            <div
-                x-ref="dropdown"
-                x-show="open"
-                x-transition
-                @click.outside="open = false"
-                :style="isDark
-                    ? 'background-color: #27272a; border-color: rgba(255,255,255,0.1);'
-                    : 'background-color: #ffffff; border-color: #e4e4e7;'"
-                class="fixed z-9999 rounded-lg border shadow-xl"
-                style="display:none;"
-            >
-                <input
-                    x-model="search"
-                    type="text"
-                    placeholder="Search…"
-                    :style="isDark
-                        ? 'color: #e4e4e7; border-bottom-color: rgba(255,255,255,0.1);'
-                        : 'color: #18181b; border-bottom-color: #e4e4e7;'"
-                    class="w-full border-b bg-transparent px-3 py-2 text-sm outline-none placeholder:text-zinc-400"
-                    x-init="$watch('open', value => value && $nextTick(() => $el.focus()))"
-                />
-
-                <div class="max-h-60 overflow-y-auto">
-                    <template x-for="option in filtered" :key="option.id">
+                <div class="max-h-72 min-h-0 overflow-y-auto">
+                    <template x-for="option in available" :key="option.id">
                         <button
                             type="button"
-                            @click="toggle(option.id)"
-                            :class="isDark
-                                ? 'text-zinc-100 hover:bg-zinc-700'
-                                : 'text-zinc-900 hover:bg-zinc-100'"
-                            class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm"
+                            @click="select(option.id)"
+                            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
                         >
                             <span x-text="(option.parentId ? '↳ ' : '') + option.name"></span>
-                            <flux:icon.check x-show="isSelected(option.id)" variant="mini" class="size-4 shrink-0 text-[var(--color-accent)]" />
                         </button>
                     </template>
 
-                    <div
-                        x-show="filtered.length === 0"
-                        :class="isDark ? 'text-zinc-400' : 'text-zinc-500'"
-                        class="px-3 py-2 text-sm"
-                    >
-                        No results found.
-                    </div>
+                    <p x-show="available.length === 0" class="px-3 py-2 text-sm text-zinc-400">
+                        {{ __('No more skills to add.') }}
+                    </p>
                 </div>
             </div>
-        </template>
+
+            <div class="flex min-h-0 flex-col rounded-lg border border-zinc-200 dark:border-white/10">
+                <p class="border-b border-zinc-200 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:border-white/10 dark:text-zinc-500">
+                    {{ __('Selected') }}
+                </p>
+
+                <div class="max-h-72 min-h-0 overflow-y-auto">
+                    <template x-for="option in chosen" :key="option.id">
+                        <button
+                            type="button"
+                            @click="deselect(option.id)"
+                            class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                        >
+                            <span x-text="(option.parentId ? '↳ ' : '') + option.name"></span>
+                            <flux:icon.x-mark variant="mini" class="size-4 shrink-0 text-zinc-400" />
+                        </button>
+                    </template>
+
+                    <p x-show="chosen.length === 0" class="px-3 py-2 text-sm text-zinc-400">
+                        {{ __('No skills selected yet.') }}
+                    </p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <flux:button type="submit" variant="primary" class="w-full">

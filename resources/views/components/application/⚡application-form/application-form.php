@@ -274,7 +274,7 @@ new #[Layout('layouts.auth')] class extends Component
             'available_from' => ['nullable', 'date'],
             'key_stages' => ['nullable', 'array'],
             'key_stages.*' => ['string', Rule::enum(KeyStage::class)],
-            'skills' => ['nullable', 'array'],
+            'skills' => ['required', 'array', 'min:1'],
             'skills.*' => ['integer', 'exists:candidate_skills,id'],
         ]);
 
