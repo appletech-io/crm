@@ -353,6 +353,18 @@ test('saveWorkPreferences validates availability and key_stages values', functio
         ->assertHasErrors(['availability.0', 'key_stages.0']);
 });
 
+test('saveWorkPreferences requires at least one skill', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 4)
+        ->set('skills', [])
+        ->call('saveWorkPreferences')
+        ->assertHasErrors(['skills']);
+
+    expect($application->fresh()->current_step)->toBe(1);
+});
+
 test('addReference appends a blank reference row', function () {
     $application = makePendingApplication();
 
