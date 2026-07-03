@@ -4,7 +4,7 @@ use App\Models\EducationApplication;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
-new #[Layout('layouts.auth')] class extends Component
+new #[Layout('layouts.app')] class extends Component
 {
     public string $token = '';
     public string $email = '';

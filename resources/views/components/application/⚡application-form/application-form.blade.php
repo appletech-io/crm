@@ -38,8 +38,13 @@
         @include('components.application.application-form-steps.skills-work')
     @endif
 
-    {{-- Step 5: References --}}
+    {{-- Step 5: Employment history --}}
     @if ($currentStep === 5)
+        @include('components.application.application-form-steps.employment-history')
+    @endif
+
+    {{-- Step 6: References --}}
+    @if ($currentStep === 6)
         @include('components.application.application-form-steps.references')
     @endif
 

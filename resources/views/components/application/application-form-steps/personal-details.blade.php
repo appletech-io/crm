@@ -301,18 +301,6 @@
         </div>
     </div>
 
-    {{-- Employment History --}}
-    <div class="flex flex-col gap-4">
-        <p class="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{{ __('Employment History') }}</p>
-
-        <flux:textarea
-            wire:model="employment_history"
-            :description="__('List your previous roles, employers, and dates.')"
-            rows="6"
-            placeholder="e.g. Class Teacher, Oakwood Primary School, Sept 2020 – Present"
-        />
-    </div>
-
     @foreach(['first_name', 'last_name', 'date_of_birth', 'address', 'city', 'postcode'] as $field)
         @error($field)
             <flux:error>{{ $message }}</flux:error>

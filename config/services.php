@@ -38,4 +38,11 @@ return [
     'google' => [
         'places_key' => env('GOOGLE_PLACES_API_KEY', ''),
     ],
+
+    'microsoft' => [
+        'tenant_id' => env('MS_TENANT_ID'),
+        'client_id' => env('MS_CLIENT_ID'),
+        'client_secret' => env('MS_CLIENT_SECRET'),
+        'sender_email' => env('MS_SENDER_EMAIL'),
+    ],
 ];

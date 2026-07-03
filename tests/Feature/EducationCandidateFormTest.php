@@ -116,3 +116,19 @@ test('new references default to pending status and can be moved through the work
     expect($reference->status)->toBe(ReferenceStatus::Confirmed);
     expect($reference->last_contacted->toDateString())->toBe('2026-06-01');
 });
+
+test('employment history can be viewed and saved via the repeater on the candidate edit form', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    $candidate->employmentHistories()->create([
+        'company_name' => 'Oakwood Primary',
+        'job_title' => 'Class Teacher',
+        'worked_from' => '2020-09-01',
+    ]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertFormFieldExists('employmentHistories')
+        ->assertSuccessful();
+
+    expect($candidate->employmentHistories()->count())->toBe(1);
+});

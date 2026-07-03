@@ -19,7 +19,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
-new #[Layout('layouts.auth')] class extends Component
+new #[Layout('layouts.application')] class extends Component
 {
     use WithFileUploads;
 
@@ -28,7 +28,8 @@ new #[Layout('layouts.auth')] class extends Component
         2 => 'Your Details',
         3 => 'Photo',
         4 => 'Skills & Work',
-        5 => 'References',
+        5 => 'Employment History',
+        6 => 'References',
     ];
 
     private const REFERENCE_HISTORY_YEARS = 3;
@@ -85,9 +86,6 @@ new #[Layout('layouts.auth')] class extends Component
 
     public string $emergency_contact_number = '';
 
-    // Employment
-    public string $employment_history = '';
-
     // Skills & work preferences
     public ?int $qualification_id = null;
 
@@ -98,6 +96,9 @@ new #[Layout('layouts.auth')] class extends Component
     public array $key_stages = [];
 
     public array $skills = [];
+
+    // Employment History
+    public array $employmentHistories = [];
 
     // References
     public array $references = [];
@@ -134,6 +135,14 @@ new #[Layout('layouts.auth')] class extends Component
 
         if ($this->currentStep === 2 && ! empty($this->application->cv_parsed_data)) {
             $this->hydrateFromParsedData($this->application->cv_parsed_data, onlyFillBlanks: true);
+        }
+
+        if (empty($this->employmentHistories)) {
+            $this->employmentHistories = $this->seedEmploymentHistoriesFromCvData($this->application->cv_parsed_data ?? []);
+        }
+
+        if (empty($this->employmentHistories)) {
+            $this->employmentHistories = [$this->blankEmploymentHistory()];
         }
 
         if (empty($this->references)) {
@@ -183,7 +192,6 @@ new #[Layout('layouts.auth')] class extends Component
             $this->mobile = $extracted->mobile ?? '';
             $this->gender = $extracted->gender ?? null;
             $this->nationality = $extracted->nationality ?? null;
-            $this->employment_history = $extracted->employmentHistory ?? '';
             $this->cv_parsed_data = (array) $extracted;
         } catch (Throwable $e) {
             $this->parseError = 'CV parsing failed. Please fill in your details manually below.';
@@ -215,7 +223,6 @@ new #[Layout('layouts.auth')] class extends Component
             'mobile' => ['nullable', 'string', 'max:20'],
             'emergency_contact_name' => ['nullable', 'string', 'max:255'],
             'emergency_contact_number' => ['nullable', 'string', 'max:20'],
-            'employment_history' => ['nullable', 'string'],
         ]);
 
         $this->application->educationCandidate->update([
@@ -236,7 +243,6 @@ new #[Layout('layouts.auth')] class extends Component
             'mobile' => $this->mobile ?: null,
             'emergency_contact_name' => $this->emergency_contact_name ?: null,
             'emergency_contact_number' => $this->emergency_contact_number ?: null,
-            'employment_history' => $this->employment_history ?: null,
         ]);
 
         $this->goToStep(3);
@@ -298,6 +304,125 @@ new #[Layout('layouts.auth')] class extends Component
         $this->goToStep(5);
     }
 
+    public function addEmploymentHistory(): void
+    {
+        $this->employmentHistories[] = $this->blankEmploymentHistory();
+    }
+
+    public function removeEmploymentHistory(int $index): void
+    {
+        $entry = $this->employmentHistories[$index] ?? null;
+
+        if ($entry && ! empty($entry['id'])) {
+            $this->application->educationCandidate->employmentHistories()->whereKey($entry['id'])->delete();
+        }
+
+        unset($this->employmentHistories[$index]);
+
+        $this->employmentHistories = array_values($this->employmentHistories);
+
+        if (empty($this->employmentHistories)) {
+            $this->employmentHistories = [$this->blankEmploymentHistory()];
+        }
+    }
+
+    public function toggleEmploymentHistoryCollapsed(int $index): void
+    {
+        $this->employmentHistories[$index]['collapsed'] = ! ($this->employmentHistories[$index]['collapsed'] ?? false);
+    }
+
+    public function saveEmploymentHistory(int $index): void
+    {
+        $this->validate($this->employmentHistoryValidationRules((string) $index));
+
+        $this->persistEmploymentHistory($index);
+
+        $this->employmentHistories[$index]['collapsed'] = true;
+    }
+
+    public function submitEmploymentHistory(): void
+    {
+        $this->validate($this->employmentHistoryValidationRules('*') + [
+            'employmentHistories' => ['required', 'array', 'min:1'],
+        ]);
+
+        foreach (array_keys($this->employmentHistories) as $index) {
+            $this->persistEmploymentHistory($index);
+        }
+
+        $this->goToStep(6);
+    }
+
+    /** @return array<string, array<int, mixed>> */
+    private function employmentHistoryValidationRules(string $index): array
+    {
+        return [
+            "employmentHistories.{$index}.company_name" => ['required', 'string', 'max:255'],
+            "employmentHistories.{$index}.job_title" => ['required', 'string', 'max:255'],
+            "employmentHistories.{$index}.worked_from" => ['required', 'date'],
+            "employmentHistories.{$index}.worked_to" => ['nullable', 'date', "after_or_equal:employmentHistories.{$index}.worked_from"],
+        ];
+    }
+
+    private function persistEmploymentHistory(int $index): void
+    {
+        $entry = $this->employmentHistories[$index];
+
+        $data = [
+            'company_name' => $entry['company_name'],
+            'job_title' => $entry['job_title'],
+            'worked_from' => $entry['worked_from'],
+            'worked_to' => $entry['worked_to'] ?: null,
+        ];
+
+        $candidate = $this->application->educationCandidate;
+
+        if (! empty($entry['id'])) {
+            $candidate->employmentHistories()->findOrFail($entry['id'])->update($data);
+
+            return;
+        }
+
+        $record = $candidate->employmentHistories()->create($data);
+
+        $this->employmentHistories[$index]['id'] = $record->id;
+    }
+
+    private function blankEmploymentHistory(): array
+    {
+        return [
+            'id' => null,
+            'company_name' => '',
+            'job_title' => '',
+            'worked_from' => null,
+            'worked_to' => null,
+            'collapsed' => false,
+        ];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function seedEmploymentHistoriesFromCvData(array $data): array
+    {
+        $entries = $data['employmentHistory'] ?? null;
+
+        if (! is_array($entries) || empty($entries)) {
+            return [];
+        }
+
+        return collect($entries)
+            ->filter(fn ($entry) => is_array($entry))
+            ->map(fn (array $entry) => [
+                'id' => null,
+                'company_name' => $entry['companyName'] ?? '',
+                'job_title' => $entry['jobTitle'] ?? '',
+                'worked_from' => $this->formatDateForDisplay($entry['workedFrom'] ?? null),
+                'worked_to' => $this->formatDateForDisplay($entry['workedTo'] ?? null),
+                'collapsed' => false,
+            ])
+            ->values()
+            ->all();
+    }
+
     public function addReference(): void
     {
         $this->references[] = $this->blankReference();
@@ -352,7 +477,7 @@ new #[Layout('layouts.auth')] class extends Component
 
         $this->application->update([
             'status' => 'completed',
-            'current_step' => 5,
+            'current_step' => 6,
             'completed_at' => now(),
         ]);
     }
@@ -414,24 +539,24 @@ new #[Layout('layouts.auth')] class extends Component
         $this->references[$index]['id'] = $record->id;
     }
 
-    /** @param array<string, mixed> $reference */
-    public function referencePeriodLabel(array $reference): ?string
+    /** @param array<string, mixed> $item */
+    public function workPeriodLabel(array $item): ?string
     {
-        if (empty($reference['worked_from'])) {
+        if (empty($item['worked_from'])) {
             return null;
         }
 
         try {
-            $from = Carbon::parse($reference['worked_from']);
-            $to = $reference['worked_to'] ? Carbon::parse($reference['worked_to']) : today();
+            $from = Carbon::parse($item['worked_from']);
+            $to = $item['worked_to'] ? Carbon::parse($item['worked_to']) : today();
         } catch (Throwable) {
             return null;
         }
 
         $duration = $from->diffForHumans($to, syntax: Carbon::DIFF_ABSOLUTE, parts: 2);
-        $toLabel = $reference['worked_to'] ?: 'Present';
+        $toLabel = $item['worked_to'] ?: 'Present';
 
-        return $reference['worked_from'].' – '.$toLabel.' ('.$duration.')';
+        return $item['worked_from'].' – '.$toLabel.' ('.$duration.')';
     }
 
     private function validateReferenceHistoryCoverage(): void
@@ -618,13 +743,21 @@ new #[Layout('layouts.auth')] class extends Component
         $this->mobile = $candidate->mobile ?? '';
         $this->emergency_contact_name = $candidate->emergency_contact_name ?? '';
         $this->emergency_contact_number = $candidate->emergency_contact_number ?? '';
-        $this->employment_history = $candidate->employment_history ?? '';
 
         $this->qualification_id = $candidate->qualification_id;
         $this->availability = $candidate->availability ?? [];
         $this->available_from = $candidate->available_from?->format(self::DATE_DISPLAY_FORMAT);
         $this->key_stages = $candidate->key_stages ?? [];
         $this->skills = $candidate->skills->pluck('id')->all();
+
+        $this->employmentHistories = $candidate->employmentHistories->map(fn ($entry) => [
+            'id' => $entry->id,
+            'company_name' => $entry->company_name,
+            'job_title' => $entry->job_title,
+            'worked_from' => $entry->worked_from?->format(self::DATE_DISPLAY_FORMAT),
+            'worked_to' => $entry->worked_to?->format(self::DATE_DISPLAY_FORMAT),
+            'collapsed' => true,
+        ])->all();
 
         $this->references = $candidate->references->map(fn ($reference) => [
             'id' => $reference->id,
@@ -665,7 +798,6 @@ new #[Layout('layouts.auth')] class extends Component
             'postcode' => $data['postcode'] ?? '',
             'phone' => $data['phone'] ?? '',
             'mobile' => $data['mobile'] ?? '',
-            'employment_history' => $data['employmentHistory'] ?? '',
         ];
 
         foreach ($map as $property => $value) {

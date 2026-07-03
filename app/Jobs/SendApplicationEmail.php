@@ -32,7 +32,7 @@ class SendApplicationEmail implements ShouldQueue
     {
         $template = EmailTemplate::query()
             ->where('company_id', $this->candidate->company_id)
-            ->where('industry_id', $this->candidate->industry_id)
+            ->where('industry_id', 1)
             ->where('type', 'application')
             ->first();
 
@@ -50,7 +50,7 @@ class SendApplicationEmail implements ShouldQueue
                 to: $this->candidate->email,
                 subject: $this->replacePlaceholders($template->subject ?? ''),
                 body: $this->replacePlaceholders($template->body ?? ''),
-                from: $this->candidate->consultant?->email,
+                // from: $this->candidate->consultant?->email,
             );
 
             $this->candidate->activities()->create([

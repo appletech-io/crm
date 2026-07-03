@@ -33,7 +33,7 @@ class CvParserService
         $extraction->mobile = $response['mobile'] ?? null;
         $extraction->gender = $response['gender'] ?? null;
         $extraction->nationality = $response['nationality'] ?? null;
-        $extraction->employmentHistory = $response['employmentHistory'] ?? null;
+        $extraction->employmentHistory = $response['employmentHistory'] ?? [];
         $extraction->educationAndQualification = $response['educationAndQualification'] ?? null;
         $extraction->summary = $response['summary'] ?? null;
         $extraction->skills = $response['skills'] ?? null;

@@ -81,6 +81,11 @@ class EducationCandidate extends Model
         return $this->morphMany(CandidateReference::class, 'candidate');
     }
 
+    public function employmentHistories(): MorphMany
+    {
+        return $this->morphMany(CandidateEmploymentHistory::class, 'candidate');
+    }
+
     public function statuses(): MorphMany
     {
         return $this->morphMany(CandidateCandidateStatus::class, 'model')->latest();

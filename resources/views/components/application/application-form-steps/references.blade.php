@@ -39,7 +39,7 @@
                         {{ trim($reference['first_name'].' '.$reference['last_name']) ?: __('Untitled reference') }}
                     </span>
 
-                    @if ($period = $this->referencePeriodLabel($reference))
+                    @if ($period = $this->workPeriodLabel($reference))
                         <span class="text-xs text-zinc-500 dark:text-zinc-400">{{ $period }}</span>
                     @endif
                 </button>

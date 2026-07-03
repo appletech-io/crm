@@ -352,6 +352,31 @@ class EducationCandidateForm
                                     ->columnSpanFull(),
                             ]),
 
+                        Tab::make('Employment History')
+                            ->schema([
+                                Repeater::make('employmentHistories')
+                                    ->relationship()
+                                    ->label('')
+                                    ->schema([
+                                        TextInput::make('job_title')
+                                            ->required()
+                                            ->maxLength(255),
+                                        TextInput::make('company_name')
+                                            ->label('Company / School')
+                                            ->required()
+                                            ->maxLength(255),
+                                        DatePicker::make('worked_from')
+                                            ->native(false),
+                                        DatePicker::make('worked_to')
+                                            ->native(false),
+                                    ])
+                                    ->columns(2)
+                                    ->itemLabel(fn (array $state): ?string => trim(($state['job_title'] ?? '').' at '.($state['company_name'] ?? ''), ' at ') ?: 'Job')
+                                    ->collapsible()
+                                    ->collapsed()
+                                    ->columnSpanFull(),
+                            ]),
+
                         Tab::make('References')
                             ->schema([
                                 Repeater::make('references')

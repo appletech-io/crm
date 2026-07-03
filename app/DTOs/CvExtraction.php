@@ -30,7 +30,8 @@ class CvExtraction
 
     public ?string $nationality = null;
 
-    public ?string $employmentHistory = null;
+    /** @var array<int, array{companyName: ?string, jobTitle: ?string, workedFrom: ?string, workedTo: ?string}> */
+    public array $employmentHistory = [];
 
     public ?string $educationAndQualification = null;
 

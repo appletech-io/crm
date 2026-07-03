@@ -40,7 +40,16 @@ class CvParser implements Agent, HasStructuredOutput
             'mobile' => $schema->string()->description('Mobile phone number'),
             'gender' => $schema->string()->description('Gender if stated in the CV'),
             'nationality' => $schema->string()->description('Nationality if stated in the CV'),
-            'employmentHistory' => $schema->string()->description('Complete employment history as plain text with job titles, employers, dates and responsibilities'),
+            'employmentHistory' => $schema->array()
+                ->description('List of previous jobs, most recent first')
+                ->items(
+                    $schema->object(fn ($schema) => [
+                        'companyName' => $schema->string()->required(),
+                        'jobTitle' => $schema->string()->required(),
+                        'workedFrom' => $schema->string()->description('Start date in YYYY-MM-DD format. If only month/year is known, use the first day of the month.'),
+                        'workedTo' => $schema->string()->description('End date in YYYY-MM-DD format. Leave null if this is their current job.'),
+                    ])
+                ),
             'educationAndQualification' => $schema->string()->description('Education qualifications and certifications as plain text'),
             'skills' => $schema->string()->description('Key skills and competencies as a comma-separated list'),
             'summary' => $schema->string()->description('Professional summary or personal statement from the CV'),
