@@ -1,6 +1,8 @@
 <?php
 
 use App\Ai\Agents\CvParser;
+use App\Enums\ReferenceStatus;
+use App\Enums\ReferenceType;
 use App\Models\CandidateSkill;
 use App\Models\EducationApplication;
 use App\Models\EducationCandidate;
@@ -295,7 +297,7 @@ test('savePhoto persists candidate photo and advances to step 4', function () {
     expect($application->fresh()->current_step)->toBe(4);
 });
 
-test('submitApplication persists skills, qualification, and work preferences and marks application complete', function () {
+test('saveWorkPreferences persists skills, qualification, and work preferences and advances to references step', function () {
     $application = makePendingApplication();
     $candidate = $application->educationCandidate;
 
@@ -324,8 +326,9 @@ test('submitApplication persists skills, qualification, and work preferences and
         ->set('available_from', now()->addWeek()->toDateString())
         ->set('key_stages', ['keystage_1', 'keystage_2'])
         ->set('skills', [$childSkill->id])
-        ->call('submitApplication')
-        ->assertHasNoErrors();
+        ->call('saveWorkPreferences')
+        ->assertHasNoErrors()
+        ->assertSet('currentStep', 5);
 
     $candidate->refresh();
     expect($candidate->qualification_id)->toBe($qualification->id);
@@ -334,19 +337,302 @@ test('submitApplication persists skills, qualification, and work preferences and
     expect($candidate->key_stages)->toBe(['keystage_1', 'keystage_2']);
     expect($candidate->skills->pluck('id')->sort()->values()->all())->toBe([$parentSkill->id, $childSkill->id]);
 
-    expect($application->fresh()->status)->toBe('completed');
-    expect($application->fresh()->completed_at)->not->toBeNull();
+    expect($application->fresh()->status)->toBe('pending');
+    expect($application->fresh()->completed_at)->toBeNull();
+    expect($application->fresh()->current_step)->toBe(5);
 });
 
-test('submitApplication validates availability and key_stages values', function () {
+test('saveWorkPreferences validates availability and key_stages values', function () {
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 4)
         ->set('availability', ['not-a-real-option'])
         ->set('key_stages', ['not-a-real-key-stage'])
-        ->call('submitApplication')
+        ->call('saveWorkPreferences')
         ->assertHasErrors(['availability.0', 'key_stages.0']);
+});
+
+test('addReference appends a blank reference row', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->assertCount('references', 1)
+        ->call('addReference')
+        ->assertCount('references', 2);
+});
+
+test('removeReference removes the reference at the given index', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->call('addReference')
+        ->set('references.0.first_name', 'First')
+        ->set('references.1.first_name', 'Second')
+        ->call('removeReference', 0)
+        ->assertCount('references', 1)
+        ->assertSet('references.0.first_name', 'Second');
+});
+
+test('saveReference validates and persists a single reference, then collapses it', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    $component = Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->set('references.0', [
+            'type' => 'professional',
+            'title' => 'Mr',
+            'first_name' => 'Jane',
+            'last_name' => 'Smith',
+            'job_title' => 'Head Teacher',
+            'worked_from' => now()->subYears(2)->format('M j, Y'),
+            'worked_to' => now()->format('M j, Y'),
+            'email' => 'jane@example.com',
+            'mobile' => '07700900000',
+            'address' => '1 School Lane',
+            'city' => 'London',
+            'county' => 'Greater London',
+            'country' => 'United Kingdom',
+            'postcode' => 'SW1A 1AA',
+            'consent_to_contact' => true,
+        ])
+        ->call('saveReference', 0)
+        ->assertHasNoErrors();
+
+    expect($candidate->references()->count())->toBe(1);
+    $reference = $candidate->references()->first();
+    expect($reference->first_name)->toBe('Jane');
+    expect($reference->worked_from->toDateString())->toBe(now()->subYears(2)->toDateString());
+    $component->assertSet('references.0.collapsed', true);
+    $component->assertSet('references.0.id', $reference->id);
+});
+
+test('saveReference updates an already-saved reference on a second save without a database error', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->set('references.0', [
+            'type' => 'professional',
+            'title' => 'Mr',
+            'first_name' => 'Jane',
+            'last_name' => 'Smith',
+            'job_title' => 'Head Teacher',
+            'worked_from' => now()->subYears(2)->format('M j, Y'),
+            'worked_to' => now()->format('M j, Y'),
+            'email' => 'jane@example.com',
+            'mobile' => '07700900000',
+            'address' => '1 School Lane',
+            'city' => 'London',
+            'county' => 'Greater London',
+            'country' => 'United Kingdom',
+            'postcode' => 'SW1A 1AA',
+            'consent_to_contact' => true,
+        ])
+        ->call('saveReference', 0)
+        ->call('toggleReferenceCollapsed', 0)
+        ->set('references.0.worked_from', now()->subYears(3)->format('M j, Y'))
+        ->call('saveReference', 0)
+        ->assertHasNoErrors();
+
+    expect($candidate->references()->count())->toBe(1);
+    expect($candidate->references()->first()->worked_from->toDateString())->toBe(now()->subYears(3)->toDateString());
+});
+
+test('saveReference does not persist or collapse when validation fails', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->call('saveReference', 0)
+        ->assertHasErrors(['references.0.first_name'])
+        ->assertSet('references.0.collapsed', false);
+
+    expect($candidate->references()->count())->toBe(0);
+});
+
+test('toggleReferenceCollapsed expands and collapses a reference', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->assertSet('references.0.collapsed', false)
+        ->call('toggleReferenceCollapsed', 0)
+        ->assertSet('references.0.collapsed', true)
+        ->call('toggleReferenceCollapsed', 0)
+        ->assertSet('references.0.collapsed', false);
+});
+
+test('removeReference deletes an already-saved reference from the database', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->set('references.0', [
+            'type' => 'professional',
+            'title' => 'Mr',
+            'first_name' => 'Jane',
+            'last_name' => 'Smith',
+            'job_title' => 'Head Teacher',
+            'worked_from' => now()->subYears(2)->toDateString(),
+            'worked_to' => now()->toDateString(),
+            'email' => 'jane@example.com',
+            'mobile' => '07700900000',
+            'address' => '1 School Lane',
+            'city' => 'London',
+            'county' => 'Greater London',
+            'country' => 'United Kingdom',
+            'postcode' => 'SW1A 1AA',
+            'consent_to_contact' => true,
+        ])
+        ->call('saveReference', 0)
+        ->call('addReference')
+        ->call('removeReference', 0);
+
+    expect($candidate->references()->count())->toBe(0);
+});
+
+test('submitApplication validates required reference fields', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->call('submitApplication')
+        ->assertHasErrors([
+            'references.0.type',
+            'references.0.first_name',
+            'references.0.last_name',
+            'references.0.worked_from',
+            'references.0.consent_to_contact',
+        ]);
+});
+
+test('submitApplication rejects references that leave a gap in the last 3 years', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->set('references.0', [
+            'type' => 'professional',
+            'title' => 'Mr',
+            'first_name' => 'Jane',
+            'last_name' => 'Smith',
+            'job_title' => 'Head Teacher',
+            'worked_from' => now()->subYears(3)->toDateString(),
+            'worked_to' => now()->subMonths(18)->toDateString(),
+            'email' => 'jane@example.com',
+            'mobile' => '07700900000',
+            'address' => '1 School Lane',
+            'city' => 'London',
+            'county' => 'Greater London',
+            'country' => 'United Kingdom',
+            'postcode' => 'SW1A 1AA',
+            'consent_to_contact' => true,
+        ])
+        ->call('submitApplication')
+        ->assertHasErrors(['references']);
+
+    expect($application->fresh()->status)->toBe('pending');
+});
+
+test('submitApplication persists references and completes the application when history is fully covered', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->set('references.0', [
+            'type' => 'professional',
+            'title' => 'Mr',
+            'first_name' => 'Jane',
+            'last_name' => 'Smith',
+            'job_title' => 'Head Teacher',
+            'worked_from' => now()->subYears(3)->toDateString(),
+            'worked_to' => now()->subYears(1)->toDateString(),
+            'email' => 'jane@example.com',
+            'mobile' => '07700900000',
+            'address' => '1 School Lane',
+            'city' => 'London',
+            'county' => 'Greater London',
+            'country' => 'United Kingdom',
+            'postcode' => 'SW1A 1AA',
+            'consent_to_contact' => true,
+        ])
+        ->call('addReference')
+        ->set('references.1', [
+            'type' => 'character',
+            'title' => 'Mrs',
+            'first_name' => 'Alex',
+            'last_name' => 'Jones',
+            'job_title' => 'Deputy Head',
+            'worked_from' => now()->subYears(1)->toDateString(),
+            'worked_to' => null,
+            'email' => 'alex@example.com',
+            'mobile' => '07700900001',
+            'address' => '2 School Lane',
+            'city' => 'Manchester',
+            'county' => 'Greater Manchester',
+            'country' => 'United Kingdom',
+            'postcode' => 'M1 1AA',
+            'consent_to_contact' => true,
+        ])
+        ->call('submitApplication')
+        ->assertHasNoErrors();
+
+    expect($candidate->references()->count())->toBe(2);
+
+    $first = $candidate->references()->where('first_name', 'Jane')->first();
+    expect($first->type)->toBe(ReferenceType::Professional);
+    expect($first->consent_to_contact)->toBeTrue();
+    expect($first->status)->toBe(ReferenceStatus::Pending);
+    expect($first->last_contacted)->toBeNull();
+
+    expect($application->fresh()->status)->toBe('completed');
+    expect($application->fresh()->completed_at)->not->toBeNull();
+    expect($application->fresh()->current_step)->toBe(5);
+});
+
+test('references step does not expose status or last contacted fields to the candidate', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->assertDontSee('Last Contacted')
+        ->assertDontSeeHtml('wire:model="references.0.status"')
+        ->assertDontSeeHtml('wire:model="references.0.last_contacted"');
+});
+
+test('references step displays how much of the last 3 years is currently covered', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->assertSee('0 years, 0 months')
+        ->set('references.0', [
+            'type' => 'professional',
+            'title' => 'Mr',
+            'first_name' => 'Jane',
+            'last_name' => 'Smith',
+            'job_title' => 'Head Teacher',
+            'worked_from' => now()->subYears(3)->format('M j, Y'),
+            'worked_to' => now()->subYears(1)->format('M j, Y'),
+            'email' => 'jane@example.com',
+            'mobile' => '07700900000',
+            'address' => '1 School Lane',
+            'city' => 'London',
+            'county' => 'Greater London',
+            'country' => 'United Kingdom',
+            'postcode' => 'SW1A 1AA',
+            'consent_to_contact' => true,
+        ])
+        ->assertSee('2 years')
+        ->assertSee('gap');
 });
 
 test('mount resumes at the persisted step and hydrates saved candidate data', function () {
@@ -424,8 +710,8 @@ test('progress bar displays the current section name and percentage', function (
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->assertSee('Photo')
-        ->assertSee('Step 3 of 4')
-        ->assertSee('75%');
+        ->assertSee('Step 3 of 5')
+        ->assertSee('60%');
 });
 
 test('viewStep allows navigating back to an already reached step', function () {

@@ -5,14 +5,18 @@ namespace App\Filament\Resources\EducationCandidates\Schemas;
 use App\Enums\Education\Availability;
 use App\Enums\Education\KeyStage;
 use App\Enums\Nationality;
+use App\Enums\ReferenceStatus;
+use App\Enums\ReferenceType;
 use App\Filament\Widgets\CandidateActivityTimeline;
 use App\Models\CandidateSkill;
 use App\Models\Qualification;
 use App\Models\User;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -345,6 +349,86 @@ class EducationCandidateForm
                                             ->toArray()
                                     )
                                     ->columns(3)
+                                    ->columnSpanFull(),
+                            ]),
+
+                        Tab::make('References')
+                            ->schema([
+                                Repeater::make('references')
+                                    ->relationship()
+                                    ->label('')
+                                    ->schema([
+                                        Select::make('type')
+                                            ->label('Reference Type')
+                                            ->options(
+                                                collect(ReferenceType::cases())
+                                                    ->mapWithKeys(fn (ReferenceType $case) => [
+                                                        $case->value => $case->label(),
+                                                    ])
+                                                    ->toArray()
+                                            )
+                                            ->required(),
+                                        TextInput::make('title')
+                                            ->maxLength(10),
+                                        TextInput::make('first_name')
+                                            ->required()
+                                            ->maxLength(255),
+                                        TextInput::make('last_name')
+                                            ->required()
+                                            ->maxLength(255),
+                                        TextInput::make('job_title')
+                                            ->maxLength(255),
+                                        DatePicker::make('worked_from')
+                                            ->native(false),
+                                        DatePicker::make('worked_to')
+                                            ->native(false),
+                                        TextInput::make('email')
+                                            ->email()
+                                            ->maxLength(255),
+                                        TextInput::make('mobile')
+                                            ->tel()
+                                            ->maxLength(255),
+                                        TextInput::make('address')
+                                            ->maxLength(500)
+                                            ->columnSpanFull(),
+                                        TextInput::make('city')
+                                            ->label('City / Town')
+                                            ->maxLength(255),
+                                        TextInput::make('postcode')
+                                            ->maxLength(10),
+                                        TextInput::make('county')
+                                            ->maxLength(255),
+                                        TextInput::make('country')
+                                            ->maxLength(255),
+                                        Checkbox::make('consent_to_contact')
+                                            ->label('Candidate consents to us contacting this referee')
+                                            ->columnSpanFull(),
+                                        Select::make('status')
+                                            ->options(
+                                                collect(ReferenceStatus::cases())
+                                                    ->mapWithKeys(fn (ReferenceStatus $case) => [
+                                                        $case->value => $case->label(),
+                                                    ])
+                                                    ->toArray()
+                                            )
+                                            ->default(ReferenceStatus::Pending->value)
+                                            ->required()
+                                            ->live()
+                                            ->suffixIcon(fn (Get $get) => ReferenceStatus::tryFrom($get('status') ?? '')?->icon())
+                                            ->suffixIconColor(fn (Get $get) => ReferenceStatus::tryFrom($get('status') ?? '')?->color()),
+                                        DatePicker::make('last_contacted')
+                                            ->native(false),
+                                    ])
+                                    ->columns(2)
+                                    ->itemLabel(function (array $state): ?string {
+                                        $name = trim(($state['first_name'] ?? '').' '.($state['last_name'] ?? '')) ?: 'Reference';
+
+                                        $status = ReferenceStatus::tryFrom($state['status'] ?? '');
+
+                                        return $status ? "{$name} — {$status->label()} {$status->emoji()}" : $name;
+                                    })
+                                    ->collapsible()
+                                    ->collapsed()
                                     ->columnSpanFull(),
                             ]),
                     ]),

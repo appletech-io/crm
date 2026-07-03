@@ -3,7 +3,7 @@
     :description="__('Tell us about your qualifications, skills, and availability.')"
 />
 
-<form wire:submit="submitApplication" class="mt-6 flex flex-col gap-8">
+<form wire:submit="saveWorkPreferences" class="mt-6 flex flex-col gap-8">
 
     {{-- Qualification & Availability --}}
     <div class="flex flex-col gap-4">
@@ -214,7 +214,7 @@
     </div>
 
     <flux:button type="submit" variant="primary" class="w-full">
-        {{ __('Complete Application') }}
+        {{ __('Continue') }}
     </flux:button>
 
 </form>

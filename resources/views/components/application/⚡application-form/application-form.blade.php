@@ -38,4 +38,9 @@
         @include('components.application.application-form-steps.skills-work')
     @endif
 
+    {{-- Step 5: References --}}
+    @if ($currentStep === 5)
+        @include('components.application.application-form-steps.references')
+    @endif
+
 </div>

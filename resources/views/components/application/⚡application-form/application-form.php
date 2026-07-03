@@ -2,6 +2,7 @@
 
 use App\Enums\Education\Availability;
 use App\Enums\Education\KeyStage;
+use App\Enums\ReferenceType;
 use App\Models\CandidateSkill;
 use App\Models\EducationApplication;
 use App\Models\EducationCandidate;
@@ -27,7 +28,10 @@ new #[Layout('layouts.auth')] class extends Component
         2 => 'Your Details',
         3 => 'Photo',
         4 => 'Skills & Work',
+        5 => 'References',
     ];
+
+    private const REFERENCE_HISTORY_YEARS = 3;
 
     private const DATE_DISPLAY_FORMAT = 'M j, Y';
 
@@ -95,6 +99,9 @@ new #[Layout('layouts.auth')] class extends Component
 
     public array $skills = [];
 
+    // References
+    public array $references = [];
+
     public array $cv_parsed_data = [];
 
     public function mount(string $token): void
@@ -127,6 +134,10 @@ new #[Layout('layouts.auth')] class extends Component
 
         if ($this->currentStep === 2 && ! empty($this->application->cv_parsed_data)) {
             $this->hydrateFromParsedData($this->application->cv_parsed_data, onlyFillBlanks: true);
+        }
+
+        if (empty($this->references)) {
+            $this->references = [$this->blankReference()];
         }
     }
 
@@ -254,7 +265,7 @@ new #[Layout('layouts.auth')] class extends Component
         $this->goToStep(4);
     }
 
-    public function submitApplication(): void
+    public function saveWorkPreferences(): void
     {
         $this->validate([
             'qualification_id' => ['nullable', 'integer', 'exists:qualifications,id'],
@@ -284,11 +295,234 @@ new #[Layout('layouts.auth')] class extends Component
 
         $candidate->skills()->sync($skillIds->merge($parentIds)->unique()->values());
 
+        $this->goToStep(5);
+    }
+
+    public function addReference(): void
+    {
+        $this->references[] = $this->blankReference();
+    }
+
+    public function removeReference(int $index): void
+    {
+        $reference = $this->references[$index] ?? null;
+
+        if ($reference && ! empty($reference['id'])) {
+            $this->application->educationCandidate->references()->whereKey($reference['id'])->delete();
+        }
+
+        unset($this->references[$index]);
+
+        $this->references = array_values($this->references);
+
+        if (empty($this->references)) {
+            $this->references = [$this->blankReference()];
+        }
+    }
+
+    public function toggleReferenceCollapsed(int $index): void
+    {
+        $this->references[$index]['collapsed'] = ! ($this->references[$index]['collapsed'] ?? false);
+    }
+
+    public function saveReference(int $index): void
+    {
+        $this->validate($this->referenceValidationRules((string) $index));
+
+        $this->persistReference($index);
+
+        $this->references[$index]['collapsed'] = true;
+    }
+
+    public function submitApplication(): void
+    {
+        $this->validate($this->referenceValidationRules('*') + [
+            'references' => ['required', 'array', 'min:1'],
+        ]);
+
+        $this->validateReferenceHistoryCoverage();
+
+        if ($this->getErrorBag()->has('references')) {
+            return;
+        }
+
+        foreach (array_keys($this->references) as $index) {
+            $this->persistReference($index);
+        }
+
         $this->application->update([
             'status' => 'completed',
-            'current_step' => 4,
+            'current_step' => 5,
             'completed_at' => now(),
         ]);
+    }
+
+    /** @return array<string, array<int, mixed>> */
+    private function referenceValidationRules(string $index): array
+    {
+        return [
+            "references.{$index}.type" => ['required', 'string', Rule::enum(ReferenceType::class)],
+            "references.{$index}.title" => ['nullable', 'string', 'max:10'],
+            "references.{$index}.first_name" => ['required', 'string', 'max:255'],
+            "references.{$index}.last_name" => ['required', 'string', 'max:255'],
+            "references.{$index}.job_title" => ['nullable', 'string', 'max:255'],
+            "references.{$index}.worked_from" => ['required', 'date'],
+            "references.{$index}.worked_to" => ['nullable', 'date', "after_or_equal:references.{$index}.worked_from"],
+            "references.{$index}.email" => ['nullable', 'email', 'max:255'],
+            "references.{$index}.mobile" => ['nullable', 'string', 'max:20'],
+            "references.{$index}.address" => ['nullable', 'string', 'max:500'],
+            "references.{$index}.city" => ['nullable', 'string', 'max:255'],
+            "references.{$index}.county" => ['nullable', 'string', 'max:255'],
+            "references.{$index}.country" => ['nullable', 'string', 'max:255'],
+            "references.{$index}.postcode" => ['nullable', 'string', 'max:10'],
+            "references.{$index}.consent_to_contact" => ['accepted'],
+        ];
+    }
+
+    private function persistReference(int $index): void
+    {
+        $reference = $this->references[$index];
+
+        $data = [
+            'type' => $reference['type'],
+            'title' => $reference['title'] ?: null,
+            'first_name' => $reference['first_name'],
+            'last_name' => $reference['last_name'],
+            'job_title' => $reference['job_title'] ?: null,
+            'worked_from' => $reference['worked_from'],
+            'worked_to' => $reference['worked_to'] ?: null,
+            'email' => $reference['email'] ?: null,
+            'mobile' => $reference['mobile'] ?: null,
+            'address' => $reference['address'] ?: null,
+            'city' => data_get($reference, 'city') ?: null,
+            'county' => data_get($reference, 'county') ?: null,
+            'country' => data_get($reference, 'country') ?: null,
+            'postcode' => data_get($reference, 'postcode') ?: null,
+            'consent_to_contact' => (bool) $reference['consent_to_contact'],
+        ];
+
+        $candidate = $this->application->educationCandidate;
+
+        if (! empty($reference['id'])) {
+            $candidate->references()->findOrFail($reference['id'])->update($data);
+
+            return;
+        }
+
+        $record = $candidate->references()->create($data);
+
+        $this->references[$index]['id'] = $record->id;
+    }
+
+    /** @param array<string, mixed> $reference */
+    public function referencePeriodLabel(array $reference): ?string
+    {
+        if (empty($reference['worked_from'])) {
+            return null;
+        }
+
+        try {
+            $from = Carbon::parse($reference['worked_from']);
+            $to = $reference['worked_to'] ? Carbon::parse($reference['worked_to']) : today();
+        } catch (Throwable) {
+            return null;
+        }
+
+        $duration = $from->diffForHumans($to, syntax: Carbon::DIFF_ABSOLUTE, parts: 2);
+        $toLabel = $reference['worked_to'] ?: 'Present';
+
+        return $reference['worked_from'].' – '.$toLabel.' ('.$duration.')';
+    }
+
+    private function validateReferenceHistoryCoverage(): void
+    {
+        $coverage = $this->referenceCoverage();
+
+        if (! $coverage['is_complete']) {
+            $this->addError(
+                'references',
+                'Your references must account for your last '.self::REFERENCE_HISTORY_YEARS.' years of work or education history, with no gaps.'
+            );
+        }
+    }
+
+    /** @return array{covered_until: ?Carbon, is_complete: bool, summary: string} */
+    #[Computed]
+    public function referenceCoverage(): array
+    {
+        $cutoff = now()->subYears(self::REFERENCE_HISTORY_YEARS)->startOfDay();
+
+        $periods = collect($this->references)
+            ->filter(fn (array $reference) => ! empty($reference['worked_from']))
+            ->map(fn (array $reference) => [
+                'from' => Carbon::parse($reference['worked_from'])->startOfDay(),
+                'to' => $reference['worked_to'] ? Carbon::parse($reference['worked_to'])->startOfDay() : today(),
+            ])
+            ->sortBy('from')
+            ->values();
+
+        $coveredUntil = null;
+
+        foreach ($periods as $period) {
+            if ($coveredUntil === null) {
+                if ($period['from']->gt($cutoff)) {
+                    break;
+                }
+
+                $coveredUntil = $period['to'];
+
+                continue;
+            }
+
+            if ($period['from']->gt($coveredUntil->copy()->addDay())) {
+                break;
+            }
+
+            if ($period['to']->gt($coveredUntil)) {
+                $coveredUntil = $period['to'];
+            }
+        }
+
+        $isComplete = $coveredUntil !== null && $coveredUntil->gte(today());
+
+        if ($coveredUntil === null) {
+            $summary = 'Your references currently account for 0 years, 0 months of the last '.self::REFERENCE_HISTORY_YEARS.' years.';
+        } elseif ($isComplete) {
+            $summary = 'Your references fully account for the last '.self::REFERENCE_HISTORY_YEARS.' years.';
+        } else {
+            $coveredLabel = $cutoff->diffForHumans($coveredUntil, syntax: Carbon::DIFF_ABSOLUTE, parts: 2);
+            $gapFrom = $coveredUntil->copy()->addDay()->format(self::DATE_DISPLAY_FORMAT);
+            $summary = 'Your references currently account for '.$coveredLabel.' of the last '.self::REFERENCE_HISTORY_YEARS.' years. There is a gap starting '.$gapFrom.'.';
+        }
+
+        return [
+            'covered_until' => $coveredUntil,
+            'is_complete' => $isComplete,
+            'summary' => $summary,
+        ];
+    }
+
+    private function blankReference(): array
+    {
+        return [
+            'id' => null,
+            'type' => null,
+            'title' => null,
+            'first_name' => '',
+            'last_name' => '',
+            'job_title' => '',
+            'worked_from' => null,
+            'worked_to' => null,
+            'email' => '',
+            'mobile' => '',
+            'address' => '',
+            'city' => '',
+            'county' => '',
+            'country' => '',
+            'postcode' => '',
+            'consent_to_contact' => false,
+            'collapsed' => false,
+        ];
     }
 
     public function viewStep(int $step): void
@@ -391,6 +625,30 @@ new #[Layout('layouts.auth')] class extends Component
         $this->available_from = $candidate->available_from?->format(self::DATE_DISPLAY_FORMAT);
         $this->key_stages = $candidate->key_stages ?? [];
         $this->skills = $candidate->skills->pluck('id')->all();
+
+        $this->references = $candidate->references->map(fn ($reference) => [
+            'id' => $reference->id,
+            'type' => $reference->type?->value,
+            'title' => $reference->title,
+            'first_name' => $reference->first_name,
+            'last_name' => $reference->last_name,
+            'job_title' => $reference->job_title,
+            'worked_from' => $reference->worked_from?->format(self::DATE_DISPLAY_FORMAT),
+            'worked_to' => $reference->worked_to?->format(self::DATE_DISPLAY_FORMAT),
+            'email' => $reference->email,
+            'mobile' => $reference->mobile,
+            'address' => $reference->address,
+            'city' => $reference->city,
+            'county' => $reference->county,
+            'country' => $reference->country,
+            'postcode' => $reference->postcode,
+            'consent_to_contact' => $reference->consent_to_contact,
+            'collapsed' => true,
+        ])->all();
+
+        if (empty($this->references)) {
+            $this->references = [$this->blankReference()];
+        }
     }
 
     private function hydrateFromParsedData(array $data, bool $onlyFillBlanks = false): void
