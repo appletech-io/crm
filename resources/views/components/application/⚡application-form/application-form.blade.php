@@ -38,23 +38,28 @@
         @include('components.application.application-form-steps.consent')
     @endif
 
-    {{-- Step 5: Photo upload --}}
+    {{-- Step 5: Employment conduct --}}
     @if ($currentStep === 5)
+        @include('components.application.application-form-steps.employment-conduct')
+    @endif
+
+    {{-- Step 6: Photo upload --}}
+    @if ($currentStep === 6)
         @include('components.application.application-form-steps.photo-upload')
     @endif
 
-    {{-- Step 6: Skills & work preferences --}}
-    @if ($currentStep === 6)
+    {{-- Step 7: Skills & work preferences --}}
+    @if ($currentStep === 7)
         @include('components.application.application-form-steps.skills-work')
     @endif
 
-    {{-- Step 7: Employment history --}}
-    @if ($currentStep === 7)
+    {{-- Step 8: Employment history --}}
+    @if ($currentStep === 8)
         @include('components.application.application-form-steps.employment-history')
     @endif
 
-    {{-- Step 8: References --}}
-    @if ($currentStep === 8)
+    {{-- Step 9: References --}}
+    @if ($currentStep === 9)
         @include('components.application.application-form-steps.references')
     @endif
 

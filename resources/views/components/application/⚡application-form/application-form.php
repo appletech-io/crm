@@ -29,10 +29,11 @@ new #[Layout('layouts.application')] class extends Component
         2 => 'Your Details',
         3 => 'Medical Information',
         4 => 'Consent',
-        5 => 'Photo',
-        6 => 'Skills & Work',
-        7 => 'Employment History',
-        8 => 'References',
+        5 => 'Employment Conduct',
+        6 => 'Photo',
+        7 => 'Skills & Work',
+        8 => 'Employment History',
+        9 => 'References',
     ];
 
     private const REFERENCE_HISTORY_YEARS = 3;
@@ -94,6 +95,19 @@ new #[Layout('layouts.application')] class extends Component
     public string $emergency_contact_name = '';
 
     public string $emergency_contact_number = '';
+
+    // Employment conduct
+    public ?string $retired_early = null;
+
+    public ?string $retired_early_medical_grounds = null;
+
+    public ?string $dismissed_from_relevant_position = null;
+
+    public string $dismissal_details = '';
+
+    public ?string $subject_to_disciplinary_action = null;
+
+    public string $disciplinary_action_details = '';
 
     // Consent
     public int $consentSubStep = 1;
@@ -327,6 +341,35 @@ new #[Layout('layouts.application')] class extends Component
         $this->goToStep(5);
     }
 
+    public function saveEmploymentConduct(): void
+    {
+        $this->validate([
+            'retired_early' => ['required', 'in:yes,no'],
+            'retired_early_medical_grounds' => ['required_if:retired_early,yes', 'nullable', 'in:yes,no'],
+            'dismissed_from_relevant_position' => ['required', 'in:yes,no'],
+            'dismissal_details' => ['required_if:dismissed_from_relevant_position,yes', 'nullable', 'string', 'max:2000'],
+            'subject_to_disciplinary_action' => ['required', 'in:yes,no'],
+            'disciplinary_action_details' => ['required_if:subject_to_disciplinary_action,yes', 'nullable', 'string', 'max:2000'],
+        ]);
+
+        $this->application->educationCandidate->update([
+            'retired_early' => $this->retired_early,
+            'retired_early_medical_grounds' => $this->retired_early === 'yes'
+                ? $this->retired_early_medical_grounds
+                : null,
+            'dismissed_from_relevant_position' => $this->dismissed_from_relevant_position,
+            'dismissal_details' => $this->dismissed_from_relevant_position === 'yes'
+                ? ($this->dismissal_details ?: null)
+                : null,
+            'subject_to_disciplinary_action' => $this->subject_to_disciplinary_action,
+            'disciplinary_action_details' => $this->subject_to_disciplinary_action === 'yes'
+                ? ($this->disciplinary_action_details ?: null)
+                : null,
+        ]);
+
+        $this->goToStep(6);
+    }
+
     public function savePhoto(): void
     {
         if (! $this->photo && ! $this->application->educationCandidate->photo_path) {
@@ -347,7 +390,7 @@ new #[Layout('layouts.application')] class extends Component
             ]);
         }
 
-        $this->goToStep(6);
+        $this->goToStep(7);
     }
 
     public function saveWorkPreferences(): void
@@ -380,7 +423,7 @@ new #[Layout('layouts.application')] class extends Component
 
         $candidate->skills()->sync($skillIds->merge($parentIds)->unique()->values());
 
-        $this->goToStep(7);
+        $this->goToStep(8);
     }
 
     public function addEmploymentHistory(): void
@@ -429,7 +472,7 @@ new #[Layout('layouts.application')] class extends Component
             $this->persistEmploymentHistory($index);
         }
 
-        $this->goToStep(8);
+        $this->goToStep(9);
     }
 
     /** @return array<string, array<int, mixed>> */
@@ -570,7 +613,7 @@ new #[Layout('layouts.application')] class extends Component
 
         $this->application->update([
             'status' => 'completed',
-            'current_step' => 8,
+            'current_step' => 9,
             'completed_at' => now(),
         ]);
     }
@@ -855,6 +898,12 @@ new #[Layout('layouts.application')] class extends Component
         $this->reasonable_accommodations = $candidate->reasonable_accommodations ?? '';
         $this->emergency_contact_name = $candidate->emergency_contact_name ?? '';
         $this->emergency_contact_number = $candidate->emergency_contact_number ?? '';
+        $this->retired_early = $candidate->retired_early;
+        $this->retired_early_medical_grounds = $candidate->retired_early_medical_grounds;
+        $this->dismissed_from_relevant_position = $candidate->dismissed_from_relevant_position;
+        $this->dismissal_details = $candidate->dismissal_details ?? '';
+        $this->subject_to_disciplinary_action = $candidate->subject_to_disciplinary_action;
+        $this->disciplinary_action_details = $candidate->disciplinary_action_details ?? '';
 
         $this->qualification_id = $candidate->qualification_id;
         $this->availability = $candidate->availability ?? [];
