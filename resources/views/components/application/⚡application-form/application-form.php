@@ -830,7 +830,7 @@ new #[Layout('layouts.application')] class extends Component
     #[Computed]
     public function kcsiePdfUrl(): string
     {
-        return Storage::disk('local')->temporaryUrl('kcsie.pdf', now()->addMinutes(30));
+        return asset('documents/kcsie.pdf');
     }
 
     private function hydrateFromCandidate(EducationCandidate $candidate): void

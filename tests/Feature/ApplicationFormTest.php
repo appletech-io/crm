@@ -359,8 +359,6 @@ test('mount resumes at the declaration sub-step when terms have already been acc
 });
 
 test('the consent step generates a url for the kcsie pdf', function () {
-    Storage::disk('local')->put('kcsie.pdf', 'fake-pdf-contents');
-
     $application = makePendingApplication();
 
     $component = Livewire::test('application.application-form', ['token' => $application->token])
