@@ -333,7 +333,7 @@ test('acceptDeclaration requires the declaration checkbox to be checked', functi
     expect($application->fresh()->declaration_accepted_at)->toBeNull();
 });
 
-test('acceptDeclaration records the timestamp and advances to the photo step', function () {
+test('acceptDeclaration records the timestamp and advances to the employment conduct step', function () {
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
@@ -369,27 +369,116 @@ test('the consent step generates a url for the kcsie pdf', function () {
     expect($url)->toContain('kcsie.pdf');
 });
 
+test('saveEmploymentConduct requires yes/no answers for all three questions', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->call('saveEmploymentConduct')
+        ->assertHasErrors(['retired_early', 'dismissed_from_relevant_position', 'subject_to_disciplinary_action']);
+});
+
+test('saveEmploymentConduct requires medical grounds answer when retired early is yes', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->set('retired_early', 'yes')
+        ->set('dismissed_from_relevant_position', 'no')
+        ->set('subject_to_disciplinary_action', 'no')
+        ->call('saveEmploymentConduct')
+        ->assertHasErrors(['retired_early_medical_grounds']);
+});
+
+test('saveEmploymentConduct requires details when dismissed from a relevant position', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->set('retired_early', 'no')
+        ->set('dismissed_from_relevant_position', 'yes')
+        ->set('subject_to_disciplinary_action', 'no')
+        ->call('saveEmploymentConduct')
+        ->assertHasErrors(['dismissal_details']);
+});
+
+test('saveEmploymentConduct requires details when subject to disciplinary action', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->set('retired_early', 'no')
+        ->set('dismissed_from_relevant_position', 'no')
+        ->set('subject_to_disciplinary_action', 'yes')
+        ->call('saveEmploymentConduct')
+        ->assertHasErrors(['disciplinary_action_details']);
+});
+
+test('saveEmploymentConduct persists answers and advances to the photo step', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->set('retired_early', 'yes')
+        ->set('retired_early_medical_grounds', 'yes')
+        ->set('dismissed_from_relevant_position', 'yes')
+        ->set('dismissal_details', 'Redundancy dispute.')
+        ->set('subject_to_disciplinary_action', 'yes')
+        ->set('disciplinary_action_details', 'Verbal warning in 2019.')
+        ->call('saveEmploymentConduct')
+        ->assertHasNoErrors()
+        ->assertSet('currentStep', 6);
+
+    $candidate->refresh();
+    expect($candidate->retired_early)->toBe('yes');
+    expect($candidate->retired_early_medical_grounds)->toBe('yes');
+    expect($candidate->dismissed_from_relevant_position)->toBe('yes');
+    expect($candidate->dismissal_details)->toBe('Redundancy dispute.');
+    expect($candidate->subject_to_disciplinary_action)->toBe('yes');
+    expect($candidate->disciplinary_action_details)->toBe('Verbal warning in 2019.');
+    expect($application->fresh()->current_step)->toBe(6);
+});
+
+test('saveEmploymentConduct clears conditional detail fields when answers are no', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 5)
+        ->set('retired_early', 'no')
+        ->set('dismissed_from_relevant_position', 'no')
+        ->set('subject_to_disciplinary_action', 'no')
+        ->call('saveEmploymentConduct')
+        ->assertHasNoErrors();
+
+    $candidate->refresh();
+    expect($candidate->retired_early_medical_grounds)->toBeNull();
+    expect($candidate->dismissal_details)->toBeNull();
+    expect($candidate->disciplinary_action_details)->toBeNull();
+});
+
 test('savePhoto requires a photo when none exists yet', function () {
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 5)
+        ->set('currentStep', 6)
         ->call('savePhoto')
         ->assertHasErrors('photo')
-        ->assertSet('currentStep', 5);
+        ->assertSet('currentStep', 6);
 
     expect($application->fresh()->educationCandidate->photo_path)->toBeNull();
 });
 
-test('savePhoto advances to step 6 without re-uploading when a photo already exists', function () {
+test('savePhoto advances to step 7 without re-uploading when a photo already exists', function () {
     $application = makePendingApplication();
     $application->educationCandidate->update(['photo_path' => 'existing/photo.jpg']);
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 5)
+        ->set('currentStep', 6)
         ->call('savePhoto')
         ->assertHasNoErrors()
-        ->assertSet('currentStep', 6);
+        ->assertSet('currentStep', 7);
 });
 
 test('form displays the existing photo when the candidate already has one', function () {
@@ -397,7 +486,7 @@ test('form displays the existing photo when the candidate already has one', func
     $application->educationCandidate->update(['photo_path' => 'existing/photo.jpg']);
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 5)
+        ->set('currentStep', 6)
         ->assertSee('Replace photo');
 });
 
@@ -407,30 +496,30 @@ test('savePhoto validates photo is an image', function () {
     $file = UploadedFile::fake()->create('photo.pdf', 100, 'application/pdf');
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 5)
+        ->set('currentStep', 6)
         ->set('photo', $file)
         ->call('savePhoto')
         ->assertHasErrors(['photo' => 'image']);
 });
 
-test('savePhoto persists candidate photo and advances to step 6', function () {
+test('savePhoto persists candidate photo and advances to step 7', function () {
     $application = makePendingApplication();
 
     $file = UploadedFile::fake()->image('photo.jpg');
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 5)
+        ->set('currentStep', 6)
         ->set('photo', $file)
         ->call('savePhoto')
         ->assertHasNoErrors()
-        ->assertSet('currentStep', 6);
+        ->assertSet('currentStep', 7);
 
     $candidate = $application->educationCandidate()->first();
     expect($candidate->photo_path)->not->toBeNull();
 
     expect($application->fresh()->status)->toBe('pending');
     expect($application->fresh()->completed_at)->toBeNull();
-    expect($application->fresh()->current_step)->toBe(6);
+    expect($application->fresh()->current_step)->toBe(7);
 });
 
 test('saveWorkPreferences persists skills, qualification, and work preferences and advances to references step', function () {
@@ -456,7 +545,7 @@ test('saveWorkPreferences persists skills, qualification, and work preferences a
     ]);
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 6)
+        ->set('currentStep', 7)
         ->set('qualification_id', $qualification->id)
         ->set('availability', ['long_term', 'part_time'])
         ->set('available_from', now()->addWeek()->toDateString())
@@ -464,7 +553,7 @@ test('saveWorkPreferences persists skills, qualification, and work preferences a
         ->set('skills', [$childSkill->id])
         ->call('saveWorkPreferences')
         ->assertHasNoErrors()
-        ->assertSet('currentStep', 7);
+        ->assertSet('currentStep', 8);
 
     $candidate->refresh();
     expect($candidate->qualification_id)->toBe($qualification->id);
@@ -475,14 +564,14 @@ test('saveWorkPreferences persists skills, qualification, and work preferences a
 
     expect($application->fresh()->status)->toBe('pending');
     expect($application->fresh()->completed_at)->toBeNull();
-    expect($application->fresh()->current_step)->toBe(7);
+    expect($application->fresh()->current_step)->toBe(8);
 });
 
 test('saveWorkPreferences validates availability and key_stages values', function () {
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 6)
+        ->set('currentStep', 7)
         ->set('availability', ['not-a-real-option'])
         ->set('key_stages', ['not-a-real-key-stage'])
         ->call('saveWorkPreferences')
@@ -493,7 +582,7 @@ test('saveWorkPreferences requires at least one skill', function () {
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 6)
+        ->set('currentStep', 7)
         ->set('skills', [])
         ->call('saveWorkPreferences')
         ->assertHasErrors(['skills']);
@@ -505,7 +594,7 @@ test('mount seeds employment history from cv parsed data when none is saved yet'
     $application = EducationApplication::factory()->create([
         'education_candidate_id' => EducationCandidate::factory()->create()->id,
         'status' => 'pending',
-        'current_step' => 7,
+        'current_step' => 8,
         'cv_parsed_data' => [
             'employmentHistory' => [
                 [
@@ -539,7 +628,7 @@ test('addEmploymentHistory appends a blank job row', function () {
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 7)
+        ->set('currentStep', 8)
         ->assertCount('employmentHistories', 1)
         ->call('addEmploymentHistory')
         ->assertCount('employmentHistories', 2);
@@ -550,7 +639,7 @@ test('saveEmploymentHistory validates and persists a single job, then collapses 
     $candidate = $application->educationCandidate;
 
     $component = Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 7)
+        ->set('currentStep', 8)
         ->set('employmentHistories.0', [
             'company_name' => 'Oakwood Primary',
             'job_title' => 'Class Teacher',
@@ -572,7 +661,7 @@ test('saveEmploymentHistory does not persist or collapse when validation fails',
     $candidate = $application->educationCandidate;
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 7)
+        ->set('currentStep', 8)
         ->call('saveEmploymentHistory', 0)
         ->assertHasErrors(['employmentHistories.0.company_name', 'employmentHistories.0.job_title', 'employmentHistories.0.worked_from'])
         ->assertSet('employmentHistories.0.collapsed', false);
@@ -585,7 +674,7 @@ test('removeEmploymentHistory deletes an already-saved job from the database', f
     $candidate = $application->educationCandidate;
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 7)
+        ->set('currentStep', 8)
         ->set('employmentHistories.0', [
             'company_name' => 'Oakwood Primary',
             'job_title' => 'Class Teacher',
@@ -604,7 +693,7 @@ test('submitEmploymentHistory requires at least one job and advances to referenc
     $candidate = $application->educationCandidate;
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 7)
+        ->set('currentStep', 8)
         ->call('submitEmploymentHistory')
         ->assertHasErrors([
             'employmentHistories.0.company_name',
@@ -613,7 +702,7 @@ test('submitEmploymentHistory requires at least one job and advances to referenc
         ]);
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 7)
+        ->set('currentStep', 8)
         ->set('employmentHistories.0', [
             'company_name' => 'Oakwood Primary',
             'job_title' => 'Class Teacher',
@@ -622,10 +711,10 @@ test('submitEmploymentHistory requires at least one job and advances to referenc
         ])
         ->call('submitEmploymentHistory')
         ->assertHasNoErrors()
-        ->assertSet('currentStep', 8);
+        ->assertSet('currentStep', 9);
 
     expect($candidate->employmentHistories()->count())->toBe(1);
-    expect($application->fresh()->current_step)->toBe(8);
+    expect($application->fresh()->current_step)->toBe(9);
     expect($application->fresh()->status)->toBe('pending');
 });
 
@@ -633,7 +722,7 @@ test('addReference appends a blank reference row', function () {
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 8)
+        ->set('currentStep', 9)
         ->assertCount('references', 1)
         ->call('addReference')
         ->assertCount('references', 2);
@@ -643,7 +732,7 @@ test('removeReference removes the reference at the given index', function () {
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 8)
+        ->set('currentStep', 9)
         ->call('addReference')
         ->set('references.0.first_name', 'First')
         ->set('references.1.first_name', 'Second')
@@ -657,7 +746,7 @@ test('saveReference validates and persists a single reference, then collapses it
     $candidate = $application->educationCandidate;
 
     $component = Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 8)
+        ->set('currentStep', 9)
         ->set('references.0', [
             'type' => 'professional',
             'title' => 'Mr',
@@ -691,7 +780,7 @@ test('a new reference defaults to contact_now being off, requiring the candidate
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 8)
+        ->set('currentStep', 9)
         ->assertSet('references.0.contact_now', false)
         ->call('addReference')
         ->assertSet('references.1.contact_now', false);
@@ -702,7 +791,7 @@ test('saveReference persists contact_now as true when the candidate explicitly o
     $candidate = $application->educationCandidate;
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 8)
+        ->set('currentStep', 9)
         ->set('references.0', [
             'type' => 'professional',
             'title' => 'Mr',
@@ -732,7 +821,7 @@ test('saveReference updates an already-saved reference on a second save without 
     $candidate = $application->educationCandidate;
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 8)
+        ->set('currentStep', 9)
         ->set('references.0', [
             'type' => 'professional',
             'title' => 'Mr',
@@ -765,7 +854,7 @@ test('saveReference does not persist or collapse when validation fails', functio
     $candidate = $application->educationCandidate;
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 8)
+        ->set('currentStep', 9)
         ->call('saveReference', 0)
         ->assertHasErrors(['references.0.first_name'])
         ->assertSet('references.0.collapsed', false);
@@ -777,7 +866,7 @@ test('toggleReferenceCollapsed expands and collapses a reference', function () {
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 8)
+        ->set('currentStep', 9)
         ->assertSet('references.0.collapsed', false)
         ->call('toggleReferenceCollapsed', 0)
         ->assertSet('references.0.collapsed', true)
@@ -790,7 +879,7 @@ test('removeReference deletes an already-saved reference from the database', fun
     $candidate = $application->educationCandidate;
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 8)
+        ->set('currentStep', 9)
         ->set('references.0', [
             'type' => 'professional',
             'title' => 'Mr',
@@ -819,7 +908,7 @@ test('submitApplication validates required reference fields', function () {
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 8)
+        ->set('currentStep', 9)
         ->call('submitApplication')
         ->assertHasErrors([
             'references.0.type',
@@ -834,7 +923,7 @@ test('submitApplication rejects references that leave a gap in the last 3 years'
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 8)
+        ->set('currentStep', 9)
         ->set('references.0', [
             'type' => 'professional',
             'title' => 'Mr',
@@ -863,7 +952,7 @@ test('submitApplication persists references and completes the application when h
     $candidate = $application->educationCandidate;
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 8)
+        ->set('currentStep', 9)
         ->set('references.0', [
             'type' => 'professional',
             'title' => 'Mr',
@@ -912,14 +1001,14 @@ test('submitApplication persists references and completes the application when h
 
     expect($application->fresh()->status)->toBe('completed');
     expect($application->fresh()->completed_at)->not->toBeNull();
-    expect($application->fresh()->current_step)->toBe(8);
+    expect($application->fresh()->current_step)->toBe(9);
 });
 
 test('references step does not expose status or last contacted fields to the candidate', function () {
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 8)
+        ->set('currentStep', 9)
         ->assertDontSee('Last Contacted')
         ->assertDontSeeHtml('wire:model="references.0.status"')
         ->assertDontSeeHtml('wire:model="references.0.last_contacted"');
@@ -929,7 +1018,7 @@ test('references step displays how much of the last 3 years is currently covered
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 8)
+        ->set('currentStep', 9)
         ->assertSee('0 years, 0 months')
         ->set('references.0', [
             'type' => 'professional',
@@ -956,7 +1045,7 @@ test('references step reports real covered duration when the earliest reference 
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->set('currentStep', 8)
+        ->set('currentStep', 9)
         ->set('references.0', [
             'type' => 'professional',
             'title' => 'Mr',
@@ -989,7 +1078,7 @@ test('mount resumes at the persisted step and hydrates saved candidate data', fu
     $application = EducationApplication::factory()->create([
         'education_candidate_id' => $candidate->id,
         'status' => 'pending',
-        'current_step' => 5,
+        'current_step' => 6,
         'terms_accepted_at' => now(),
         'declaration_accepted_at' => now(),
     ]);
@@ -997,7 +1086,7 @@ test('mount resumes at the persisted step and hydrates saved candidate data', fu
     ApplicationAccessSession::markVerified($application->token);
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->assertSet('currentStep', 5)
+        ->assertSet('currentStep', 6)
         ->assertSet('first_name', 'Priya')
         ->assertSet('last_name', 'Shah')
         ->assertSet('city', 'Manchester')
@@ -1034,7 +1123,7 @@ test('mount hydrates a saved reference\'s contact_now value', function () {
     $application = EducationApplication::factory()->create([
         'education_candidate_id' => $candidate->id,
         'status' => 'pending',
-        'current_step' => 8,
+        'current_step' => 9,
     ]);
 
     ApplicationAccessSession::markVerified($application->token);
@@ -1077,7 +1166,7 @@ test('mount hydrates qualification, work preferences, and skills already saved o
     $application = EducationApplication::factory()->create([
         'education_candidate_id' => $candidate->id,
         'status' => 'pending',
-        'current_step' => 6,
+        'current_step' => 7,
         'terms_accepted_at' => now(),
         'declaration_accepted_at' => now(),
     ]);
@@ -1085,7 +1174,7 @@ test('mount hydrates qualification, work preferences, and skills already saved o
     ApplicationAccessSession::markVerified($application->token);
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->assertSet('currentStep', 6)
+        ->assertSet('currentStep', 7)
         ->assertSet('qualification_id', $qualification->id)
         ->assertSet('availability', ['long_term', 'part_time'])
         ->assertSet('available_from', now()->addWeek()->format('M j, Y'))
@@ -1104,8 +1193,8 @@ test('progress bar displays the current section name and percentage', function (
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->assertSee('Medical Information')
-        ->assertSee('Step 3 of 8')
-        ->assertSee('38%');
+        ->assertSee('Step 3 of 9')
+        ->assertSee('33%');
 });
 
 test('viewStep allows navigating back to an already reached step', function () {
@@ -1185,19 +1274,19 @@ test('navigating back then forward again does not regress the persisted furthest
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('photo', $file)
         ->call('savePhoto')
-        ->assertSet('currentStep', 6);
+        ->assertSet('currentStep', 7);
 
-    expect($application->fresh()->current_step)->toBe(6);
+    expect($application->fresh()->current_step)->toBe(7);
 
     Livewire::test('application.application-form', ['token' => $application->token])
-        ->assertSet('currentStep', 6)
+        ->assertSet('currentStep', 7)
         ->call('viewStep', 2)
         ->assertSet('currentStep', 2)
         ->set('last_name', 'Smith')
         ->call('nextStep')
         ->assertSet('currentStep', 3);
 
-    expect($application->fresh()->current_step)->toBe(6);
+    expect($application->fresh()->current_step)->toBe(7);
     expect($application->fresh()->educationCandidate->last_name)->toBe('Smith');
 });
 
