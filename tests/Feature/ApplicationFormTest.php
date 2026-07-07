@@ -4,6 +4,7 @@ use App\Ai\Agents\CvParser;
 use App\Enums\ReferenceStatus;
 use App\Enums\ReferenceType;
 use App\Models\CandidateSkill;
+use App\Models\Company;
 use App\Models\EducationApplication;
 use App\Models\EducationCandidate;
 use App\Models\Industry;
@@ -295,11 +296,56 @@ test('saveMedicalInformation requires details when the candidate answers yes', f
     expect($candidate->refresh()->health_condition_details)->toBe('Needs step-free access.');
 });
 
+test('acceptTermsOfEngagement requires the consent checkbox to be checked', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 4)
+        ->call('acceptTermsOfEngagement')
+        ->assertHasErrors(['terms_of_engagement_accepted']);
+
+    expect($application->fresh()->terms_of_engagement_accepted_at)->toBeNull();
+});
+
+test('acceptTermsOfEngagement records the timestamp and moves to the kcsie sub-step without leaving the consent step', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 4)
+        ->assertSet('consentSubStep', 1)
+        ->set('terms_of_engagement_accepted', true)
+        ->call('acceptTermsOfEngagement')
+        ->assertHasNoErrors()
+        ->assertSet('currentStep', 4)
+        ->assertSet('consentSubStep', 2);
+
+    expect($application->fresh()->terms_of_engagement_accepted_at)->not->toBeNull();
+});
+
+test('the terms of engagement step displays the employment business legal entity name', function () {
+    $company = Company::factory()->create([
+        'trading_name' => 'Applebough Education',
+        'legal_name' => 'Applebough Recruitment Ltd',
+        'company_number' => '13651681',
+    ]);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $company->id]);
+    $application = EducationApplication::factory()->create([
+        'education_candidate_id' => $candidate->id,
+        'status' => 'pending',
+    ]);
+    ApplicationAccessSession::markVerified($application->token);
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 4)
+        ->assertSee('Applebough Education (t/a Applebough Recruitment Ltd) (Company No: 13651681)');
+});
+
 test('acceptTerms requires the consent checkbox to be checked', function () {
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 4)
+        ->set('consentSubStep', 2)
         ->call('acceptTerms')
         ->assertHasErrors(['terms_accepted']);
 
@@ -311,12 +357,12 @@ test('acceptTerms records the timestamp and moves to the declaration sub-step wi
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 4)
-        ->assertSet('consentSubStep', 1)
+        ->set('consentSubStep', 2)
         ->set('terms_accepted', true)
         ->call('acceptTerms')
         ->assertHasNoErrors()
         ->assertSet('currentStep', 4)
-        ->assertSet('consentSubStep', 2);
+        ->assertSet('consentSubStep', 3);
 
     expect($application->fresh()->terms_accepted_at)->not->toBeNull();
 });
@@ -326,7 +372,7 @@ test('acceptDeclaration requires the declaration checkbox to be checked', functi
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 4)
-        ->set('consentSubStep', 2)
+        ->set('consentSubStep', 3)
         ->call('acceptDeclaration')
         ->assertHasErrors(['declaration_accepted']);
 
@@ -338,7 +384,7 @@ test('acceptDeclaration records the timestamp and advances to the employment con
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 4)
-        ->set('consentSubStep', 2)
+        ->set('consentSubStep', 3)
         ->set('declaration_accepted', true)
         ->call('acceptDeclaration')
         ->assertHasNoErrors()
@@ -348,13 +394,23 @@ test('acceptDeclaration records the timestamp and advances to the employment con
     expect($application->fresh()->current_step)->toBe(5);
 });
 
-test('mount resumes at the declaration sub-step when terms have already been accepted', function () {
+test('mount resumes at the kcsie sub-step when only the terms of engagement have been accepted', function () {
     $application = makePendingApplication();
-    $application->update(['terms_accepted_at' => now()]);
+    $application->update(['terms_of_engagement_accepted_at' => now()]);
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 4)
         ->assertSet('consentSubStep', 2)
+        ->assertSet('terms_of_engagement_accepted', true);
+});
+
+test('mount resumes at the declaration sub-step when terms have already been accepted', function () {
+    $application = makePendingApplication();
+    $application->update(['terms_of_engagement_accepted_at' => now(), 'terms_accepted_at' => now()]);
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 4)
+        ->assertSet('consentSubStep', 3)
         ->assertSet('terms_accepted', true);
 });
 

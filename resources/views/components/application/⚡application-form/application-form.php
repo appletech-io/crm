@@ -112,6 +112,8 @@ new #[Layout('layouts.application')] class extends Component
     // Consent
     public int $consentSubStep = 1;
 
+    public bool $terms_of_engagement_accepted = false;
+
     public bool $terms_accepted = false;
 
     public bool $declaration_accepted = false;
@@ -165,9 +167,14 @@ new #[Layout('layouts.application')] class extends Component
             $this->hydrateFromCandidate($this->application->educationCandidate);
         }
 
+        $this->terms_of_engagement_accepted = $this->application->terms_of_engagement_accepted_at !== null;
         $this->terms_accepted = $this->application->terms_accepted_at !== null;
         $this->declaration_accepted = $this->application->declaration_accepted_at !== null;
-        $this->consentSubStep = $this->terms_accepted ? 2 : 1;
+        $this->consentSubStep = match (true) {
+            $this->terms_accepted => 3,
+            $this->terms_of_engagement_accepted => 2,
+            default => 1,
+        };
 
         if (! $this->declaration_accepted && $this->currentStep > 4) {
             $this->currentStep = 4;
@@ -315,6 +322,19 @@ new #[Layout('layouts.application')] class extends Component
         $this->goToStep(4);
     }
 
+    public function acceptTermsOfEngagement(): void
+    {
+        $this->validate([
+            'terms_of_engagement_accepted' => ['accepted'],
+        ]);
+
+        $this->application->update([
+            'terms_of_engagement_accepted_at' => now(),
+        ]);
+
+        $this->consentSubStep = 2;
+    }
+
     public function acceptTerms(): void
     {
         $this->validate([
@@ -325,7 +345,7 @@ new #[Layout('layouts.application')] class extends Component
             'terms_accepted_at' => now(),
         ]);
 
-        $this->consentSubStep = 2;
+        $this->consentSubStep = 3;
     }
 
     public function acceptDeclaration(): void
@@ -874,6 +894,24 @@ new #[Layout('layouts.application')] class extends Component
     public function kcsiePdfUrl(): string
     {
         return asset('documents/kcsie.pdf');
+    }
+
+    #[Computed]
+    public function employmentBusinessName(): string
+    {
+        $company = $this->application->educationCandidate->company;
+
+        $tradingName = $company?->trading_name ?: config('app.name');
+
+        if (! $company?->legal_name) {
+            return $tradingName;
+        }
+
+        $name = "{$tradingName} (t/a {$company->legal_name})";
+
+        return $company->company_number
+            ? "{$name} (Company No: {$company->company_number})"
+            : $name;
     }
 
     private function hydrateFromCandidate(EducationCandidate $candidate): void
