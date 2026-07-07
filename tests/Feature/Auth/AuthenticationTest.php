@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use Database\Seeders\RoleSeeder;
 use Laravel\Fortify\Features;
 
 test('login screen can be rendered', function () {
@@ -54,6 +55,24 @@ test('users with two factor enabled are redirected to two factor challenge', fun
 
     $response->assertRedirect(route('two-factor.login'));
     $this->assertGuest();
+});
+
+test('candidates are redirected to the candidate panel after login', function () {
+    $this->seed(RoleSeeder::class);
+
+    $user = User::factory()->create();
+    $user->assignRole('candidate');
+
+    $response = $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $response
+        ->assertSessionHasNoErrors()
+        ->assertRedirect('/candidate');
+
+    $this->assertAuthenticated();
 });
 
 test('users can logout', function () {

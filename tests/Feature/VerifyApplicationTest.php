@@ -29,11 +29,13 @@ test('mount aborts 403 for an expired application', function () {
         ->assertStatus(403);
 });
 
-test('mount aborts 403 for a completed application', function () {
+test('mount redirects to login and flashes a toast for a completed application', function () {
     $application = makeUnverifiedApplication(['status' => 'completed']);
 
     Livewire::test('application.verify-application', ['token' => $application->token])
-        ->assertStatus(403);
+        ->assertRedirect(route('login'));
+
+    expect(session('toast'))->toBe(['text' => 'Application Completed', 'variant' => 'success']);
 });
 
 test('mount shows the verify form for a session that has not verified this application', function () {

@@ -32,6 +32,12 @@ class Industry extends Model
         return static::$candidateModelMap[$slug] ?? null;
     }
 
+    /** @param class-string<Model> $model */
+    public static function slugForCandidateModel(string $model): ?string
+    {
+        return array_search($model, static::$candidateModelMap, strict: true) ?: null;
+    }
+
     /** @return array<int, string> */
     public function candidateFieldSuggestions(): array
     {

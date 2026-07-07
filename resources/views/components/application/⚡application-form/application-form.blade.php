@@ -63,4 +63,14 @@
         @include('components.application.application-form-steps.references')
     @endif
 
+    {{-- Step 10: Document requirements --}}
+    @if ($currentStep === 10)
+        @include('components.application.application-form-steps.document-requirements')
+    @endif
+
+    {{-- Step 11: Set password --}}
+    @if ($currentStep === 11)
+        @include('components.application.application-form-steps.set-password')
+    @endif
+
 </div>

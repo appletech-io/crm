@@ -187,7 +187,7 @@
     </flux:button>
 
     <flux:button type="submit" variant="primary" class="w-full">
-        {{ __('Complete Application') }}
+        {{ __('Next') }}
     </flux:button>
 
 </form>

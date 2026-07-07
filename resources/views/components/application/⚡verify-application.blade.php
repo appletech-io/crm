@@ -27,7 +27,10 @@ new #[Layout('layouts.application')] class extends Component
         }
 
         if ($this->application->status === 'completed') {
-            abort(403, 'This application has already been completed.');
+            session()->flash('toast', ['text' => __('Application Completed'), 'variant' => 'success']);
+            $this->redirect(route('login'));
+
+            return;
         }
 
         if (ApplicationAccessSession::hasVerified($token)) {

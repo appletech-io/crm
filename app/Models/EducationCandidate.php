@@ -91,6 +91,11 @@ class EducationCandidate extends Model
         return $this->morphMany(CandidateCandidateStatus::class, 'model')->latest();
     }
 
+    public function currentStatusName(): ?string
+    {
+        return $this->statuses()->first()?->status?->name;
+    }
+
     public function activities(): MorphMany
     {
         return $this->morphMany(CandidateActivity::class, 'model')->latest();

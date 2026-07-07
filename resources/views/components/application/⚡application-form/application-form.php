@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Applications\ApplicationCompleted;
 use App\Enums\Education\Availability;
 use App\Enums\Education\KeyStage;
 use App\Enums\ReferenceType;
@@ -8,13 +9,16 @@ use App\Models\EducationApplication;
 use App\Models\EducationCandidate;
 use App\Models\Industry;
 use App\Models\Qualification;
+use App\Models\User;
 use App\Services\ApplicationAccessSession;
 use App\Services\CvParserService;
 use App\Services\Document;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -34,6 +38,18 @@ new #[Layout('layouts.application')] class extends Component
         7 => 'Skills & Work',
         8 => 'Employment History',
         9 => 'References',
+        10 => 'Document Requirements',
+        11 => 'Create Your Account',
+    ];
+
+    private const CONSENT_SUB_STEP_LABELS = [
+        1 => 'Terms of Engagement',
+        2 => 'Keeping Children Safe in Education',
+        3 => 'Declaration',
+        4 => 'Security Clearance',
+        5 => 'Rehabilitation of Offenders',
+        6 => 'Working Time Regulations',
+        7 => 'Disqualification under the Childcare Act 2006',
     ];
 
     private const REFERENCE_HISTORY_YEARS = 3;
@@ -112,9 +128,37 @@ new #[Layout('layouts.application')] class extends Component
     // Consent
     public int $consentSubStep = 1;
 
+    public bool $terms_of_engagement_accepted = false;
+
     public bool $terms_accepted = false;
 
     public bool $declaration_accepted = false;
+
+    public ?string $security_clearance_agreed = null;
+
+    public ?string $lived_overseas_six_months = null;
+
+    public string $overseas_details = '';
+
+    public ?string $unspent_convictions = null;
+
+    public string $unspent_convictions_details = '';
+
+    public ?string $spent_convictions_not_protected = null;
+
+    public ?string $working_time_regulations_opt_out = null;
+
+    public ?string $childcare_act_guidance_read = null;
+
+    public string $childcare_act_guidance_read_details = '';
+
+    public ?string $childcare_act_no_disqualification_reasons = null;
+
+    public string $childcare_act_no_disqualification_reasons_details = '';
+
+    public ?string $childcare_act_will_notify_changes = null;
+
+    public string $childcare_act_will_notify_changes_details = '';
 
     // Skills & work preferences
     public ?int $qualification_id = null;
@@ -135,6 +179,20 @@ new #[Layout('layouts.application')] class extends Component
 
     public array $cv_parsed_data = [];
 
+    // Document requirements
+    public ?string $right_to_work_type = null;
+
+    public string $visa_share_code = '';
+
+    public ?string $has_dbs = null;
+
+    public ?string $has_naric = null;
+
+    // Account
+    public string $password = '';
+
+    public string $password_confirmation = '';
+
     public function mount(string $token): void
     {
         $this->token = $token;
@@ -146,7 +204,10 @@ new #[Layout('layouts.application')] class extends Component
         }
 
         if ($this->application->status === 'completed') {
-            abort(403, 'Application has been completed.');
+            session()->flash('toast', ['text' => __('Application Completed'), 'variant' => 'success']);
+            $this->redirect(route('login'));
+
+            return;
         }
 
         if ($this->application->status !== 'pending' || $this->application->expires_on < today()) {
@@ -165,11 +226,28 @@ new #[Layout('layouts.application')] class extends Component
             $this->hydrateFromCandidate($this->application->educationCandidate);
         }
 
+        $this->terms_of_engagement_accepted = $this->application->terms_of_engagement_accepted_at !== null;
         $this->terms_accepted = $this->application->terms_accepted_at !== null;
         $this->declaration_accepted = $this->application->declaration_accepted_at !== null;
-        $this->consentSubStep = $this->terms_accepted ? 2 : 1;
+        $this->security_clearance_agreed = $this->application->security_clearance_agreed;
+        $this->working_time_regulations_opt_out = $this->application->working_time_regulations_opt_out;
+        $this->childcare_act_guidance_read = $this->application->childcare_act_guidance_read;
+        $this->childcare_act_guidance_read_details = $this->application->childcare_act_guidance_read_details ?? '';
+        $this->childcare_act_no_disqualification_reasons = $this->application->childcare_act_no_disqualification_reasons;
+        $this->childcare_act_no_disqualification_reasons_details = $this->application->childcare_act_no_disqualification_reasons_details ?? '';
+        $this->childcare_act_will_notify_changes = $this->application->childcare_act_will_notify_changes;
+        $this->childcare_act_will_notify_changes_details = $this->application->childcare_act_will_notify_changes_details ?? '';
+        $this->consentSubStep = $this->furthestReachedConsentSubStep();
 
-        if (! $this->declaration_accepted && $this->currentStep > 4) {
+        $consentCompleted = $this->terms_of_engagement_accepted
+            && $this->terms_accepted
+            && $this->declaration_accepted
+            && $this->application->security_clearance_accepted_at !== null
+            && $this->application->rehabilitation_of_offenders_completed_at !== null
+            && $this->application->working_time_regulations_accepted_at !== null
+            && $this->application->disqualification_under_childcare_act_completed_at !== null;
+
+        if (! $consentCompleted && $this->currentStep > 4) {
             $this->currentStep = 4;
         }
 
@@ -315,6 +393,19 @@ new #[Layout('layouts.application')] class extends Component
         $this->goToStep(4);
     }
 
+    public function acceptTermsOfEngagement(): void
+    {
+        $this->validate([
+            'terms_of_engagement_accepted' => ['accepted'],
+        ]);
+
+        $this->application->update([
+            'terms_of_engagement_accepted_at' => now(),
+        ]);
+
+        $this->consentSubStep = 2;
+    }
+
     public function acceptTerms(): void
     {
         $this->validate([
@@ -325,7 +416,7 @@ new #[Layout('layouts.application')] class extends Component
             'terms_accepted_at' => now(),
         ]);
 
-        $this->consentSubStep = 2;
+        $this->consentSubStep = 3;
     }
 
     public function acceptDeclaration(): void
@@ -336,6 +427,96 @@ new #[Layout('layouts.application')] class extends Component
 
         $this->application->update([
             'declaration_accepted_at' => now(),
+        ]);
+
+        $this->consentSubStep = 4;
+    }
+
+    public function saveSecurityClearance(): void
+    {
+        $this->validate([
+            'security_clearance_agreed' => ['required', 'in:yes,no'],
+            'lived_overseas_six_months' => ['required', 'in:yes,no'],
+            'overseas_details' => ['required_if:lived_overseas_six_months,yes', 'nullable', 'string', 'max:2000'],
+        ]);
+
+        $this->application->update([
+            'security_clearance_agreed' => $this->security_clearance_agreed,
+            'security_clearance_accepted_at' => now(),
+        ]);
+
+        $this->application->educationCandidate->update([
+            'lived_overseas_six_months' => $this->lived_overseas_six_months,
+            'overseas_details' => $this->lived_overseas_six_months === 'yes'
+                ? ($this->overseas_details ?: null)
+                : null,
+        ]);
+
+        $this->consentSubStep = 5;
+    }
+
+    public function saveRehabilitationOfOffenders(): void
+    {
+        $this->validate([
+            'unspent_convictions' => ['required', 'in:yes,no'],
+            'unspent_convictions_details' => ['nullable', 'string', 'max:2000'],
+            'spent_convictions_not_protected' => ['required', 'in:yes,no'],
+        ]);
+
+        $this->application->educationCandidate->update([
+            'unspent_convictions' => $this->unspent_convictions,
+            'unspent_convictions_details' => $this->unspent_convictions === 'yes'
+                ? ($this->unspent_convictions_details ?: null)
+                : null,
+            'spent_convictions_not_protected' => $this->spent_convictions_not_protected,
+        ]);
+
+        $this->application->update([
+            'rehabilitation_of_offenders_completed_at' => now(),
+        ]);
+
+        $this->consentSubStep = 6;
+    }
+
+    public function saveWorkingTimeRegulations(): void
+    {
+        $this->validate([
+            'working_time_regulations_opt_out' => ['required', 'in:yes,no'],
+        ]);
+
+        $this->application->update([
+            'working_time_regulations_opt_out' => $this->working_time_regulations_opt_out,
+            'working_time_regulations_accepted_at' => now(),
+        ]);
+
+        $this->consentSubStep = 7;
+    }
+
+    public function saveDisqualificationUnderChildcareAct(): void
+    {
+        $this->validate([
+            'childcare_act_guidance_read' => ['required', 'in:yes,no'],
+            'childcare_act_guidance_read_details' => ['required_if:childcare_act_guidance_read,no', 'nullable', 'string', 'max:2000'],
+            'childcare_act_no_disqualification_reasons' => ['required', 'in:yes,no'],
+            'childcare_act_no_disqualification_reasons_details' => ['required_if:childcare_act_no_disqualification_reasons,no', 'nullable', 'string', 'max:2000'],
+            'childcare_act_will_notify_changes' => ['required', 'in:yes,no'],
+            'childcare_act_will_notify_changes_details' => ['required_if:childcare_act_will_notify_changes,no', 'nullable', 'string', 'max:2000'],
+        ]);
+
+        $this->application->update([
+            'childcare_act_guidance_read' => $this->childcare_act_guidance_read,
+            'childcare_act_guidance_read_details' => $this->childcare_act_guidance_read === 'no'
+                ? ($this->childcare_act_guidance_read_details ?: null)
+                : null,
+            'childcare_act_no_disqualification_reasons' => $this->childcare_act_no_disqualification_reasons,
+            'childcare_act_no_disqualification_reasons_details' => $this->childcare_act_no_disqualification_reasons === 'no'
+                ? ($this->childcare_act_no_disqualification_reasons_details ?: null)
+                : null,
+            'childcare_act_will_notify_changes' => $this->childcare_act_will_notify_changes,
+            'childcare_act_will_notify_changes_details' => $this->childcare_act_will_notify_changes === 'no'
+                ? ($this->childcare_act_will_notify_changes_details ?: null)
+                : null,
+            'disqualification_under_childcare_act_completed_at' => now(),
         ]);
 
         $this->goToStep(5);
@@ -611,11 +792,67 @@ new #[Layout('layouts.application')] class extends Component
             $this->persistReference($index);
         }
 
+        $this->goToStep(10);
+    }
+
+    public function saveDocumentRequirements(): void
+    {
+        $this->validate([
+            'right_to_work_type' => ['required', 'in:birth_certificate,passport,visa'],
+            'visa_share_code' => ['required_if:right_to_work_type,visa', 'nullable', 'string', 'max:255'],
+            'has_dbs' => ['required', 'in:yes,no'],
+            'has_naric' => ['nullable', 'in:yes,no'],
+        ]);
+
+        $this->application->educationCandidate->update([
+            'right_to_work_type' => $this->right_to_work_type,
+            'visa_share_code' => $this->right_to_work_type === 'visa' ? $this->visa_share_code : null,
+            'has_dbs' => $this->has_dbs,
+            'has_naric' => $this->has_naric,
+        ]);
+
+        $this->goToStep(11);
+    }
+
+    public function completeApplication(): void
+    {
+        $this->validate([
+            'password' => ['required', 'confirmed', Password::defaults()],
+        ]);
+
+        $candidate = $this->application->educationCandidate;
+
+        $user = User::updateOrCreate(
+            ['email' => $candidate->email],
+            [
+                'name' => trim("{$candidate->first_name} {$candidate->last_name}"),
+                'password' => $this->password,
+                'company_id' => $candidate->company_id,
+                'candidate_id' => $candidate->id,
+                'candidate_type' => $candidate::class,
+            ]
+        );
+
+        $industrySlug = Industry::slugForCandidateModel($candidate::class);
+        $industryId = $industrySlug ? Industry::where('slug', $industrySlug)->value('id') : null;
+
+        if ($industryId) {
+            $user->industries()->syncWithoutDetaching([$industryId]);
+        }
+
+        $user->assignRole('candidate');
+
         $this->application->update([
             'status' => 'completed',
-            'current_step' => 9,
+            'current_step' => 11,
             'completed_at' => now(),
         ]);
+
+        ApplicationCompleted::run($this->application);
+
+        Auth::login($user);
+
+        $this->redirect('/candidate');
     }
 
     /** @return array<string, array<int, mixed>> */
@@ -814,6 +1051,28 @@ new #[Layout('layouts.application')] class extends Component
         $this->application->update([...$extra, 'current_step' => $furthestStep]);
     }
 
+    public function viewConsentSubStep(int $subStep): void
+    {
+        if ($subStep < 1 || $subStep > $this->furthestConsentSubStep) {
+            return;
+        }
+
+        $this->consentSubStep = $subStep;
+    }
+
+    private function furthestReachedConsentSubStep(): int
+    {
+        return match (true) {
+            $this->application->working_time_regulations_accepted_at !== null => 7,
+            $this->application->rehabilitation_of_offenders_completed_at !== null => 6,
+            $this->application->security_clearance_accepted_at !== null => 5,
+            $this->application->declaration_accepted_at !== null => 4,
+            $this->application->terms_accepted_at !== null => 3,
+            $this->application->terms_of_engagement_accepted_at !== null => 2,
+            default => 1,
+        };
+    }
+
     #[Computed]
     public function qualificationOptions(): array
     {
@@ -858,6 +1117,31 @@ new #[Layout('layouts.application')] class extends Component
         return (int) round(($this->currentStep / $this->totalSteps) * 100);
     }
 
+    /** @return array<int, string> */
+    #[Computed]
+    public function consentSubStepLabels(): array
+    {
+        return self::CONSENT_SUB_STEP_LABELS;
+    }
+
+    #[Computed]
+    public function totalConsentSubSteps(): int
+    {
+        return count(self::CONSENT_SUB_STEP_LABELS);
+    }
+
+    #[Computed]
+    public function consentSubStepProgressPercentage(): int
+    {
+        return (int) round(($this->consentSubStep / $this->totalConsentSubSteps) * 100);
+    }
+
+    #[Computed]
+    public function furthestConsentSubStep(): int
+    {
+        return $this->furthestReachedConsentSubStep();
+    }
+
     #[Computed]
     public function existingPhotoUrl(): ?string
     {
@@ -874,6 +1158,24 @@ new #[Layout('layouts.application')] class extends Component
     public function kcsiePdfUrl(): string
     {
         return asset('documents/kcsie.pdf');
+    }
+
+    #[Computed]
+    public function employmentBusinessName(): string
+    {
+        $company = $this->application->educationCandidate->company;
+
+        $tradingName = $company?->trading_name ?: config('app.name');
+
+        if (! $company?->legal_name) {
+            return $tradingName;
+        }
+
+        $name = "{$tradingName} (t/a {$company->legal_name})";
+
+        return $company->company_number
+            ? "{$name} (Company No: {$company->company_number})"
+            : $name;
     }
 
     private function hydrateFromCandidate(EducationCandidate $candidate): void
@@ -904,6 +1206,15 @@ new #[Layout('layouts.application')] class extends Component
         $this->dismissal_details = $candidate->dismissal_details ?? '';
         $this->subject_to_disciplinary_action = $candidate->subject_to_disciplinary_action;
         $this->disciplinary_action_details = $candidate->disciplinary_action_details ?? '';
+        $this->lived_overseas_six_months = $candidate->lived_overseas_six_months;
+        $this->overseas_details = $candidate->overseas_details ?? '';
+        $this->unspent_convictions = $candidate->unspent_convictions;
+        $this->unspent_convictions_details = $candidate->unspent_convictions_details ?? '';
+        $this->spent_convictions_not_protected = $candidate->spent_convictions_not_protected;
+        $this->right_to_work_type = $candidate->right_to_work_type;
+        $this->visa_share_code = $candidate->visa_share_code ?? '';
+        $this->has_dbs = $candidate->has_dbs;
+        $this->has_naric = $candidate->has_naric;
 
         $this->qualification_id = $candidate->qualification_id;
         $this->availability = $candidate->availability ?? [];

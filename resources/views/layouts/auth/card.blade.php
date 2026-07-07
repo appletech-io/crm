@@ -28,6 +28,12 @@
             </flux:toast.group>
         @endpersist
 
+        @if (session('toast'))
+            <script>
+                document.addEventListener('DOMContentLoaded', () => window.Flux.toast(@js(session('toast'))));
+            </script>
+        @endif
+
         @fluxScripts
     </body>
 </html>
