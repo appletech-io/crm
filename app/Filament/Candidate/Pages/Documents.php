@@ -28,7 +28,16 @@ class Documents extends Page implements HasTable
 
     protected static ?string $title = 'Documents';
 
-    /** @return array<string, array{document_type: string, label: string, description: string, uploaded: bool, path: ?string}> */
+    private const string GET_DBS_URL = 'https://www.hr-platform.co.uk/individual/application-login/?oo5cmxwZZpKlDaAJsRQwuW5kwPSbJcpenhQ0jtA2nYJG7djU06QdfTBNKOJlBWY97U7ETKgKu4t0%2BzZZEKG4qMqhggknGonub5UYB0YG0rL5d1LwXgaeJZr2gIfegvXtvhL8jCnjUWWs4yVQcKvxUhu0gctiD7hHaBWpsSteUWGDq%2BUGkNNzHPqHGqPenD5K4TjY7L26P7mYOq%2FAPj%2F8WQ%3D%3D';
+
+    public string $activeTab = 'actions';
+
+    public function getHeading(): ?string
+    {
+        return null;
+    }
+
+    /** @return array<string, array{document_type: string, label: string, description: string, uploaded: bool, path: ?string, url: ?string}> */
     public function documentTypes(): array
     {
         $candidate = $this->candidate();
@@ -55,6 +64,10 @@ class Documents extends Page implements HasTable
                 'label' => 'Proof of Address',
                 'description' => 'A recent utility bill or bank statement.',
             ],
+            'proof_of_ni' => [
+                'label' => 'Proof of NI',
+                'description' => 'A document confirming your National Insurance number.',
+            ],
         ];
 
         match ($candidate->right_to_work_type) {
@@ -69,16 +82,23 @@ class Documents extends Page implements HasTable
             default => null,
         };
 
-        if ($candidate->has_dbs === 'yes') {
-            $definitions['dbs'] = [
-                'label' => 'DBS',
-                'description' => 'Your DBS certificate or update service check.',
-            ];
-        } elseif ($candidate->has_dbs === 'no') {
+        $definitions['dbs'] = [
+            'label' => 'DBS',
+            'description' => 'Your DBS certificate or update service check.',
+        ];
+
+        if ($candidate->has_dbs === 'no') {
             $definitions['proof_of_address_2'] = [
                 'label' => 'Proof of Address 2',
                 'description' => 'A second, different proof of address, since you do not currently have a DBS.',
             ];
+
+            // Prepended so it's the first, most obvious row when a DBS is still needed.
+            $definitions = ['get_dbs' => [
+                'label' => 'Get your DBS',
+                'description' => 'You told us you do not currently have a DBS. Apply for one, then come back and upload it above.',
+                'url' => self::GET_DBS_URL,
+            ]] + $definitions;
         }
 
         if ($candidate->has_naric === 'yes') {
@@ -98,16 +118,24 @@ class Documents extends Page implements HasTable
                     'description' => $definition['description'],
                     'uploaded' => $document !== null,
                     'path' => $document?->path,
+                    'url' => $definition['url'] ?? null,
                 ];
             })
+            ->all();
+    }
+
+    /** @return array<string, array{document_type: string, label: string, description: string, uploaded: bool, path: ?string, url: ?string}> */
+    private function visibleRows(): array
+    {
+        return collect($this->documentTypes())
+            ->filter(fn (array $row): bool => $this->activeTab === 'documents' ? $row['uploaded'] : ! $row['uploaded'])
             ->all();
     }
 
     public function table(Table $table): Table
     {
         return $table
-            ->records(fn (): array => $this->documentTypes())
-            ->recordClasses(fn (array $record): ?string => $record['uploaded'] ? null : 'candidate-document-row-missing')
+            ->records(fn (): array => $this->visibleRows())
             ->columns([
                 TextColumn::make('label')
                     ->label('Document'),
@@ -120,8 +148,16 @@ class Documents extends Page implements HasTable
                 TextColumn::make('uploaded')
                     ->label('Status')
                     ->badge()
-                    ->formatStateUsing(fn (bool $state): string => $state ? 'Uploaded' : 'Not uploaded')
-                    ->color(fn (bool $state): string => $state ? 'success' : 'gray'),
+                    ->formatStateUsing(fn (bool $state, array $record): string => match (true) {
+                        $record['url'] !== null => 'Action needed',
+                        $state => 'Uploaded',
+                        default => 'Not uploaded',
+                    })
+                    ->color(fn (bool $state, array $record): string => match (true) {
+                        $record['url'] !== null => 'warning',
+                        $state => 'success',
+                        default => 'gray',
+                    }),
             ])
             ->recordActions([
                 Action::make('preventTrainingInfo')
@@ -135,11 +171,19 @@ class Documents extends Page implements HasTable
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Close'),
 
+                Action::make('getDbs')
+                    ->label('Get your DBS')
+                    ->icon('heroicon-o-arrow-top-right-on-square')
+                    ->color('primary')
+                    ->url(fn (array $record): ?string => $record['url'])
+                    ->openUrlInNewTab()
+                    ->visible(fn (array $record): bool => $record['url'] !== null),
+
                 $this->uploadAction('upload', 'Upload', 'heroicon-o-arrow-up-tray')
-                    ->visible(fn (array $record): bool => ! $record['uploaded']),
+                    ->visible(fn (array $record): bool => $record['url'] === null && ! $record['uploaded']),
 
                 $this->uploadAction('update', 'Update', 'heroicon-o-arrow-path')
-                    ->visible(fn (array $record): bool => $record['uploaded']),
+                    ->visible(fn (array $record): bool => $record['url'] === null && $record['uploaded']),
 
                 Action::make('remove')
                     ->label('Remove')
@@ -148,7 +192,7 @@ class Documents extends Page implements HasTable
                     ->requiresConfirmation()
                     ->modalHeading('Remove document')
                     ->modalDescription('Are you sure you want to remove this document? You will need to upload it again.')
-                    ->visible(fn (array $record): bool => $record['uploaded'])
+                    ->visible(fn (array $record): bool => $record['url'] === null && $record['uploaded'])
                     ->action(fn (array $record) => $this->removeDocument($record['document_type'])),
             ]);
     }
@@ -187,6 +231,10 @@ class Documents extends Page implements HasTable
                 'document_type' => $documentType,
                 'path' => $path,
             ]);
+        }
+
+        if ($documentType === 'dbs' && $candidate->has_dbs !== 'yes') {
+            $candidate->update(['has_dbs' => 'yes']);
         }
 
         Notification::make()

@@ -10,6 +10,7 @@ enum DocumentType: string
     case SafeguardingTraining = 'safeguarding_training';
     case ProofOfAddress = 'proof_of_address';
     case ProofOfAddressTwo = 'proof_of_address_2';
+    case ProofOfNi = 'proof_of_ni';
     case BirthCertificate = 'birth_certificate';
     case Passport = 'passport';
     case Dbs = 'dbs';
@@ -24,6 +25,7 @@ enum DocumentType: string
             self::SafeguardingTraining => 'Safeguarding Training',
             self::ProofOfAddress => 'Proof of Address',
             self::ProofOfAddressTwo => 'Proof of Address 2',
+            self::ProofOfNi => 'Proof of NI',
             self::BirthCertificate => 'Birth Certificate',
             self::Passport => 'Passport',
             self::Dbs => 'DBS',

@@ -11,13 +11,11 @@ use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
-use Illuminate\Support\HtmlString;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class CandidatePanelProvider extends PanelProvider
@@ -53,16 +51,6 @@ class CandidatePanelProvider extends PanelProvider
                 Authenticate::class,
                 SetActiveIndustry::class,
                 RedirectVettingCandidateToDocuments::class,
-            ])
-            ->renderHook(
-                PanelsRenderHook::HEAD_END,
-                fn () => new HtmlString('
-                    <style>
-                        .candidate-document-row-missing {
-                            background-color: color-mix(in oklab, var(--warning-500) 12%, transparent);
-                        }
-                    </style>
-                ')
-            );
+            ]);
     }
 }

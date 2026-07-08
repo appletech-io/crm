@@ -11,8 +11,8 @@
             variant="segmented"
             :label="__('What proof of your right to work in the UK can you provide?')"
         >
-            <flux:radio value="birth_certificate" label="{{ __('Birth Certificate') }}" />
-            <flux:radio value="passport" label="{{ __('Passport') }}" />
+            <flux:radio value="birth_certificate" label="{{ __('Birth Certificate (UK)') }}" />
+            <flux:radio value="passport" label="{{ __('Passport (UK)') }}" />
             <flux:radio value="visa" label="{{ __('Visa') }}" />
         </flux:radio.group>
 

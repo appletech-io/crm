@@ -87,6 +87,8 @@ test('the documents page always lists the base document types', function () {
         'prevent_training',
         'safeguarding_training',
         'proof_of_address',
+        'proof_of_ni',
+        'dbs',
     ]);
 });
 
@@ -124,15 +126,109 @@ test('a dbs row appears when the candidate has a dbs', function () {
 
     expect($types)->toHaveKey('dbs');
     expect($types)->not->toHaveKey('proof_of_address_2');
+    expect($types)->not->toHaveKey('get_dbs');
 });
 
-test('a second proof of address row appears when the candidate has no dbs', function () {
+test('a dbs row always appears so a candidate can upload one later', function () {
+    $user = makeCandidateUser('Onboarding');
+
+    $types = documentTypesFor($user);
+
+    expect($types)->toHaveKey('dbs');
+});
+
+test('a second proof of address row and a get dbs link appear when the candidate has no dbs', function () {
     $user = makeCandidateUser('Onboarding', ['has_dbs' => 'no']);
 
     $types = documentTypesFor($user);
 
+    expect($types)->toHaveKey('dbs');
     expect($types)->toHaveKey('proof_of_address_2');
-    expect($types)->not->toHaveKey('dbs');
+    expect($types)->toHaveKey('get_dbs');
+    expect($types['get_dbs']['url'])->toBe(
+        'https://www.hr-platform.co.uk/individual/application-login/?oo5cmxwZZpKlDaAJsRQwuW5kwPSbJcpenhQ0jtA2nYJG7djU06QdfTBNKOJlBWY97U7ETKgKu4t0%2BzZZEKG4qMqhggknGonub5UYB0YG0rL5d1LwXgaeJZr2gIfegvXtvhL8jCnjUWWs4yVQcKvxUhu0gctiD7hHaBWpsSteUWGDq%2BUGkNNzHPqHGqPenD5K4TjY7L26P7mYOq%2FAPj%2F8WQ%3D%3D'
+    );
+});
+
+test('the get dbs row appears first when the candidate has no dbs', function () {
+    $user = makeCandidateUser('Onboarding', ['has_dbs' => 'no']);
+
+    $types = documentTypesFor($user);
+
+    expect(array_key_first($types))->toBe('get_dbs');
+});
+
+test('the get dbs action links out and the upload action is hidden for that row', function () {
+    $user = makeCandidateUser('Onboarding', ['has_dbs' => 'no']);
+    $this->actingAs($user);
+
+    Livewire::test(Documents::class)
+        ->assertActionVisible(TestAction::make('getDbs')->table(record: 'get_dbs'))
+        ->assertActionHidden(TestAction::make('upload')->table(record: 'get_dbs'))
+        ->assertActionHidden(TestAction::make('update')->table(record: 'get_dbs'))
+        ->assertActionHidden(TestAction::make('remove')->table(record: 'get_dbs'));
+});
+
+test('a candidate can upload their dbs after previously saying they had none', function () {
+    $user = makeCandidateUser('Onboarding', ['has_dbs' => 'no']);
+    $this->actingAs($user);
+
+    $file = UploadedFile::fake()->create('dbs.pdf', 100, 'application/pdf');
+
+    Livewire::test(Documents::class)
+        ->callAction(
+            TestAction::make('upload')->table(record: 'dbs'),
+            data: ['file' => $file],
+        )
+        ->assertHasNoActionErrors();
+
+    $document = $user->candidate->fresh()->documents()->where('document_type', 'dbs')->first();
+
+    expect($document)->not->toBeNull();
+    Storage::disk('local')->assertExists($document->path);
+});
+
+test('uploading the dbs sets has_dbs to yes and removes the get dbs row', function () {
+    $user = makeCandidateUser('Onboarding', ['has_dbs' => 'no']);
+    $this->actingAs($user);
+
+    $file = UploadedFile::fake()->create('dbs.pdf', 100, 'application/pdf');
+
+    Livewire::test(Documents::class)
+        ->callAction(
+            TestAction::make('upload')->table(record: 'dbs'),
+            data: ['file' => $file],
+        )
+        ->assertHasNoActionErrors();
+
+    expect($user->candidate->fresh()->has_dbs)->toBe('yes');
+
+    $types = documentTypesFor($user);
+    expect($types)->not->toHaveKey('get_dbs');
+});
+
+test('the actions tab only lists documents that have not been uploaded yet', function () {
+    $user = makeCandidateUser('Onboarding', ['has_dbs' => 'no']);
+    $user->candidate->documents()->create(['document_type' => 'cv', 'path' => 'company/education/1/cv.pdf']);
+    $this->actingAs($user);
+
+    Livewire::test(Documents::class)
+        ->set('activeTab', 'actions')
+        ->assertSee('Photo')
+        ->assertSee('Get your DBS')
+        ->assertDontSee('CV');
+});
+
+test('the documents tab only lists documents that have been uploaded', function () {
+    $user = makeCandidateUser('Onboarding', ['has_dbs' => 'no']);
+    $user->candidate->documents()->create(['document_type' => 'cv', 'path' => 'company/education/1/cv.pdf']);
+    $this->actingAs($user);
+
+    Livewire::test(Documents::class)
+        ->set('activeTab', 'documents')
+        ->assertSee('CV')
+        ->assertDontSee('Photo')
+        ->assertDontSee('Get your DBS');
 });
 
 test('a uk naric row appears when the candidate opts in', function () {
@@ -195,6 +291,25 @@ test('uploading a document creates a candidate_documents record and stores the f
     Storage::disk('local')->assertExists($document->path);
 });
 
+test('uploading a proof of ni document creates a candidate_documents record and stores the file', function () {
+    $user = makeCandidateUser('Onboarding');
+    $this->actingAs($user);
+
+    $file = UploadedFile::fake()->create('proof-of-ni.pdf', 100, 'application/pdf');
+
+    Livewire::test(Documents::class)
+        ->callAction(
+            TestAction::make('upload')->table(record: 'proof_of_ni'),
+            data: ['file' => $file],
+        )
+        ->assertHasNoActionErrors();
+
+    $document = $user->candidate->fresh()->documents()->where('document_type', 'proof_of_ni')->first();
+
+    expect($document)->not->toBeNull();
+    Storage::disk('local')->assertExists($document->path);
+});
+
 test('updating a document replaces the stored file and record', function () {
     $user = makeCandidateUser('Onboarding');
     $this->actingAs($user);
@@ -210,6 +325,7 @@ test('updating a document replaces the stored file and record', function () {
     $newFile = UploadedFile::fake()->create('cv-updated.pdf', 100, 'application/pdf');
 
     Livewire::test(Documents::class)
+        ->set('activeTab', 'documents')
         ->callAction(
             TestAction::make('update')->table(record: 'cv'),
             data: ['file' => $newFile],
@@ -240,6 +356,7 @@ test('removing a document deletes the stored file and record', function () {
     $path = $document->path;
 
     Livewire::test(Documents::class)
+        ->set('activeTab', 'documents')
         ->callAction(TestAction::make('remove')->table(record: 'cv'));
 
     expect($user->candidate->fresh()->documents()->where('document_type', 'cv')->exists())->toBeFalse();
