@@ -216,7 +216,7 @@ test('nextStep validates required personal details fields', function () {
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 2)
         ->call('nextStep')
-        ->assertHasErrors(['first_name', 'last_name', 'address', 'city', 'postcode']);
+        ->assertHasErrors(['title', 'first_name', 'last_name', 'gender', 'nationality', 'address', 'city', 'postcode']);
 });
 
 test('nextStep persists candidate data and advances to step 3', function () {
@@ -224,9 +224,12 @@ test('nextStep persists candidate data and advances to step 3', function () {
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 2)
+        ->set('title', 'Mr')
         ->set('first_name', 'Jane')
         ->set('last_name', 'Doe')
         ->set('date_of_birth', '1990-05-15')
+        ->set('gender', 'female')
+        ->set('nationality', 'British')
         ->set('address', '10 Downing Street')
         ->set('city', 'London')
         ->set('postcode', 'SW1A 2AA')
@@ -1830,9 +1833,12 @@ test('navigating back then forward again does not regress the persisted furthest
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 2)
+        ->set('title', 'Mr')
         ->set('first_name', 'Jane')
         ->set('last_name', 'Doe')
         ->set('date_of_birth', '1990-05-15')
+        ->set('gender', 'female')
+        ->set('nationality', 'British')
         ->set('address', '10 Downing Street')
         ->set('city', 'London')
         ->set('postcode', 'SW1A 2AA')

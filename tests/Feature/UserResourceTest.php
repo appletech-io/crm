@@ -35,6 +35,21 @@ test('site_admin can access users resource', function () {
     Livewire::test(ListUsers::class)->assertSuccessful();
 });
 
+test('users list excludes users with a candidate id', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+
+    $candidateUser = User::factory()->create([
+        'candidate_id' => 1,
+        'candidate_type' => 'App\\Models\\Candidate',
+    ]);
+
+    Livewire::test(ListUsers::class)
+        ->assertCanNotSeeTableRecords([$candidateUser])
+        ->assertCanSeeTableRecords([$admin]);
+});
+
 test('admin can create a user with a role', function () {
     $admin = User::factory()->create();
     $admin->assignRole('admin');

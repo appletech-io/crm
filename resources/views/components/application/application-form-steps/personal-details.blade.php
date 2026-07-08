@@ -4,13 +4,20 @@
 />
 
 <form
-    wire:submit="nextStep"
-    class="mt-6 flex flex-col gap-8"
     x-data="{
+        attempted: false,
         get isValid() {
-            return !!($wire.first_name && $wire.last_name && $wire.date_of_birth && $wire.address && $wire.city && $wire.postcode);
+            return !!($wire.title && $wire.first_name && $wire.last_name && $wire.date_of_birth && $wire.gender && $wire.nationality && $wire.address && $wire.city && $wire.postcode);
         },
     }"
+    x-on:submit.prevent="
+        attempted = true;
+
+        if (isValid) {
+            $wire.nextStep();
+        }
+    "
+    class="mt-6 flex flex-col gap-8"
 >
 
     {{-- Personal Information --}}
@@ -18,7 +25,13 @@
         <p class="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{{ __('Personal Information') }}</p>
 
         <div class="grid grid-cols-2 gap-4">
-            <flux:select wire:model="title" :label="__('Title')" placeholder="{{ __('Select…') }}">
+            <flux:select
+                wire:model="title"
+                :label="__('Title')"
+                placeholder="{{ __('Please select…') }}"
+                required
+                x-bind:class="attempted && !$wire.title ? '!border-red-500' : ''"
+            >
                 @foreach(['Mr', 'Mrs', 'Miss', 'Ms', 'Dr', 'Prof'] as $t)
                     <flux:select.option value="{{ $t }}">{{ $t }}</flux:select.option>
                 @endforeach
@@ -29,6 +42,7 @@
                 :label="__('First Name')"
                 placeholder="John"
                 required
+                x-bind:class="attempted && !$wire.first_name ? '!border-red-500' : ''"
             />
         </div>
 
@@ -44,6 +58,7 @@
                 :label="__('Last Name')"
                 placeholder="Smith"
                 required
+                x-bind:class="attempted && !$wire.last_name ? '!border-red-500' : ''"
             />
         </div>
 
@@ -84,12 +99,19 @@
                     :label="__('Date of Birth')"
                     placeholder="Jul 13, 1995"
                     required
+                    x-bind:class="attempted && !$wire.date_of_birth ? '!border-red-500' : ''"
                 />
             </div>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
-            <flux:select wire:model="gender" :label="__('Gender')" placeholder="{{ __('Select…') }}">
+            <flux:select
+                wire:model="gender"
+                :label="__('Gender')"
+                placeholder="{{ __('Please select…') }}"
+                required
+                x-bind:class="attempted && !$wire.gender ? '!border-red-500' : ''"
+            >
                 <flux:select.option value="male">{{ __('Male') }}</flux:select.option>
                 <flux:select.option value="female">{{ __('Female') }}</flux:select.option>
                 <flux:select.option value="non_binary">{{ __('Non-binary') }}</flux:select.option>
@@ -158,6 +180,7 @@
                         }
                     "
                     class="mt-1 flex h-10 w-full items-center rounded-lg border border-zinc-200 border-b-zinc-300/80 bg-white px-3 text-left text-sm shadow-xs dark:border-white/10 dark:bg-white/10"
+                    x-bind:class="attempted && !selected ? '!border-red-500' : ''"
                 >
                     <span
                         x-text="options[selected] ?? 'Select nationality'"
@@ -227,6 +250,7 @@
             :label="__('Address')"
             placeholder="123 Example Street"
             required
+            x-bind:class="attempted && !$wire.address ? '!border-red-500' : ''"
         />
 
         <div class="grid grid-cols-2 gap-4">
@@ -235,6 +259,7 @@
                 :label="__('City / Town')"
                 placeholder="London"
                 required
+                x-bind:class="attempted && !$wire.city ? '!border-red-500' : ''"
             />
 
             <flux:input
@@ -242,6 +267,7 @@
                 :label="__('Postcode')"
                 placeholder="SW1A 1AA"
                 required
+                x-bind:class="attempted && !$wire.postcode ? '!border-red-500' : ''"
             />
         </div>
 
@@ -287,7 +313,7 @@
         @enderror
     @endforeach
 
-    <flux:button type="submit" variant="primary" class="w-full" x-bind:disabled="!isValid">
+    <flux:button type="submit" variant="primary" class="w-full">
         {{ __('Next') }}
     </flux:button>
 

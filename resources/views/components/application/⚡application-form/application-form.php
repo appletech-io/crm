@@ -71,7 +71,7 @@ new #[Layout('layouts.application')] class extends Component
     public mixed $photo = null;
 
     // Personal information
-    public ?string $title = null;
+    public string $title = '';
 
     public string $first_name = '';
 
@@ -81,7 +81,7 @@ new #[Layout('layouts.application')] class extends Component
 
     public string $previous_surname = '';
 
-    public ?string $gender = null;
+    public string $gender = '';
 
     public ?string $nationality = null;
 
@@ -319,7 +319,7 @@ new #[Layout('layouts.application')] class extends Component
             $this->postcode = $extracted->postcode ?? '';
             $this->phone = $extracted->phone ?? '';
             $this->mobile = $extracted->mobile ?? '';
-            $this->gender = $extracted->gender ?? null;
+            $this->gender = $extracted->gender ?? '';
             $this->nationality = $extracted->nationality ?? null;
             $this->cv_parsed_data = (array) $extracted;
 
@@ -349,11 +349,11 @@ new #[Layout('layouts.application')] class extends Component
             'address' => ['required', 'string', 'max:500'],
             'city' => ['required', 'string', 'max:255'],
             'postcode' => ['required', 'string', 'max:10'],
-            'title' => ['nullable', 'string', 'max:10'],
+            'title' => ['required', 'string', 'max:10'],
             'middle_name' => ['nullable', 'string', 'max:255'],
             'previous_surname' => ['nullable', 'string', 'max:255'],
-            'gender' => ['nullable', 'string', 'in:male,female,non_binary,prefer_not_to_say'],
-            'nationality' => ['nullable', 'string', 'max:255'],
+            'gender' => ['required', 'string', 'in:male,female,non_binary,prefer_not_to_say'],
+            'nationality' => ['required', 'string', 'max:255'],
             'county' => ['nullable', 'string', 'max:255'],
             'country' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:20'],
@@ -1202,12 +1202,12 @@ new #[Layout('layouts.application')] class extends Component
 
     private function hydrateFromCandidate(EducationCandidate $candidate): void
     {
-        $this->title = $candidate->title;
+        $this->title = $candidate->title ?? '';
         $this->first_name = $candidate->first_name ?? '';
         $this->middle_name = $candidate->middle_name ?? '';
         $this->last_name = $candidate->last_name ?? '';
         $this->previous_surname = $candidate->previous_surname ?? '';
-        $this->gender = $candidate->gender;
+        $this->gender = $candidate->gender ?? '';
         $this->nationality = $candidate->nationality;
         $this->date_of_birth = $candidate->date_of_birth?->format(self::DATE_DISPLAY_FORMAT);
         $this->address = $candidate->address ?? '';
