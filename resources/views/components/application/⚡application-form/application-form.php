@@ -393,8 +393,8 @@ new #[Layout('layouts.application')] class extends Component
             'has_health_condition_or_disability' => ['required', 'in:yes,no'],
             'health_condition_details' => ['required_if:has_health_condition_or_disability,yes', 'nullable', 'string', 'max:2000'],
             'reasonable_accommodations' => ['nullable', 'string', 'max:2000'],
-            'emergency_contact_name' => ['nullable', 'string', 'max:255'],
-            'emergency_contact_number' => ['nullable', 'string', 'max:20'],
+            'emergency_contact_name' => ['required', 'string', 'max:255'],
+            'emergency_contact_number' => ['required', 'string', 'max:20'],
         ]);
 
         $this->application->educationCandidate->update([
@@ -403,8 +403,8 @@ new #[Layout('layouts.application')] class extends Component
                 ? ($this->health_condition_details ?: null)
                 : null,
             'reasonable_accommodations' => $this->reasonable_accommodations ?: null,
-            'emergency_contact_name' => $this->emergency_contact_name ?: null,
-            'emergency_contact_number' => $this->emergency_contact_number ?: null,
+            'emergency_contact_name' => $this->emergency_contact_name,
+            'emergency_contact_number' => $this->emergency_contact_number,
         ]);
 
         $this->goToStep(4);

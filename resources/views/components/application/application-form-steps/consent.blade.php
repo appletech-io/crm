@@ -226,6 +226,10 @@
             },
         }"
     >
+        <p x-show="!scrolledToBottom" class="text-sm text-zinc-500 dark:text-zinc-400">
+            {{ __('Please scroll to the bottom of the document before confirming.') }}
+        </p>
+
         <div
             x-ref="pdfScrollContainer"
             x-on:scroll="checkScroll()"
