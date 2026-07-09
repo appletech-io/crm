@@ -8,6 +8,7 @@ use App\Models\CandidateStatusAutomation;
 use App\Models\Industry;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TagsInput;
 use Filament\Resources\Pages\Page;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -113,7 +114,7 @@ class ManageCandidateStatusAutomations extends Page implements HasTable
         ];
     }
 
-    /** @return list<Select> */
+    /** @return list<Select|TagsInput> */
     private function automationFormSchema(): array
     {
         $statuses = CandidateStatus::query()
@@ -124,7 +125,6 @@ class ManageCandidateStatusAutomations extends Page implements HasTable
             ->toArray();
 
         $suggestions = Industry::query()->find(active_industry_id())?->candidateFieldSuggestions() ?? [];
-        $fieldSuggestions = $suggestions ? array_combine($suggestions, $suggestions) : [];
 
         return [
             Select::make('candidate_status_id')
@@ -141,12 +141,10 @@ class ManageCandidateStatusAutomations extends Page implements HasTable
                 ->required()
                 ->columnSpanFull(),
 
-            Select::make('completed_fields')
+            TagsInput::make('completed_fields')
                 ->label('Required fields')
-                ->helperText('All selected fields must be filled on the candidate before this automation triggers.')
-                ->options($fieldSuggestions)
-                ->multiple()
-                ->searchable()
+                ->helperText('All fields must be filled on the candidate before this automation triggers.')
+                ->suggestions($suggestions)
                 ->required()
                 ->columnSpanFull(),
         ];

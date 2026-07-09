@@ -6,6 +6,8 @@ use App\Enums\DocumentType;
 use App\Enums\ReferenceStatus;
 use App\Enums\ReferenceType;
 use App\Models\CandidateSkill;
+use App\Models\CandidateStatus;
+use App\Models\CandidateStatusAutomation;
 use App\Models\Company;
 use App\Models\EducationApplication;
 use App\Models\EducationCandidate;
@@ -1580,6 +1582,45 @@ test('completeApplication creates a user linked to the candidate, completes the 
     expect($application->fresh()->completed_at)->not->toBeNull();
     expect($application->fresh()->current_step)->toBe(11);
     expect(auth()->id())->toBe($user->id);
+});
+
+test('completeApplication has already marked the application completed by the time the user account triggers the candidate status automation check', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+    $candidate->update(['first_name' => 'Jane', 'last_name' => 'Doe', 'email' => 'jane.automation@example.com']);
+
+    $industryId = Industry::where('slug', 'education')->value('id');
+
+    $onboarding = CandidateStatus::factory()->create([
+        'company_id' => $candidate->company_id,
+        'industry_id' => $industryId,
+        'name' => 'Onboarding',
+    ]);
+
+    $vetting = CandidateStatus::factory()->create([
+        'company_id' => $candidate->company_id,
+        'industry_id' => $industryId,
+        'name' => 'Vetting',
+    ]);
+
+    $candidate->statuses()->create(['candidate_status_id' => $onboarding->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $onboarding->id,
+        'to_candidate_status_id' => $vetting->id,
+        'completed_fields' => ['application.completed_at'],
+    ]);
+
+    ApplicationCompleted::shouldRun()->once();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 11)
+        ->set('password', 'super-secret-password')
+        ->set('password_confirmation', 'super-secret-password')
+        ->call('completeApplication')
+        ->assertHasNoErrors();
+
+    expect($candidate->statuses()->where('candidate_status_id', $vetting->id)->exists())->toBeTrue();
 });
 
 test('references step does not expose status or last contacted fields to the candidate', function () {

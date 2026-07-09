@@ -848,6 +848,15 @@ new #[Layout('layouts.application')] class extends Component
 
         $candidate = $this->application->educationCandidate;
 
+        // Marked completed before the user account is created so that the
+        // UserObserver's candidate status automation check (which can key off
+        // application.completed_at) sees it as already set.
+        $this->application->update([
+            'status' => 'completed',
+            'current_step' => 11,
+            'completed_at' => now(),
+        ]);
+
         $user = User::updateOrCreate(
             ['email' => $candidate->email],
             [
@@ -867,12 +876,6 @@ new #[Layout('layouts.application')] class extends Component
         }
 
         $user->assignRole('candidate');
-
-        $this->application->update([
-            'status' => 'completed',
-            'current_step' => 11,
-            'completed_at' => now(),
-        ]);
 
         ApplicationCompleted::run($this->application);
 

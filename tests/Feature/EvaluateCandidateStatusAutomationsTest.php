@@ -8,6 +8,7 @@ use App\Models\CandidateStatus;
 use App\Models\CandidateStatusAutomation;
 use App\Models\EducationCandidate;
 use App\Models\Industry;
+use App\Models\User;
 use Illuminate\Support\Facades\Queue;
 use Lorisleiva\Actions\Decorators\JobDecorator;
 
@@ -153,6 +154,66 @@ test('observer triggers automation check when candidate is updated', function ()
     $candidate->update(['email' => 'jane@example.com']);
 
     expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeTrue();
+});
+
+test('observer triggers automation check when a user is created for a candidate', function () {
+    $candidate = EducationCandidate::factory()->create(['first_name' => 'Jane', 'email' => 'jane@example.com']);
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'completed_fields' => ['first_name', 'email'],
+    ]);
+
+    // Automation should not fire yet — no user account exists for the candidate
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
+
+    User::factory()->create([
+        'candidate_id' => $candidate->id,
+        'candidate_type' => EducationCandidate::class,
+    ]);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeTrue();
+});
+
+test('observer does not trigger the automation check for a user without a candidate', function () {
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'completed_fields' => ['first_name'],
+    ]);
+
+    User::factory()->create();
+
+    // No exception, and nothing to assert against a status change since there's no candidate —
+    // this just proves the observer doesn't error out when candidate_id is null.
+    expect(true)->toBeTrue();
+});
+
+test('observer does not re-run the automation check on unrelated user updates', function () {
+    $candidate = EducationCandidate::factory()->create(['first_name' => 'Jane', 'email' => 'jane@example.com']);
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'completed_fields' => ['first_name', 'email'],
+    ]);
+
+    $user = User::factory()->create([
+        'candidate_id' => $candidate->id,
+        'candidate_type' => EducationCandidate::class,
+    ]);
+
+    // Move the candidate back to the "from" status to prove a later, unrelated
+    // user update doesn't re-trigger the automation and bounce it forward again.
+    $candidate->statuses()->delete();
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    $user->update(['name' => 'Jane Updated']);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
 });
 
 test('CheckCandidateStatusAutomations logs activity when status changes', function () {
