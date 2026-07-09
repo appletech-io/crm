@@ -48,6 +48,18 @@
         @enderror
     </div>
 
+    <div x-show="$wire.has_dbs === 'yes'">
+        <flux:input
+            wire:model="dbs_certificate_number"
+            :label="__('DBS Certificate Number')"
+            placeholder="001234567890"
+        />
+
+        @error('dbs_certificate_number')
+            <flux:error>{{ $message }}</flux:error>
+        @enderror
+    </div>
+
     <div class="flex flex-col gap-2">
         <flux:radio.group
             wire:model="has_naric"

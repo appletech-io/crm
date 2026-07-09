@@ -173,6 +173,10 @@ new #[Layout('layouts.application')] class extends Component
 
     public array $skills = [];
 
+    public string $ni_number = '';
+
+    public string $trn_number = '';
+
     // Employment History
     public array $employmentHistories = [];
 
@@ -187,6 +191,8 @@ new #[Layout('layouts.application')] class extends Component
     public string $visa_share_code = '';
 
     public ?string $has_dbs = null;
+
+    public string $dbs_certificate_number = '';
 
     public ?string $has_naric = null;
 
@@ -311,7 +317,7 @@ new #[Layout('layouts.application')] class extends Component
             $this->first_name = $extracted->firstName ?? '';
             $this->middle_name = $extracted->middleName ?? '';
             $this->last_name = $extracted->lastName ?? '';
-            $this->date_of_birth = $this->formatDateForDisplay($extracted->dateOfBirth);
+            $this->date_of_birth = $this->formatDateForInput($extracted->dateOfBirth);
             $this->address = $extracted->address ?? '';
             $this->city = $extracted->city ?? '';
             $this->county = $extracted->county ?? '';
@@ -597,6 +603,10 @@ new #[Layout('layouts.application')] class extends Component
             'key_stages.*' => ['string', Rule::enum(KeyStage::class)],
             'skills' => ['required', 'array', 'min:1'],
             'skills.*' => ['integer', 'exists:candidate_skills,id'],
+            'ni_number' => ['required', 'string', 'regex:/^[A-Za-z]{2}[0-9]{6}[A-Za-z]$/'],
+            'trn_number' => ['nullable', 'string', 'max:20'],
+        ], [
+            'ni_number.regex' => 'Please enter a valid National Insurance number (e.g. QQ123456C).',
         ]);
 
         $skillIds = collect($this->skills);
@@ -612,6 +622,8 @@ new #[Layout('layouts.application')] class extends Component
             'availability' => $this->availability,
             'available_from' => $this->available_from,
             'key_stages' => $this->key_stages,
+            'ni_number' => strtoupper($this->ni_number),
+            'trn_number' => $this->trn_number ?: null,
         ]);
 
         $candidate->skills()->sync($skillIds->merge($parentIds)->unique()->values());
@@ -744,8 +756,8 @@ new #[Layout('layouts.application')] class extends Component
                 'id' => null,
                 'company_name' => $entry['companyName'] ?? '',
                 'job_title' => $entry['jobTitle'] ?? '',
-                'worked_from' => $this->formatDateForDisplay($entry['workedFrom'] ?? null),
-                'worked_to' => $this->formatDateForDisplay($entry['workedTo'] ?? null),
+                'worked_from' => $this->formatDateForInput($entry['workedFrom'] ?? null),
+                'worked_to' => $this->formatDateForInput($entry['workedTo'] ?? null),
                 'collapsed' => false,
             ])
             ->values()
@@ -813,6 +825,7 @@ new #[Layout('layouts.application')] class extends Component
             'right_to_work_type' => ['required', 'in:birth_certificate,passport,visa'],
             'visa_share_code' => ['required_if:right_to_work_type,visa', 'nullable', 'string', 'max:255'],
             'has_dbs' => ['required', 'in:yes,no'],
+            'dbs_certificate_number' => ['required_if:has_dbs,yes', 'nullable', 'string', 'regex:/^\d+$/', 'max:20'],
             'has_naric' => ['nullable', 'in:yes,no'],
         ]);
 
@@ -820,6 +833,7 @@ new #[Layout('layouts.application')] class extends Component
             'right_to_work_type' => $this->right_to_work_type,
             'visa_share_code' => $this->right_to_work_type === 'visa' ? $this->visa_share_code : null,
             'has_dbs' => $this->has_dbs,
+            'dbs_certificate_number' => $this->has_dbs === 'yes' ? $this->dbs_certificate_number : null,
             'has_naric' => $this->has_naric,
         ]);
 
@@ -941,9 +955,9 @@ new #[Layout('layouts.application')] class extends Component
         }
 
         $duration = $from->diffForHumans($to, syntax: Carbon::DIFF_ABSOLUTE, parts: 2);
-        $toLabel = $item['worked_to'] ?: 'Present';
+        $toLabel = $item['worked_to'] ? $to->format(self::DATE_DISPLAY_FORMAT) : 'Present';
 
-        return $item['worked_from'].' – '.$toLabel.' ('.$duration.')';
+        return $from->format(self::DATE_DISPLAY_FORMAT).' – '.$toLabel.' ('.$duration.')';
     }
 
     private function validateReferenceHistoryCoverage(): void
@@ -1209,7 +1223,7 @@ new #[Layout('layouts.application')] class extends Component
         $this->previous_surname = $candidate->previous_surname ?? '';
         $this->gender = $candidate->gender ?? '';
         $this->nationality = $candidate->nationality;
-        $this->date_of_birth = $candidate->date_of_birth?->format(self::DATE_DISPLAY_FORMAT);
+        $this->date_of_birth = $candidate->date_of_birth?->format('Y-m-d');
         $this->address = $candidate->address ?? '';
         $this->city = $candidate->city ?? '';
         $this->county = $candidate->county ?? '';
@@ -1236,20 +1250,23 @@ new #[Layout('layouts.application')] class extends Component
         $this->right_to_work_type = $candidate->right_to_work_type;
         $this->visa_share_code = $candidate->visa_share_code ?? '';
         $this->has_dbs = $candidate->has_dbs;
+        $this->dbs_certificate_number = $candidate->dbs_certificate_number ?? '';
         $this->has_naric = $candidate->has_naric;
 
         $this->qualification_id = $candidate->qualification_id;
         $this->availability = $candidate->availability ?? [];
-        $this->available_from = $candidate->available_from?->format(self::DATE_DISPLAY_FORMAT);
+        $this->available_from = $candidate->available_from?->format('Y-m-d');
         $this->key_stages = $candidate->key_stages ?? [];
         $this->skills = $candidate->skills->pluck('id')->all();
+        $this->ni_number = $candidate->ni_number ?? '';
+        $this->trn_number = $candidate->trn_number ?? '';
 
         $this->employmentHistories = $candidate->employmentHistories->map(fn ($entry) => [
             'id' => $entry->id,
             'company_name' => $entry->company_name,
             'job_title' => $entry->job_title,
-            'worked_from' => $entry->worked_from?->format(self::DATE_DISPLAY_FORMAT),
-            'worked_to' => $entry->worked_to?->format(self::DATE_DISPLAY_FORMAT),
+            'worked_from' => $entry->worked_from?->format('Y-m-d'),
+            'worked_to' => $entry->worked_to?->format('Y-m-d'),
             'collapsed' => true,
         ])->all();
 
@@ -1260,8 +1277,8 @@ new #[Layout('layouts.application')] class extends Component
             'first_name' => $reference->first_name,
             'last_name' => $reference->last_name,
             'job_title' => $reference->job_title,
-            'worked_from' => $reference->worked_from?->format(self::DATE_DISPLAY_FORMAT),
-            'worked_to' => $reference->worked_to?->format(self::DATE_DISPLAY_FORMAT),
+            'worked_from' => $reference->worked_from?->format('Y-m-d'),
+            'worked_to' => $reference->worked_to?->format('Y-m-d'),
             'email' => $reference->email,
             'mobile' => $reference->mobile,
             'address' => $reference->address,
@@ -1285,7 +1302,7 @@ new #[Layout('layouts.application')] class extends Component
             'first_name' => $data['firstName'] ?? '',
             'middle_name' => $data['middleName'] ?? '',
             'last_name' => $data['lastName'] ?? '',
-            'date_of_birth' => $this->formatDateForDisplay($data['dateOfBirth'] ?? null),
+            'date_of_birth' => $this->formatDateForInput($data['dateOfBirth'] ?? null),
             'address' => $data['address'] ?? '',
             'city' => $data['city'] ?? '',
             'county' => $data['county'] ?? '',
@@ -1314,6 +1331,19 @@ new #[Layout('layouts.application')] class extends Component
 
         try {
             return Carbon::parse($date)->format(self::DATE_DISPLAY_FORMAT);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    private function formatDateForInput(?string $date): ?string
+    {
+        if (! $date) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($date)->format('Y-m-d');
         } catch (Throwable) {
             return null;
         }

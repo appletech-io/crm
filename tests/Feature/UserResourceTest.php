@@ -14,9 +14,8 @@ beforeEach(function () {
 
 test('non-admin cannot access users resource', function () {
     $user = User::factory()->create();
-    $this->actingAs($user);
 
-    Livewire::test(ListUsers::class)->assertForbidden();
+    $this->actingAs($user)->get('/crm/users')->assertRedirect('/crm');
 });
 
 test('admin can access users resource', function () {

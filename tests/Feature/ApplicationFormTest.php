@@ -180,7 +180,7 @@ test('parseCv populates fields and advances to step 2', function () {
         ->assertSet('first_name', 'Jane')
         ->assertSet('last_name', 'Doe')
         ->assertSet('city', 'London')
-        ->assertSet('date_of_birth', 'May 15, 1990')
+        ->assertSet('date_of_birth', '1990-05-15')
         ->assertSet('employmentHistories.0.company_name', 'Oakwood Primary')
         ->assertSet('employmentHistories.0.job_title', 'Teacher');
 
@@ -277,7 +277,7 @@ test('mount hydrates step 2 fields already saved on the candidate, preferring th
         ->assertSet('currentStep', 2)
         ->assertSet('first_name', 'Priya')
         ->assertSet('last_name', 'Shah')
-        ->assertSet('date_of_birth', 'Mar 2, 1985')
+        ->assertSet('date_of_birth', '1985-03-02')
         ->assertSet('city', 'Leeds')
         ->assertSet('mobile', '07700900123');
 });
@@ -932,6 +932,8 @@ test('saveWorkPreferences persists skills, qualification, and work preferences a
         ->set('available_from', now()->addWeek()->toDateString())
         ->set('key_stages', ['keystage_1', 'keystage_2'])
         ->set('skills', [$childSkill->id])
+        ->set('ni_number', 'qq123456c')
+        ->set('trn_number', '1234567')
         ->call('saveWorkPreferences')
         ->assertHasNoErrors()
         ->assertSet('currentStep', 8);
@@ -942,6 +944,8 @@ test('saveWorkPreferences persists skills, qualification, and work preferences a
     expect($candidate->available_from->toDateString())->toBe(now()->addWeek()->toDateString());
     expect($candidate->key_stages)->toBe(['keystage_1', 'keystage_2']);
     expect($candidate->skills->pluck('id')->sort()->values()->all())->toBe([$parentSkill->id, $childSkill->id]);
+    expect($candidate->ni_number)->toBe('QQ123456C');
+    expect($candidate->trn_number)->toBe('1234567');
 
     expect($application->fresh()->status)->toBe('pending');
     expect($application->fresh()->completed_at)->toBeNull();
@@ -959,12 +963,48 @@ test('saveWorkPreferences validates availability and key_stages values', functio
         ->assertHasErrors(['availability.0', 'key_stages.0']);
 });
 
+test('saveWorkPreferences requires a valid ni number', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 7)
+        ->set('ni_number', '')
+        ->call('saveWorkPreferences')
+        ->assertHasErrors(['ni_number']);
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 7)
+        ->set('ni_number', 'not-valid')
+        ->call('saveWorkPreferences')
+        ->assertHasErrors(['ni_number']);
+});
+
+test('saveWorkPreferences does not require a trn number', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    $parentSkill = CandidateSkill::factory()->create([
+        'company_id' => $candidate->company_id,
+        'industry_id' => Industry::where('slug', 'education')->value('id'),
+    ]);
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 7)
+        ->set('skills', [$parentSkill->id])
+        ->set('ni_number', 'AB123456C')
+        ->call('saveWorkPreferences')
+        ->assertHasNoErrors();
+
+    expect($candidate->refresh()->trn_number)->toBeNull();
+});
+
 test('saveWorkPreferences requires at least one skill', function () {
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 7)
         ->set('skills', [])
+        ->set('ni_number', 'AB123456C')
         ->call('saveWorkPreferences')
         ->assertHasErrors(['skills']);
 
@@ -1000,7 +1040,7 @@ test('mount seeds employment history from cv parsed data when none is saved yet'
         ->assertCount('employmentHistories', 2)
         ->assertSet('employmentHistories.0.company_name', 'Oakwood Primary')
         ->assertSet('employmentHistories.0.job_title', 'Class Teacher')
-        ->assertSet('employmentHistories.0.worked_from', 'Sep 1, 2020')
+        ->assertSet('employmentHistories.0.worked_from', '2020-09-01')
         ->assertSet('employmentHistories.0.collapsed', false)
         ->assertSet('employmentHistories.1.company_name', 'Elmfield School');
 });
@@ -1406,6 +1446,29 @@ test('saveDocumentRequirements requires a visa share code when right to work is 
         ->assertHasErrors(['visa_share_code']);
 });
 
+test('saveDocumentRequirements requires a dbs certificate number when has_dbs is yes', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 10)
+        ->set('right_to_work_type', 'passport')
+        ->set('has_dbs', 'yes')
+        ->call('saveDocumentRequirements')
+        ->assertHasErrors(['dbs_certificate_number']);
+});
+
+test('saveDocumentRequirements rejects a non-numeric dbs certificate number', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 10)
+        ->set('right_to_work_type', 'passport')
+        ->set('has_dbs', 'yes')
+        ->set('dbs_certificate_number', 'ABC123')
+        ->call('saveDocumentRequirements')
+        ->assertHasErrors(['dbs_certificate_number']);
+});
+
 test('saveDocumentRequirements persists answers and advances to the set password step', function () {
     $application = makePendingApplication();
     $candidate = $application->educationCandidate;
@@ -1424,7 +1487,24 @@ test('saveDocumentRequirements persists answers and advances to the set password
     expect($candidate->right_to_work_type)->toBe('visa');
     expect($candidate->visa_share_code)->toBe('ABC123XYZ');
     expect($candidate->has_dbs)->toBe('no');
+    expect($candidate->dbs_certificate_number)->toBeNull();
     expect($candidate->has_naric)->toBe('yes');
+});
+
+test('saveDocumentRequirements persists the dbs certificate number when has_dbs is yes', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 10)
+        ->set('right_to_work_type', 'passport')
+        ->set('has_dbs', 'yes')
+        ->set('dbs_certificate_number', '001234567890')
+        ->call('saveDocumentRequirements')
+        ->assertHasNoErrors()
+        ->assertSet('currentStep', 11);
+
+    expect($candidate->refresh()->dbs_certificate_number)->toBe('001234567890');
 });
 
 test('saveDocumentRequirements clears the visa share code when right to work is not visa', function () {
@@ -1435,6 +1515,7 @@ test('saveDocumentRequirements clears the visa share code when right to work is 
         ->set('currentStep', 10)
         ->set('right_to_work_type', 'passport')
         ->set('has_dbs', 'yes')
+        ->set('dbs_certificate_number', '001234567890')
         ->call('saveDocumentRequirements')
         ->assertHasNoErrors();
 
@@ -1740,7 +1821,7 @@ test('mount hydrates qualification, work preferences, and skills already saved o
         ->assertSet('currentStep', 7)
         ->assertSet('qualification_id', $qualification->id)
         ->assertSet('availability', ['long_term', 'part_time'])
-        ->assertSet('available_from', now()->addWeek()->format('M j, Y'))
+        ->assertSet('available_from', now()->addWeek()->format('Y-m-d'))
         ->assertSet('key_stages', ['keystage_1', 'keystage_2'])
         ->assertSet('skills', fn (array $skills) => collect($skills)->sort()->values()->all() === [$parentSkill->id, $childSkill->id]);
 });

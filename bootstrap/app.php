@@ -4,6 +4,7 @@ use App\Http\Middleware\SetActiveIndustry;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -35,6 +36,11 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
-            return $user->hasRole('candidate') ? redirect('/candidate') : redirect('/crm');
+            // Built explicitly rather than via the redirect() helper: when this 403
+            // originates from inside a Livewire full-page component (e.g. a Filament
+            // resource's canViewAny() check), Livewire rebinds redirect() to its own
+            // Redirector, which isn't a valid HTTP response and breaks middleware
+            // further down the pipeline.
+            return new RedirectResponse($user->hasRole('candidate') ? '/candidate' : '/crm');
         });
     })->create();

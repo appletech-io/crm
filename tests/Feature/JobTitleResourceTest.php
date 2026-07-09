@@ -42,7 +42,7 @@ test('non-admin cannot access job titles resource', function () {
     Cache::put("user.{$consultant->id}.active_industry", $this->industry->slug);
     Cache::put("user.{$consultant->id}.active_industry_id", $this->industry->id);
 
-    Livewire::test(ListJobTitles::class)->assertForbidden();
+    $this->get('/crm/job-titles')->assertRedirect('/crm');
 });
 
 test('site_admin can access job titles resource', function () {

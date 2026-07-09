@@ -69,39 +69,14 @@
                 placeholder="Jones"
             />
 
-            <div
-                x-data="{
-                    fp: null,
-                    init() {
-                        this.fp = flatpickr(this.$refs.dobInput, {
-                            dateFormat: 'M j, Y',
-                            disableMobile: true,
-                            maxDate: 'today',
-                            allowInput: true,
-                            defaultDate: this.$refs.dobInput.value || null,
-                            onChange: (dates, dateStr) => {
-                                this.$refs.dobInput.value = dateStr;
-                                this.$refs.dobInput.dispatchEvent(new Event('input', { bubbles: true }));
-                            },
-                        });
-                        this.$watch('$wire.date_of_birth', (value) => {
-                            if (this.fp) this.fp.setDate(value || null, false);
-                        });
-                    },
-                    destroy() {
-                        if (this.fp) this.fp.destroy();
-                    },
-                }"
-            >
-                <flux:input
-                    input:x-ref="dobInput"
-                    wire:model="date_of_birth"
-                    :label="__('Date of Birth')"
-                    placeholder="Jul 13, 1995"
-                    required
-                    x-bind:class="attempted && !$wire.date_of_birth ? '!border-red-500' : ''"
-                />
-            </div>
+            <flux:input
+                type="date"
+                wire:model="date_of_birth"
+                :label="__('Date of Birth')"
+                max="{{ now()->subDay()->format('Y-m-d') }}"
+                required
+                x-bind:class="attempted && !$wire.date_of_birth ? '!border-red-500' : ''"
+            />
         </div>
 
         <div class="grid grid-cols-2 gap-4">

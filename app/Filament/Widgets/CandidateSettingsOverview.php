@@ -5,9 +5,11 @@ namespace App\Filament\Widgets;
 use App\Filament\Resources\CandidatePools\CandidatePoolResource;
 use App\Filament\Resources\CandidateSkills\CandidateSkillResource;
 use App\Filament\Resources\CandidateStatuses\CandidateStatusResource;
+use App\Filament\Resources\Qualifications\QualificationResource;
 use App\Models\CandidatePool;
 use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
+use App\Models\Qualification;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Facades\Auth;
@@ -39,6 +41,11 @@ class CandidateSettingsOverview extends StatsOverviewWidget
             )
             ->count();
 
+        $qualificationsCount = Qualification::query()
+            ->where('company_id', Auth::user()->company_id)
+            ->where('industry_id', active_industry_id())
+            ->count();
+
         return [
             Stat::make('Skills', $skillsCount)
                 ->description('Candidate skills configured')
@@ -57,6 +64,12 @@ class CandidateSettingsOverview extends StatsOverviewWidget
                 ->descriptionIcon('heroicon-m-rectangle-stack')
                 ->color('primary')
                 ->url(CandidatePoolResource::getUrl('index')),
+
+            Stat::make('Qualifications', $qualificationsCount)
+                ->description('Qualifications configured')
+                ->descriptionIcon('heroicon-m-academic-cap')
+                ->color('primary')
+                ->url(QualificationResource::getUrl('index')),
         ];
     }
 }
