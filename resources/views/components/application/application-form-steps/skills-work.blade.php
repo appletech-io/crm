@@ -23,35 +23,30 @@
             </div>
         </flux:checkbox.group>
 
-        <div
-            x-data="{
-                fp: null,
-                init() {
-                    this.fp = flatpickr(this.$refs.availableFromInput, {
-                        dateFormat: 'M j, Y',
-                        disableMobile: true,
-                        minDate: 'today',
-                        allowInput: true,
-                        defaultDate: this.$refs.availableFromInput.value || null,
-                        onChange: (dates, dateStr) => {
-                            this.$refs.availableFromInput.value = dateStr;
-                            this.$refs.availableFromInput.dispatchEvent(new Event('input', { bubbles: true }));
-                        },
-                    });
-                    this.$watch('$wire.available_from', (value) => {
-                        if (this.fp) this.fp.setDate(value || null, false);
-                    });
-                },
-                destroy() {
-                    if (this.fp) this.fp.destroy();
-                },
-            }"
-        >
+        <flux:input
+            type="date"
+            wire:model="available_from"
+            :label="__('When can you start working with us?')"
+            min="{{ now()->format('Y-m-d') }}"
+        />
+    </div>
+
+    {{-- National Insurance & TRN --}}
+    <div class="flex flex-col gap-4">
+        <p class="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{{ __('National Insurance & TRN') }}</p>
+
+        <div class="grid grid-cols-2 gap-4">
             <flux:input
-                input:x-ref="availableFromInput"
-                wire:model="available_from"
-                :label="__('When can you start working with us?')"
-                placeholder="Jul 13, 1995"
+                wire:model="ni_number"
+                :label="__('National Insurance Number')"
+                placeholder="QQ123456C"
+                required
+            />
+
+            <flux:input
+                wire:model="trn_number"
+                :label="__('TRN Number')"
+                placeholder="1234567"
             />
         </div>
     </div>

@@ -46,69 +46,19 @@
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
-                    <div
-                        x-data="{
-                            fp: null,
-                            init() {
-                                this.fp = flatpickr(this.$refs.workedFromInput, {
-                                    dateFormat: 'M j, Y',
-                                    disableMobile: true,
-                                    maxDate: 'today',
-                                    allowInput: true,
-                                    defaultDate: this.$refs.workedFromInput.value || null,
-                                    onChange: (dates, dateStr) => {
-                                        this.$refs.workedFromInput.value = dateStr;
-                                        this.$refs.workedFromInput.dispatchEvent(new Event('input', { bubbles: true }));
-                                    },
-                                });
-                                this.$watch('$wire.employmentHistories.{{ $index }}.worked_from', (value) => {
-                                    if (this.fp) this.fp.setDate(value || null, false);
-                                });
-                            },
-                            destroy() {
-                                if (this.fp) this.fp.destroy();
-                            },
-                        }"
-                    >
-                        <flux:input
-                            input:x-ref="workedFromInput"
-                            wire:model.live="employmentHistories.{{ $index }}.worked_from"
-                            :label="__('Worked From')"
-                            placeholder="Jul 13, 1995"
-                        />
-                    </div>
+                    <flux:input
+                        type="date"
+                        wire:model.live="employmentHistories.{{ $index }}.worked_from"
+                        :label="__('Worked From')"
+                        max="{{ now()->format('Y-m-d') }}"
+                    />
 
-                    <div
-                        x-data="{
-                            fp: null,
-                            init() {
-                                this.fp = flatpickr(this.$refs.workedToInput, {
-                                    dateFormat: 'M j, Y',
-                                    disableMobile: true,
-                                    maxDate: 'today',
-                                    allowInput: true,
-                                    defaultDate: this.$refs.workedToInput.value || null,
-                                    onChange: (dates, dateStr) => {
-                                        this.$refs.workedToInput.value = dateStr;
-                                        this.$refs.workedToInput.dispatchEvent(new Event('input', { bubbles: true }));
-                                    },
-                                });
-                                this.$watch('$wire.employmentHistories.{{ $index }}.worked_to', (value) => {
-                                    if (this.fp) this.fp.setDate(value || null, false);
-                                });
-                            },
-                            destroy() {
-                                if (this.fp) this.fp.destroy();
-                            },
-                        }"
-                    >
-                        <flux:input
-                            input:x-ref="workedToInput"
-                            wire:model.live="employmentHistories.{{ $index }}.worked_to"
-                            :label="__('Worked To')"
-                            placeholder="{{ __('Leave blank if current') }}"
-                        />
-                    </div>
+                    <flux:input
+                        type="date"
+                        wire:model.live="employmentHistories.{{ $index }}.worked_to"
+                        :label="__('Worked To')"
+                        max="{{ now()->format('Y-m-d') }}"
+                    />
                 </div>
 
                 <flux:button type="button" variant="primary" wire:click="saveEmploymentHistory({{ $index }})" class="self-start">

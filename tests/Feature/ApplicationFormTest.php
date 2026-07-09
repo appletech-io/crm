@@ -932,6 +932,8 @@ test('saveWorkPreferences persists skills, qualification, and work preferences a
         ->set('available_from', now()->addWeek()->toDateString())
         ->set('key_stages', ['keystage_1', 'keystage_2'])
         ->set('skills', [$childSkill->id])
+        ->set('ni_number', 'qq123456c')
+        ->set('trn_number', '1234567')
         ->call('saveWorkPreferences')
         ->assertHasNoErrors()
         ->assertSet('currentStep', 8);
@@ -942,6 +944,8 @@ test('saveWorkPreferences persists skills, qualification, and work preferences a
     expect($candidate->available_from->toDateString())->toBe(now()->addWeek()->toDateString());
     expect($candidate->key_stages)->toBe(['keystage_1', 'keystage_2']);
     expect($candidate->skills->pluck('id')->sort()->values()->all())->toBe([$parentSkill->id, $childSkill->id]);
+    expect($candidate->ni_number)->toBe('QQ123456C');
+    expect($candidate->trn_number)->toBe('1234567');
 
     expect($application->fresh()->status)->toBe('pending');
     expect($application->fresh()->completed_at)->toBeNull();
@@ -959,12 +963,48 @@ test('saveWorkPreferences validates availability and key_stages values', functio
         ->assertHasErrors(['availability.0', 'key_stages.0']);
 });
 
+test('saveWorkPreferences requires a valid ni number', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 7)
+        ->set('ni_number', '')
+        ->call('saveWorkPreferences')
+        ->assertHasErrors(['ni_number']);
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 7)
+        ->set('ni_number', 'not-valid')
+        ->call('saveWorkPreferences')
+        ->assertHasErrors(['ni_number']);
+});
+
+test('saveWorkPreferences does not require a trn number', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    $parentSkill = CandidateSkill::factory()->create([
+        'company_id' => $candidate->company_id,
+        'industry_id' => Industry::where('slug', 'education')->value('id'),
+    ]);
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 7)
+        ->set('skills', [$parentSkill->id])
+        ->set('ni_number', 'AB123456C')
+        ->call('saveWorkPreferences')
+        ->assertHasNoErrors();
+
+    expect($candidate->refresh()->trn_number)->toBeNull();
+});
+
 test('saveWorkPreferences requires at least one skill', function () {
     $application = makePendingApplication();
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 7)
         ->set('skills', [])
+        ->set('ni_number', 'AB123456C')
         ->call('saveWorkPreferences')
         ->assertHasErrors(['skills']);
 
@@ -1000,7 +1040,7 @@ test('mount seeds employment history from cv parsed data when none is saved yet'
         ->assertCount('employmentHistories', 2)
         ->assertSet('employmentHistories.0.company_name', 'Oakwood Primary')
         ->assertSet('employmentHistories.0.job_title', 'Class Teacher')
-        ->assertSet('employmentHistories.0.worked_from', 'Sep 1, 2020')
+        ->assertSet('employmentHistories.0.worked_from', '2020-09-01')
         ->assertSet('employmentHistories.0.collapsed', false)
         ->assertSet('employmentHistories.1.company_name', 'Elmfield School');
 });
@@ -1781,7 +1821,7 @@ test('mount hydrates qualification, work preferences, and skills already saved o
         ->assertSet('currentStep', 7)
         ->assertSet('qualification_id', $qualification->id)
         ->assertSet('availability', ['long_term', 'part_time'])
-        ->assertSet('available_from', now()->addWeek()->format('M j, Y'))
+        ->assertSet('available_from', now()->addWeek()->format('Y-m-d'))
         ->assertSet('key_stages', ['keystage_1', 'keystage_2'])
         ->assertSet('skills', fn (array $skills) => collect($skills)->sort()->values()->all() === [$parentSkill->id, $childSkill->id]);
 });

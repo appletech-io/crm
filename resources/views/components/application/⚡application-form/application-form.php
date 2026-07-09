@@ -173,6 +173,10 @@ new #[Layout('layouts.application')] class extends Component
 
     public array $skills = [];
 
+    public string $ni_number = '';
+
+    public string $trn_number = '';
+
     // Employment History
     public array $employmentHistories = [];
 
@@ -313,7 +317,7 @@ new #[Layout('layouts.application')] class extends Component
             $this->first_name = $extracted->firstName ?? '';
             $this->middle_name = $extracted->middleName ?? '';
             $this->last_name = $extracted->lastName ?? '';
-            $this->date_of_birth = $this->formatDateOfBirthForInput($extracted->dateOfBirth);
+            $this->date_of_birth = $this->formatDateForInput($extracted->dateOfBirth);
             $this->address = $extracted->address ?? '';
             $this->city = $extracted->city ?? '';
             $this->county = $extracted->county ?? '';
@@ -599,6 +603,10 @@ new #[Layout('layouts.application')] class extends Component
             'key_stages.*' => ['string', Rule::enum(KeyStage::class)],
             'skills' => ['required', 'array', 'min:1'],
             'skills.*' => ['integer', 'exists:candidate_skills,id'],
+            'ni_number' => ['required', 'string', 'regex:/^[A-Za-z]{2}[0-9]{6}[A-Za-z]$/'],
+            'trn_number' => ['nullable', 'string', 'max:20'],
+        ], [
+            'ni_number.regex' => 'Please enter a valid National Insurance number (e.g. QQ123456C).',
         ]);
 
         $skillIds = collect($this->skills);
@@ -614,6 +622,8 @@ new #[Layout('layouts.application')] class extends Component
             'availability' => $this->availability,
             'available_from' => $this->available_from,
             'key_stages' => $this->key_stages,
+            'ni_number' => strtoupper($this->ni_number),
+            'trn_number' => $this->trn_number ?: null,
         ]);
 
         $candidate->skills()->sync($skillIds->merge($parentIds)->unique()->values());
@@ -746,8 +756,8 @@ new #[Layout('layouts.application')] class extends Component
                 'id' => null,
                 'company_name' => $entry['companyName'] ?? '',
                 'job_title' => $entry['jobTitle'] ?? '',
-                'worked_from' => $this->formatDateForDisplay($entry['workedFrom'] ?? null),
-                'worked_to' => $this->formatDateForDisplay($entry['workedTo'] ?? null),
+                'worked_from' => $this->formatDateForInput($entry['workedFrom'] ?? null),
+                'worked_to' => $this->formatDateForInput($entry['workedTo'] ?? null),
                 'collapsed' => false,
             ])
             ->values()
@@ -945,9 +955,9 @@ new #[Layout('layouts.application')] class extends Component
         }
 
         $duration = $from->diffForHumans($to, syntax: Carbon::DIFF_ABSOLUTE, parts: 2);
-        $toLabel = $item['worked_to'] ?: 'Present';
+        $toLabel = $item['worked_to'] ? $to->format(self::DATE_DISPLAY_FORMAT) : 'Present';
 
-        return $item['worked_from'].' – '.$toLabel.' ('.$duration.')';
+        return $from->format(self::DATE_DISPLAY_FORMAT).' – '.$toLabel.' ('.$duration.')';
     }
 
     private function validateReferenceHistoryCoverage(): void
@@ -1245,16 +1255,18 @@ new #[Layout('layouts.application')] class extends Component
 
         $this->qualification_id = $candidate->qualification_id;
         $this->availability = $candidate->availability ?? [];
-        $this->available_from = $candidate->available_from?->format(self::DATE_DISPLAY_FORMAT);
+        $this->available_from = $candidate->available_from?->format('Y-m-d');
         $this->key_stages = $candidate->key_stages ?? [];
         $this->skills = $candidate->skills->pluck('id')->all();
+        $this->ni_number = $candidate->ni_number ?? '';
+        $this->trn_number = $candidate->trn_number ?? '';
 
         $this->employmentHistories = $candidate->employmentHistories->map(fn ($entry) => [
             'id' => $entry->id,
             'company_name' => $entry->company_name,
             'job_title' => $entry->job_title,
-            'worked_from' => $entry->worked_from?->format(self::DATE_DISPLAY_FORMAT),
-            'worked_to' => $entry->worked_to?->format(self::DATE_DISPLAY_FORMAT),
+            'worked_from' => $entry->worked_from?->format('Y-m-d'),
+            'worked_to' => $entry->worked_to?->format('Y-m-d'),
             'collapsed' => true,
         ])->all();
 
@@ -1265,8 +1277,8 @@ new #[Layout('layouts.application')] class extends Component
             'first_name' => $reference->first_name,
             'last_name' => $reference->last_name,
             'job_title' => $reference->job_title,
-            'worked_from' => $reference->worked_from?->format(self::DATE_DISPLAY_FORMAT),
-            'worked_to' => $reference->worked_to?->format(self::DATE_DISPLAY_FORMAT),
+            'worked_from' => $reference->worked_from?->format('Y-m-d'),
+            'worked_to' => $reference->worked_to?->format('Y-m-d'),
             'email' => $reference->email,
             'mobile' => $reference->mobile,
             'address' => $reference->address,
@@ -1290,7 +1302,7 @@ new #[Layout('layouts.application')] class extends Component
             'first_name' => $data['firstName'] ?? '',
             'middle_name' => $data['middleName'] ?? '',
             'last_name' => $data['lastName'] ?? '',
-            'date_of_birth' => $this->formatDateOfBirthForInput($data['dateOfBirth'] ?? null),
+            'date_of_birth' => $this->formatDateForInput($data['dateOfBirth'] ?? null),
             'address' => $data['address'] ?? '',
             'city' => $data['city'] ?? '',
             'county' => $data['county'] ?? '',
@@ -1324,7 +1336,7 @@ new #[Layout('layouts.application')] class extends Component
         }
     }
 
-    private function formatDateOfBirthForInput(?string $date): ?string
+    private function formatDateForInput(?string $date): ?string
     {
         if (! $date) {
             return null;
