@@ -321,10 +321,22 @@ test('saveMedicalInformation requires details when the candidate answers yes', f
         ->set('currentStep', 3)
         ->set('has_health_condition_or_disability', 'yes')
         ->set('health_condition_details', 'Needs step-free access.')
+        ->set('emergency_contact_name', 'Jane Smith')
+        ->set('emergency_contact_number', '07700900000')
         ->call('saveMedicalInformation')
         ->assertHasNoErrors();
 
     expect($candidate->refresh()->health_condition_details)->toBe('Needs step-free access.');
+});
+
+test('saveMedicalInformation requires an emergency contact name and number', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 3)
+        ->set('has_health_condition_or_disability', 'no')
+        ->call('saveMedicalInformation')
+        ->assertHasErrors(['emergency_contact_name', 'emergency_contact_number']);
 });
 
 test('acceptTermsOfEngagement requires the consent checkbox to be checked', function () {

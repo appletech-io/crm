@@ -48,18 +48,32 @@
         <p class="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{{ __('Emergency Contact') }}</p>
 
         <div class="grid grid-cols-2 gap-4">
-            <flux:input
-                wire:model="emergency_contact_name"
-                :label="__('Name')"
-                placeholder="Jane Smith"
-            />
+            <div class="flex flex-col gap-2">
+                <flux:input
+                    wire:model="emergency_contact_name"
+                    :label="__('Name')"
+                    placeholder="Jane Smith"
+                    required
+                />
 
-            <flux:input
-                wire:model="emergency_contact_number"
-                type="tel"
-                :label="__('Phone Number')"
-                placeholder="+44 7700 900000"
-            />
+                @error('emergency_contact_name')
+                    <flux:error>{{ $message }}</flux:error>
+                @enderror
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <flux:input
+                    wire:model="emergency_contact_number"
+                    type="tel"
+                    :label="__('Phone Number')"
+                    placeholder="+44 7700 900000"
+                    required
+                />
+
+                @error('emergency_contact_number')
+                    <flux:error>{{ $message }}</flux:error>
+                @enderror
+            </div>
         </div>
     </div>
 
