@@ -70,6 +70,16 @@ test('a vetting candidate can access the documents page directly without a redir
     $this->actingAs($user)->get('/candidate/documents')->assertOk();
 });
 
+test('a vetting candidate can still log out', function () {
+    $user = makeCandidateUser('Vetting');
+
+    $this->actingAs($user)
+        ->post('/candidate/logout')
+        ->assertRedirect();
+
+    $this->assertGuest();
+});
+
 test('an onboarding candidate can access the documents page', function () {
     $user = makeCandidateUser('Onboarding');
 
