@@ -7,6 +7,7 @@ use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TagsInput;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
@@ -35,15 +36,9 @@ class AutomationsRelationManager extends RelationManager
                 ->searchable()
                 ->columnSpanFull(),
 
-            Select::make('completed_fields')
+            TagsInput::make('completed_fields')
                 ->label('Required fields')
-                ->helperText('All selected fields must be filled on the candidate before this automation triggers.')
-                ->options(fn (): array => array_combine(
-                    $this->getOwnerRecord()->industry->candidateFieldSuggestions(),
-                    $this->getOwnerRecord()->industry->candidateFieldSuggestions(),
-                ))
-                ->multiple()
-                ->searchable()
+                ->suggestions(fn (): array => $this->getOwnerRecord()->industry->candidateFieldSuggestions())
                 ->required()
                 ->columnSpanFull(),
         ]);
