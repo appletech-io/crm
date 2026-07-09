@@ -17,7 +17,7 @@ class RedirectVettingCandidateToDocuments
     {
         $candidate = $request->user()?->candidate;
 
-        if (! $candidate || $request->is('candidate/documents')) {
+        if (! $candidate || $request->is('candidate/documents') || $request->is('candidate/logout')) {
             return $next($request);
         }
 
