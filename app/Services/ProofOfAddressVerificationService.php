@@ -6,14 +6,16 @@ use App\Ai\Agents\ProofOfAddressParser;
 use App\DTOs\ProofOfAddressExtraction;
 use App\Enums\DocumentType;
 use App\Models\EducationCandidate;
+use App\Services\Concerns\ResolvesAiAttachment;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Laravel\Ai\Files\Document;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use RuntimeException;
 
 class ProofOfAddressVerificationService
 {
+    use ResolvesAiAttachment;
+
     /**
      * Extract the address from the candidate's uploaded proof of address
      * document, compare it against their stored address, and persist the
@@ -48,7 +50,7 @@ class ProofOfAddressVerificationService
         $response = (new ProofOfAddressParser)->prompt(
             'Please extract the address from this proof of address document.',
             attachments: [
-                Document::fromPath($filePath),
+                $this->attachmentFor($filePath),
             ],
         );
 

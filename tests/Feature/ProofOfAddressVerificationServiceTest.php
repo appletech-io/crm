@@ -6,6 +6,7 @@ use App\Models\CandidateDocument;
 use App\Models\EducationCandidate;
 use App\Services\ProofOfAddressVerificationService;
 use Illuminate\Support\Facades\Storage;
+use Laravel\Ai\Files\LocalImage;
 
 beforeEach(function () {
     Storage::fake('local');
@@ -78,6 +79,40 @@ test('verify marks the candidate as not matching when the postcode differs', fun
 
     expect($matches)->toBeFalse();
     expect($candidate->refresh()->proof_of_address_match)->toBe('no');
+});
+
+test('verify sends an image attachment as input_image, not input_file, when the document is a photo', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'address' => '19 Carlton Avenue',
+        'postcode' => 'DY9 9ED',
+    ]);
+
+    $path = 'candidates/'.$candidate->id.'/proof-of-address.jpg';
+    $onePixelJpeg = base64_decode('/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/2wBDAQMDAwQDBAgEBAgQCwkLEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBD/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAj/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=');
+    Storage::disk('local')->put($path, $onePixelJpeg);
+
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::ProofOfAddress,
+        'path' => $path,
+    ]);
+
+    ProofOfAddressParser::fake([
+        [
+            'address' => '19 Carlton Avenue',
+            'city' => 'Stourbridge',
+            'county' => 'West Midlands',
+            'country' => 'United Kingdom',
+            'postcode' => 'DY9 9ED',
+        ],
+    ]);
+
+    (new ProofOfAddressVerificationService)->verify($candidate);
+
+    ProofOfAddressParser::assertPrompted(
+        fn ($prompt) => $prompt->attachments->first() instanceof LocalImage
+    );
 });
 
 test('verify marks the candidate as not matching when the address text is very different', function () {

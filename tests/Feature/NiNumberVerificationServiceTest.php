@@ -6,6 +6,7 @@ use App\Models\CandidateDocument;
 use App\Models\EducationCandidate;
 use App\Services\NiNumberVerificationService;
 use Illuminate\Support\Facades\Storage;
+use Laravel\Ai\Files\LocalImage;
 
 beforeEach(function () {
     Storage::fake('local');
@@ -68,4 +69,27 @@ test('verify marks the candidate as not matching when nothing was extracted', fu
 
     expect($matches)->toBeFalse();
     expect($candidate->refresh()->ni_number_match)->toBe('no');
+});
+
+test('verify sends an image attachment as input_image, not input_file, when the document is a photo', function () {
+    $candidate = EducationCandidate::factory()->create(['ni_number' => 'QQ123456C']);
+
+    $path = 'candidates/'.$candidate->id.'/proof-of-ni.png';
+    $onePixelPng = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=');
+    Storage::disk('local')->put($path, $onePixelPng);
+
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::ProofOfNi,
+        'path' => $path,
+    ]);
+
+    ProofOfNiParser::fake([['niNumber' => 'QQ123456C']]);
+
+    (new NiNumberVerificationService)->verify($candidate);
+
+    ProofOfNiParser::assertPrompted(
+        fn ($prompt) => $prompt->attachments->first() instanceof LocalImage
+    );
 });

@@ -6,13 +6,15 @@ use App\Ai\Agents\ProofOfNiParser;
 use App\DTOs\ProofOfNiExtraction;
 use App\Enums\DocumentType;
 use App\Models\EducationCandidate;
+use App\Services\Concerns\ResolvesAiAttachment;
 use Illuminate\Support\Facades\Storage;
-use Laravel\Ai\Files\Document;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use RuntimeException;
 
 class NiNumberVerificationService
 {
+    use ResolvesAiAttachment;
+
     /**
      * Extract the National Insurance number from the candidate's uploaded
      * proof of NI document, compare it against their stored NI number, and
@@ -45,7 +47,7 @@ class NiNumberVerificationService
         $response = (new ProofOfNiParser)->prompt(
             'Please extract the National Insurance number from this document.',
             attachments: [
-                Document::fromPath($filePath),
+                $this->attachmentFor($filePath),
             ],
         );
 

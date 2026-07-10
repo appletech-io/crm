@@ -10,7 +10,10 @@ use App\Models\CandidateDocument;
 use App\Models\CandidateSkill;
 use App\Models\EducationCandidate;
 use App\Models\Qualification;
+use App\Services\CandidateVettingRequirements;
 use App\Services\DbsUpdateService;
+use App\Services\NiNumberVerificationService;
+use App\Services\ProofOfAddressVerificationService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
@@ -19,7 +22,9 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Actions;
+use Filament\Schemas\Components\Flex;
 use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Icon;
 use Filament\Schemas\Components\Image;
 use Filament\Schemas\Components\Livewire as LivewireComponent;
 use Filament\Schemas\Components\Section;
@@ -28,6 +33,7 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\Wizard\Step;
 use Filament\Support\Exceptions\Halt;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
@@ -44,7 +50,7 @@ class VettingSteps
             static::traChecks(),
             static::dbs(),
             static::placeholder('References'),
-            static::placeholder('Confirm'),
+            static::confirm(),
         ];
 
         $fieldsByIndex = [
@@ -184,6 +190,137 @@ class VettingSteps
                 LivewireComponent::make(CandidateDocumentStatus::class)
                     ->key('candidate-document-status'),
             ]);
+    }
+
+    protected static function confirm(): Step
+    {
+        return Step::make('Confirm')
+            ->schema([
+                Section::make('Vetting Checklist')
+                    ->schema(fn (?EducationCandidate $record): array => $record
+                        ? collect(CandidateVettingRequirements::for($record))
+                            ->map(function (array $check, string $key): Flex {
+                                $items = [
+                                    Text::make($check['label']),
+                                ];
+
+                                if ($manualConfirmAction = static::manualConfirmAction($key)) {
+                                    $items[] = $manualConfirmAction;
+                                }
+
+                                if ($recheckAction = static::recheckAction($key)) {
+                                    $items[] = $recheckAction;
+                                }
+
+                                $items[] = Icon::make($check['complete'] ? Heroicon::CheckCircle : Heroicon::XCircle)
+                                    ->color($check['complete'] ? 'success' : 'danger')
+                                    ->grow(false);
+
+                                return Flex::make($items);
+                            })
+                            ->values()
+                            ->all()
+                        : []
+                    )
+                    ->columns(2),
+            ]);
+    }
+
+    protected static function manualConfirmAction(string $key): ?Action
+    {
+        return match ($key) {
+            'proof_of_address' => Action::make('confirm_proof_of_address')
+                ->iconButton()
+                ->icon('heroicon-o-check-badge')
+                ->color('gray')
+                ->tooltip('Manually confirm proof of address matches')
+                ->requiresConfirmation()
+                ->modalHeading('Confirm proof of address matches')
+                ->modalDescription('Use this if the automated check failed, but you have manually verified the uploaded document matches the candidate\'s address.')
+                ->modalSubmitActionLabel('Confirm match')
+                ->action(fn (?EducationCandidate $record) => static::runManualConfirm(
+                    $record, 'proof_of_address_match', 'proof_of_address_checked_at', 'Proof of address'
+                )),
+            'proof_of_ni' => Action::make('confirm_proof_of_ni')
+                ->iconButton()
+                ->icon('heroicon-o-check-badge')
+                ->color('gray')
+                ->tooltip('Manually confirm proof of NI matches')
+                ->requiresConfirmation()
+                ->modalHeading('Confirm proof of NI matches')
+                ->modalDescription('Use this if the automated check failed, but you have manually verified the uploaded document matches the candidate\'s NI number.')
+                ->modalSubmitActionLabel('Confirm match')
+                ->action(fn (?EducationCandidate $record) => static::runManualConfirm(
+                    $record, 'ni_number_match', 'ni_number_checked_at', 'Proof of NI'
+                )),
+            default => null,
+        };
+    }
+
+    protected static function runManualConfirm(?EducationCandidate $record, string $matchField, string $checkedAtField, string $label): void
+    {
+        if (! $record) {
+            return;
+        }
+
+        $record->update([
+            $matchField => 'yes',
+            $checkedAtField => now(),
+        ]);
+
+        Notification::make()
+            ->success()
+            ->title("{$label} manually confirmed")
+            ->send();
+    }
+
+    protected static function recheckAction(string $key): ?Action
+    {
+        return match ($key) {
+            'proof_of_address' => Action::make('recheck_proof_of_address')
+                ->iconButton()
+                ->icon('heroicon-o-arrow-path')
+                ->color('gray')
+                ->tooltip('Recheck proof of address')
+                ->action(fn (?EducationCandidate $record) => static::runRecheck(
+                    $record, ProofOfAddressVerificationService::class, 'proof of address'
+                )),
+            'proof_of_ni' => Action::make('recheck_proof_of_ni')
+                ->iconButton()
+                ->icon('heroicon-o-arrow-path')
+                ->color('gray')
+                ->tooltip('Recheck proof of NI')
+                ->action(fn (?EducationCandidate $record) => static::runRecheck(
+                    $record, NiNumberVerificationService::class, 'proof of NI'
+                )),
+            default => null,
+        };
+    }
+
+    protected static function runRecheck(?EducationCandidate $record, string $serviceClass, string $label): void
+    {
+        if (! $record) {
+            return;
+        }
+
+        try {
+            $matches = app($serviceClass)->verify($record);
+
+            Notification::make()
+                ->success()
+                ->title(ucfirst($label).' rechecked')
+                ->body($matches
+                    ? 'The uploaded document matches the candidate\'s stored details.'
+                    : 'The uploaded document does not match the candidate\'s stored details.'
+                )
+                ->send();
+        } catch (\Throwable $exception) {
+            Notification::make()
+                ->danger()
+                ->title("Unable to recheck {$label}")
+                ->body($exception->getMessage())
+                ->send();
+        }
     }
 
     /** @return array<int, string> */

@@ -1,8 +1,12 @@
 <?php
 
+use App\Ai\Agents\ProofOfAddressParser;
+use App\Ai\Agents\ProofOfNiParser;
+use App\Enums\DocumentType;
 use App\Filament\Resources\Vetting\Pages\ListVetting;
 use App\Filament\Resources\Vetting\Pages\VettingWizard;
 use App\Models\CandidateCandidateStatus;
+use App\Models\CandidateDocument;
 use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
 use App\Models\Company;
@@ -15,6 +19,7 @@ use Filament\Actions\Testing\TestAction;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -288,8 +293,10 @@ test('overseas police clearance section only shows when the candidate lived over
         ->assertSuccessful()
         ->html();
 
-    expect($html)->not->toContain('Overseas Police Clearance');
-    expect($html)->not->toContain('Visa');
+    // The Confirm step's checklist always shows an "Overseas Police Clearance" row,
+    // so only the Security Checks step's own section (a second occurrence) is conditional.
+    expect(substr_count($html, 'Overseas Police Clearance'))->toBe(1);
+    expect($html)->not->toContain('Visa expiry date');
 
     $candidate->update([
         'lived_overseas_six_months' => 'yes',
@@ -300,8 +307,8 @@ test('overseas police clearance section only shows when the candidate lived over
         ->assertSuccessful()
         ->html();
 
-    expect($html)->toContain('Overseas Police Clearance');
-    expect($html)->toContain('Visa');
+    expect(substr_count($html, 'Overseas Police Clearance'))->toBe(2);
+    expect($html)->toContain('Visa expiry date');
 });
 
 test('vetting wizard can save security checks', function () {
@@ -596,4 +603,132 @@ test('calling the update service action shows an error when the check fails', fu
         ->assertNotified('DBS Update Service check failed');
 
     expect($candidate->refresh()->update_service_response)->toBeNull();
+});
+
+test('the confirm step shows the vetting checklist for the candidate', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'has_dbs' => 'no',
+        'dbs_certificate_number' => null,
+    ]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    $html = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->toContain('Confirm');
+    expect($html)->toContain('Vetting Checklist');
+    expect($html)->toContain('DBS');
+    expect($html)->toContain('Not Barred');
+    expect($html)->toContain('Overseas Police Clearance');
+    expect($html)->toContain('Right to Work');
+});
+
+test('rechecking proof of address updates the match status', function () {
+    Storage::fake('local');
+
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'address' => '19 Carlton Avenue',
+        'postcode' => 'DY9 9ED',
+        'proof_of_address_match' => 'no',
+    ]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    $path = 'candidates/'.$candidate->id.'/proof-of-address.pdf';
+    Storage::disk('local')->put($path, 'fake pdf contents');
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::ProofOfAddress,
+        'path' => $path,
+    ]);
+
+    ProofOfAddressParser::fake([
+        [
+            'address' => '19 Carlton Avenue',
+            'city' => 'Stourbridge',
+            'county' => 'West Midlands',
+            'country' => 'United Kingdom',
+            'postcode' => 'DY9 9ED',
+        ],
+    ]);
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->callAction(TestAction::make('recheck_proof_of_address')->schemaComponent())
+        ->assertNotified('Proof of address rechecked');
+
+    expect($candidate->refresh()->proof_of_address_match)->toBe('yes');
+});
+
+test('rechecking proof of NI updates the match status', function () {
+    Storage::fake('local');
+
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'ni_number' => 'QQ123456C',
+        'ni_number_match' => 'no',
+    ]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    $path = 'candidates/'.$candidate->id.'/proof-of-ni.pdf';
+    Storage::disk('local')->put($path, 'fake pdf contents');
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::ProofOfNi,
+        'path' => $path,
+    ]);
+
+    ProofOfNiParser::fake([['niNumber' => 'QQ123456C']]);
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->callAction(TestAction::make('recheck_proof_of_ni')->schemaComponent())
+        ->assertNotified('Proof of NI rechecked');
+
+    expect($candidate->refresh()->ni_number_match)->toBe('yes');
+});
+
+test('rechecking proof of address shows an error when there is no document to check', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->callAction(TestAction::make('recheck_proof_of_address')->schemaComponent())
+        ->assertNotified('Unable to recheck proof of address');
+});
+
+test('manually confirming proof of address sets the match without calling the AI', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'proof_of_address_match' => 'no',
+    ]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->callAction(TestAction::make('confirm_proof_of_address')->schemaComponent())
+        ->assertNotified('Proof of address manually confirmed');
+
+    $candidate->refresh();
+
+    expect($candidate->proof_of_address_match)->toBe('yes');
+    expect($candidate->proof_of_address_checked_at)->not->toBeNull();
+});
+
+test('manually confirming proof of NI sets the match without calling the AI', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'ni_number_match' => 'no',
+    ]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->callAction(TestAction::make('confirm_proof_of_ni')->schemaComponent())
+        ->assertNotified('Proof of NI manually confirmed');
+
+    $candidate->refresh();
+
+    expect($candidate->ni_number_match)->toBe('yes');
+    expect($candidate->ni_number_checked_at)->not->toBeNull();
 });
