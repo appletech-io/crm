@@ -45,10 +45,13 @@ class EducationCandidatesTable
                         ? $record->statuses->pluck('status.name')->filter()->values()->toArray()
                         : 'No Status'
                     )
-                    ->color(fn (string $state): string => $state === 'No Status'
-                        ? 'gray'
-                        : CandidateStatus::colorForName($state)
-                    ),
+                    ->color(function (EducationCandidate $record, string $state): string {
+                        if ($state === 'No Status') {
+                            return 'gray';
+                        }
+
+                        return $record->statuses->first(fn ($s) => $s->status->name === $state)?->status->color ?? 'gray';
+                    }),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

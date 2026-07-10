@@ -17,7 +17,9 @@ class CandidateStatusesTable
             ->columns([
                 TextColumn::make('name')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->badge()
+                    ->color(fn (string $state, $record): string => $record->color ?? 'gray'),
 
                 TextColumn::make('automations_count')
                     ->label('Automation rules')

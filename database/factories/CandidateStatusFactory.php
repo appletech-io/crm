@@ -21,6 +21,7 @@ class CandidateStatusFactory extends Factory
             'company_id' => Company::factory(),
             'industry_id' => Industry::factory(),
             'name' => fake()->words(2, true),
+            'color' => fake()->randomElement(array_keys(CandidateStatus::COLOR_OPTIONS)),
         ];
     }
 }

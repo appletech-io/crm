@@ -18,16 +18,29 @@ class CandidateStatus extends Model
 
     protected $guarded = [];
 
-    public static function colorForName(string $name): string
-    {
-        return match (strtolower(trim($name))) {
-            'live' => 'success',
-            'onboarding' => 'warning',
-            'offline' => 'gray',
-            'dnu', 'do not use' => 'danger',
-            default => 'primary',
-        };
-    }
+    /**
+     * @var array<string, string>
+     */
+    public const array COLOR_OPTIONS = [
+        'red' => 'Red',
+        'orange' => 'Orange',
+        'amber' => 'Amber',
+        'yellow' => 'Yellow',
+        'lime' => 'Lime',
+        'green' => 'Green',
+        'emerald' => 'Emerald',
+        'teal' => 'Teal',
+        'cyan' => 'Cyan',
+        'sky' => 'Sky',
+        'blue' => 'Blue',
+        'indigo' => 'Indigo',
+        'violet' => 'Violet',
+        'purple' => 'Purple',
+        'fuchsia' => 'Fuchsia',
+        'pink' => 'Pink',
+        'rose' => 'Rose',
+        'gray' => 'Gray',
+    ];
 
     public function industry(): BelongsTo
     {
