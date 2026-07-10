@@ -22,6 +22,8 @@ class EmailTemplateResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedEnvelope;
 
+    protected static string|\UnitEnum|null $navigationGroup = 'Settings';
+
     protected static ?string $recordTitleAttribute = 'name';
 
     public static function form(Schema $schema): Schema

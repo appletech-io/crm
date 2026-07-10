@@ -32,6 +32,16 @@ class EducationCandidate extends Model
         'latitude' => 'float',
         'longitude' => 'float',
         'available_from' => 'date',
+        'compliance_completed_at' => 'datetime',
+        'barred_list_check_date' => 'date',
+        'overseas_police_clearance_check_date' => 'date',
+        'visa_issue_date' => 'date',
+        'visa_expiry_date' => 'date',
+        'trn_issue_date' => 'date',
+        'safeguarding_certified_date' => 'date',
+        'dbs_checked_date' => 'date',
+        'proof_of_address_checked_at' => 'datetime',
+        'ni_number_checked_at' => 'datetime',
     ];
 
     /** @return array<int, string> */
@@ -59,6 +69,11 @@ class EducationCandidate extends Model
     public function consultant(): BelongsTo
     {
         return $this->belongsTo(User::class, 'consultant_id');
+    }
+
+    public function complianceCompletedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'compliance_completed_by');
     }
 
     public function qualification(): BelongsTo
@@ -99,6 +114,23 @@ class EducationCandidate extends Model
     public function currentStatusName(): ?string
     {
         return $this->statuses()->first()?->status?->name;
+    }
+
+    public function dnuCandidate(): bool
+    {
+        if ($this->currentStatusName() === 'DNU') {
+            return true;
+        }
+
+        if ($this->barred_list_check === 'no') {
+            return true;
+        }
+
+        if ($this->lived_overseas_six_months === 'yes' && $this->overseas_police_clearance_check === 'no') {
+            return true;
+        }
+
+        return false;
     }
 
     public function activities(): MorphMany

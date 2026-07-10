@@ -8,9 +8,7 @@ use App\Exceptions\Dbs\MissingCertificateNumberException;
 use App\Exceptions\Dbs\MissingCompanyLegalNameException;
 use App\Exceptions\Dbs\UpdateServiceCheckRejectedException;
 use App\Models\EducationCandidate;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 
 class DbsUpdateService
 {
@@ -26,7 +24,7 @@ class DbsUpdateService
             throw new MissingCertificateNumberException($candidate);
         }
 
-        if (! $candidate->date_of_birth || ! $candidate->last_name) {
+        if (! $candidate->date_of_birth || ! $candidate->first_name || ! $candidate->last_name) {
             throw new MissingCandidateDetailsException($candidate);
         }
 
@@ -34,15 +32,13 @@ class DbsUpdateService
             throw new MissingCompanyLegalNameException($candidate);
         }
 
-        $employeeName = Str::of(Auth::user()?->name ?? '')->trim()->explode(' ')->filter();
-
         $response = Http::get(self::ENDPOINT.'/'.$candidate->dbs_certificate_number, [
             'dateOfBirth' => $candidate->date_of_birth->format('d/m/Y'),
             'surname' => $candidate->last_name,
             'hasAgreedTermsAndConditions' => 'true',
             'organisationName' => $candidate->company->legal_name,
-            'employeeForename' => $employeeName->first(),
-            'employeeSurname' => $employeeName->count() > 1 ? $employeeName->last() : '',
+            'employeeForename' => $candidate->first_name,
+            'employeeSurname' => $candidate->last_name,
         ])->throw();
 
         $result = simplexml_load_string($response->body());

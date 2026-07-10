@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\Dbs\MissingCandidateDetailsException;
 use App\Exceptions\Dbs\MissingCertificateNumberException;
 use App\Exceptions\Dbs\MissingCompanyLegalNameException;
 use App\Exceptions\Dbs\UpdateServiceCheckRejectedException;
@@ -17,6 +18,7 @@ test('check stores the status returned by the update service on the candidate', 
 
     $candidate = EducationCandidate::factory()->create([
         'company_id' => $company->id,
+        'first_name' => 'Billy',
         'last_name' => 'Jones',
         'date_of_birth' => '1990-05-15',
         'dbs_certificate_number' => '001234567890',
@@ -45,9 +47,28 @@ test('check stores the status returned by the update service on the candidate', 
             && $request['surname'] === 'Jones'
             && $request['hasAgreedTermsAndConditions'] === 'true'
             && $request['organisationName'] === 'Applebough Ltd'
-            && $request['employeeForename'] === 'Jane'
-            && $request['employeeSurname'] === 'Smith';
+            && $request['employeeForename'] === 'Billy'
+            && $request['employeeSurname'] === 'Jones';
     });
+});
+
+test('check throws when the candidate has no first name', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'first_name' => null,
+        'last_name' => 'Jones',
+        'date_of_birth' => '1990-05-15',
+        'dbs_certificate_number' => '001234567890',
+    ]);
+
+    try {
+        (new DbsUpdateService)->check($candidate);
+    } catch (MissingCandidateDetailsException $exception) {
+        expect($exception->getMessage())->toBe('Candidate is missing details required for a DBS Update Service check.');
+
+        return;
+    }
+
+    $this->fail('Expected MissingCandidateDetailsException to be thrown.');
 });
 
 test('check throws when the candidate has no dbs certificate number', function () {
