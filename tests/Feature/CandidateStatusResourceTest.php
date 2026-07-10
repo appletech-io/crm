@@ -29,10 +29,20 @@ test('list page renders', function () {
 
 test('can create a status', function () {
     Livewire::test(ListCandidateStatuses::class)
-        ->callAction('create', data: ['name' => 'Application Sent'])
+        ->callAction('create', data: ['name' => 'Application Sent', 'color' => 'blue'])
         ->assertHasNoActionErrors();
 
-    expect(CandidateStatus::where('name', 'Application Sent')->exists())->toBeTrue();
+    $status = CandidateStatus::where('name', 'Application Sent')->first();
+    expect($status)->not->toBeNull();
+    expect($status->color)->toBe('blue');
+});
+
+test('creating a status requires a color', function () {
+    Livewire::test(ListCandidateStatuses::class)
+        ->callAction('create', data: ['name' => 'Application Sent'])
+        ->assertHasActionErrors(['color']);
+
+    expect(CandidateStatus::where('name', 'Application Sent')->exists())->toBeFalse();
 });
 
 test('edit page renders', function () {
@@ -58,4 +68,19 @@ test('status name can be updated', function () {
         ->assertHasNoFormErrors();
 
     expect($status->refresh()->name)->toBe('New Name');
+});
+
+test('status color can be updated', function () {
+    $status = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'color' => 'green',
+    ]);
+
+    Livewire::test(EditCandidateStatus::class, ['record' => $status->getRouteKey()])
+        ->fillForm(['color' => 'rose'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($status->refresh()->color)->toBe('rose');
 });

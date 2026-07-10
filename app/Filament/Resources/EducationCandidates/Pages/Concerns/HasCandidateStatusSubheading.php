@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\EducationCandidates\Pages\Concerns;
 
-use App\Models\CandidateStatus;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
@@ -20,7 +19,7 @@ trait HasCandidateStatusSubheading
                 ->map(fn ($s) => Blade::render(
                     '<x-filament::badge color="{{ $color }}">{{ $name }}</x-filament::badge>',
                     [
-                        'color' => CandidateStatus::colorForName($s->status->name),
+                        'color' => $s->status->color ?? 'gray',
                         'name' => $s->status->name,
                     ]
                 ))

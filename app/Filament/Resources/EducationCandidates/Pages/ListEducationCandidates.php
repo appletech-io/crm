@@ -22,6 +22,14 @@ class ListEducationCandidates extends ListRecords
                 ->createAnother(false)
                 ->modalWidth('sm')
                 ->schema([
+                    TextInput::make('first_name')
+                        ->required()
+                        ->maxLength(255),
+
+                    TextInput::make('last_name')
+                        ->required()
+                        ->maxLength(255),
+
                     TextInput::make('email')
                         ->email()
                         ->required()

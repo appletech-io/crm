@@ -3,8 +3,10 @@
 namespace App\Filament\Resources\CandidateStatuses\Pages;
 
 use App\Filament\Resources\CandidateStatuses\CandidateStatusResource;
+use App\Models\CandidateStatus;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Support\Icons\Heroicon;
@@ -31,6 +33,10 @@ class ListCandidateStatuses extends ListRecords
                     TextInput::make('name')
                         ->required()
                         ->maxLength(255),
+
+                    Select::make('color')
+                        ->options(CandidateStatus::COLOR_OPTIONS)
+                        ->required(),
                 ])
                 ->mutateDataUsing(function (array $data): array {
                     $data['company_id'] = Auth::user()->company_id;
