@@ -124,6 +124,7 @@ class EducationCandidate extends Model
         return $this->morphMany(CandidateEmploymentHistory::class, 'candidate');
     }
 
+    /** @return MorphMany<CandidateDocument, $this> */
     public function documents(): MorphMany
     {
         return $this->morphMany(CandidateDocument::class, 'candidate');

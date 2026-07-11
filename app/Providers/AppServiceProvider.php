@@ -3,8 +3,10 @@
 namespace App\Providers;
 
 use App\Models\EducationCandidate;
+use App\Models\EducationClient;
 use App\Models\User;
 use App\Observers\EducationCandidateObserver;
+use App\Observers\EducationClientObserver;
 use App\Observers\UserObserver;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
@@ -33,6 +35,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
 
         EducationCandidate::observe(EducationCandidateObserver::class);
+        EducationClient::observe(EducationClientObserver::class);
         User::observe(UserObserver::class);
     }
 

@@ -5,7 +5,7 @@ namespace App\Filament\Widgets;
 use App\Filament\Widgets\Concerns\HasActivityTimeline;
 use Filament\Widgets\TableWidget;
 
-class CandidateActivityTimeline extends TableWidget
+class ClientActivityTimeline extends TableWidget
 {
     use HasActivityTimeline;
 

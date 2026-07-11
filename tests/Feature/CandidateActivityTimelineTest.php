@@ -28,11 +28,11 @@ test('activity can be logged via action', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => null]);
 
     Livewire::test(CandidateActivityTimeline::class, ['record' => $candidate])
-        ->callAction('logActivity', data: [
+        ->callTableAction('logActivity', data: [
             'type' => 'call',
             'note' => 'Called candidate, left voicemail',
         ])
-        ->assertHasNoActionErrors();
+        ->assertHasNoTableActionErrors();
 
     expect(CandidateActivity::count())->toBe(1);
     $activity = CandidateActivity::first();
@@ -47,8 +47,25 @@ test('activity action requires type and note', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => null]);
 
     Livewire::test(CandidateActivityTimeline::class, ['record' => $candidate])
-        ->callAction('logActivity', data: [])
-        ->assertHasActionErrors(['type', 'note']);
+        ->callTableAction('logActivity', data: [])
+        ->assertHasTableActionErrors(['type', 'note']);
+});
+
+test('activities are paginated', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    foreach (range(1, 12) as $i) {
+        $candidate->activities()->create([
+            'user_id' => $this->user->id,
+            'type' => 'note',
+            'note' => "Activity {$i}",
+        ]);
+    }
+
+    $component = Livewire::test(CandidateActivityTimeline::class, ['record' => $candidate]);
+
+    expect($component->instance()->getAllTableRecordsCount())->toBe(12)
+        ->and($component->instance()->getTableRecords())->toHaveCount(10);
 });
 
 test('activity tab renders on edit page', function () {
