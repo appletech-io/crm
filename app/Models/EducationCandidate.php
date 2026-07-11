@@ -48,18 +48,40 @@ class EducationCandidate extends Model
     /** @return array<int, string> */
     public static function candidateFieldSuggestions(): array
     {
-        $excluded = ['id', 'company_id', 'created_at', 'updated_at', 'deleted_at'];
+        $excluded = ['id', 'company_id', 'industry_id', 'created_at', 'updated_at', 'deleted_at'];
 
         $columns = collect(Schema::getColumnListing((new static)->getTable()))
             ->reject(fn (string $col) => in_array($col, $excluded))
+            ->values();
+
+        $relationColumns = collect([
+            ...static::relationFieldSuggestions('application', (new EducationApplication)->getTable(), ['education_candidate_id']),
+            ...static::relationFieldSuggestions('qualification', (new Qualification)->getTable()),
+        ]);
+
+        $toManyRelations = collect(['skills'])
+            ->map(fn (string $rel): string => "{$rel}.*");
+
+        return $columns
+            ->merge($relationColumns)
+            ->merge($toManyRelations)
             ->values()
             ->toArray();
+    }
 
-        $relationships = collect(['skills', 'application', 'qualification'])
-            ->map(fn (string $rel) => "{$rel}.*")
+    /**
+     * @param  array<int, string>  $additionalExcluded
+     * @return array<int, string>
+     */
+    protected static function relationFieldSuggestions(string $relation, string $table, array $additionalExcluded = []): array
+    {
+        $excluded = [...['id', 'company_id', 'industry_id', 'created_at', 'updated_at', 'deleted_at'], ...$additionalExcluded];
+
+        return collect(Schema::getColumnListing($table))
+            ->reject(fn (string $col) => in_array($col, $excluded))
+            ->map(fn (string $col): string => "{$relation}.{$col}")
+            ->values()
             ->toArray();
-
-        return array_merge($columns, $relationships);
     }
 
     public function application(): HasOne

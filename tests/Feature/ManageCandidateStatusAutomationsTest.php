@@ -15,12 +15,12 @@ beforeEach(function () {
     $this->user->assignRole('admin');
     $this->actingAs($this->user);
 
-    $this->industry = Industry::factory()->create();
+    $this->industry = Industry::factory()->create(['slug' => 'education']);
     Cache::put("user.{$this->user->id}.active_industry", $this->industry->slug);
     Cache::put("user.{$this->user->id}.active_industry_id", $this->industry->id);
 });
 
-test('can create an automation with a custom dot-path field not in the suggestion list', function () {
+test('can create an automation with a relation column field from the suggestion list', function () {
     $onboarding = CandidateStatus::factory()->create([
         'company_id' => $this->user->company_id,
         'industry_id' => $this->industry->id,
@@ -45,4 +45,26 @@ test('can create an automation with a custom dot-path field not in the suggestio
 
     expect($automation)->not->toBeNull();
     expect($automation->completed_fields)->toBe(['application.completed_at']);
+});
+
+test('cannot create an automation with a field that is not in the suggestion list', function () {
+    $onboarding = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Onboarding',
+    ]);
+
+    $vetting = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Vetting',
+    ]);
+
+    Livewire::test(ManageCandidateStatusAutomations::class)
+        ->callAction('create', data: [
+            'candidate_status_id' => $onboarding->id,
+            'to_candidate_status_id' => $vetting->id,
+            'completed_fields' => ['made_up_field_that_does_not_exist'],
+        ])
+        ->assertHasActionErrors(['completed_fields.0']);
 });
