@@ -20,12 +20,17 @@ class EducationClientsTable
                 TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('email')
+                TextColumn::make('client_type')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('subject')
+                TextColumn::make('city')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('postcode')
+                    ->searchable()
+                    ->sortable(),
+                TextColumn::make('phone')
+                    ->searchable(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

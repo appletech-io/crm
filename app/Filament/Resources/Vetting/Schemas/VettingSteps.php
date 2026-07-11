@@ -395,7 +395,10 @@ class VettingSteps
     /** @return array<int, string> */
     protected static function traChecksFields(): array
     {
-        return ['trn_issue_date', 'safeguarding_certified_date', 'prevent_training_completed'];
+        return [
+            'trn_issue_date', 'sanctions', 'restrictions', 'sanction_restrictions_details',
+            'safeguarding_certified_date', 'prevent_training_completed',
+        ];
     }
 
     protected static function traChecks(): Step
@@ -425,6 +428,27 @@ class VettingSteps
                     ])
                     ->columns(2)
                     ->visible(fn (?EducationCandidate $record): bool => filled($record?->trn_number)),
+
+                Section::make('Sanctions and Restrictions')
+                    ->schema([
+                        Select::make('sanctions')
+                            ->label('Sanctions')
+                            ->options(['yes' => 'Yes', 'no' => 'No'])
+                            ->native(false)
+                            ->live(),
+
+                        Select::make('restrictions')
+                            ->label('Restrictions')
+                            ->options(['yes' => 'Yes', 'no' => 'No'])
+                            ->native(false)
+                            ->live(),
+
+                        Textarea::make('sanction_restrictions_details')
+                            ->label('Sanctions / Restrictions Details')
+                            ->columnSpanFull()
+                            ->visible(fn (Get $get): bool => $get('sanctions') === 'yes' || $get('restrictions') === 'yes'),
+                    ])
+                    ->columns(2),
 
                 Section::make('Safeguarding Training')
                     ->schema([

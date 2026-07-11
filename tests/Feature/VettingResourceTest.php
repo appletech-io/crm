@@ -61,6 +61,14 @@ test('list only shows candidates whose current status is Vetting', function () {
         ->assertCanNotSeeTableRecords([$onboardingCandidate]);
 });
 
+test('vetting wizard can be opened directly for a candidate not currently on vetting', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Active');
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful();
+});
+
 test('vetting wizard renders and saves personal details', function () {
     $candidate = EducationCandidate::factory()->create([
         'company_id' => $this->user->company_id,
@@ -506,6 +514,46 @@ test('vetting wizard can save safeguarding and prevent training checks', functio
 
     expect($candidate->safeguarding_certified_date->toDateString())->toBe('2026-02-01');
     expect($candidate->prevent_training_completed)->toBe('yes');
+});
+
+test('vetting wizard can save sanctions and restrictions with details', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'trn_number' => null,
+    ]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm([
+            'barred_list_check' => 'yes',
+            'sanctions' => 'yes',
+            'restrictions' => 'no',
+            'sanction_restrictions_details' => 'Suspended for one term in 2020.',
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $candidate->refresh();
+
+    expect($candidate->sanctions)->toBe('yes');
+    expect($candidate->restrictions)->toBe('no');
+    expect($candidate->sanction_restrictions_details)->toBe('Suspended for one term in 2020.');
+});
+
+test('sanction restrictions details field is only visible when sanctions or restrictions is yes', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'trn_number' => '1234567',
+    ]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    $test = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()]);
+
+    expect($test->html())->not->toContain('Sanctions / Restrictions Details');
+
+    $test->set('data.sanctions', 'yes');
+
+    expect($test->html())->toContain('Sanctions / Restrictions Details');
 });
 
 test('dbs step shows the new dbs section when the candidate has no certificate number', function () {

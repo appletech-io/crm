@@ -2,13 +2,11 @@
 
 namespace App\Filament\Resources\EducationClients;
 
-use App\Filament\Resources\EducationClients\Pages\CreateEducationClient;
 use App\Filament\Resources\EducationClients\Pages\EditEducationClient;
 use App\Filament\Resources\EducationClients\Pages\ListEducationClients;
 use App\Filament\Resources\EducationClients\Schemas\EducationClientForm;
 use App\Filament\Resources\EducationClients\Tables\EducationClientsTable;
 use App\Models\EducationClient;
-use App\Models\User;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -57,7 +55,6 @@ class EducationClientResource extends Resource
     {
         return [
             'index' => ListEducationClients::route('/'),
-            'create' => CreateEducationClient::route('/create'),
             'edit' => EditEducationClient::route('/{record}/edit'),
         ];
     }

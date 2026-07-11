@@ -2,15 +2,21 @@
 
 namespace App\Filament\Resources\EducationCandidates\Schemas;
 
+use App\Enums\DocumentType;
 use App\Enums\Education\Availability;
 use App\Enums\Education\KeyStage;
 use App\Enums\Nationality;
 use App\Enums\ReferenceStatus;
 use App\Enums\ReferenceType;
+use App\Exceptions\Dbs\DbsUpdateServiceException;
+use App\Filament\Resources\Vetting\VettingResource;
 use App\Filament\Widgets\CandidateActivityTimeline;
+use App\Models\CandidateDocument;
 use App\Models\CandidateSkill;
+use App\Models\EducationCandidate;
 use App\Models\Qualification;
 use App\Models\User;
+use App\Services\DbsUpdateService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\CheckboxList;
@@ -21,6 +27,8 @@ use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Livewire as LivewireComponent;
 use Filament\Schemas\Components\Section;
@@ -33,6 +41,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 
 class EducationCandidateForm
 {
@@ -476,7 +485,261 @@ class EducationCandidateForm
                                     ->collapsed()
                                     ->columnSpanFull(),
                             ]),
+
+                        Tab::make('Compliance')
+                            ->schema([
+                                Actions::make([
+                                    Action::make('viewVetting')
+                                        ->label('View Vetting')
+                                        ->icon('heroicon-o-shield-check')
+                                        ->color('gray')
+                                        ->url(fn (?EducationCandidate $record): ?string => $record ? VettingResource::getUrl('edit', ['record' => $record]) : null)
+                                        ->openUrlInNewTab(),
+                                ])->columnSpanFull(),
+
+                                static::trnSection(),
+                                static::dbsSection(),
+                                static::rightToWorkSection(),
+                                static::safeguardingSection(),
+                            ]),
                     ]),
             ]);
+    }
+
+    protected static function trnSection(): Section
+    {
+        return Section::make('TRN, Sanctions and Restrictions')
+            ->schema([
+                TextEntry::make('trn_number')
+                    ->label('TRN Number')
+                    ->placeholder('Not set'),
+
+                TextEntry::make('trn_issue_date')
+                    ->label('TRA Date')
+                    ->date('d/m/Y')
+                    ->placeholder('Not set'),
+
+                TextEntry::make('sanctions')
+                    ->label('Sanctions')
+                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
+                    ->placeholder('Not set')
+                    ->badge()
+                    ->color(fn (?string $state): string => $state === 'yes' ? 'danger' : 'success'),
+
+                TextEntry::make('restrictions')
+                    ->label('Restrictions')
+                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
+                    ->placeholder('Not set')
+                    ->badge()
+                    ->color(fn (?string $state): string => $state === 'yes' ? 'danger' : 'success'),
+
+                TextEntry::make('sanction_restrictions_details')
+                    ->label('Sanctions / Restrictions Details')
+                    ->placeholder('None recorded')
+                    ->visible(fn (?EducationCandidate $record): bool => $record?->sanctions === 'yes' || $record?->restrictions === 'yes')
+                    ->columnSpanFull(),
+
+                TextEntry::make('has_naric')
+                    ->label('UK Naric')
+                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
+                    ->placeholder('Not set'),
+
+                static::documentEntry('UK Naric Document', DocumentType::UkNaric),
+
+                TextEntry::make('has_health_condition_or_disability')
+                    ->label('Any Medical Issue')
+                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
+                    ->placeholder('Not set'),
+            ])
+            ->columns(2);
+    }
+
+    protected static function dbsSection(): Section
+    {
+        return Section::make('DBS Checks')
+            ->schema([
+                TextEntry::make('dbs_certificate_number')
+                    ->label('DBS No')
+                    ->placeholder('Not set'),
+
+                TextEntry::make('update_service_checked_at')
+                    ->label('Update Service Issue Date')
+                    ->date('d/m/Y')
+                    ->placeholder('Not set'),
+
+                TextEntry::make('update_service_response')
+                    ->label('DBS Update')
+                    ->placeholder('Not yet checked')
+                    ->badge()
+                    ->color(fn (?string $state): string => filled($state) ? 'success' : 'gray'),
+
+                Actions::make([
+                    Action::make('callUpdateService')
+                        ->label('Call Update Service')
+                        ->icon('heroicon-o-arrow-path')
+                        ->color('primary')
+                        ->visible(fn (?EducationCandidate $record): bool => filled($record?->dbs_certificate_number))
+                        ->action(function (?EducationCandidate $record): void {
+                            if (! $record) {
+                                return;
+                            }
+
+                            try {
+                                $status = app(DbsUpdateService::class)->check($record);
+
+                                Notification::make()
+                                    ->success()
+                                    ->title('DBS Update Service checked')
+                                    ->body("Status: {$status}")
+                                    ->send();
+                            } catch (DbsUpdateServiceException $exception) {
+                                Notification::make()
+                                    ->danger()
+                                    ->title('DBS Update Service check failed')
+                                    ->body($exception->getMessage())
+                                    ->send();
+                            } catch (\Throwable) {
+                                Notification::make()
+                                    ->danger()
+                                    ->title('DBS Update Service check failed')
+                                    ->body('Unable to reach the DBS Update Service. Please try again later.')
+                                    ->send();
+                            }
+                        }),
+                ])->columnSpanFull(),
+
+                static::documentEntry('DBS File (Front)', DocumentType::DbsFront),
+                static::documentEntry('DBS File (Back)', DocumentType::DbsBack),
+
+                TextEntry::make('overseas_police_clearance_check')
+                    ->label('Has Overseas Police Check')
+                    ->getStateUsing(fn (?EducationCandidate $record): string => static::overseasPoliceCheckDisplay($record)),
+            ])
+            ->columns(2);
+    }
+
+    protected static function rightToWorkSection(): Section
+    {
+        return Section::make('Right to Work')
+            ->schema([
+                TextEntry::make('right_to_work_type')
+                    ->label('Right to Work Type')
+                    ->formatStateUsing(fn (?EducationCandidate $record): string => static::rightToWorkTypeLabel($record))
+                    ->placeholder('Not set'),
+
+                TextEntry::make('visa_expiry_date')
+                    ->label('Expiry Date')
+                    ->date('d/m/Y')
+                    ->placeholder('Not set')
+                    ->visible(fn (?EducationCandidate $record): bool => $record?->right_to_work_type === 'visa'),
+
+                TextEntry::make('visa_notes')
+                    ->label('Notes')
+                    ->placeholder('None recorded')
+                    ->visible(fn (?EducationCandidate $record): bool => $record?->right_to_work_type === 'visa'),
+
+                static::documentEntry(
+                    'Right to Work Document',
+                    DocumentType::Passport,
+                    visible: fn (?EducationCandidate $record): bool => $record?->right_to_work_type === 'passport',
+                ),
+                static::documentEntry(
+                    'Right to Work Document',
+                    DocumentType::BirthCertificate,
+                    visible: fn (?EducationCandidate $record): bool => $record?->right_to_work_type === 'birth_certificate',
+                ),
+            ])
+            ->columns(2);
+    }
+
+    protected static function safeguardingSection(): Section
+    {
+        return Section::make('Safeguarding')
+            ->schema([
+                TextEntry::make('safeguarding_certified_date')
+                    ->label('Certified On')
+                    ->date('d/m/Y')
+                    ->placeholder('Not set'),
+
+                static::documentEntry('Certificate', DocumentType::SafeguardingTraining),
+
+                TextEntry::make('prevent_training_completed')
+                    ->label('Prevent Training')
+                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
+                    ->placeholder('Not set'),
+
+                TextEntry::make('application.declaration_accepted_at')
+                    ->label('Keeping Children Safe in Education (Read on Application)')
+                    ->date('d/m/Y')
+                    ->placeholder('Not set'),
+            ])
+            ->columns(2);
+    }
+
+    protected static function documentEntry(string $label, DocumentType $documentType, ?\Closure $visible = null): TextEntry
+    {
+        $entry = TextEntry::make("document_{$documentType->value}")
+            ->label($label)
+            ->getStateUsing(fn (?EducationCandidate $record): string => static::document($record, $documentType) ? 'Uploaded' : 'Not uploaded')
+            ->badge()
+            ->color(fn (?EducationCandidate $record): string => static::document($record, $documentType) ? 'success' : 'gray')
+            ->url(fn (?EducationCandidate $record): ?string => static::documentUrl($record, $documentType))
+            ->openUrlInNewTab();
+
+        if ($visible) {
+            $entry->visible($visible);
+        }
+
+        return $entry;
+    }
+
+    protected static function document(?EducationCandidate $record, DocumentType $documentType): ?CandidateDocument
+    {
+        return $record?->documents()->where('document_type', $documentType)->first();
+    }
+
+    protected static function documentUrl(?EducationCandidate $record, DocumentType $documentType): ?string
+    {
+        $document = static::document($record, $documentType);
+
+        return $document
+            ? Storage::disk('local')->temporaryUrl($document->path, now()->addMinutes(10))
+            : null;
+    }
+
+    protected static function formatYesNo(?string $value): string
+    {
+        return match ($value) {
+            'yes' => 'Yes',
+            'no' => 'No',
+            default => 'Not set',
+        };
+    }
+
+    protected static function overseasPoliceCheckDisplay(?EducationCandidate $record): string
+    {
+        if (! $record) {
+            return 'Not set';
+        }
+
+        if ($record->lived_overseas_six_months !== 'yes') {
+            return 'Not applicable';
+        }
+
+        return match ($record->overseas_police_clearance_check) {
+            'yes' => 'Yes',
+            'no' => 'No',
+            default => 'Not yet checked',
+        };
+    }
+
+    protected static function rightToWorkTypeLabel(?EducationCandidate $record): string
+    {
+        return match ($record?->right_to_work_type) {
+            'passport' => 'UK Passport',
+            'visa' => 'Visa',
+            'birth_certificate' => 'UK Birth Certificate',
+            default => 'Not set',
+        };
     }
 }

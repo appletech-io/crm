@@ -56,4 +56,9 @@ class VettingResource extends Resource
         return parent::getEloquentQuery()
             ->whereHas('statuses.status', fn (Builder $query) => $query->where('name', 'Vetting'));
     }
+
+    public static function getRecordRouteBindingEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery();
+    }
 }
