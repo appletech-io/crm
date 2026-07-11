@@ -13,7 +13,8 @@ enum DocumentType: string
     case ProofOfNi = 'proof_of_ni';
     case BirthCertificate = 'birth_certificate';
     case Passport = 'passport';
-    case Dbs = 'dbs';
+    case DbsFront = 'dbs_front';
+    case DbsBack = 'dbs_back';
     case UkNaric = 'uk_naric';
 
     public function label(): string
@@ -28,7 +29,8 @@ enum DocumentType: string
             self::ProofOfNi => 'Proof of NI',
             self::BirthCertificate => 'Birth Certificate',
             self::Passport => 'Passport',
-            self::Dbs => 'DBS',
+            self::DbsFront => 'DBS (Front)',
+            self::DbsBack => 'DBS (Back)',
             self::UkNaric => 'UK NARIC',
         };
     }

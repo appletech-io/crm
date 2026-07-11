@@ -13,8 +13,15 @@ class CandidateVettingRequirements
         return [
             'dbs' => [
                 'label' => 'DBS',
-                'description' => 'Candidate has a DBS on file with a certificate number.',
-                'complete' => $candidate->has_dbs === 'yes' && filled($candidate->dbs_certificate_number),
+                'description' => 'Candidate has a DBS on file with a certificate number, verified either via the Update Service or by both the front and back of the certificate being uploaded.',
+                'complete' => filled($candidate->dbs_certificate_number)
+                    && (
+                        filled($candidate->update_service_response)
+                        || (
+                            $candidate->documents()->where('document_type', DocumentType::DbsFront)->exists()
+                            && $candidate->documents()->where('document_type', DocumentType::DbsBack)->exists()
+                        )
+                    ),
             ],
             'cv' => [
                 'label' => 'CV',

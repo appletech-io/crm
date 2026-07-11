@@ -732,3 +732,63 @@ test('manually confirming proof of NI sets the match without calling the AI', fu
     expect($candidate->ni_number_match)->toBe('yes');
     expect($candidate->ni_number_checked_at)->not->toBeNull();
 });
+
+test('the confirm step submit button is labelled Complete', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    $html = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])->html();
+
+    expect($html)->toContain('Complete');
+    expect($html)->not->toContain('Save changes');
+});
+
+test('the Complete button is disabled when the vetting checklist is not fully met', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    $html = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])->html();
+
+    expect($html)->toContain('aria-disabled="true"');
+    expect($html)->toContain('All vetting checklist requirements must be met before compliance can be completed.');
+    expect($html)->not->toContain('$wire.save()');
+});
+
+test('the Complete button is enabled when the vetting checklist is fully met', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'has_dbs' => 'yes',
+        'dbs_certificate_number' => '001234567890',
+        'barred_list_check' => 'yes',
+        'lived_overseas_six_months' => 'no',
+        'proof_of_address_match' => 'yes',
+        'ni_number_match' => 'yes',
+        'trn_number' => null,
+        'safeguarding_certified_date' => now(),
+        'prevent_training_completed' => 'yes',
+        'right_to_work_type' => 'birth_certificate',
+        'ni_number' => 'QQ123456C',
+    ]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    $skill = CandidateSkill::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+    ]);
+    $candidate->skills()->attach($skill);
+
+    foreach ([DocumentType::Cv, DocumentType::Photo, DocumentType::BirthCertificate, DocumentType::DbsFront, DocumentType::DbsBack] as $documentType) {
+        CandidateDocument::create([
+            'candidate_type' => EducationCandidate::class,
+            'candidate_id' => $candidate->id,
+            'document_type' => $documentType,
+            'path' => 'candidates/'.$candidate->id.'/'.$documentType->value.'.pdf',
+        ]);
+    }
+
+    $html = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])->html();
+
+    expect($html)->not->toContain('aria-disabled="true"');
+    expect($html)->toContain("confirm('Are you sure you want to confirm the compliance process is complete for this candidate?");
+    expect($html)->toContain('$wire.save()');
+});

@@ -52,9 +52,14 @@ class CandidateDocumentRequirements
             default => null,
         };
 
-        $definitions['dbs'] = [
-            'label' => 'DBS',
-            'description' => 'Your DBS certificate or update service check.',
+        $definitions['dbs_front'] = [
+            'label' => 'DBS (Front)',
+            'description' => 'The front of your DBS certificate or update service check.',
+        ];
+
+        $definitions['dbs_back'] = [
+            'label' => 'DBS (Back)',
+            'description' => 'The back of your DBS certificate or update service check.',
         ];
 
         if ($candidate->has_dbs === 'no') {

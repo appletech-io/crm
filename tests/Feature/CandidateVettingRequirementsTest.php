@@ -72,6 +72,20 @@ function fullyCompliantCandidate(array $attributes = []): EducationCandidate
         'path' => 'fake/photo.jpg',
     ]);
 
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::DbsFront,
+        'path' => 'fake/dbs-front.pdf',
+    ]);
+
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::DbsBack,
+        'path' => 'fake/dbs-back.pdf',
+    ]);
+
     return $candidate->fresh();
 }
 
@@ -88,6 +102,57 @@ test('dbs check fails without a certificate number', function () {
 
     expect($checks['dbs']['complete'])->toBeFalse();
     expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('dbs check fails when the front of the certificate has not been uploaded', function () {
+    $candidate = fullyCompliantCandidate();
+    $candidate->documents()->where('document_type', DocumentType::DbsFront)->delete();
+
+    $checks = CandidateVettingRequirements::for($candidate);
+
+    expect($checks['dbs']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('dbs check fails when the back of the certificate has not been uploaded', function () {
+    $candidate = fullyCompliantCandidate();
+    $candidate->documents()->where('document_type', DocumentType::DbsBack)->delete();
+
+    $checks = CandidateVettingRequirements::for($candidate);
+
+    expect($checks['dbs']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('dbs check passes without any documents uploaded when the update service has verified it', function () {
+    $candidate = fullyCompliantCandidate(['update_service_response' => 'Certificate is up to date.']);
+    $candidate->documents()->where('document_type', DocumentType::DbsFront)->delete();
+    $candidate->documents()->where('document_type', DocumentType::DbsBack)->delete();
+
+    $checks = CandidateVettingRequirements::for($candidate);
+
+    expect($checks['dbs']['complete'])->toBeTrue();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeTrue();
+});
+
+test('dbs check fails when the update service has not verified it and no documents are uploaded', function () {
+    $candidate = fullyCompliantCandidate();
+    $candidate->documents()->where('document_type', DocumentType::DbsFront)->delete();
+    $candidate->documents()->where('document_type', DocumentType::DbsBack)->delete();
+
+    $checks = CandidateVettingRequirements::for($candidate);
+
+    expect($checks['dbs']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('dbs check passes even when has_dbs is no, as long as the certificate number and both documents are present', function () {
+    $candidate = fullyCompliantCandidate(['has_dbs' => 'no']);
+
+    $checks = CandidateVettingRequirements::for($candidate);
+
+    expect($checks['dbs']['complete'])->toBeTrue();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeTrue();
 });
 
 test('skills check fails when no skills are recorded', function () {

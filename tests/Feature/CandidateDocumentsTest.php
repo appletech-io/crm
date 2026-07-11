@@ -98,7 +98,8 @@ test('the documents page always lists the base document types', function () {
         'safeguarding_training',
         'proof_of_address',
         'proof_of_ni',
-        'dbs',
+        'dbs_front',
+        'dbs_back',
     ]);
 });
 
@@ -129,22 +130,24 @@ test('no right to work document row appears when right to work is visa', functio
     expect($types)->not->toHaveKey('passport');
 });
 
-test('a dbs row appears when the candidate has a dbs', function () {
+test('dbs front and back rows appear when the candidate has a dbs', function () {
     $user = makeCandidateUser('Onboarding', ['has_dbs' => 'yes']);
 
     $types = documentTypesFor($user);
 
-    expect($types)->toHaveKey('dbs');
+    expect($types)->toHaveKey('dbs_front');
+    expect($types)->toHaveKey('dbs_back');
     expect($types)->not->toHaveKey('proof_of_address_2');
     expect($types)->not->toHaveKey('get_dbs');
 });
 
-test('a dbs row always appears so a candidate can upload one later', function () {
+test('dbs front and back rows always appear so a candidate can upload them later', function () {
     $user = makeCandidateUser('Onboarding');
 
     $types = documentTypesFor($user);
 
-    expect($types)->toHaveKey('dbs');
+    expect($types)->toHaveKey('dbs_front');
+    expect($types)->toHaveKey('dbs_back');
 });
 
 test('a second proof of address row and a get dbs link appear when the candidate has no dbs', function () {
@@ -152,7 +155,8 @@ test('a second proof of address row and a get dbs link appear when the candidate
 
     $types = documentTypesFor($user);
 
-    expect($types)->toHaveKey('dbs');
+    expect($types)->toHaveKey('dbs_front');
+    expect($types)->toHaveKey('dbs_back');
     expect($types)->toHaveKey('proof_of_address_2');
     expect($types)->toHaveKey('get_dbs');
     expect($types['get_dbs']['url'])->toBe(
@@ -179,34 +183,53 @@ test('the get dbs action links out and the upload action is hidden for that row'
         ->assertActionHidden(TestAction::make('remove')->table(record: 'get_dbs'));
 });
 
-test('a candidate can upload their dbs after previously saying they had none', function () {
+test('a candidate can upload the front of their dbs after previously saying they had none', function () {
     $user = makeCandidateUser('Onboarding', ['has_dbs' => 'no']);
     $this->actingAs($user);
 
-    $file = UploadedFile::fake()->create('dbs.pdf', 100, 'application/pdf');
+    $file = UploadedFile::fake()->create('dbs-front.pdf', 100, 'application/pdf');
 
     Livewire::test(Documents::class)
         ->callAction(
-            TestAction::make('upload')->table(record: 'dbs'),
+            TestAction::make('upload')->table(record: 'dbs_front'),
             data: ['file' => $file],
         )
         ->assertHasNoActionErrors();
 
-    $document = $user->candidate->fresh()->documents()->where('document_type', 'dbs')->first();
+    $document = $user->candidate->fresh()->documents()->where('document_type', 'dbs_front')->first();
 
     expect($document)->not->toBeNull();
     Storage::disk('local')->assertExists($document->path);
 });
 
-test('uploading the dbs sets has_dbs to yes and removes the get dbs row', function () {
+test('a candidate can upload the back of their dbs separately from the front', function () {
     $user = makeCandidateUser('Onboarding', ['has_dbs' => 'no']);
     $this->actingAs($user);
 
-    $file = UploadedFile::fake()->create('dbs.pdf', 100, 'application/pdf');
+    $file = UploadedFile::fake()->create('dbs-back.pdf', 100, 'application/pdf');
 
     Livewire::test(Documents::class)
         ->callAction(
-            TestAction::make('upload')->table(record: 'dbs'),
+            TestAction::make('upload')->table(record: 'dbs_back'),
+            data: ['file' => $file],
+        )
+        ->assertHasNoActionErrors();
+
+    $document = $user->candidate->fresh()->documents()->where('document_type', 'dbs_back')->first();
+
+    expect($document)->not->toBeNull();
+    Storage::disk('local')->assertExists($document->path);
+});
+
+test('uploading either side of the dbs sets has_dbs to yes and removes the get dbs row', function () {
+    $user = makeCandidateUser('Onboarding', ['has_dbs' => 'no']);
+    $this->actingAs($user);
+
+    $file = UploadedFile::fake()->create('dbs-front.pdf', 100, 'application/pdf');
+
+    Livewire::test(Documents::class)
+        ->callAction(
+            TestAction::make('upload')->table(record: 'dbs_front'),
             data: ['file' => $file],
         )
         ->assertHasNoActionErrors();

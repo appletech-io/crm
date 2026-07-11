@@ -151,7 +151,7 @@ class Documents extends Page implements HasTable
             ]);
         }
 
-        if ($documentType === 'dbs' && $candidate->has_dbs !== 'yes') {
+        if (in_array($documentType, ['dbs_front', 'dbs_back'], true) && $candidate->has_dbs !== 'yes') {
             $candidate->update(['has_dbs' => 'yes']);
         }
 
