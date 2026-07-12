@@ -11,6 +11,7 @@ use App\Models\Industry;
 use App\Models\JobTitle;
 use App\Models\PayRate;
 use App\Services\CandidateVettingRequirements;
+use App\Services\DbsUpdateService;
 
 function fullyCompliantCandidate(array $attributes = []): EducationCandidate
 {
@@ -146,7 +147,7 @@ test('dbs check fails when the back of the certificate has not been uploaded', f
 });
 
 test('dbs check passes without any documents uploaded when the update service has verified it', function () {
-    $candidate = fullyCompliantCandidate(['update_service_response' => 'Certificate is up to date.']);
+    $candidate = fullyCompliantCandidate(['update_service_response' => DbsUpdateService::VALID_STATUS]);
     $candidate->documents()->where('document_type', DocumentType::DbsFront)->delete();
     $candidate->documents()->where('document_type', DocumentType::DbsBack)->delete();
 
@@ -154,6 +155,17 @@ test('dbs check passes without any documents uploaded when the update service ha
 
     expect($checks['dbs']['complete'])->toBeTrue();
     expect(CandidateVettingRequirements::isComplete($candidate))->toBeTrue();
+});
+
+test('dbs check fails when the update service response is not a valid status, even without documents', function () {
+    $candidate = fullyCompliantCandidate(['update_service_response' => 'NOT_IN_SUBSCRIPTION']);
+    $candidate->documents()->where('document_type', DocumentType::DbsFront)->delete();
+    $candidate->documents()->where('document_type', DocumentType::DbsBack)->delete();
+
+    $checks = CandidateVettingRequirements::for($candidate);
+
+    expect($checks['dbs']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
 });
 
 test('dbs check fails when the update service has not verified it and no documents are uploaded', function () {

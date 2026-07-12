@@ -12,6 +12,14 @@ use Illuminate\Support\Facades\Http;
 
 class DbsUpdateService
 {
+    /**
+     * The only status returned by the Update Service that confirms the
+     * certificate is unchanged since issue. Any other status (e.g. the
+     * certificate not being subscribed, or new information being found)
+     * means the check cannot be relied on as proof of a valid DBS.
+     */
+    public const string VALID_STATUS = 'BLANK_NO_NEW_INFO';
+
     private const string ENDPOINT = 'https://secure.crbonline.gov.uk/crsc/api/status';
 
     /**
