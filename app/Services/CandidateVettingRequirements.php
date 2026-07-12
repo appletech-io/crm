@@ -38,6 +38,11 @@ class CandidateVettingRequirements
                 'description' => 'At least one skill has been recorded for the candidate.',
                 'complete' => $candidate->skills()->exists(),
             ],
+            'pay_rates' => [
+                'label' => 'Pay Rates',
+                'description' => 'At least one pay rate has been set for the candidate.',
+                'complete' => $candidate->payRates()->exists(),
+            ],
             'not_barred' => [
                 'label' => 'Not Barred',
                 'description' => 'Candidate has been checked against the barred list and cleared.',
@@ -65,8 +70,9 @@ class CandidateVettingRequirements
             ],
             'safeguarding' => [
                 'label' => 'Safeguarding Training',
-                'description' => 'Safeguarding training has been checked and certified.',
-                'complete' => filled($candidate->safeguarding_certified_date),
+                'description' => 'Safeguarding training has been checked and certified, with the certificate uploaded.',
+                'complete' => filled($candidate->safeguarding_certified_date)
+                    && $candidate->documents()->where('document_type', DocumentType::SafeguardingTraining)->exists(),
             ],
             'prevent_training' => [
                 'label' => 'Prevent Training',

@@ -9,6 +9,7 @@ use App\Filament\Widgets\CandidateDocumentStatus;
 use App\Models\CandidateDocument;
 use App\Models\CandidateSkill;
 use App\Models\EducationCandidate;
+use App\Models\JobTitle;
 use App\Models\Qualification;
 use App\Services\CandidateVettingRequirements;
 use App\Services\DbsUpdateService;
@@ -17,6 +18,7 @@ use App\Services\ProofOfAddressVerificationService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -44,6 +46,7 @@ class VettingSteps
     {
         $steps = [
             static::personalDetails(),
+            static::payRates(),
             static::skills(),
             static::documents(),
             static::securityChecks(),
@@ -55,23 +58,24 @@ class VettingSteps
 
         $fieldsByIndex = [
             0 => static::personalDetailsFields(),
-            1 => static::skillsFields(),
-            3 => static::securityChecksFields(),
-            4 => static::traChecksFields(),
-            5 => static::dbsFields(),
+            2 => static::skillsFields(),
+            4 => static::securityChecksFields(),
+            5 => static::traChecksFields(),
+            6 => static::dbsFields(),
         ];
 
         $relationshipsByIndex = [
-            1 => ['skills'],
+            2 => ['skills'],
         ];
 
         foreach ($steps as $index => $step) {
             $nextStepNumber = $index + 2;
             $fields = $fieldsByIndex[$index] ?? [];
             $relationships = $relationshipsByIndex[$index] ?? [];
-            $isSecurityChecksStep = $index === 3;
+            $isPayRatesStep = $index === 1;
+            $isSecurityChecksStep = $index === 4;
 
-            $step->afterValidation(function (?EducationCandidate $record, Get $get) use ($nextStepNumber, $fields, $relationships, $isSecurityChecksStep): void {
+            $step->afterValidation(function (?EducationCandidate $record, Get $get) use ($nextStepNumber, $fields, $relationships, $isPayRatesStep, $isSecurityChecksStep): void {
                 if (! $record) {
                     return;
                 }
@@ -88,6 +92,10 @@ class VettingSteps
 
                 foreach ($relationships as $relationship) {
                     $record->{$relationship}()->sync($get($relationship) ?? []);
+                }
+
+                if ($isPayRatesStep) {
+                    static::syncPayRates($record, $get('payRates'));
                 }
 
                 if ($isSecurityChecksStep && $record->refresh()->dnuCandidate()) {
@@ -107,6 +115,34 @@ class VettingSteps
         return $steps;
     }
 
+    /** @param  array<string, array<string, mixed>>|null  $items */
+    protected static function syncPayRates(EducationCandidate $record, ?array $items): void
+    {
+        $items ??= [];
+
+        $idsToKeep = collect($items)
+            ->keys()
+            ->filter(fn (string $key): bool => str_starts_with($key, 'record-'))
+            ->map(fn (string $key): int => (int) str_replace('record-', '', $key));
+
+        $record->payRates()->whereNotIn('id', $idsToKeep->all() ?: [0])->delete();
+
+        foreach ($items as $key => $item) {
+            $attributes = [
+                'job_title_id' => $item['job_title_id'] ?? null,
+                'hourly_rate' => $item['hourly_rate'] ?? null,
+                'day_rate' => $item['day_rate'] ?? null,
+                'half_day_rate' => $item['half_day_rate'] ?? null,
+            ];
+
+            if (str_starts_with($key, 'record-')) {
+                $record->payRates()->find((int) str_replace('record-', '', $key))?->update($attributes);
+            } else {
+                $record->payRates()->create($attributes);
+            }
+        }
+    }
+
     /** @return array<int, string> */
     protected static function personalDetailsFields(): array
     {
@@ -122,6 +158,63 @@ class VettingSteps
     protected static function skillsFields(): array
     {
         return ['qualification_id', 'key_stages'];
+    }
+
+    protected static function payRates(): Step
+    {
+        return Step::make('Pay Rates')
+            ->schema([
+                Repeater::make('payRates')
+                    ->relationship()
+                    ->hiddenLabel()
+                    ->schema([
+                        Select::make('job_title_id')
+                            ->label('Job Title')
+                            ->options(fn (): array => JobTitle::query()
+                                ->where('company_id', Auth::user()->company_id)
+                                ->where('industry_id', active_industry_id())
+                                ->pluck('name', 'id')
+                                ->toArray()
+                            )
+                            ->required()
+                            ->distinct()
+                            ->disableOptionsWhenSelectedInSiblingRepeaterItems()
+                            ->searchable()
+                            ->columnSpanFull(),
+                        TextInput::make('hourly_rate')
+                            ->label('Hourly Rate')
+                            ->numeric()
+                            ->prefix('£')
+                            ->step(0.01)
+                            ->minValue(0)
+                            ->rule('regex:/^\d+(\.\d{1,2})?$/')
+                            ->validationMessages(['regex' => 'Please enter a valid monetary amount.']),
+                        TextInput::make('day_rate')
+                            ->label('Day Rate')
+                            ->numeric()
+                            ->prefix('£')
+                            ->step(0.01)
+                            ->minValue(0)
+                            ->rule('regex:/^\d+(\.\d{1,2})?$/')
+                            ->validationMessages(['regex' => 'Please enter a valid monetary amount.']),
+                        TextInput::make('half_day_rate')
+                            ->label('Half Day Rate')
+                            ->numeric()
+                            ->prefix('£')
+                            ->step(0.01)
+                            ->minValue(0)
+                            ->rule('regex:/^\d+(\.\d{1,2})?$/')
+                            ->validationMessages(['regex' => 'Please enter a valid monetary amount.']),
+                    ])
+                    ->columns(3)
+                    ->itemLabel(fn (?array $state): ?string => filled($state['job_title_id'] ?? null)
+                        ? JobTitle::find($state['job_title_id'])?->name
+                        : 'Pay Rate'
+                    )
+                    ->collapsible()
+                    ->collapsed()
+                    ->columnSpanFull(),
+            ]);
     }
 
     protected static function skills(): Step
@@ -455,6 +548,23 @@ class VettingSteps
                         DatePicker::make('safeguarding_certified_date')
                             ->label('Certified On')
                             ->native(false),
+
+                        Text::make(fn (?EducationCandidate $record): string => static::safeguardingDocument($record)
+                            ? 'Safeguarding certificate uploaded'
+                            : 'Safeguarding certificate not uploaded'
+                        )
+                            ->color(fn (?EducationCandidate $record): string => static::safeguardingDocument($record) ? 'success' : 'danger')
+                            ->columnSpanFull(),
+
+                        Actions::make([
+                            Action::make('viewSafeguardingCertificate')
+                                ->label('View Certificate')
+                                ->icon('heroicon-o-eye')
+                                ->color('gray')
+                                ->url(fn (?EducationCandidate $record): ?string => static::safeguardingDocumentUrl($record))
+                                ->openUrlInNewTab()
+                                ->visible(fn (?EducationCandidate $record): bool => (bool) static::safeguardingDocument($record)),
+                        ])->columnSpanFull(),
                     ]),
 
                 Section::make('Prevent Training')
@@ -463,6 +573,23 @@ class VettingSteps
                             ->label('Completed')
                             ->options(['yes' => 'Yes', 'no' => 'No'])
                             ->native(false),
+
+                        Text::make(fn (?EducationCandidate $record): string => static::preventTrainingDocument($record)
+                            ? 'Prevent training certificate uploaded'
+                            : 'Prevent training certificate not uploaded'
+                        )
+                            ->color(fn (?EducationCandidate $record): string => static::preventTrainingDocument($record) ? 'success' : 'danger')
+                            ->columnSpanFull(),
+
+                        Actions::make([
+                            Action::make('viewPreventTrainingCertificate')
+                                ->label('View Certificate')
+                                ->icon('heroicon-o-eye')
+                                ->color('gray')
+                                ->url(fn (?EducationCandidate $record): ?string => static::preventTrainingDocumentUrl($record))
+                                ->openUrlInNewTab()
+                                ->visible(fn (?EducationCandidate $record): bool => (bool) static::preventTrainingDocument($record)),
+                        ])->columnSpanFull(),
                     ]),
             ]);
     }
@@ -665,5 +792,39 @@ class VettingSteps
         $document = $record?->documents->firstWhere('document_type', DocumentType::Photo);
 
         return $document;
+    }
+
+    protected static function safeguardingDocument(?EducationCandidate $record): ?CandidateDocument
+    {
+        /** @var CandidateDocument|null $document */
+        $document = $record?->documents->firstWhere('document_type', DocumentType::SafeguardingTraining);
+
+        return $document;
+    }
+
+    protected static function preventTrainingDocument(?EducationCandidate $record): ?CandidateDocument
+    {
+        /** @var CandidateDocument|null $document */
+        $document = $record?->documents->firstWhere('document_type', DocumentType::PreventTraining);
+
+        return $document;
+    }
+
+    protected static function safeguardingDocumentUrl(?EducationCandidate $record): ?string
+    {
+        $document = static::safeguardingDocument($record);
+
+        return $document
+            ? Storage::disk('local')->temporaryUrl($document->path, now()->addMinutes(10))
+            : null;
+    }
+
+    protected static function preventTrainingDocumentUrl(?EducationCandidate $record): ?string
+    {
+        $document = static::preventTrainingDocument($record);
+
+        return $document
+            ? Storage::disk('local')->temporaryUrl($document->path, now()->addMinutes(10))
+            : null;
     }
 }

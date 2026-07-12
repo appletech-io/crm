@@ -12,6 +12,8 @@ use App\Models\CandidateStatus;
 use App\Models\Company;
 use App\Models\EducationCandidate;
 use App\Models\Industry;
+use App\Models\JobTitle;
+use App\Models\PayRate;
 use App\Models\Qualification;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
@@ -191,6 +193,95 @@ test('completing a wizard step advances the stored compliance step', function ()
     expect($candidate->refresh()->compliance_step)->toBe(2);
 });
 
+test('clicking next on the pay rates step persists a new pay rate immediately', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    $jobTitle = JobTitle::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    $test = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm([
+            'payRates' => [
+                'item-1' => [
+                    'job_title_id' => $jobTitle->id,
+                    'hourly_rate' => '15.00',
+                ],
+            ],
+        ]);
+
+    preg_match("/key: '([^']+wizard)'/", $test->html(), $matches);
+    $wizardKey = $matches[1];
+
+    $test->call('callSchemaComponentMethod', $wizardKey, 'nextStep', ['currentStepIndex' => 1]);
+
+    $candidate->refresh();
+    $payRate = $candidate->payRates()->first();
+
+    expect($payRate)->not->toBeNull();
+    expect($payRate->job_title_id)->toBe($jobTitle->id);
+    expect($payRate->hourly_rate)->toEqual(15.0);
+    expect($candidate->compliance_step)->toBe(3);
+});
+
+test('an existing pay rate can be edited via the pay rates step', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    $jobTitle = JobTitle::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    $payRate = PayRate::create([
+        'company_id' => $this->user->company_id,
+        'model_type' => EducationCandidate::class,
+        'model_id' => $candidate->id,
+        'job_title_id' => $jobTitle->id,
+        'hourly_rate' => 10,
+    ]);
+
+    $test = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->set("data.payRates.record-{$payRate->id}.hourly_rate", '25.00');
+
+    preg_match("/key: '([^']+wizard)'/", $test->html(), $matches);
+    $wizardKey = $matches[1];
+
+    $test->call('callSchemaComponentMethod', $wizardKey, 'nextStep', ['currentStepIndex' => 1]);
+
+    expect($payRate->fresh()->hourly_rate)->toEqual(25.0);
+});
+
+test('an existing pay rate can be removed via the pay rates step', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    $jobTitle = JobTitle::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    $payRate = PayRate::create([
+        'company_id' => $this->user->company_id,
+        'model_type' => EducationCandidate::class,
+        'model_id' => $candidate->id,
+        'job_title_id' => $jobTitle->id,
+        'hourly_rate' => 10,
+    ]);
+
+    $test = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->set('data.payRates', []);
+
+    preg_match("/key: '([^']+wizard)'/", $test->html(), $matches);
+    $wizardKey = $matches[1];
+
+    $test->call('callSchemaComponentMethod', $wizardKey, 'nextStep', ['currentStepIndex' => 1]);
+
+    expect(PayRate::find($payRate->id))->toBeNull();
+});
+
 test('vetting wizard can save qualification, skills and key stages', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
     assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
@@ -244,14 +335,14 @@ test('clicking next on the skills step persists qualification and skills immedia
     preg_match("/key: '([^']+wizard)'/", $test->html(), $matches);
     $wizardKey = $matches[1];
 
-    $test->call('callSchemaComponentMethod', $wizardKey, 'nextStep', ['currentStepIndex' => 1]);
+    $test->call('callSchemaComponentMethod', $wizardKey, 'nextStep', ['currentStepIndex' => 2]);
 
     $candidate->refresh();
 
     expect($candidate->qualification_id)->toBe($qualification->id);
     expect($candidate->skills->pluck('id')->all())->toBe([$skill->id]);
     expect($candidate->key_stages)->toBe(['keystage_2']);
-    expect($candidate->compliance_step)->toBe(3);
+    expect($candidate->compliance_step)->toBe(4);
 });
 
 test('clicking next persists the personal details step data immediately, before the final save', function () {
@@ -410,12 +501,12 @@ test('failing the barred list check blocks progression past security checks and 
     preg_match("/key: '([^']+wizard)'/", $test->html(), $matches);
     $wizardKey = $matches[1];
 
-    $test->call('callSchemaComponentMethod', $wizardKey, 'nextStep', ['currentStepIndex' => 3]);
+    $test->call('callSchemaComponentMethod', $wizardKey, 'nextStep', ['currentStepIndex' => 4]);
 
     $candidate->refresh();
 
     expect($candidate->barred_list_check)->toBe('no');
-    expect($candidate->compliance_step)->not->toBe(5);
+    expect($candidate->compliance_step)->not->toBe(6);
     expect($candidate->dnuCandidate())->toBeTrue();
 });
 
@@ -435,9 +526,9 @@ test('clearing both security checks allows progression to the next step', functi
     preg_match("/key: '([^']+wizard)'/", $test->html(), $matches);
     $wizardKey = $matches[1];
 
-    $test->call('callSchemaComponentMethod', $wizardKey, 'nextStep', ['currentStepIndex' => 3]);
+    $test->call('callSchemaComponentMethod', $wizardKey, 'nextStep', ['currentStepIndex' => 4]);
 
-    expect($candidate->refresh()->compliance_step)->toBe(5);
+    expect($candidate->refresh()->compliance_step)->toBe(6);
 });
 
 test('tra checks step requires trn issue date when the candidate has a TRN', function () {
@@ -452,9 +543,9 @@ test('tra checks step requires trn issue date when the candidate has a TRN', fun
     preg_match("/key: '([^']+wizard)'/", $test->html(), $matches);
     $wizardKey = $matches[1];
 
-    $test->call('callSchemaComponentMethod', $wizardKey, 'nextStep', ['currentStepIndex' => 4]);
+    $test->call('callSchemaComponentMethod', $wizardKey, 'nextStep', ['currentStepIndex' => 5]);
 
-    expect($candidate->refresh()->compliance_step)->not->toBe(6);
+    expect($candidate->refresh()->compliance_step)->not->toBe(7);
 });
 
 test('tra checks step advances once trn issue date is set', function () {
@@ -470,10 +561,10 @@ test('tra checks step advances once trn issue date is set', function () {
     preg_match("/key: '([^']+wizard)'/", $test->html(), $matches);
     $wizardKey = $matches[1];
 
-    $test->call('callSchemaComponentMethod', $wizardKey, 'nextStep', ['currentStepIndex' => 4]);
+    $test->call('callSchemaComponentMethod', $wizardKey, 'nextStep', ['currentStepIndex' => 5]);
 
     $candidate->refresh();
-    expect($candidate->compliance_step)->toBe(6);
+    expect($candidate->compliance_step)->toBe(7);
     expect($candidate->trn_issue_date->toDateString())->toBe('2026-01-10');
 });
 
@@ -489,9 +580,9 @@ test('tra checks step does not require trn issue date when the candidate has no 
     preg_match("/key: '([^']+wizard)'/", $test->html(), $matches);
     $wizardKey = $matches[1];
 
-    $test->call('callSchemaComponentMethod', $wizardKey, 'nextStep', ['currentStepIndex' => 4]);
+    $test->call('callSchemaComponentMethod', $wizardKey, 'nextStep', ['currentStepIndex' => 5]);
 
-    expect($candidate->refresh()->compliance_step)->toBe(6);
+    expect($candidate->refresh()->compliance_step)->toBe(7);
 });
 
 test('vetting wizard can save safeguarding and prevent training checks', function () {
@@ -514,6 +605,82 @@ test('vetting wizard can save safeguarding and prevent training checks', functio
 
     expect($candidate->safeguarding_certified_date->toDateString())->toBe('2026-02-01');
     expect($candidate->prevent_training_completed)->toBe('yes');
+});
+
+test('safeguarding section shows the certificate is not uploaded when missing', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSee('Safeguarding certificate not uploaded');
+});
+
+test('safeguarding section shows the certificate is uploaded when present', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::SafeguardingTraining,
+        'path' => 'fake/safeguarding-training.pdf',
+    ]);
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSee('Safeguarding certificate uploaded');
+});
+
+test('prevent training section shows the certificate is not uploaded when missing', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSee('Prevent training certificate not uploaded');
+});
+
+test('prevent training section shows the certificate is uploaded when present', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::PreventTraining,
+        'path' => 'fake/prevent-training.pdf',
+    ]);
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSee('Prevent training certificate uploaded');
+});
+
+test('view certificate action is hidden for safeguarding and prevent training without documents', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertDontSee('View Certificate');
+});
+
+test('view certificate action is shown for safeguarding and prevent training once documents are uploaded', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::SafeguardingTraining,
+        'path' => 'fake/safeguarding-training.pdf',
+    ]);
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::PreventTraining,
+        'path' => 'fake/prevent-training.pdf',
+    ]);
+
+    $html = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])->html();
+
+    expect(substr_count($html, 'View Certificate'))->toBe(2);
 });
 
 test('vetting wizard can save sanctions and restrictions with details', function () {
@@ -825,7 +992,19 @@ test('the Complete button is enabled when the vetting checklist is fully met', f
     ]);
     $candidate->skills()->attach($skill);
 
-    foreach ([DocumentType::Cv, DocumentType::Photo, DocumentType::BirthCertificate, DocumentType::DbsFront, DocumentType::DbsBack] as $documentType) {
+    $jobTitle = JobTitle::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+    ]);
+    PayRate::create([
+        'company_id' => $this->user->company_id,
+        'model_type' => EducationCandidate::class,
+        'model_id' => $candidate->id,
+        'job_title_id' => $jobTitle->id,
+        'hourly_rate' => 20,
+    ]);
+
+    foreach ([DocumentType::Cv, DocumentType::Photo, DocumentType::BirthCertificate, DocumentType::DbsFront, DocumentType::DbsBack, DocumentType::SafeguardingTraining] as $documentType) {
         CandidateDocument::create([
             'candidate_type' => EducationCandidate::class,
             'candidate_id' => $candidate->id,

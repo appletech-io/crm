@@ -8,6 +8,8 @@ use App\Models\CandidateStatus;
 use App\Models\Company;
 use App\Models\EducationCandidate;
 use App\Models\Industry;
+use App\Models\JobTitle;
+use App\Models\PayRate;
 use App\Services\CandidateVettingRequirements;
 
 function fullyCompliantCandidate(array $attributes = []): EducationCandidate
@@ -37,6 +39,18 @@ function fullyCompliantCandidate(array $attributes = []): EducationCandidate
         'industry_id' => $industry->id,
     ]);
     $candidate->skills()->attach($skill);
+
+    $jobTitle = JobTitle::factory()->create([
+        'company_id' => $company->id,
+        'industry_id' => $industry->id,
+    ]);
+    PayRate::create([
+        'company_id' => $company->id,
+        'model_type' => EducationCandidate::class,
+        'model_id' => $candidate->id,
+        'job_title_id' => $jobTitle->id,
+        'hourly_rate' => 20,
+    ]);
 
     $status = CandidateStatus::factory()->create([
         'company_id' => $company->id,
@@ -70,6 +84,13 @@ function fullyCompliantCandidate(array $attributes = []): EducationCandidate
         'candidate_id' => $candidate->id,
         'document_type' => DocumentType::Photo,
         'path' => 'fake/photo.jpg',
+    ]);
+
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::SafeguardingTraining,
+        'path' => 'fake/safeguarding-training.pdf',
     ]);
 
     CandidateDocument::create([
@@ -165,6 +186,16 @@ test('skills check fails when no skills are recorded', function () {
     expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
 });
 
+test('pay rates check fails when no pay rate is recorded', function () {
+    $candidate = fullyCompliantCandidate();
+    $candidate->payRates()->delete();
+
+    $checks = CandidateVettingRequirements::for($candidate);
+
+    expect($checks['pay_rates']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
 test('not barred check fails unless the barred list check is cleared', function () {
     $candidate = fullyCompliantCandidate(['barred_list_check' => 'no']);
 
@@ -239,6 +270,14 @@ test('safeguarding check fails without a certified date', function () {
     $candidate = fullyCompliantCandidate(['safeguarding_certified_date' => null]);
 
     expect(CandidateVettingRequirements::for($candidate)['safeguarding']['complete'])->toBeFalse();
+});
+
+test('safeguarding check fails without the certificate document, even with a certified date', function () {
+    $candidate = fullyCompliantCandidate();
+    $candidate->documents()->where('document_type', DocumentType::SafeguardingTraining)->delete();
+
+    expect(CandidateVettingRequirements::for($candidate)['safeguarding']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
 });
 
 test('prevent training check fails unless completed is yes', function () {
