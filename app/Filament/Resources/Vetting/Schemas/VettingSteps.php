@@ -294,6 +294,10 @@ class VettingSteps
                         ? collect(CandidateVettingRequirements::for($record))
                             ->map(function (array $check, string $key): Flex {
                                 $items = [
+                                    Icon::make(Heroicon::InformationCircle)
+                                        ->tooltip($check['description'])
+                                        ->color('gray')
+                                        ->grow(false),
                                     Text::make($check['label']),
                                 ];
 
