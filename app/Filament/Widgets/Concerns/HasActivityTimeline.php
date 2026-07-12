@@ -25,6 +25,7 @@ trait HasActivityTimeline
         return $table
             ->heading(null)
             ->query(fn () => $this->record->activities())
+            ->recordAction('view')
             ->defaultSort('created_at', 'desc')
             ->columns([
                 TextColumn::make('type')
