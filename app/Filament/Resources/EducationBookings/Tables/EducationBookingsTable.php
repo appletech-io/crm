@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\EducationBookings\Tables;
 
+use App\Models\EducationBooking;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -21,8 +22,13 @@ class EducationBookingsTable
                     ->label('Client')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('education_candidate.name')
-                    ->label('EducationCandidate')
+                TextColumn::make('education_candidate.first_name')
+                    ->label('Candidate')
+                    ->state(fn (EducationBooking $record): string => trim("{$record->education_candidate->first_name} {$record->education_candidate->last_name}"))
+                    ->searchable(['education_candidate.first_name', 'education_candidate.last_name'])
+                    ->sortable(),
+                TextColumn::make('jobTitle.name')
+                    ->label('Job Title')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('start_date')

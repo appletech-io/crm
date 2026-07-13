@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\Calendar;
 use App\Filament\Pages\CandidateSettings;
 use App\Filament\Pages\ClientSettings;
 use App\Filament\Pages\Dashboard;
@@ -15,6 +16,7 @@ use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\View\PanelsRenderHook;
+use Guava\Calendar\CalendarPlugin;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -31,6 +33,7 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('crm')
+            ->viteTheme('resources/css/filament/admin/theme.css')
             ->login(false)
             ->authGuard('web')
             ->colors([
@@ -65,10 +68,14 @@ class AdminPanelProvider extends PanelProvider
                 'Site Settings',
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
+            ->plugins([
+                CalendarPlugin::make(),
+            ])
             ->pages([
                 Dashboard::class,
                 CandidateSettings::class,
                 ClientSettings::class,
+                Calendar::class,
             ])
             ->widgets([
                 //
