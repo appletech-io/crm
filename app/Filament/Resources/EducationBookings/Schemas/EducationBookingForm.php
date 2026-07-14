@@ -14,6 +14,7 @@ use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
@@ -124,7 +125,8 @@ class EducationBookingForm
                                 Select::make('period')
                                     ->label('Session')
                                     ->options(BookingDayPeriod::options())
-                                    ->required(),
+                                    ->required()
+                                    ->live(),
                             ])
                             ->columns(1)
                             ->columnSpanFull(),
@@ -132,55 +134,79 @@ class EducationBookingForm
 
                 Section::make('Pay & Charge Rates')
                     ->columnSpanFull()
-                    ->columns(3)
                     ->schema([
-                        TextInput::make('day_rate')
-                            ->label('Day Pay Rate')
-                            ->helperText('Defaults from the candidate\'s pay rate for this job title. Override if needed.')
-                            ->numeric()
-                            ->prefix('£')
-                            ->step(0.01)
-                            ->minValue(0),
-                        TextInput::make('half_day_rate')
-                            ->label('Half Day Pay Rate')
-                            ->helperText('Defaults from the candidate\'s pay rate for this job title. Override if needed.')
-                            ->numeric()
-                            ->prefix('£')
-                            ->step(0.01)
-                            ->minValue(0),
-                        TextInput::make('hourly_rate')
-                            ->label('Hourly Pay Rate')
-                            ->helperText('Defaults from the candidate\'s pay rate for this job title. Override if needed.')
-                            ->numeric()
-                            ->prefix('£')
-                            ->step(0.01)
-                            ->minValue(0),
-                        TextInput::make('day_charge_rate')
-                            ->label('Day Charge Rate')
-                            ->helperText('Defaults from the client\'s charge rate for this job title. Override if needed.')
-                            ->required()
-                            ->numeric()
-                            ->prefix('£')
-                            ->step(0.01)
-                            ->minValue(0),
-                        TextInput::make('half_day_charge_rate')
-                            ->label('Half Day Charge Rate')
-                            ->helperText('Defaults from the client\'s charge rate for this job title. Override if needed.')
-                            ->required()
-                            ->numeric()
-                            ->prefix('£')
-                            ->step(0.01)
-                            ->minValue(0),
-                        TextInput::make('hourly_charge_rate')
-                            ->label('Hourly Charge Rate')
-                            ->helperText('Defaults from the client\'s charge rate for this job title. Override if needed.')
-                            ->required()
-                            ->numeric()
-                            ->prefix('£')
-                            ->step(0.01)
-                            ->minValue(0),
+                        Grid::make(3)
+                            ->schema([
+                                TextInput::make('day_rate')
+                                    ->label('Day Pay Rate')
+                                    ->helperText('Defaults from the candidate\'s pay rate for this job title. Override if needed.')
+                                    ->numeric()
+                                    ->prefix('£')
+                                    ->step(0.01)
+                                    ->minValue(0)
+                                    ->visible(fn (Get $get): bool => static::dayRateVisible($get)),
+                                TextInput::make('half_day_rate')
+                                    ->label('Half Day Pay Rate')
+                                    ->helperText('Defaults from the candidate\'s pay rate for this job title. Override if needed.')
+                                    ->numeric()
+                                    ->prefix('£')
+                                    ->step(0.01)
+                                    ->minValue(0)
+                                    ->visible(fn (Get $get): bool => static::halfDayRateVisible($get)),
+                                TextInput::make('hourly_rate')
+                                    ->label('Hourly Pay Rate')
+                                    ->helperText('Defaults from the candidate\'s pay rate for this job title. Override if needed.')
+                                    ->numeric()
+                                    ->prefix('£')
+                                    ->step(0.01)
+                                    ->minValue(0)
+                                    ->hidden(),
+                            ]),
+                        Grid::make(3)
+                            ->schema([
+                                TextInput::make('day_charge_rate')
+                                    ->label('Day Charge Rate')
+                                    ->helperText('Defaults from the client\'s charge rate for this job title. Override if needed.')
+                                    ->required()
+                                    ->numeric()
+                                    ->prefix('£')
+                                    ->step(0.01)
+                                    ->minValue(0)
+                                    ->visible(fn (Get $get): bool => static::dayRateVisible($get)),
+                                TextInput::make('half_day_charge_rate')
+                                    ->label('Half Day Charge Rate')
+                                    ->helperText('Defaults from the client\'s charge rate for this job title. Override if needed.')
+                                    ->required()
+                                    ->numeric()
+                                    ->prefix('£')
+                                    ->step(0.01)
+                                    ->minValue(0)
+                                    ->visible(fn (Get $get): bool => static::halfDayRateVisible($get)),
+                                TextInput::make('hourly_charge_rate')
+                                    ->label('Hourly Charge Rate')
+                                    ->helperText('Defaults from the client\'s charge rate for this job title. Override if needed.')
+                                    ->numeric()
+                                    ->prefix('£')
+                                    ->step(0.01)
+                                    ->minValue(0)
+                                    ->hidden(),
+                            ]),
                     ]),
             ]);
+    }
+
+    protected static function dayRateVisible(Get $get): bool
+    {
+        $periods = collect($get('day_periods') ?? [])->pluck('period')->filter();
+
+        return $periods->isEmpty() || $periods->contains(BookingDayPeriod::FullDay->value);
+    }
+
+    protected static function halfDayRateVisible(Get $get): bool
+    {
+        $periods = collect($get('day_periods') ?? [])->pluck('period')->filter();
+
+        return $periods->contains(BookingDayPeriod::Am->value) || $periods->contains(BookingDayPeriod::Pm->value);
     }
 
     protected static function applyDefaultRates(Set $set, Get $get): void

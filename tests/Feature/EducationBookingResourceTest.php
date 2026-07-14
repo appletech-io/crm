@@ -144,13 +144,21 @@ test('charge rates are required to create a booking', function () {
             'education_client_id' => $this->client->id,
             'education_candidate_id' => $this->candidate->id,
             'job_title_id' => $this->jobTitle->id,
-            'start_date' => now()->toDateString(),
-            'hourly_charge_rate' => null,
+            'start_date' => '2026-08-03',
+            'end_date' => '2026-08-04',
+        ])
+        ->fillForm([
+            'day_periods' => [
+                ['date' => '2026-08-03', 'period' => 'full_day'],
+                ['date' => '2026-08-04', 'period' => 'am'],
+            ],
+        ])
+        ->fillForm([
             'day_charge_rate' => null,
             'half_day_charge_rate' => null,
         ])
         ->call('create')
-        ->assertHasFormErrors(['hourly_charge_rate', 'day_charge_rate', 'half_day_charge_rate']);
+        ->assertHasFormErrors(['day_charge_rate', 'half_day_charge_rate']);
 });
 
 test('a booking can be created with overridden pay rates and required charge rates', function () {
@@ -169,9 +177,16 @@ test('a booking can be created with overridden pay rates and required charge rat
             'education_client_id' => $this->client->id,
             'education_candidate_id' => $this->candidate->id,
             'job_title_id' => $this->jobTitle->id,
-            'start_date' => now()->toDateString(),
-            'hourly_rate' => 30,
-            'hourly_charge_rate' => 40,
+            'start_date' => '2026-08-03',
+            'end_date' => '2026-08-04',
+        ])
+        ->fillForm([
+            'day_periods' => [
+                ['date' => '2026-08-03', 'period' => 'full_day'],
+                ['date' => '2026-08-04', 'period' => 'am'],
+            ],
+        ])
+        ->fillForm([
             'day_charge_rate' => 320,
             'half_day_charge_rate' => 160,
         ])
@@ -181,9 +196,7 @@ test('a booking can be created with overridden pay rates and required charge rat
     $booking = EducationBooking::first();
 
     expect($booking->job_title_id)->toBe($this->jobTitle->id)
-        ->and($booking->hourly_rate)->toBe(30.0)
         ->and($booking->day_rate)->toBe(200.0)
-        ->and($booking->hourly_charge_rate)->toBe(40.0)
         ->and($booking->day_charge_rate)->toBe(320.0)
         ->and($booking->half_day_charge_rate)->toBe(160.0);
 });
@@ -225,6 +238,80 @@ test('extending the date range preserves already-chosen day periods', function (
                 ['date' => '2026-08-05', 'period' => 'full_day'],
             ],
         ]);
+});
+
+test('day rate fields are visible and half day rate fields are hidden before any dates are set', function () {
+    Livewire::test(CreateEducationBooking::class)
+        ->assertFormFieldIsVisible('day_rate')
+        ->assertFormFieldIsVisible('day_charge_rate')
+        ->assertFormFieldIsHidden('half_day_rate')
+        ->assertFormFieldIsHidden('half_day_charge_rate');
+});
+
+test('hourly rate fields are always hidden', function () {
+    Livewire::test(CreateEducationBooking::class)
+        ->assertFormFieldIsHidden('hourly_rate')
+        ->assertFormFieldIsHidden('hourly_charge_rate')
+        ->fillForm([
+            'start_date' => '2026-08-03',
+            'end_date' => '2026-08-04',
+        ])
+        ->fillForm([
+            'day_periods' => [
+                ['date' => '2026-08-03', 'period' => 'am'],
+                ['date' => '2026-08-04', 'period' => 'pm'],
+            ],
+        ])
+        ->assertFormFieldIsHidden('hourly_rate')
+        ->assertFormFieldIsHidden('hourly_charge_rate');
+});
+
+test('day rate fields are visible and half day rate fields are hidden when every day is a full day', function () {
+    Livewire::test(CreateEducationBooking::class)
+        ->fillForm([
+            'start_date' => '2026-08-03',
+            'end_date' => '2026-08-05',
+        ])
+        ->assertFormFieldIsVisible('day_rate')
+        ->assertFormFieldIsVisible('day_charge_rate')
+        ->assertFormFieldIsHidden('half_day_rate')
+        ->assertFormFieldIsHidden('half_day_charge_rate');
+});
+
+test('half day rate fields are visible and day rate fields are hidden when every day is am or pm', function () {
+    Livewire::test(CreateEducationBooking::class)
+        ->fillForm([
+            'start_date' => '2026-08-03',
+            'end_date' => '2026-08-04',
+        ])
+        ->fillForm([
+            'day_periods' => [
+                ['date' => '2026-08-03', 'period' => 'am'],
+                ['date' => '2026-08-04', 'period' => 'pm'],
+            ],
+        ])
+        ->assertFormFieldIsVisible('half_day_rate')
+        ->assertFormFieldIsVisible('half_day_charge_rate')
+        ->assertFormFieldIsHidden('day_rate')
+        ->assertFormFieldIsHidden('day_charge_rate');
+});
+
+test('both day and half day rate fields are visible when the days are a mix of full day and am/pm', function () {
+    Livewire::test(CreateEducationBooking::class)
+        ->fillForm([
+            'start_date' => '2026-08-03',
+            'end_date' => '2026-08-04',
+        ])
+        ->fillForm([
+            'day_periods' => [
+                ['date' => '2026-08-03', 'period' => 'full_day'],
+                ['date' => '2026-08-04', 'period' => 'am'],
+            ],
+        ])
+        ->assertFormFieldIsVisible('day_rate')
+        ->assertFormFieldIsVisible('day_charge_rate')
+        ->assertFormFieldIsVisible('half_day_rate')
+        ->assertFormFieldIsVisible('half_day_charge_rate');
 });
 
 test('a booking can be created with custom am/pm day periods', function () {
