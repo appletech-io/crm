@@ -8,6 +8,7 @@ use Database\Factories\EducationBookingFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class EducationBooking extends Model
@@ -30,7 +31,6 @@ class EducationBooking extends Model
             'hourly_charge_rate' => Money::class,
             'day_charge_rate' => Money::class,
             'half_day_charge_rate' => Money::class,
-            'day_periods' => 'array',
         ];
     }
 
@@ -47,5 +47,10 @@ class EducationBooking extends Model
     public function jobTitle(): BelongsTo
     {
         return $this->belongsTo(JobTitle::class);
+    }
+
+    public function dayPeriods(): HasMany
+    {
+        return $this->hasMany(EducationBookingDayPeriod::class)->orderBy('date');
     }
 }

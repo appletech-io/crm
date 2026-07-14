@@ -7,6 +7,7 @@ enum BookingDayPeriod: string
     case Am = 'am';
     case Pm = 'pm';
     case FullDay = 'full_day';
+    case Hours = 'hours';
 
     public function label(): string
     {
@@ -14,6 +15,7 @@ enum BookingDayPeriod: string
             self::Am => 'AM',
             self::Pm => 'PM',
             self::FullDay => 'Full Day',
+            self::Hours => 'Hours',
         };
     }
 

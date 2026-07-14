@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\EducationBookings\Schemas;
 
 use App\Enums\BookingDayPeriod;
+use App\Models\EducationBooking;
+use App\Models\EducationBookingDayPeriod;
 use App\Models\EducationCandidate;
 use App\Models\EducationClient;
 use App\Models\JobTitle;
@@ -14,6 +16,7 @@ use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\TimePicker;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
@@ -116,6 +119,7 @@ class EducationBookingForm
                             ->addable(false)
                             ->deletable(false)
                             ->reorderable(false)
+                            ->dehydrated(false)
                             ->itemLabel(fn (array $state): ?string => filled($state['date'] ?? null)
                                 ? Carbon::parse($state['date'])->format('D j M Y')
                                 : null
@@ -127,8 +131,18 @@ class EducationBookingForm
                                     ->options(BookingDayPeriod::options())
                                     ->required()
                                     ->live(),
+                                TimePicker::make('time_from')
+                                    ->label('From')
+                                    ->seconds(false)
+                                    ->required(fn (Get $get): bool => $get('period') === BookingDayPeriod::Hours->value)
+                                    ->visible(fn (Get $get): bool => $get('period') === BookingDayPeriod::Hours->value),
+                                TimePicker::make('time_to')
+                                    ->label('To')
+                                    ->seconds(false)
+                                    ->required(fn (Get $get): bool => $get('period') === BookingDayPeriod::Hours->value)
+                                    ->visible(fn (Get $get): bool => $get('period') === BookingDayPeriod::Hours->value),
                             ])
-                            ->columns(1)
+                            ->columns(3)
                             ->columnSpanFull(),
                     ]),
 
@@ -160,7 +174,7 @@ class EducationBookingForm
                                     ->prefix('£')
                                     ->step(0.01)
                                     ->minValue(0)
-                                    ->hidden(),
+                                    ->visible(fn (Get $get): bool => static::hourlyRateVisible($get)),
                             ]),
                         Grid::make(3)
                             ->schema([
@@ -185,11 +199,12 @@ class EducationBookingForm
                                 TextInput::make('hourly_charge_rate')
                                     ->label('Hourly Charge Rate')
                                     ->helperText('Defaults from the client\'s charge rate for this job title. Override if needed.')
+                                    ->required()
                                     ->numeric()
                                     ->prefix('£')
                                     ->step(0.01)
                                     ->minValue(0)
-                                    ->hidden(),
+                                    ->visible(fn (Get $get): bool => static::hourlyRateVisible($get)),
                             ]),
                     ]),
             ]);
@@ -207,6 +222,13 @@ class EducationBookingForm
         $periods = collect($get('day_periods') ?? [])->pluck('period')->filter();
 
         return $periods->contains(BookingDayPeriod::Am->value) || $periods->contains(BookingDayPeriod::Pm->value);
+    }
+
+    protected static function hourlyRateVisible(Get $get): bool
+    {
+        $periods = collect($get('day_periods') ?? [])->pluck('period')->filter();
+
+        return $periods->contains(BookingDayPeriod::Hours->value);
     }
 
     protected static function applyDefaultRates(Set $set, Get $get): void
@@ -257,13 +279,54 @@ class EducationBookingForm
             ->keyBy('date');
 
         $dayPeriods = collect(CarbonPeriod::create($startDate, $endDate))
-            ->map(fn (Carbon $date): array => [
-                'date' => $date->toDateString(),
-                'period' => $existingPeriods->get($date->toDateString())['period'] ?? BookingDayPeriod::FullDay->value,
-            ])
+            ->map(function (Carbon $date) use ($existingPeriods): array {
+                $existing = $existingPeriods->get($date->toDateString());
+
+                return [
+                    'date' => $date->toDateString(),
+                    'period' => $existing['period'] ?? BookingDayPeriod::FullDay->value,
+                    'time_from' => $existing['time_from'] ?? null,
+                    'time_to' => $existing['time_to'] ?? null,
+                ];
+            })
             ->values()
             ->all();
 
         $set('day_periods', $dayPeriods);
+    }
+
+    /** @return array<int, array{date: string, period: string, time_from: ?string, time_to: ?string}> */
+    public static function loadDayPeriods(EducationBooking $record): array
+    {
+        return $record->dayPeriods()
+            ->get()
+            ->map(fn (EducationBookingDayPeriod $period): array => [
+                'date' => $period->date->toDateString(),
+                'period' => $period->period->value,
+                'time_from' => $period->time_from,
+                'time_to' => $period->time_to,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /** @param  array<int, array<string, mixed>>|null  $items */
+    public static function syncDayPeriods(EducationBooking $record, ?array $items): void
+    {
+        $items = collect($items ?? [])->filter(fn (array $item): bool => filled($item['date'] ?? null));
+
+        $record->dayPeriods()->whereNotIn('date', $items->pluck('date')->all() ?: [''])->delete();
+
+        foreach ($items as $item) {
+            $record->dayPeriods()->updateOrCreate(
+                ['date' => $item['date']],
+                [
+                    'company_id' => $record->company_id,
+                    'period' => $item['period'] ?? BookingDayPeriod::FullDay->value,
+                    'time_from' => $item['time_from'] ?? null,
+                    'time_to' => $item['time_to'] ?? null,
+                ],
+            );
+        }
     }
 }
