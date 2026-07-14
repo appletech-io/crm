@@ -44,4 +44,9 @@ class EducationClient extends Model
     {
         return $this->morphMany(ClientActivity::class, 'model')->latest();
     }
+
+    public function chargeRates(): MorphMany
+    {
+        return $this->morphMany(PayRate::class, 'model');
+    }
 }

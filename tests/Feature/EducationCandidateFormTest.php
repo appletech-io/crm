@@ -54,6 +54,30 @@ test('personal details can be saved on candidate', function () {
     expect($candidate->emergency_contact_name)->toBe('John Doe');
 });
 
+test('email must be unique among candidates in the same company', function () {
+    EducationCandidate::factory()->create(['company_id' => null, 'email' => 'jane@example.com']);
+    $candidate = EducationCandidate::factory()->create(['company_id' => null, 'email' => 'other@example.com']);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm(['email' => 'jane@example.com'])
+        ->call('save')
+        ->assertHasFormErrors(['email' => 'unique']);
+});
+
+test('a candidate keeps its own email as valid when saving unrelated fields', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null, 'email' => 'jane@example.com']);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm([
+            'email' => 'jane@example.com',
+            'first_name' => 'Updated',
+            'phone' => '07700900000',
+            'mobile' => '07700900001',
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+});
+
 test('references can be viewed and saved via the repeater on the candidate edit form', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => null]);
 

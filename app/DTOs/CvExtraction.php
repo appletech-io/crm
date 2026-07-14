@@ -10,6 +10,8 @@ class CvExtraction
 
     public ?string $lastName = null;
 
+    public ?string $email = null;
+
     public ?string $dateOfBirth = null;
 
     public ?string $address = null;

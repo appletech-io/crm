@@ -30,6 +30,7 @@ class CvParser implements Agent, HasStructuredOutput
             'firstName' => $schema->string(),
             'middleName' => $schema->string()->description('Middle name if present in the CV'),
             'lastName' => $schema->string(),
+            'email' => $schema->string()->description('Email address if present in the CV'),
             'dateOfBirth' => $schema->string()->description('Date of birth in YYYY-MM-DD format'),
             'address' => $schema->string()->description('Full address including house number and street name'),
             'city' => $schema->string()->description('Town or city'),

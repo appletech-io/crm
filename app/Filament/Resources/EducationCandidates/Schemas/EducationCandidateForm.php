@@ -111,7 +111,8 @@ class EducationCandidateForm
                                     ->schema([
                                         TextInput::make('email')
                                             ->email()
-                                            ->maxLength(255),
+                                            ->maxLength(255)
+                                            ->unique(ignoreRecord: true),
                                         TextInput::make('phone')
                                             ->tel()
                                             ->maxLength(255)
@@ -382,14 +383,6 @@ class EducationCandidateForm
                                             ->disableOptionsWhenSelectedInSiblingRepeaterItems()
                                             ->searchable()
                                             ->columnSpanFull(),
-                                        TextInput::make('hourly_rate')
-                                            ->label('Hourly Rate')
-                                            ->numeric()
-                                            ->prefix('£')
-                                            ->step(0.01)
-                                            ->minValue(0)
-                                            ->rule('regex:/^\d+(\.\d{1,2})?$/')
-                                            ->validationMessages(['regex' => 'Please enter a valid monetary amount.']),
                                         TextInput::make('day_rate')
                                             ->label('Day Rate')
                                             ->numeric()
@@ -400,6 +393,14 @@ class EducationCandidateForm
                                             ->validationMessages(['regex' => 'Please enter a valid monetary amount.']),
                                         TextInput::make('half_day_rate')
                                             ->label('Half Day Rate')
+                                            ->numeric()
+                                            ->prefix('£')
+                                            ->step(0.01)
+                                            ->minValue(0)
+                                            ->rule('regex:/^\d+(\.\d{1,2})?$/')
+                                            ->validationMessages(['regex' => 'Please enter a valid monetary amount.']),
+                                        TextInput::make('hourly_rate')
+                                            ->label('Hourly Rate')
                                             ->numeric()
                                             ->prefix('£')
                                             ->step(0.01)

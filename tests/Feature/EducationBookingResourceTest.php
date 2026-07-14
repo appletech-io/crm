@@ -2,6 +2,7 @@
 
 use App\Filament\Resources\EducationBookings\Pages\CreateEducationBooking;
 use App\Filament\Resources\EducationBookings\Pages\EditEducationBooking;
+use App\Filament\Resources\EducationBookings\Pages\ListEducationBookings;
 use App\Models\EducationBooking;
 use App\Models\EducationCandidate;
 use App\Models\EducationClient;
@@ -61,6 +62,79 @@ test('pay rate fields are blank when the candidate has no pay rate for the job t
             'hourly_rate' => null,
             'day_rate' => null,
             'half_day_rate' => null,
+        ]);
+});
+
+test('selecting a client and job title pulls through the client charge rate', function () {
+    PayRate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'model_type' => EducationClient::class,
+        'model_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'hourly_rate' => 40,
+        'day_rate' => 320,
+        'half_day_rate' => 160,
+    ]);
+
+    Livewire::test(CreateEducationBooking::class)
+        ->fillForm([
+            'education_client_id' => $this->client->id,
+            'job_title_id' => $this->jobTitle->id,
+        ])
+        ->assertFormSet([
+            'hourly_charge_rate' => 40,
+            'day_charge_rate' => 320,
+            'half_day_charge_rate' => 160,
+        ]);
+});
+
+test('charge rate fields are blank when the client has no charge rate for the job title', function () {
+    Livewire::test(CreateEducationBooking::class)
+        ->fillForm([
+            'education_client_id' => $this->client->id,
+            'job_title_id' => $this->jobTitle->id,
+        ])
+        ->assertFormSet([
+            'hourly_charge_rate' => null,
+            'day_charge_rate' => null,
+            'half_day_charge_rate' => null,
+        ]);
+});
+
+test('pay rates and charge rates pull through independently for the same job title', function () {
+    PayRate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'model_type' => EducationCandidate::class,
+        'model_id' => $this->candidate->id,
+        'job_title_id' => $this->jobTitle->id,
+        'hourly_rate' => 25,
+        'day_rate' => 200,
+        'half_day_rate' => 100,
+    ]);
+
+    PayRate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'model_type' => EducationClient::class,
+        'model_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'hourly_rate' => 40,
+        'day_rate' => 320,
+        'half_day_rate' => 160,
+    ]);
+
+    Livewire::test(CreateEducationBooking::class)
+        ->fillForm([
+            'education_candidate_id' => $this->candidate->id,
+            'education_client_id' => $this->client->id,
+            'job_title_id' => $this->jobTitle->id,
+        ])
+        ->assertFormSet([
+            'hourly_rate' => 25,
+            'day_rate' => 200,
+            'half_day_rate' => 100,
+            'hourly_charge_rate' => 40,
+            'day_charge_rate' => 320,
+            'half_day_charge_rate' => 160,
         ]);
 });
 
@@ -193,4 +267,36 @@ test('edit page renders with the new fields', function () {
     Livewire::test(EditEducationBooking::class, ['record' => $booking->getRouteKey()])
         ->assertSuccessful()
         ->assertFormSet(['job_title_id' => $this->jobTitle->id]);
+});
+
+test('the list page does not crash and flags the candidate as deleted when the candidate is soft-deleted', function () {
+    $booking = EducationBooking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'education_client_id' => $this->client->id,
+        'education_candidate_id' => $this->candidate->id,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+
+    $this->candidate->delete();
+
+    Livewire::test(ListEducationBookings::class)
+        ->assertSuccessful()
+        ->assertSee('(deleted)');
+
+    expect($booking->fresh()->education_candidate_id)->toBe($this->candidate->id);
+});
+
+test('the edit form does not crash and flags the candidate as deleted when the candidate is soft-deleted', function () {
+    $booking = EducationBooking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'education_client_id' => $this->client->id,
+        'education_candidate_id' => $this->candidate->id,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+
+    $this->candidate->delete();
+
+    Livewire::test(EditEducationBooking::class, ['record' => $booking->getRouteKey()])
+        ->assertSuccessful()
+        ->assertSee('(deleted)');
 });

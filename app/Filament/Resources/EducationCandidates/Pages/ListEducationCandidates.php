@@ -5,6 +5,7 @@ namespace App\Filament\Resources\EducationCandidates\Pages;
 use App\Actions\Candidates\CandidateCreated;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Models\EducationCandidate;
+use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\Pages\ListRecords;
@@ -16,8 +17,13 @@ class ListEducationCandidates extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('bulkUploadCvs')
+                ->label('Bulk Upload CVs')
+                ->icon('heroicon-o-arrow-up-tray')
+                ->color('gray')
+                ->url(fn (): string => static::getResource()::getUrl('bulk-upload-cvs')),
             CreateAction::make()
-                ->label('New EducationCandidate')
+                ->label('New Candidate')
                 ->modalHeading('Add EducationCandidate')
                 ->createAnother(false)
                 ->modalWidth('sm')

@@ -130,9 +130,9 @@ class VettingSteps
         foreach ($items as $key => $item) {
             $attributes = [
                 'job_title_id' => $item['job_title_id'] ?? null,
-                'hourly_rate' => $item['hourly_rate'] ?? null,
                 'day_rate' => $item['day_rate'] ?? null,
                 'half_day_rate' => $item['half_day_rate'] ?? null,
+                'hourly_rate' => $item['hourly_rate'] ?? null,
             ];
 
             if (str_starts_with($key, 'record-')) {
@@ -181,14 +181,6 @@ class VettingSteps
                             ->disableOptionsWhenSelectedInSiblingRepeaterItems()
                             ->searchable()
                             ->columnSpanFull(),
-                        TextInput::make('hourly_rate')
-                            ->label('Hourly Rate')
-                            ->numeric()
-                            ->prefix('£')
-                            ->step(0.01)
-                            ->minValue(0)
-                            ->rule('regex:/^\d+(\.\d{1,2})?$/')
-                            ->validationMessages(['regex' => 'Please enter a valid monetary amount.']),
                         TextInput::make('day_rate')
                             ->label('Day Rate')
                             ->numeric()
@@ -199,6 +191,14 @@ class VettingSteps
                             ->validationMessages(['regex' => 'Please enter a valid monetary amount.']),
                         TextInput::make('half_day_rate')
                             ->label('Half Day Rate')
+                            ->numeric()
+                            ->prefix('£')
+                            ->step(0.01)
+                            ->minValue(0)
+                            ->rule('regex:/^\d+(\.\d{1,2})?$/')
+                            ->validationMessages(['regex' => 'Please enter a valid monetary amount.']),
+                        TextInput::make('hourly_rate')
+                            ->label('Hourly Rate')
                             ->numeric()
                             ->prefix('£')
                             ->step(0.01)

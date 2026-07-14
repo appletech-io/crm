@@ -23,6 +23,7 @@ class CvParserService
         $extraction->firstName = $response['firstName'] ?? null;
         $extraction->middleName = $response['middleName'] ?? null;
         $extraction->lastName = $response['lastName'] ?? null;
+        $extraction->email = $response['email'] ?? null;
         $extraction->dateOfBirth = $response['dateOfBirth'] ?? null;
         $extraction->address = $response['address'] ?? null;
         $extraction->city = $response['city'] ?? null;

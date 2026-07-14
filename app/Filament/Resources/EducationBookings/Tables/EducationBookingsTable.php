@@ -24,7 +24,17 @@ class EducationBookingsTable
                     ->sortable(),
                 TextColumn::make('education_candidate.first_name')
                     ->label('Candidate')
-                    ->state(fn (EducationBooking $record): string => trim("{$record->education_candidate->first_name} {$record->education_candidate->last_name}"))
+                    ->state(function (EducationBooking $record): string {
+                        $candidate = $record->education_candidate()->withTrashed()->first();
+
+                        if (! $candidate) {
+                            return 'Unknown candidate';
+                        }
+
+                        $name = trim("{$candidate->first_name} {$candidate->last_name}");
+
+                        return $candidate->trashed() ? "{$name} (deleted)" : $name;
+                    })
                     ->searchable(['education_candidate.first_name', 'education_candidate.last_name'])
                     ->sortable(),
                 TextColumn::make('jobTitle.name')

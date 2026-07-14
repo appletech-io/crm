@@ -290,6 +290,60 @@ class EducationClientForm
                                     ->collapsed()
                                     ->columnSpanFull(),
                             ]),
+
+                        Tab::make('Charge Rates')
+                            ->schema([
+                                Repeater::make('chargeRates')
+                                    ->relationship()
+                                    ->hiddenLabel()
+                                    ->schema([
+                                        Select::make('job_title_id')
+                                            ->label('Job Title')
+                                            ->options(fn (): array => JobTitle::query()
+                                                ->where('company_id', Auth::user()->company_id)
+                                                ->where('industry_id', active_industry_id())
+                                                ->pluck('name', 'id')
+                                                ->toArray()
+                                            )
+                                            ->required()
+                                            ->distinct()
+                                            ->disableOptionsWhenSelectedInSiblingRepeaterItems()
+                                            ->searchable()
+                                            ->columnSpanFull(),
+                                        TextInput::make('day_rate')
+                                            ->label('Day Charge Rate')
+                                            ->numeric()
+                                            ->prefix('£')
+                                            ->step(0.01)
+                                            ->minValue(0)
+                                            ->rule('regex:/^\d+(\.\d{1,2})?$/')
+                                            ->validationMessages(['regex' => 'Please enter a valid monetary amount.']),
+                                        TextInput::make('half_day_rate')
+                                            ->label('Half Day Charge Rate')
+                                            ->numeric()
+                                            ->prefix('£')
+                                            ->step(0.01)
+                                            ->minValue(0)
+                                            ->rule('regex:/^\d+(\.\d{1,2})?$/')
+                                            ->validationMessages(['regex' => 'Please enter a valid monetary amount.']),
+                                        TextInput::make('hourly_rate')
+                                            ->label('Hourly Charge Rate')
+                                            ->numeric()
+                                            ->prefix('£')
+                                            ->step(0.01)
+                                            ->minValue(0)
+                                            ->rule('regex:/^\d+(\.\d{1,2})?$/')
+                                            ->validationMessages(['regex' => 'Please enter a valid monetary amount.']),
+                                    ])
+                                    ->columns(3)
+                                    ->itemLabel(fn (?array $state): ?string => filled($state['job_title_id'] ?? null)
+                                        ? JobTitle::find($state['job_title_id'])?->name
+                                        : 'Charge Rate'
+                                    )
+                                    ->collapsible()
+                                    ->collapsed()
+                                    ->columnSpanFull(),
+                            ]),
                     ]),
             ]);
     }
