@@ -7,7 +7,8 @@ use RuntimeException;
 
 class MailgunMailer
 {
-    public function send(string $to, string $subject, string $body, ?string $from = null): void
+    /** @param  array<int, array{name: string, path: string, mimeType?: string}>  $attachments */
+    public function send(string $to, string $subject, string $body, ?string $from = null, array $attachments = []): void
     {
         $domain = config('services.mailgun.domain');
         $apiKey = config('services.mailgun.secret');
@@ -19,8 +20,13 @@ class MailgunMailer
             throw new RuntimeException('Mailgun is not configured (check MAILGUN_DOMAIN, MAILGUN_SECRET, MAIL_FROM_ADDRESS in .env).');
         }
 
-        Http::withBasicAuth('api', $apiKey)
-            ->asForm()
+        $request = Http::withBasicAuth('api', $apiKey);
+
+        foreach ($attachments as $attachment) {
+            $request = $request->attach('attachment', file_get_contents($attachment['path']), $attachment['name']);
+        }
+
+        $request
             ->post("https://{$endpoint}/v3/{$domain}/messages", [
                 'from' => "{$fromName} <{$fromAddress}>",
                 'to' => $to,

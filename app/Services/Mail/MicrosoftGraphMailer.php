@@ -11,24 +11,38 @@ class MicrosoftGraphMailer
 {
     public function __construct(private readonly Company $company) {}
 
-    public function send(string $to, string $subject, string $body, ?string $from = null): void
+    /** @param  array<int, array{name: string, path: string, mimeType?: string}>  $attachments */
+    public function send(string $to, string $subject, string $body, ?string $from = null, array $attachments = []): void
     {
         $this->guardConfiguration();
 
         $sender = $from ?? $this->company->ms_sender_email;
 
+        $message = [
+            'subject' => $subject,
+            'body' => [
+                'contentType' => 'HTML',
+                'content' => $body,
+            ],
+            'toRecipients' => [
+                ['emailAddress' => ['address' => $to]],
+            ],
+        ];
+
+        if (filled($attachments)) {
+            $message['attachments'] = collect($attachments)
+                ->map(fn (array $attachment): array => [
+                    '@odata.type' => '#microsoft.graph.fileAttachment',
+                    'name' => $attachment['name'],
+                    'contentType' => $attachment['mimeType'] ?? 'application/octet-stream',
+                    'contentBytes' => base64_encode(file_get_contents($attachment['path'])),
+                ])
+                ->all();
+        }
+
         Http::withToken($this->accessToken())
             ->post("https://graph.microsoft.com/v1.0/users/{$sender}/sendMail", [
-                'message' => [
-                    'subject' => $subject,
-                    'body' => [
-                        'contentType' => 'HTML',
-                        'content' => $body,
-                    ],
-                    'toRecipients' => [
-                        ['emailAddress' => ['address' => $to]],
-                    ],
-                ],
+                'message' => $message,
                 'saveToSentItems' => true,
             ])
             ->throwUnlessStatus(202);

@@ -27,6 +27,15 @@ class Document
         return $newPath;
     }
 
+    public static function putGenerated(string $contents, EducationCandidate $candidate, string $filename, string $subdirectory): string
+    {
+        $path = self::directoryFor($candidate)."/{$subdirectory}/{$filename}";
+
+        Storage::disk('local')->put($path, $contents);
+
+        return $path;
+    }
+
     private static function directoryFor(EducationCandidate $candidate): string
     {
         $companyName = Str::slug($candidate->company?->name) ?: $candidate->company_id;

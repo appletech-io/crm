@@ -25,6 +25,8 @@ class EducationBooking extends Model
     protected function casts(): array
     {
         return [
+            'start_date' => 'date',
+            'end_date' => 'date',
             'hourly_rate' => Money::class,
             'day_rate' => Money::class,
             'half_day_rate' => Money::class,

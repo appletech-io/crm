@@ -24,6 +24,11 @@ class CompanyForm
                         TextInput::make('name')
                             ->required()
                             ->columnSpanFull(),
+                        TextInput::make('phone')
+                            ->label('Phone Number')
+                            ->tel()
+                            ->helperText('Used in candidate/client emails, e.g. as a contact number for booking queries')
+                            ->columnSpanFull(),
                         Select::make('industries')
                             ->relationship('industries', 'name')
                             ->multiple()
