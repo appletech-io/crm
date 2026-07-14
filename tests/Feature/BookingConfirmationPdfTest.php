@@ -129,12 +129,12 @@ test('the booking confirmation view renders the candidate photo when present and
         'bookingDates' => collect(),
     ];
 
-    $withoutPhoto = view('pdfs.booking-confirmation', [...$viewData, 'photoPath' => null])->render();
+    $withoutPhoto = view('pdfs.booking-confirmation', [...$viewData, 'photoDataUri' => null])->render();
     expect($withoutPhoto)->not->toContain('class="photo"');
 
-    $withPhoto = view('pdfs.booking-confirmation', [...$viewData, 'photoPath' => '/tmp/fake-photo.png'])->render();
+    $withPhoto = view('pdfs.booking-confirmation', [...$viewData, 'photoDataUri' => 'data:image/png;base64,Zm9v'])->render();
     expect($withPhoto)->toContain('class="photo"')
-        ->and($withPhoto)->toContain('src="/tmp/fake-photo.png"');
+        ->and($withPhoto)->toContain('src="data:image/png;base64,Zm9v"');
 });
 
 test('the pdf includes a booking dates table with the charge rate and, for hours-based days, a start-to-end time', function () {
@@ -170,7 +170,7 @@ test('the pdf includes a booking dates table with the charge rate and, for hours
         'candidate' => $this->candidate,
         'checks' => collect(),
         'bookingDates' => $rows,
-        'photoPath' => null,
+        'photoDataUri' => null,
     ])->render();
 
     expect($html)->toContain('Booking Date(s)')
@@ -186,7 +186,7 @@ test('the pdf view never renders a pay rates section, only the booking dates cha
         'candidate' => $this->candidate,
         'checks' => collect(),
         'bookingDates' => collect(),
-        'photoPath' => null,
+        'photoDataUri' => null,
     ])->render();
 
     expect($html)->not->toContain('Pay Rates')

@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\BookingDayPeriod;
+use App\Filament\Resources\EducationBookings\EducationBookingResource;
 use App\Filament\Resources\EducationBookings\Pages\ListEducationBookings;
 use App\Filament\Resources\EducationBookings\Widgets\WeeklyBookingsByClient;
 use App\Models\EducationBooking;
@@ -65,6 +66,24 @@ test('it shows bookings for the current week, grouped by client', function () {
         ->assertTableColumnStateSet('day_0', true, $booking)
         ->assertTableColumnStateSet('day_1', true, $booking)
         ->assertTableColumnStateSet('day_2', false, $booking);
+});
+
+test('each row links through to the booking edit page', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+
+    $booking = EducationBooking::factory()->create([
+        'company_id' => $this->company->id,
+        'education_client_id' => $this->client->id,
+        'education_candidate_id' => $this->candidate->id,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+    bookingWithDayPeriod($booking, $monday->toDateString());
+
+    $html = Livewire::test(WeeklyBookingsByClient::class)->html();
+
+    expect($html)->toContain(
+        EducationBookingResource::getUrl('edit', ['record' => $booking])
+    );
 });
 
 test('the weekly table can be filtered by client and by candidate', function () {

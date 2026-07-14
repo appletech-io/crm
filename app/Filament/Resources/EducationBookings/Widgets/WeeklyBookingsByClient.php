@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\EducationBookings\Widgets;
 
 use App\Filament\Resources\EducationBookings\BookingFilters;
+use App\Filament\Resources\EducationBookings\EducationBookingResource;
 use App\Models\EducationBooking;
 use App\Models\EducationBookingDayPeriod;
 use Filament\Actions\Action;
@@ -58,6 +59,7 @@ class WeeklyBookingsByClient extends BaseWidget
             ->heading("This Week's Bookings")
             ->description(fn (): string => $this->weekStartDate()->format('jS M').' - '.$this->weekEndDate()->format('jS M Y'))
             ->query(fn (): Builder => $this->tableQuery())
+            ->recordUrl(fn (EducationBooking $record): string => EducationBookingResource::getUrl('edit', ['record' => $record]))
             ->groups([
                 Group::make('education_client_id')
                     ->label('Client')

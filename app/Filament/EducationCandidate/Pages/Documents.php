@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Candidate\Pages;
+namespace App\Filament\EducationCandidate\Pages;
 
 use App\Models\EducationCandidate;
 use App\Services\Education\CandidateDocumentRequirements;

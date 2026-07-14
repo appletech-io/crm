@@ -23,7 +23,7 @@ class BookingConfirmationPdfService
             'candidate' => $candidate,
             'checks' => collect($this->checks($candidate)),
             'bookingDates' => BookingDayPeriods::rows($booking, 'charge'),
-            'photoPath' => $this->photoPath($candidate),
+            'photoDataUri' => $this->photoDataUri($candidate),
         ])->render();
 
         $summaryPdf = Pdf::loadHTML($html)->output();
@@ -35,7 +35,7 @@ class BookingConfirmationPdfService
         return Document::putGenerated($merged, $candidate, $filename, 'bookings');
     }
 
-    protected function photoPath(EducationCandidate $candidate): ?string
+    protected function photoDataUri(EducationCandidate $candidate): ?string
     {
         /** @var CandidateDocument|null $photo */
         $photo = $candidate->documents->firstWhere('document_type', DocumentType::Photo);
@@ -44,7 +44,10 @@ class BookingConfirmationPdfService
             return null;
         }
 
-        return Storage::disk('local')->path($photo->path);
+        $contents = Storage::disk('local')->get($photo->path);
+        $mimeType = Storage::disk('local')->mimeType($photo->path) ?: 'image/jpeg';
+
+        return "data:{$mimeType};base64,".base64_encode($contents);
     }
 
     /** @return array<int, array{label: string, value: string}> */

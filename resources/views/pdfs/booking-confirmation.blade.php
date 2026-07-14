@@ -161,9 +161,9 @@
             </tr>
         </table>
 
-        @if ($photoPath)
+        @if ($photoDataUri)
             <div class="photo">
-                <img src="{{ $photoPath }}" alt="{{ trim("{$candidate->first_name} {$candidate->last_name}") }}">
+                <img src="{{ $photoDataUri }}" alt="{{ trim("{$candidate->first_name} {$candidate->last_name}") }}">
             </div>
         @endif
     </div>

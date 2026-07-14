@@ -33,9 +33,9 @@ class CandidatePanelProvider extends PanelProvider
             ->brandLogo(asset('favicon.svg'))
             ->brandLogoHeight('3rem')
             ->favicon(asset('favicon.svg'))
-            ->discoverResources(in: app_path('Filament/EducationCandidate/Resources'), for: 'App\Filament\Candidate\Resources')
-            ->discoverPages(in: app_path('Filament/EducationCandidate/Pages'), for: 'App\Filament\Candidate\Pages')
-            ->discoverWidgets(in: app_path('Filament/EducationCandidate/Widgets'), for: 'App\Filament\Candidate\Widgets')
+            ->discoverResources(in: app_path('Filament/EducationCandidate/Resources'), for: 'App\Filament\EducationCandidate\Resources')
+            ->discoverPages(in: app_path('Filament/EducationCandidate/Pages'), for: 'App\Filament\EducationCandidate\Pages')
+            ->discoverWidgets(in: app_path('Filament/EducationCandidate/Widgets'), for: 'App\Filament\EducationCandidate\Widgets')
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

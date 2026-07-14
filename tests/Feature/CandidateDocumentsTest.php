@@ -1,6 +1,6 @@
 <?php
 
-use App\Filament\Candidate\Pages\Documents;
+use App\Filament\EducationCandidate\Pages\Documents;
 use App\Models\CandidateCandidateStatus;
 use App\Models\CandidateStatus;
 use App\Models\Company;
