@@ -4,6 +4,9 @@ use App\Enums\BookingDayPeriod;
 use App\Filament\Resources\EducationBookings\Pages\CreateEducationBooking;
 use App\Filament\Resources\EducationBookings\Pages\EditEducationBooking;
 use App\Filament\Resources\EducationBookings\Pages\ListEducationBookings;
+use App\Jobs\GenerateBookingConfirmationPdf;
+use App\Jobs\SendBookingConfirmationEmail;
+use App\Jobs\SendClientBookingConfirmationEmail;
 use App\Models\EducationBooking;
 use App\Models\EducationBookingDayPeriod;
 use App\Models\EducationCandidate;
@@ -14,6 +17,7 @@ use App\Models\PayRate;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -520,6 +524,25 @@ test('the edit form does not crash and flags the candidate as deleted when the c
     Livewire::test(EditEducationBooking::class, ['record' => $booking->getRouteKey()])
         ->assertSuccessful()
         ->assertSee('(deleted)');
+});
+
+test('the resend confirmation emails action dispatches pdf generation and both confirmation email jobs', function () {
+    Queue::fake();
+
+    $booking = EducationBooking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'education_client_id' => $this->client->id,
+        'education_candidate_id' => $this->candidate->id,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+
+    Livewire::test(EditEducationBooking::class, ['record' => $booking->getRouteKey()])
+        ->callAction('resendConfirmationEmails')
+        ->assertNotified();
+
+    Queue::assertPushed(GenerateBookingConfirmationPdf::class, fn ($job) => $job->booking->is($booking));
+    Queue::assertPushed(SendBookingConfirmationEmail::class, fn ($job) => $job->booking->is($booking));
+    Queue::assertPushed(SendClientBookingConfirmationEmail::class, fn ($job) => $job->booking->is($booking));
 });
 
 test('the all section table can be filtered by client and by candidate', function () {
