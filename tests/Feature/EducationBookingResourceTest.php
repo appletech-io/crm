@@ -500,6 +500,8 @@ test('the list page does not crash and flags the candidate as deleted when the c
 
     Livewire::test(ListEducationBookings::class)
         ->assertSuccessful()
+        ->set('activeSection', 'all')
+        ->assertSuccessful()
         ->assertSee('(deleted)');
 
     expect($booking->fresh()->education_candidate_id)->toBe($this->candidate->id);
@@ -518,4 +520,40 @@ test('the edit form does not crash and flags the candidate as deleted when the c
     Livewire::test(EditEducationBooking::class, ['record' => $booking->getRouteKey()])
         ->assertSuccessful()
         ->assertSee('(deleted)');
+});
+
+test('the all section table can be filtered by client and by candidate', function () {
+    $otherClient = EducationClient::factory()->create(['company_id' => $this->user->company_id]);
+    $otherCandidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    $matchingBooking = EducationBooking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'education_client_id' => $this->client->id,
+        'education_candidate_id' => $this->candidate->id,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+
+    $otherClientBooking = EducationBooking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'education_client_id' => $otherClient->id,
+        'education_candidate_id' => $this->candidate->id,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+
+    $otherCandidateBooking = EducationBooking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'education_client_id' => $this->client->id,
+        'education_candidate_id' => $otherCandidate->id,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+
+    Livewire::test(ListEducationBookings::class)
+        ->set('activeSection', 'all')
+        ->filterTable('education_client_id', $this->client->id)
+        ->assertCanSeeTableRecords([$matchingBooking, $otherCandidateBooking])
+        ->assertCanNotSeeTableRecords([$otherClientBooking])
+        ->removeTableFilter('education_client_id')
+        ->filterTable('education_candidate_id', $this->candidate->id)
+        ->assertCanSeeTableRecords([$matchingBooking, $otherClientBooking])
+        ->assertCanNotSeeTableRecords([$otherCandidateBooking]);
 });

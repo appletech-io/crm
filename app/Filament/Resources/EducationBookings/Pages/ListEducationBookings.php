@@ -10,6 +10,10 @@ class ListEducationBookings extends ListRecords
 {
     protected static string $resource = EducationBookingResource::class;
 
+    protected string $view = 'filament.resources.education-bookings.pages.list-education-bookings';
+
+    public string $activeSection = 'weekly';
+
     protected function getHeaderActions(): array
     {
         return [

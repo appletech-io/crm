@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\EducationBookings\Tables;
 
+use App\Filament\Resources\EducationBookings\BookingFilters;
 use App\Models\EducationBooking;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -62,6 +63,8 @@ class EducationBookingsTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                BookingFilters::client(),
+                BookingFilters::candidate(),
                 TrashedFilter::make(),
             ])
             ->recordActions([
