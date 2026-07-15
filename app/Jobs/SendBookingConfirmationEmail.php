@@ -7,8 +7,8 @@ use App\Enums\EmailProvider;
 use App\Enums\EmailTemplateType;
 use App\Models\EducationBooking;
 use App\Models\EmailTemplate;
+use App\Services\Booking\BookingDayPeriods;
 use App\Services\Education\BookingConfirmationLink;
-use App\Services\Education\BookingDayPeriods;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -33,7 +33,7 @@ class SendBookingConfirmationEmail implements ShouldQueue
      */
     public function handle(): void
     {
-        $candidate = $this->booking->education_candidate;
+        $candidate = $this->booking->candidate;
 
         if (! $candidate?->email) {
             return;
@@ -76,7 +76,7 @@ class SendBookingConfirmationEmail implements ShouldQueue
 
     private function replacePlaceholders(string $content): string
     {
-        $candidate = $this->booking->education_candidate;
+        $candidate = $this->booking->candidate;
         $client = $this->booking->education_client;
 
         $title = $candidate->title ? rtrim($candidate->title, '.').'.' : '';

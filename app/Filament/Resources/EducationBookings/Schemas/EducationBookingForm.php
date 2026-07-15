@@ -3,14 +3,17 @@
 namespace App\Filament\Resources\EducationBookings\Schemas;
 
 use App\Enums\BookingDayPeriod;
+use App\Enums\BookingStatus;
 use App\Models\EducationBooking;
 use App\Models\EducationBookingDayPeriod;
 use App\Models\EducationCandidate;
 use App\Models\EducationClient;
 use App\Models\JobTitle;
 use App\Models\PayRate;
+use App\Services\Booking\BookingOverlap;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
+use Closure;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
@@ -67,7 +70,7 @@ class EducationBookingForm
                             ->preload()
                             ->live()
                             ->afterStateUpdated(fn (Set $set, Get $get) => static::applyDefaultRates($set, $get)),
-                        Select::make('education_candidate_id')
+                        Select::make('candidate_id')
                             ->label('Candidate')
                             ->options(fn (?EducationBooking $record): array => EducationCandidate::query()
                                 ->when(
@@ -107,14 +110,9 @@ class EducationBookingForm
                             ->live()
                             ->afterStateUpdated(fn (Set $set, Get $get) => static::regenerateDayPeriods($set, $get)),
                         Select::make('status')
-                            ->options([
-                                'provisional' => 'Provisional',
-                                'confirmed' => 'Confirmed',
-                                'cancelled' => 'Cancelled',
-                                'completed' => 'Completed',
-                            ])
+                            ->options(BookingStatus::options())
                             ->required()
-                            ->default('provisional'),
+                            ->default(BookingStatus::Upcoming->value),
                     ]),
 
                 Section::make('Daily Schedule')
@@ -131,6 +129,23 @@ class EducationBookingForm
                                 ? Carbon::parse($state['date'])->format('D j M Y')
                                 : null
                             )
+                            ->rule(function (Get $get, ?EducationBooking $record): Closure {
+                                return function (string $attribute, mixed $value, Closure $fail) use ($get, $record): void {
+                                    $conflicts = BookingOverlap::conflictingDates(
+                                        $get('candidate_id'),
+                                        $value ?? [],
+                                        $record?->id,
+                                    );
+
+                                    if ($conflicts->isEmpty()) {
+                                        return;
+                                    }
+
+                                    $dates = $conflicts->map(fn (string $date): string => Carbon::parse($date)->format('jS M Y'))->implode(', ');
+
+                                    $fail("This candidate already has a booking that overlaps on: {$dates}.");
+                                };
+                            })
                             ->schema([
                                 Hidden::make('date'),
                                 Select::make('period')
@@ -240,9 +255,17 @@ class EducationBookingForm
 
     protected static function applyDefaultRates(Set $set, Get $get): void
     {
-        $jobTitleId = $get('job_title_id');
-        $candidateId = $get('education_candidate_id');
-        $clientId = $get('education_client_id');
+        $rates = static::defaultRates($get('candidate_id'), $get('education_client_id'), $get('job_title_id'));
+
+        foreach ($rates as $key => $value) {
+            $set($key, $value);
+        }
+    }
+
+    /** @return array<string, mixed> */
+    public static function defaultRates(mixed $candidateId, mixed $clientId, mixed $jobTitleId): array
+    {
+        $rates = [];
 
         if (filled($candidateId) && filled($jobTitleId)) {
             $payRate = PayRate::query()
@@ -251,9 +274,9 @@ class EducationBookingForm
                 ->where('job_title_id', $jobTitleId)
                 ->first();
 
-            $set('day_rate', $payRate?->day_rate);
-            $set('half_day_rate', $payRate?->half_day_rate);
-            $set('hourly_rate', $payRate?->hourly_rate);
+            $rates['day_rate'] = $payRate?->day_rate;
+            $rates['half_day_rate'] = $payRate?->half_day_rate;
+            $rates['hourly_rate'] = $payRate?->hourly_rate;
         }
 
         if (filled($clientId) && filled($jobTitleId)) {
@@ -263,29 +286,36 @@ class EducationBookingForm
                 ->where('job_title_id', $jobTitleId)
                 ->first();
 
-            $set('day_charge_rate', $chargeRate?->day_rate);
-            $set('half_day_charge_rate', $chargeRate?->half_day_rate);
-            $set('hourly_charge_rate', $chargeRate?->hourly_rate);
+            $rates['day_charge_rate'] = $chargeRate?->day_rate;
+            $rates['half_day_charge_rate'] = $chargeRate?->half_day_rate;
+            $rates['hourly_charge_rate'] = $chargeRate?->hourly_rate;
         }
+
+        return $rates;
     }
 
     protected static function regenerateDayPeriods(Set $set, Get $get): void
     {
-        $startDate = $get('start_date');
+        $set('day_periods', static::dayPeriodsForRange($get('start_date'), $get('end_date'), $get('day_periods') ?? []));
+    }
 
+    /**
+     * @param  array<int, array<string, mixed>>  $existing
+     * @return array<int, array{date: string, period: string, time_from: ?string, time_to: ?string}>
+     */
+    public static function dayPeriodsForRange(mixed $startDate, mixed $endDate, array $existing = []): array
+    {
         if (blank($startDate)) {
-            $set('day_periods', []);
-
-            return;
+            return [];
         }
 
-        $endDate = $get('end_date') ?: $startDate;
+        $endDate = $endDate ?: $startDate;
 
-        $existingPeriods = collect($get('day_periods') ?? [])
+        $existingPeriods = collect($existing)
             ->filter(fn (array $entry): bool => filled($entry['date'] ?? null))
             ->keyBy('date');
 
-        $dayPeriods = collect(CarbonPeriod::create($startDate, $endDate))
+        return collect(CarbonPeriod::create($startDate, $endDate))
             ->map(function (Carbon $date) use ($existingPeriods): array {
                 $existing = $existingPeriods->get($date->toDateString());
 
@@ -298,8 +328,6 @@ class EducationBookingForm
             })
             ->values()
             ->all();
-
-        $set('day_periods', $dayPeriods);
     }
 
     /** @return array<int, array{date: string, period: string, time_from: ?string, time_to: ?string}> */

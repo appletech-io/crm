@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Casts\Money;
+use App\Enums\BookingStatus;
 use App\Models\Traits\BelongsToCompany;
 use Database\Factories\EducationBookingFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -10,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class EducationBooking extends Model
@@ -28,6 +30,7 @@ class EducationBooking extends Model
         return [
             'start_date' => 'date',
             'end_date' => 'date',
+            'status' => BookingStatus::class,
             'hourly_rate' => Money::class,
             'day_rate' => Money::class,
             'half_day_rate' => Money::class,
@@ -42,9 +45,9 @@ class EducationBooking extends Model
         return $this->belongsTo(EducationClient::class);
     }
 
-    public function education_candidate(): BelongsTo
+    public function candidate(): MorphTo
     {
-        return $this->belongsTo(EducationCandidate::class);
+        return $this->morphTo();
     }
 
     public function jobTitle(): BelongsTo

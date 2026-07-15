@@ -110,7 +110,7 @@ class WeeklyBookingsByClient extends BaseWidget
             ->with([
                 'dayPeriods' => fn ($query) => $query->whereBetween('date', [$start->toDateString(), $end->toDateString()]),
                 'education_client' => fn ($query) => $query->withTrashed(),
-                'education_candidate' => fn ($query) => $query->withTrashed(),
+                'candidate' => fn ($query) => $query->withTrashed(),
                 'jobTitle',
             ]);
     }
@@ -128,7 +128,7 @@ class WeeklyBookingsByClient extends BaseWidget
 
     private function candidateLabel(EducationBooking $record): string
     {
-        $candidate = $record->education_candidate;
+        $candidate = $record->candidate;
 
         if (! $candidate) {
             return 'Unknown candidate';
@@ -157,8 +157,39 @@ class WeeklyBookingsByClient extends BaseWidget
                         return $record->dayPeriods->contains(
                             fn (EducationBookingDayPeriod $dayPeriod): bool => $dayPeriod->date->isSameDay($date)
                         );
+                    })
+                    ->url(function (EducationBooking $record, bool $state) use ($offset): ?string {
+                        if ($state) {
+                            return null;
+                        }
+
+                        if ($this->hasPreviousDayBooking($record, $offset)) {
+                            return EducationBookingResource::getUrl('edit', ['record' => $record]);
+                        }
+
+                        $date = $this->weekStartDate()->copy()->addDays($offset);
+
+                        return EducationBookingResource::getUrl('create', [
+                            'candidate_id' => $record->candidate_id,
+                            'education_client_id' => $record->education_client_id,
+                            'job_title_id' => $record->job_title_id,
+                            'start_date' => $date->toDateString(),
+                        ]);
                     });
             })
             ->all();
+    }
+
+    private function hasPreviousDayBooking(EducationBooking $record, int $offset): bool
+    {
+        if ($offset === 0) {
+            return false;
+        }
+
+        $previousDate = $this->weekStartDate()->copy()->addDays($offset - 1);
+
+        return $record->dayPeriods->contains(
+            fn (EducationBookingDayPeriod $dayPeriod): bool => $dayPeriod->date->isSameDay($previousDate)
+        );
     }
 }

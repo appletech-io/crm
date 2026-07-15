@@ -1,13 +1,13 @@
 <?php
 
+use App\Filament\Resources\EducationBookings\EducationBookingResource;
+use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Models\Company;
+use App\Models\EducationBooking;
+use App\Models\EducationCandidate;
+use App\Models\EducationClient;
 use App\Models\Industry;
 use App\Models\User;
-use App\Models\EducationCandidate;
-use App\Models\EducationBooking;
-use App\Models\EducationClient;
-use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
-use App\Filament\Resources\EducationBookings\EducationBookingResource;
 use Illuminate\Support\Facades\Auth;
 
 test('education candidate and booking resources have correct visibility', function () {
@@ -46,7 +46,8 @@ test('education candidate and booking are scoped to company', function () {
     $booking1 = EducationBooking::factory()->create([
         'company_id' => $company1->id,
         'education_client_id' => $client1->id,
-        'education_candidate_id' => $candidate1->id,
+        'candidate_id' => $candidate1->id,
+        'candidate_type' => EducationCandidate::class,
     ]);
 
     $booking2 = EducationBooking::factory()->create(['company_id' => $company2->id]);

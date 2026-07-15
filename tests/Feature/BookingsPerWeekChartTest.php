@@ -75,7 +75,8 @@ test('it counts distinct bookings per week and excludes weeks outside the select
     $bookingA = EducationBooking::factory()->create([
         'company_id' => $this->company->id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
     addChartDayPeriod($bookingA, $monday->toDateString());
@@ -84,7 +85,8 @@ test('it counts distinct bookings per week and excludes weeks outside the select
     $bookingB = EducationBooking::factory()->create([
         'company_id' => $this->company->id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
     addChartDayPeriod($bookingB, $monday->toDateString());
@@ -92,7 +94,8 @@ test('it counts distinct bookings per week and excludes weeks outside the select
     $futureBooking = EducationBooking::factory()->create([
         'company_id' => $this->company->id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
     addChartDayPeriod($futureBooking, $monday->copy()->addWeeks(3)->toDateString());
@@ -100,7 +103,8 @@ test('it counts distinct bookings per week and excludes weeks outside the select
     $tooFarBooking = EducationBooking::factory()->create([
         'company_id' => $this->company->id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
     addChartDayPeriod($tooFarBooking, $monday->copy()->addWeeks(20)->toDateString());
@@ -119,7 +123,8 @@ test('it excludes day periods belonging to a soft-deleted booking', function () 
     $activeBooking = EducationBooking::factory()->create([
         'company_id' => $this->company->id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
     addChartDayPeriod($activeBooking, $monday->toDateString());
@@ -127,7 +132,8 @@ test('it excludes day periods belonging to a soft-deleted booking', function () 
     $cancelledBooking = EducationBooking::factory()->create([
         'company_id' => $this->company->id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
     addChartDayPeriod($cancelledBooking, $monday->toDateString());

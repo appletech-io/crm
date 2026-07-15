@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Education;
+namespace App\Services\Booking;
 
 use App\Enums\BookingDayPeriod;
 use App\Models\EducationBooking;

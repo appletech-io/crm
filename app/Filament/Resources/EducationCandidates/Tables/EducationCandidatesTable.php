@@ -5,6 +5,7 @@ namespace App\Filament\Resources\EducationCandidates\Tables;
 use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
 use App\Models\EducationCandidate;
+use App\Models\User;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -84,6 +85,16 @@ class EducationCandidatesTable
                         $data['values'],
                         fn ($q, $values) => $q->whereHas('skills', fn ($q) => $q->whereIn('candidate_skill_candidates.candidate_skill_id', $values))
                     )),
+                SelectFilter::make('consultant_id')
+                    ->label('Consultant')
+                    ->searchable()
+                    ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false)
+                    ->options(fn (): array => User::role('consultant')
+                        ->where('company_id', Auth::user()?->company_id)
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->toArray()
+                    ),
                 TrashedFilter::make(),
             ])
             ->recordActions([

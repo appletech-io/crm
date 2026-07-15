@@ -6,6 +6,7 @@ use App\Models\EducationCandidate;
 use App\Models\EducationClient;
 use App\Models\User;
 use Filament\Tables\Filters\SelectFilter;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 
 class BookingFilters
@@ -27,9 +28,15 @@ class BookingFilters
 
     public static function candidate(): SelectFilter
     {
-        return SelectFilter::make('education_candidate_id')
+        return SelectFilter::make('candidate_id')
             ->label('Candidate')
             ->searchable()
+            ->query(fn (Builder $query, array $data): Builder => $query->when(
+                filled($data['value'] ?? null),
+                fn (Builder $query) => $query
+                    ->where('candidate_id', $data['value'])
+                    ->where('candidate_type', EducationCandidate::class)
+            ))
             ->options(fn (): array => EducationCandidate::query()
                 ->orderBy('first_name')
                 ->get()

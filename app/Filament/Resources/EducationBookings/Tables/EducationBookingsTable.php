@@ -2,8 +2,10 @@
 
 namespace App\Filament\Resources\EducationBookings\Tables;
 
+use App\Enums\BookingStatus;
 use App\Filament\Resources\EducationBookings\BookingFilters;
 use App\Models\EducationBooking;
+use App\Models\EducationCandidate;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -12,6 +14,7 @@ use Filament\Actions\RestoreBulkAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class EducationBookingsTable
 {
@@ -23,10 +26,10 @@ class EducationBookingsTable
                     ->label('Client')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('education_candidate.first_name')
+                TextColumn::make('candidate.first_name')
                     ->label('Candidate')
                     ->state(function (EducationBooking $record): string {
-                        $candidate = $record->education_candidate()->withTrashed()->first();
+                        $candidate = $record->candidate()->withTrashed()->first();
 
                         if (! $candidate) {
                             return 'Unknown candidate';
@@ -36,8 +39,15 @@ class EducationBookingsTable
 
                         return $candidate->trashed() ? "{$name} (deleted)" : $name;
                     })
-                    ->searchable(['education_candidate.first_name', 'education_candidate.last_name'])
-                    ->sortable(),
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        return $query->orWhereHasMorph(
+                            'candidate',
+                            [EducationCandidate::class],
+                            fn (Builder $query) => $query
+                                ->where('first_name', 'like', "%{$search}%")
+                                ->orWhere('last_name', 'like', "%{$search}%")
+                        );
+                    }),
                 TextColumn::make('jobTitle.name')
                     ->label('Job Title')
                     ->searchable()
@@ -50,13 +60,8 @@ class EducationBookingsTable
                     ->sortable(),
                 TextColumn::make('status')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'provisional' => 'gray',
-                        'confirmed' => 'success',
-                        'cancelled' => 'danger',
-                        'completed' => 'info',
-                        default => 'gray',
-                    }),
+                    ->formatStateUsing(fn (BookingStatus $state): string => $state->label())
+                    ->color(fn (BookingStatus $state): string => $state->color()),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

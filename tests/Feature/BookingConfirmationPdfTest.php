@@ -17,9 +17,9 @@ use App\Models\EducationClient;
 use App\Models\EmailTemplate;
 use App\Models\Industry;
 use App\Models\JobTitle;
+use App\Services\Booking\BookingDayPeriods;
 use App\Services\Education\BookingConfirmationLink;
 use App\Services\Education\BookingConfirmationPdfService;
-use App\Services\Education\BookingDayPeriods;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -54,7 +54,8 @@ beforeEach(function () {
     $this->booking = EducationBooking::factory()->create([
         'company_id' => $this->company->id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
         'day_rate' => 200,
     ]);

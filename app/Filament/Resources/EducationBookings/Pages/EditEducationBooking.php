@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\EducationBookings\Pages;
 
 use App\Actions\Bookings\BookingCreated;
+use App\Enums\BookingStatus;
 use App\Filament\Resources\EducationBookings\EducationBookingResource;
 use App\Filament\Resources\EducationBookings\Schemas\EducationBookingForm;
 use App\Models\EducationBooking;
@@ -13,10 +14,26 @@ use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Schemas\Schema;
 
 class EditEducationBooking extends EditRecord
 {
     protected static string $resource = EducationBookingResource::class;
+
+    public function form(Schema $schema): Schema
+    {
+        return parent::form($schema)
+            ->disabled(fn (): bool => $this->isApproved());
+    }
+
+    protected function getFormActions(): array
+    {
+        if ($this->isApproved()) {
+            return [$this->getCancelFormAction()];
+        }
+
+        return parent::getFormActions();
+    }
 
     protected function getHeaderActions(): array
     {
@@ -27,6 +44,7 @@ class EditEducationBooking extends EditRecord
                 ->color('gray')
                 ->requiresConfirmation()
                 ->modalDescription('This will regenerate the booking confirmation PDF and resend the confirmation emails to the candidate and client.')
+                ->hidden(fn (): bool => $this->isApproved())
                 ->action(function (): void {
                     /** @var EducationBooking $record */
                     $record = $this->record;
@@ -44,6 +62,14 @@ class EditEducationBooking extends EditRecord
         ];
     }
 
+    protected function isApproved(): bool
+    {
+        /** @var EducationBooking $record */
+        $record = $this->record;
+
+        return $record->status === BookingStatus::Approved;
+    }
+
     /** @param  array<string, mixed>  $data */
     protected function mutateFormDataBeforeFill(array $data): array
     {
@@ -58,7 +84,8 @@ class EditEducationBooking extends EditRecord
     /** @param  array<string, mixed>  $data */
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        $data['consultant_id'] = EducationCandidate::find($data['education_candidate_id'] ?? null)?->consultant_id;
+        $data['candidate_type'] = EducationCandidate::class;
+        $data['consultant_id'] = EducationCandidate::find($data['candidate_id'] ?? null)?->consultant_id;
 
         return $data;
     }

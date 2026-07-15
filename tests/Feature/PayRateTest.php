@@ -15,6 +15,7 @@ beforeEach(function () {
     Queue::fake();
     $this->seed(RoleSeeder::class);
     $this->user = User::factory()->create();
+    $this->user->assignRole('admin');
     $this->actingAs($this->user);
 
     $industry = Industry::factory()->create(['slug' => 'education']);

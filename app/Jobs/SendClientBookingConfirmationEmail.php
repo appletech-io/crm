@@ -8,8 +8,8 @@ use App\Enums\EmailTemplateType;
 use App\Models\ClientContact;
 use App\Models\EducationBooking;
 use App\Models\EmailTemplate;
+use App\Services\Booking\BookingDayPeriods;
 use App\Services\Education\BookingConfirmationLink;
-use App\Services\Education\BookingDayPeriods;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -90,7 +90,7 @@ class SendClientBookingConfirmationEmail implements ShouldQueue
 
     private function replacePlaceholders(string $content, ClientContact $contact): string
     {
-        $candidate = $this->booking->education_candidate;
+        $candidate = $this->booking->candidate;
         $client = $this->booking->education_client;
 
         $contactName = trim(collect([$contact->title, $contact->first_name, $contact->last_name])->filter()->implode(' '));

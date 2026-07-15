@@ -2,7 +2,11 @@
 
 namespace Database\Factories;
 
+use App\Enums\BookingStatus;
+use App\Models\Company;
 use App\Models\EducationBooking;
+use App\Models\EducationCandidate;
+use App\Models\EducationClient;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -18,12 +22,13 @@ class EducationBookingFactory extends Factory
     public function definition(): array
     {
         return [
-            'company_id' => \App\Models\Company::factory(),
-            'education_client_id' => \App\Models\EducationClient::factory(),
-            'education_candidate_id' => \App\Models\EducationCandidate::factory(),
+            'company_id' => Company::factory(),
+            'education_client_id' => EducationClient::factory(),
+            'candidate_id' => EducationCandidate::factory(),
+            'candidate_type' => EducationCandidate::class,
             'start_date' => fake()->date(),
             'end_date' => fake()->optional()->date(),
-            'status' => fake()->randomElement(['provisional', 'confirmed', 'cancelled', 'completed']),
+            'status' => BookingStatus::Upcoming,
         ];
     }
 }

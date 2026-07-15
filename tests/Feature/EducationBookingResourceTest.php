@@ -70,7 +70,8 @@ test('selecting a candidate and job title pulls through the candidate pay rate',
 
     Livewire::test(CreateEducationBooking::class)
         ->fillForm([
-            'education_candidate_id' => $this->candidate->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
             'job_title_id' => $this->jobTitle->id,
         ])
         ->assertFormSet([
@@ -83,7 +84,8 @@ test('selecting a candidate and job title pulls through the candidate pay rate',
 test('pay rate fields are blank when the candidate has no pay rate for the job title', function () {
     Livewire::test(CreateEducationBooking::class)
         ->fillForm([
-            'education_candidate_id' => $this->candidate->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
             'job_title_id' => $this->jobTitle->id,
         ])
         ->assertFormSet([
@@ -152,7 +154,8 @@ test('pay rates and charge rates pull through independently for the same job tit
 
     Livewire::test(CreateEducationBooking::class)
         ->fillForm([
-            'education_candidate_id' => $this->candidate->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
             'education_client_id' => $this->client->id,
             'job_title_id' => $this->jobTitle->id,
         ])
@@ -170,7 +173,8 @@ test('charge rates are required to create a booking', function () {
     Livewire::test(CreateEducationBooking::class)
         ->fillForm([
             'education_client_id' => $this->client->id,
-            'education_candidate_id' => $this->candidate->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
             'job_title_id' => $this->jobTitle->id,
             'start_date' => '2026-08-03',
             'end_date' => '2026-08-04',
@@ -203,7 +207,8 @@ test('a booking can be created with overridden pay rates and required charge rat
     Livewire::test(CreateEducationBooking::class)
         ->fillForm([
             'education_client_id' => $this->client->id,
-            'education_candidate_id' => $this->candidate->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
             'job_title_id' => $this->jobTitle->id,
             'start_date' => '2026-08-03',
             'end_date' => '2026-08-04',
@@ -366,7 +371,8 @@ test('time from and time to are required when a day period is set to hours', fun
     Livewire::test(CreateEducationBooking::class)
         ->fillForm([
             'education_client_id' => $this->client->id,
-            'education_candidate_id' => $this->candidate->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
             'job_title_id' => $this->jobTitle->id,
             'start_date' => '2026-08-03',
         ])
@@ -394,7 +400,8 @@ test('a booking can be created with an hours day recording time from, time to, a
     Livewire::test(CreateEducationBooking::class)
         ->fillForm([
             'education_client_id' => $this->client->id,
-            'education_candidate_id' => $this->candidate->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
             'job_title_id' => $this->jobTitle->id,
             'start_date' => '2026-08-03',
         ])
@@ -423,7 +430,8 @@ test('a booking can be created with custom am/pm day periods', function () {
     Livewire::test(CreateEducationBooking::class)
         ->fillForm([
             'education_client_id' => $this->client->id,
-            'education_candidate_id' => $this->candidate->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
             'job_title_id' => $this->jobTitle->id,
             'start_date' => '2026-08-03',
             'end_date' => '2026-08-04',
@@ -456,7 +464,8 @@ test('edit page renders with the new fields', function () {
     $booking = EducationBooking::factory()->create([
         'company_id' => $this->user->company_id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
 
@@ -469,7 +478,8 @@ test('editing a booking loads its existing day periods and syncs changes back to
     $booking = EducationBooking::factory()->create([
         'company_id' => $this->user->company_id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
         'start_date' => '2026-08-03',
         'end_date' => '2026-08-04',
@@ -517,7 +527,8 @@ test('the list page does not crash and flags the candidate as deleted when the c
     $booking = EducationBooking::factory()->create([
         'company_id' => $this->user->company_id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
 
@@ -529,14 +540,15 @@ test('the list page does not crash and flags the candidate as deleted when the c
         ->assertSuccessful()
         ->assertSee('(deleted)');
 
-    expect($booking->fresh()->education_candidate_id)->toBe($this->candidate->id);
+    expect($booking->fresh()->candidate_id)->toBe($this->candidate->id);
 });
 
 test('the edit form does not crash and flags the candidate as deleted when the candidate is soft-deleted', function () {
     $booking = EducationBooking::factory()->create([
         'company_id' => $this->user->company_id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
 
@@ -553,7 +565,8 @@ test('the resend confirmation emails action dispatches pdf generation and both c
     $booking = EducationBooking::factory()->create([
         'company_id' => $this->user->company_id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
 
@@ -573,21 +586,24 @@ test('the all section table can be filtered by client and by candidate', functio
     $matchingBooking = EducationBooking::factory()->create([
         'company_id' => $this->user->company_id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
 
     $otherClientBooking = EducationBooking::factory()->create([
         'company_id' => $this->user->company_id,
         'education_client_id' => $otherClient->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
 
     $otherCandidateBooking = EducationBooking::factory()->create([
         'company_id' => $this->user->company_id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $otherCandidate->id,
+        'candidate_id' => $otherCandidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
 
@@ -597,7 +613,7 @@ test('the all section table can be filtered by client and by candidate', functio
         ->assertCanSeeTableRecords([$matchingBooking, $otherCandidateBooking])
         ->assertCanNotSeeTableRecords([$otherClientBooking])
         ->removeTableFilter('education_client_id')
-        ->filterTable('education_candidate_id', $this->candidate->id)
+        ->filterTable('candidate_id', $this->candidate->id)
         ->assertCanSeeTableRecords([$matchingBooking, $otherClientBooking])
         ->assertCanNotSeeTableRecords([$otherCandidateBooking]);
 });
@@ -609,7 +625,8 @@ test('creating a booking copies the consultant_id from the selected candidate', 
     Livewire::test(CreateEducationBooking::class)
         ->fillForm([
             'education_client_id' => $this->client->id,
-            'education_candidate_id' => $this->candidate->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
             'job_title_id' => $this->jobTitle->id,
             'start_date' => '2026-08-03',
             'end_date' => '2026-08-04',
@@ -643,7 +660,8 @@ test('editing a booking re-syncs consultant_id when the candidate changes', func
     $booking = EducationBooking::factory()->create([
         'company_id' => $this->user->company_id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
         'consultant_id' => $originalConsultant->id,
         'day_charge_rate' => 320,
@@ -651,7 +669,8 @@ test('editing a booking re-syncs consultant_id when the candidate changes', func
 
     Livewire::test(EditEducationBooking::class, ['record' => $booking->getRouteKey()])
         ->fillForm([
-            'education_candidate_id' => $otherCandidate->id,
+            'candidate_id' => $otherCandidate->id,
+            'candidate_type' => EducationCandidate::class,
             'day_charge_rate' => 320,
         ])
         ->call('save')
@@ -667,7 +686,8 @@ test('a non-admin user only sees bookings assigned to their own consultant_id', 
     $ownBooking = EducationBooking::factory()->create([
         'company_id' => $this->user->company_id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
         'consultant_id' => $consultant->id,
     ]);
@@ -675,7 +695,8 @@ test('a non-admin user only sees bookings assigned to their own consultant_id', 
     $otherConsultantBooking = EducationBooking::factory()->create([
         'company_id' => $this->user->company_id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
         'consultant_id' => $this->user->id,
     ]);
@@ -696,7 +717,8 @@ test('an admin sees all bookings regardless of consultant_id', function () {
     $booking = EducationBooking::factory()->create([
         'company_id' => $this->user->company_id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
         'consultant_id' => $consultant->id,
     ]);
@@ -741,7 +763,7 @@ test('the create form only offers candidates with a Live status', function () {
     $noStatusCandidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
 
     Livewire::test(CreateEducationBooking::class)
-        ->assertFormFieldExists('education_candidate_id', function ($field) use ($dnuCandidate, $offlineCandidate, $onboardingCandidate, $vettingCandidate, $noStatusCandidate) {
+        ->assertFormFieldExists('candidate_id', function ($field) use ($dnuCandidate, $offlineCandidate, $onboardingCandidate, $vettingCandidate, $noStatusCandidate) {
             $options = $field->getOptions();
 
             return array_key_exists($this->candidate->id, $options)
@@ -759,7 +781,8 @@ test('the edit form still shows the bookings existing candidate even if no longe
     $booking = EducationBooking::factory()->create([
         'company_id' => $this->user->company_id,
         'education_client_id' => $this->client->id,
-        'education_candidate_id' => $this->candidate->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
 
@@ -767,7 +790,273 @@ test('the edit form still shows the bookings existing candidate even if no longe
     assignCandidateStatus($this->candidate, $this->industry, $this->user->company_id, 'DNU');
 
     Livewire::test(EditEducationBooking::class, ['record' => $booking->getRouteKey()])
-        ->assertFormFieldExists('education_candidate_id', function ($field) {
+        ->assertFormFieldExists('candidate_id', function ($field) {
             return array_key_exists($this->candidate->id, $field->getOptions());
         });
+});
+
+test('an approved booking cannot be edited and hides the resend confirmation emails action', function () {
+    $booking = EducationBooking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'education_client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'status' => 'approved',
+    ]);
+
+    Livewire::test(EditEducationBooking::class, ['record' => $booking->getRouteKey()])
+        ->assertFormFieldDisabled('status')
+        ->assertFormFieldDisabled('candidate_id')
+        ->assertActionHidden('resendConfirmationEmails');
+});
+
+test('an upcoming booking can still be edited and shows the resend confirmation emails action', function () {
+    $booking = EducationBooking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'education_client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'status' => 'upcoming',
+    ]);
+
+    Livewire::test(EditEducationBooking::class, ['record' => $booking->getRouteKey()])
+        ->assertFormFieldEnabled('status')
+        ->assertFormFieldEnabled('candidate_id')
+        ->assertActionVisible('resendConfirmationEmails');
+});
+
+test('the create form is prefilled from the query string with candidate, client, job title, dates, and rates', function () {
+    PayRate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'model_type' => EducationCandidate::class,
+        'model_id' => $this->candidate->id,
+        'job_title_id' => $this->jobTitle->id,
+        'hourly_rate' => 25,
+        'day_rate' => 200,
+        'half_day_rate' => 100,
+    ]);
+
+    PayRate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'model_type' => EducationClient::class,
+        'model_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'hourly_rate' => 40,
+        'day_rate' => 300,
+        'half_day_rate' => 150,
+    ]);
+
+    $date = now()->addWeek()->startOfWeek(Carbon::MONDAY)->toDateString();
+
+    Livewire::withQueryParams([
+        'candidate_id' => $this->candidate->id,
+        'education_client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'start_date' => $date,
+    ])->test(CreateEducationBooking::class)
+        ->assertFormSet([
+            'candidate_id' => $this->candidate->id,
+            'education_client_id' => $this->client->id,
+            'job_title_id' => $this->jobTitle->id,
+            'start_date' => $date,
+            'end_date' => $date,
+            'status' => 'upcoming',
+            'hourly_rate' => 25,
+            'day_rate' => 200,
+            'half_day_rate' => 100,
+            'hourly_charge_rate' => 40,
+            'day_charge_rate' => 300,
+            'half_day_charge_rate' => 150,
+        ]);
+});
+
+test('the create form falls back to normal defaults when the query string has no prefill values', function () {
+    Livewire::test(CreateEducationBooking::class)
+        ->assertFormSet([
+            'status' => 'upcoming',
+            'candidate_id' => null,
+            'education_client_id' => null,
+        ]);
+});
+
+test('creating a booking with a full day that overlaps an existing full day booking for the same candidate fails validation', function () {
+    $existingBooking = EducationBooking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'education_client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+    $existingBooking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-03',
+        'period' => 'full_day',
+    ]);
+
+    Livewire::test(CreateEducationBooking::class)
+        ->fillForm([
+            'education_client_id' => $this->client->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
+            'job_title_id' => $this->jobTitle->id,
+            'start_date' => '2026-08-03',
+            'day_charge_rate' => 320,
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['day_periods']);
+
+    expect(EducationBooking::count())->toBe(1);
+});
+
+test('creating a booking for a different candidate on the same dates does not fail validation', function () {
+    $otherCandidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    $existingBooking = EducationBooking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'education_client_id' => $this->client->id,
+        'candidate_id' => $otherCandidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+    $existingBooking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-03',
+        'period' => 'full_day',
+    ]);
+
+    Livewire::test(CreateEducationBooking::class)
+        ->fillForm([
+            'education_client_id' => $this->client->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
+            'job_title_id' => $this->jobTitle->id,
+            'start_date' => '2026-08-03',
+            'day_charge_rate' => 320,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+});
+
+test('am and pm bookings on the same day for the same candidate do not conflict', function () {
+    $existingBooking = EducationBooking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'education_client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+    $existingBooking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-03',
+        'period' => 'am',
+    ]);
+
+    Livewire::test(CreateEducationBooking::class)
+        ->fillForm([
+            'education_client_id' => $this->client->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
+            'job_title_id' => $this->jobTitle->id,
+            'start_date' => '2026-08-03',
+            'half_day_charge_rate' => 160,
+        ])
+        ->fillForm([
+            'day_periods' => [
+                ['date' => '2026-08-03', 'period' => 'pm'],
+            ],
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+});
+
+test('two am bookings on the same day for the same candidate do conflict', function () {
+    $existingBooking = EducationBooking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'education_client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+    $existingBooking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-03',
+        'period' => 'am',
+    ]);
+
+    Livewire::test(CreateEducationBooking::class)
+        ->fillForm([
+            'education_client_id' => $this->client->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
+            'job_title_id' => $this->jobTitle->id,
+            'start_date' => '2026-08-03',
+            'half_day_charge_rate' => 160,
+        ])
+        ->fillForm([
+            'day_periods' => [
+                ['date' => '2026-08-03', 'period' => 'am'],
+            ],
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['day_periods']);
+});
+
+test('editing a booking excludes itself from the overlap check', function () {
+    $booking = EducationBooking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'education_client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'day_charge_rate' => 320,
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-03',
+        'period' => 'full_day',
+    ]);
+
+    Livewire::test(EditEducationBooking::class, ['record' => $booking->getRouteKey()])
+        ->assertHasNoFormErrors();
+});
+
+test('editing a booking into a conflict with another booking for the same candidate fails validation', function () {
+    $otherBooking = EducationBooking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'education_client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+    $otherBooking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-03',
+        'period' => 'full_day',
+    ]);
+
+    $booking = EducationBooking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'education_client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'start_date' => '2026-08-10',
+        'end_date' => '2026-08-10',
+        'day_charge_rate' => 320,
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-10',
+        'period' => 'full_day',
+    ]);
+
+    Livewire::test(EditEducationBooking::class, ['record' => $booking->getRouteKey()])
+        ->fillForm([
+            'start_date' => '2026-08-03',
+            'end_date' => '2026-08-03',
+        ])
+        ->call('save')
+        ->assertHasFormErrors(['day_periods']);
 });
