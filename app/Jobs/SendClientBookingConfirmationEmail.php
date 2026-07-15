@@ -61,7 +61,7 @@ class SendClientBookingConfirmationEmail implements ShouldQueue
                 to: $contact->email,
                 subject: $this->replacePlaceholders($template->subject ?? '', $contact),
                 body: $this->replacePlaceholders($template->body ?? '', $contact),
-                from: $client->consultant->email,
+                from: $client->consultant?->email ?? $client->company->defaultFromEmail(),
             );
 
             $client->activities()->create([

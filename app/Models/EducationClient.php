@@ -6,6 +6,7 @@ use App\Models\Traits\BelongsToCompany;
 use Database\Factories\EducationClientFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -28,6 +29,11 @@ class EducationClient extends Model
             'latitude' => 'float',
             'longitude' => 'float',
         ];
+    }
+
+    public function consultant(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'consultant_id');
     }
 
     public function contacts(): HasMany

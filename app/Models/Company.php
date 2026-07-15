@@ -24,6 +24,14 @@ class Company extends Model
         ];
     }
 
+    public function defaultFromEmail(): ?string
+    {
+        return match ($this->email_provider) {
+            EmailProvider::Mailgun => $this->mailgun_from_email,
+            default => $this->ms_sender_email,
+        };
+    }
+
     public function users(): HasMany
     {
         return $this->hasMany(User::class);

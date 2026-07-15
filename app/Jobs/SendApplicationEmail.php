@@ -50,7 +50,7 @@ class SendApplicationEmail implements ShouldQueue
                 to: $this->candidate->email,
                 subject: $this->replacePlaceholders($template->subject ?? ''),
                 body: $this->replacePlaceholders($template->body ?? ''),
-                from: $this->candidate->consultant->email,
+                from: $this->candidate->consultant?->email ?? $this->candidate->company->defaultFromEmail(),
             );
 
             $this->candidate->activities()->create([

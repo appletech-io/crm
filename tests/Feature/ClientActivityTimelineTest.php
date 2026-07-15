@@ -5,10 +5,12 @@ use App\Filament\Widgets\ClientActivityTimeline;
 use App\Models\ClientActivity;
 use App\Models\EducationClient;
 use App\Models\User;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
 
 beforeEach(function () {
+    $this->seed(RoleSeeder::class);
     $this->user = User::factory()->create();
     $this->actingAs($this->user);
     Cache::put("user.{$this->user->id}.active_industry", 'education');

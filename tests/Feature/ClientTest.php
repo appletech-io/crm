@@ -6,10 +6,12 @@ use App\Models\ClientContact;
 use App\Models\EducationClient;
 use App\Models\Industry;
 use App\Models\User;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
 
 beforeEach(function () {
+    $this->seed(RoleSeeder::class);
     $this->user = User::factory()->create();
     $this->actingAs($this->user);
 
@@ -57,6 +59,58 @@ test('client details can be filled in later via the edit page', function () {
         ->city->toBe('Halesowen')
         ->postcode->toBe('B63 3HY')
         ->county->toBe('West Midlands');
+});
+
+test('a consultant can be assigned to a client via the edit page', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+    $consultant->industries()->attach(Industry::where('slug', 'education')->sole());
+
+    $client = EducationClient::factory()->create(['company_id' => $this->user->company_id]);
+
+    Livewire::test(EditEducationClient::class, ['record' => $client->id])
+        ->fillForm(['consultant_id' => $consultant->id])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($client->fresh()->consultant_id)->toBe($consultant->id)
+        ->and($client->fresh()->consultant->id)->toBe($consultant->id);
+});
+
+test('the consultant filter on the clients list is only visible to admins', function () {
+    $this->user->assignRole('admin');
+
+    Livewire::test(ListEducationClients::class)
+        ->assertTableFilterVisible('consultant_id');
+
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+
+    $this->actingAs($consultant);
+    Cache::put("user.{$consultant->id}.active_industry", 'education');
+    Cache::put("user.{$consultant->id}.active_industry_id", Industry::where('slug', 'education')->value('id'));
+
+    Livewire::test(ListEducationClients::class)
+        ->assertTableFilterHidden('consultant_id');
+});
+
+test('the clients list can be filtered by consultant', function () {
+    $this->user->assignRole('admin');
+
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+
+    $matchingClient = EducationClient::factory()->create([
+        'company_id' => $this->user->company_id,
+        'consultant_id' => $consultant->id,
+    ]);
+
+    $otherClient = EducationClient::factory()->create(['company_id' => $this->user->company_id]);
+
+    Livewire::test(ListEducationClients::class)
+        ->filterTable('consultant_id', $consultant->id)
+        ->assertCanSeeTableRecords([$matchingClient])
+        ->assertCanNotSeeTableRecords([$otherClient]);
 });
 
 test('it can create an education client', function () {

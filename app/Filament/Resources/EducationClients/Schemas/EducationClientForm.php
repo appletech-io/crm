@@ -6,6 +6,7 @@ use App\Enums\Education\KeyStage;
 use App\Filament\Widgets\ClientActivityTimeline;
 use App\Models\EducationClient;
 use App\Models\JobTitle;
+use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Hidden;
@@ -54,6 +55,15 @@ class EducationClientForm
                                             ->maxLength(255),
                                         TextInput::make('client_type')
                                             ->maxLength(255),
+                                        Select::make('consultant_id')
+                                            ->label('Consultant')
+                                            ->options(fn (): array => User::role('consultant')
+                                                ->where('company_id', Auth::user()->company_id)
+                                                ->whereHas('industries', fn ($query) => $query->where('industries.id', active_industry_id()))
+                                                ->pluck('name', 'id')
+                                                ->toArray()
+                                            )
+                                            ->searchable(),
 
                                         Hidden::make('address_manual')
                                             ->default(false)

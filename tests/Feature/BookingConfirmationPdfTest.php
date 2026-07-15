@@ -17,6 +17,7 @@ use App\Models\EducationClient;
 use App\Models\EmailTemplate;
 use App\Models\Industry;
 use App\Models\JobTitle;
+use App\Models\User;
 use App\Services\Booking\BookingDayPeriods;
 use App\Services\Education\BookingConfirmationLink;
 use App\Services\Education\BookingConfirmationPdfService;
@@ -282,6 +283,63 @@ test('the email job includes the booking breakdown and a crypt-secured pdf link,
     expect(CandidateActivity::where('type', ActivityType::Email)->count())->toBe(1);
 });
 
+test('the email job sends from the candidate consultant when one is assigned', function () {
+    Http::fake([
+        'login.microsoftonline.com/*' => Http::response(['access_token' => 'fake-token'], 200),
+        'graph.microsoft.com/*' => Http::response([], 202),
+    ]);
+
+    $this->company->update([
+        'ms_tenant_id' => 'tenant',
+        'ms_client_id' => 'client',
+        'ms_client_secret' => 'secret',
+        'ms_sender_email' => 'sender@example.com',
+    ]);
+
+    $consultant = User::factory()->create(['company_id' => $this->company->id, 'email' => 'consultant@example.com']);
+    $this->candidate->update(['consultant_id' => $consultant->id]);
+
+    EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => 1,
+        'name' => 'Candidate Booking Confirmation',
+        'type' => EmailTemplateType::CandidateBookingConfirmation,
+        'subject' => 'Booking confirmed',
+        'body' => 'Confirmed.',
+    ]);
+
+    (new SendBookingConfirmationEmail($this->booking))->handle();
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), '/users/consultant@example.com/sendMail'));
+});
+
+test('the email job falls back to the company sender email when the candidate has no consultant', function () {
+    Http::fake([
+        'login.microsoftonline.com/*' => Http::response(['access_token' => 'fake-token'], 200),
+        'graph.microsoft.com/*' => Http::response([], 202),
+    ]);
+
+    $this->company->update([
+        'ms_tenant_id' => 'tenant',
+        'ms_client_id' => 'client',
+        'ms_client_secret' => 'secret',
+        'ms_sender_email' => 'sender@example.com',
+    ]);
+
+    EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => 1,
+        'name' => 'Candidate Booking Confirmation',
+        'type' => EmailTemplateType::CandidateBookingConfirmation,
+        'subject' => 'Booking confirmed',
+        'body' => 'Confirmed.',
+    ]);
+
+    (new SendBookingConfirmationEmail($this->booking))->handle();
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), '/users/sender@example.com/sendMail'));
+});
+
 test('the candidate breakdown shows the start-to-end time for hours-based days and pulls the phone number from the company', function () {
     Http::fake([
         'login.microsoftonline.com/*' => Http::response(['access_token' => 'fake-token'], 200),
@@ -439,6 +497,79 @@ test('the client email job sends to the booking contact with the charge rate bre
     });
 
     expect(ClientActivity::where('type', ActivityType::Email)->count())->toBe(1);
+});
+
+test('the client email job sends from the client consultant when one is assigned', function () {
+    Http::fake([
+        'login.microsoftonline.com/*' => Http::response(['access_token' => 'fake-token'], 200),
+        'graph.microsoft.com/*' => Http::response([], 202),
+    ]);
+
+    $this->company->update([
+        'ms_tenant_id' => 'tenant',
+        'ms_client_id' => 'client',
+        'ms_client_secret' => 'secret',
+        'ms_sender_email' => 'sender@example.com',
+    ]);
+
+    $consultant = User::factory()->create(['company_id' => $this->company->id, 'email' => 'consultant@example.com']);
+    $this->client->update(['consultant_id' => $consultant->id]);
+
+    $this->client->contacts()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Main',
+        'last_name' => 'Contact',
+        'email' => 'main-contact@example.com',
+        'main_contact' => true,
+    ]);
+
+    EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => 1,
+        'name' => 'Client Booking Confirmation',
+        'type' => EmailTemplateType::ClientBookingConfirmation,
+        'subject' => 'Booking confirmed',
+        'body' => 'Confirmed.',
+    ]);
+
+    (new SendClientBookingConfirmationEmail($this->booking))->handle();
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), '/users/consultant@example.com/sendMail'));
+});
+
+test('the client email job falls back to the company sender email when the client has no consultant', function () {
+    Http::fake([
+        'login.microsoftonline.com/*' => Http::response(['access_token' => 'fake-token'], 200),
+        'graph.microsoft.com/*' => Http::response([], 202),
+    ]);
+
+    $this->company->update([
+        'ms_tenant_id' => 'tenant',
+        'ms_client_id' => 'client',
+        'ms_client_secret' => 'secret',
+        'ms_sender_email' => 'sender@example.com',
+    ]);
+
+    $this->client->contacts()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Main',
+        'last_name' => 'Contact',
+        'email' => 'main-contact@example.com',
+        'main_contact' => true,
+    ]);
+
+    EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => 1,
+        'name' => 'Client Booking Confirmation',
+        'type' => EmailTemplateType::ClientBookingConfirmation,
+        'subject' => 'Booking confirmed',
+        'body' => 'Confirmed.',
+    ]);
+
+    (new SendClientBookingConfirmationEmail($this->booking))->handle();
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), '/users/sender@example.com/sendMail'));
 });
 
 test('the client email job still sends and includes a working pdf link even before the pdf has been generated', function () {
