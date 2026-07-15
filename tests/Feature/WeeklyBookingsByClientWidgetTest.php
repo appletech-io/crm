@@ -65,9 +65,33 @@ test('it shows bookings for the current week, grouped by client', function () {
     Livewire::test(WeeklyBookingsByClient::class)
         ->assertCanSeeTableRecords([$booking])
         ->assertTableColumnStateSet('candidate_name', 'Stephen Platts', $booking)
-        ->assertTableColumnStateSet('day_0', true, $booking)
-        ->assertTableColumnStateSet('day_1', true, $booking)
-        ->assertTableColumnStateSet('day_2', false, $booking);
+        ->assertTableColumnStateSet('day_0', 'booked', $booking)
+        ->assertTableColumnStateSet('day_1', 'booked', $booking)
+        ->assertTableColumnStateSet('day_2', 'empty', $booking);
+});
+
+test('a cancelled day shows as cancelled rather than booked', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+
+    $booking = Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+
+    $booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => $monday->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+        'cancelled_at' => now(),
+    ]);
+    bookingWithDayPeriod($booking, $monday->copy()->addDay()->toDateString());
+
+    Livewire::test(WeeklyBookingsByClient::class)
+        ->assertTableColumnStateSet('day_0', 'cancelled', $booking)
+        ->assertTableColumnStateSet('day_1', 'booked', $booking);
 });
 
 test('each row links through to the booking edit page', function () {
@@ -223,10 +247,10 @@ test('the day columns show the correct booked days after switching weeks, not th
 
     Livewire::test(WeeklyBookingsByClient::class)
         ->call('nextWeek')
-        ->assertTableColumnStateSet('day_0', true, $booking)
-        ->assertTableColumnStateSet('day_1', false, $booking)
-        ->assertTableColumnStateSet('day_2', true, $booking)
-        ->assertTableColumnStateSet('day_3', false, $booking);
+        ->assertTableColumnStateSet('day_0', 'booked', $booking)
+        ->assertTableColumnStateSet('day_1', 'empty', $booking)
+        ->assertTableColumnStateSet('day_2', 'booked', $booking)
+        ->assertTableColumnStateSet('day_3', 'empty', $booking);
 });
 
 test('it labels soft-deleted clients and candidates', function () {

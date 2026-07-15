@@ -243,9 +243,9 @@ test('setting the date range generates a day period entry for each day defaultin
         ])
         ->assertFormSet([
             'day_periods' => [
-                ['date' => '2026-08-03', 'period' => 'full_day', 'time_from' => null, 'time_to' => null],
-                ['date' => '2026-08-04', 'period' => 'full_day', 'time_from' => null, 'time_to' => null],
-                ['date' => '2026-08-05', 'period' => 'full_day', 'time_from' => null, 'time_to' => null],
+                ['date' => '2026-08-03', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
+                ['date' => '2026-08-04', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
+                ['date' => '2026-08-05', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
             ],
         ]);
 });
@@ -267,9 +267,9 @@ test('extending the date range preserves already-chosen day periods', function (
         ])
         ->assertFormSet([
             'day_periods' => [
-                ['date' => '2026-08-03', 'period' => 'am', 'time_from' => null, 'time_to' => null],
-                ['date' => '2026-08-04', 'period' => 'pm', 'time_from' => null, 'time_to' => null],
-                ['date' => '2026-08-05', 'period' => 'full_day', 'time_from' => null, 'time_to' => null],
+                ['date' => '2026-08-03', 'period' => 'am', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
+                ['date' => '2026-08-04', 'period' => 'pm', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
+                ['date' => '2026-08-05', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
             ],
         ]);
 });
@@ -501,8 +501,8 @@ test('editing a booking loads its existing day periods and syncs changes back to
 
     expect(collect($test->instance()->form->getRawState()['day_periods'] ?? [])->values()->all())
         ->toBe([
-            ['date' => '2026-08-03', 'period' => 'am', 'time_from' => null, 'time_to' => null],
-            ['date' => '2026-08-04', 'period' => 'full_day', 'time_from' => null, 'time_to' => null],
+            ['date' => '2026-08-03', 'period' => 'am', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
+            ['date' => '2026-08-04', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
         ]);
 
     $test
@@ -522,6 +522,82 @@ test('editing a booking loads its existing day periods and syncs changes back to
     expect($remaining)->toHaveCount(1)
         ->and($remaining->first()->date->toDateString())->toBe('2026-08-03')
         ->and($remaining->first()->period)->toBe(BookingDayPeriod::Pm);
+});
+
+test('a day can be cancelled via the edit form and the cancellation timestamp is stored', function () {
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'start_date' => '2026-08-03',
+        'end_date' => '2026-08-04',
+        'day_charge_rate' => 320,
+    ]);
+
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-03',
+        'period' => 'full_day',
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-04',
+        'period' => 'full_day',
+    ]);
+
+    Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+        ->fillForm([
+            'day_periods' => [
+                ['date' => '2026-08-03', 'period' => 'full_day', 'cancelled' => true],
+                ['date' => '2026-08-04', 'period' => 'full_day', 'cancelled' => false],
+            ],
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $cancelledDay = $booking->dayPeriods()->whereDate('date', '2026-08-03')->first();
+    $activeDay = $booking->dayPeriods()->whereDate('date', '2026-08-04')->first();
+
+    expect($cancelledDay->cancelled_at)->not->toBeNull()
+        ->and($cancelledDay->isCancelled())->toBeTrue()
+        ->and($activeDay->cancelled_at)->toBeNull()
+        ->and($activeDay->isCancelled())->toBeFalse();
+});
+
+test('re-saving an already-cancelled day preserves the original cancellation timestamp', function () {
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'start_date' => '2026-08-03',
+        'day_charge_rate' => 320,
+    ]);
+
+    $originalTimestamp = now()->subDays(3);
+
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-03',
+        'period' => 'full_day',
+        'cancelled_at' => $originalTimestamp,
+    ]);
+
+    Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+        ->fillForm([
+            'day_periods' => [
+                ['date' => '2026-08-03', 'period' => 'full_day', 'cancelled' => true],
+            ],
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $day = $booking->dayPeriods()->whereDate('date', '2026-08-03')->first();
+
+    expect($day->cancelled_at->toDateTimeString())->toBe($originalTimestamp->toDateTimeString());
 });
 
 test('the list page does not crash and flags the candidate as deleted when the candidate is soft-deleted', function () {

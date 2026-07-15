@@ -18,7 +18,13 @@ class BookingDay extends Model
         return [
             'date' => 'date',
             'period' => BookingDayPeriod::class,
+            'cancelled_at' => 'datetime',
         ];
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->cancelled_at !== null;
     }
 
     public function booking(): BelongsTo

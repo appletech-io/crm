@@ -182,6 +182,41 @@ test('the pdf includes a booking dates table with the charge rate and, for hours
         ->and($html)->toContain('£25.00');
 });
 
+test('a cancelled day shows as cancelled with no rate in the breakdown and pdf', function () {
+    $this->booking->update(['day_charge_rate' => 270]);
+
+    $this->booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => '2026-06-29',
+        'period' => BookingDayPeriod::FullDay,
+        'cancelled_at' => now(),
+    ]);
+
+    $this->booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => '2026-06-30',
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+
+    $rows = BookingDayPeriods::rows($this->booking->fresh(), 'charge');
+
+    expect($rows[0]['cancelled'])->toBeTrue()
+        ->and($rows[0]['rate'])->toBeNull()
+        ->and($rows[1]['cancelled'])->toBeFalse()
+        ->and($rows[1]['rate'])->toBe(270.0);
+
+    $html = view('pdfs.booking-confirmation', [
+        'booking' => $this->booking,
+        'candidate' => $this->candidate,
+        'checks' => collect(),
+        'bookingDates' => $rows,
+        'photoDataUri' => null,
+    ])->render();
+
+    expect($html)->toContain('Cancelled')
+        ->and($html)->toContain('£270.00');
+});
+
 test('the pdf view never renders a pay rates section, only the booking dates charge rate table', function () {
     $html = view('pdfs.booking-confirmation', [
         'booking' => $this->booking,

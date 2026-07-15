@@ -202,7 +202,7 @@
                     <td>{{ $row['date']->format('d/m/Y') }}</td>
                     <td>{{ $row['period']->label() }}</td>
                     <td>{{ $row['start'] }}</td>
-                    <td>{{ $row['rate'] !== null ? '£'.number_format($row['rate'], 2) : '' }}</td>
+                    <td>{{ $row['cancelled'] ? 'Cancelled' : ($row['rate'] !== null ? '£'.number_format($row['rate'], 2) : '') }}</td>
                 </tr>
             @endforeach
         </table>

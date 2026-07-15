@@ -146,20 +146,19 @@ class WeeklyBookingsByClient extends BaseWidget
             ->map(function (int $offset) {
                 return IconColumn::make("day_{$offset}")
                     ->label(fn (): string => $this->weekStartDate()->copy()->addDays($offset)->format('D'))
-                    ->boolean()
-                    ->trueIcon('heroicon-o-check-circle')
-                    ->falseIcon('heroicon-o-minus')
-                    ->trueColor('success')
-                    ->falseColor('gray')
-                    ->getStateUsing(function (Booking $record) use ($offset): bool {
-                        $date = $this->weekStartDate()->copy()->addDays($offset);
-
-                        return $record->dayPeriods->contains(
-                            fn (BookingDay $dayPeriod): bool => $dayPeriod->date->isSameDay($date)
-                        );
+                    ->getStateUsing(fn (Booking $record): string => $this->dayStatus($record, $offset))
+                    ->icon(fn (Booking $record): string => match ($this->dayStatus($record, $offset)) {
+                        'booked' => 'heroicon-o-check-circle',
+                        'cancelled' => 'heroicon-o-x-circle',
+                        default => 'heroicon-o-minus',
                     })
-                    ->url(function (Booking $record, bool $state) use ($offset): ?string {
-                        if ($state) {
+                    ->color(fn (Booking $record): string => match ($this->dayStatus($record, $offset)) {
+                        'booked' => 'success',
+                        'cancelled' => 'danger',
+                        default => 'gray',
+                    })
+                    ->url(function (Booking $record, string $state) use ($offset): ?string {
+                        if ($this->dayStatus($record, $offset) !== 'empty') {
                             return null;
                         }
 
@@ -180,16 +179,32 @@ class WeeklyBookingsByClient extends BaseWidget
             ->all();
     }
 
+    private function dayStatus(Booking $record, int $offset): string
+    {
+        $dayPeriod = $this->dayPeriodFor($record, $offset);
+
+        return match (true) {
+            $dayPeriod === null => 'empty',
+            $dayPeriod->isCancelled() => 'cancelled',
+            default => 'booked',
+        };
+    }
+
+    private function dayPeriodFor(Booking $record, int $offset): ?BookingDay
+    {
+        $date = $this->weekStartDate()->copy()->addDays($offset);
+
+        return $record->dayPeriods->first(
+            fn (BookingDay $dayPeriod): bool => $dayPeriod->date->isSameDay($date)
+        );
+    }
+
     private function hasPreviousDayBooking(Booking $record, int $offset): bool
     {
         if ($offset === 0) {
             return false;
         }
 
-        $previousDate = $this->weekStartDate()->copy()->addDays($offset - 1);
-
-        return $record->dayPeriods->contains(
-            fn (BookingDay $dayPeriod): bool => $dayPeriod->date->isSameDay($previousDate)
-        );
+        return $this->dayPeriodFor($record, $offset - 1) !== null;
     }
 }

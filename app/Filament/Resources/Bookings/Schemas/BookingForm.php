@@ -20,12 +20,14 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
+use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 
 class BookingForm
@@ -136,7 +138,7 @@ class BookingForm
                             ->reorderable(false)
                             ->dehydrated(false)
                             ->itemLabel(fn (array $state): ?string => filled($state['date'] ?? null)
-                                ? Carbon::parse($state['date'])->format('D j M Y')
+                                ? Carbon::parse($state['date'])->format('D j M Y').(($state['cancelled'] ?? false) ? ' (Cancelled)' : '')
                                 : null
                             )
                             ->rule(function (Get $get, ?Booking $record): Closure {
@@ -180,6 +182,10 @@ class BookingForm
                                     ->seconds(false)
                                     ->required(fn (Get $get): bool => $get('period') === BookingDayPeriod::Hours->value)
                                     ->visible(fn (Get $get): bool => $get('period') === BookingDayPeriod::Hours->value),
+                                Toggle::make('cancelled')
+                                    ->label('Cancelled')
+                                    ->live()
+                                    ->columnSpanFull(),
                             ])
                             ->columns(3)
                             ->columnSpanFull(),
@@ -249,23 +255,32 @@ class BookingForm
             ]);
     }
 
+    /** @return Collection<int, string> */
+    protected static function activePeriods(Get $get): Collection
+    {
+        return collect($get('day_periods') ?? [])
+            ->reject(fn (array $entry): bool => $entry['cancelled'] ?? false)
+            ->pluck('period')
+            ->filter();
+    }
+
     protected static function dayRateVisible(Get $get): bool
     {
-        $periods = collect($get('day_periods') ?? [])->pluck('period')->filter();
+        $periods = static::activePeriods($get);
 
         return $periods->isEmpty() || $periods->contains(BookingDayPeriod::FullDay->value);
     }
 
     protected static function halfDayRateVisible(Get $get): bool
     {
-        $periods = collect($get('day_periods') ?? [])->pluck('period')->filter();
+        $periods = static::activePeriods($get);
 
         return $periods->contains(BookingDayPeriod::Am->value) || $periods->contains(BookingDayPeriod::Pm->value);
     }
 
     protected static function hourlyRateVisible(Get $get): bool
     {
-        $periods = collect($get('day_periods') ?? [])->pluck('period')->filter();
+        $periods = static::activePeriods($get);
 
         return $periods->contains(BookingDayPeriod::Hours->value);
     }
@@ -319,7 +334,7 @@ class BookingForm
 
     /**
      * @param  array<int, array<string, mixed>>  $existing
-     * @return array<int, array{date: string, period: string, time_from: ?string, time_to: ?string}>
+     * @return array<int, array{date: string, period: string, time_from: ?string, time_to: ?string, cancelled: bool}>
      */
     public static function dayPeriodsForRange(mixed $startDate, mixed $endDate, array $existing = []): array
     {
@@ -342,13 +357,14 @@ class BookingForm
                     'period' => $existing['period'] ?? BookingDayPeriod::FullDay->value,
                     'time_from' => $existing['time_from'] ?? null,
                     'time_to' => $existing['time_to'] ?? null,
+                    'cancelled' => $existing['cancelled'] ?? false,
                 ];
             })
             ->values()
             ->all();
     }
 
-    /** @return array<int, array{date: string, period: string, time_from: ?string, time_to: ?string}> */
+    /** @return array<int, array{date: string, period: string, time_from: ?string, time_to: ?string, cancelled: bool}> */
     public static function loadDayPeriods(Booking $record): array
     {
         return $record->dayPeriods()
@@ -358,6 +374,7 @@ class BookingForm
                 'period' => $period->period->value,
                 'time_from' => $period->time_from,
                 'time_to' => $period->time_to,
+                'cancelled' => $period->isCancelled(),
             ])
             ->values()
             ->all();
@@ -367,19 +384,31 @@ class BookingForm
     public static function syncDayPeriods(Booking $record, ?array $items): void
     {
         $items = collect($items ?? [])->filter(fn (array $item): bool => filled($item['date'] ?? null));
+        $submittedDates = $items->pluck('date')->all();
 
-        $record->dayPeriods()->whereNotIn('date', $items->pluck('date')->all() ?: [''])->delete();
+        $record->dayPeriods()
+            ->get()
+            ->reject(fn (BookingDay $dayPeriod): bool => in_array($dayPeriod->date->toDateString(), $submittedDates, true))
+            ->each(fn (BookingDay $dayPeriod) => $dayPeriod->delete());
 
         foreach ($items as $item) {
-            $record->dayPeriods()->updateOrCreate(
-                ['date' => $item['date']],
-                [
-                    'company_id' => $record->company_id,
-                    'period' => $item['period'] ?? BookingDayPeriod::FullDay->value,
-                    'time_from' => $item['time_from'] ?? null,
-                    'time_to' => $item['time_to'] ?? null,
-                ],
-            );
+            $isCancelled = (bool) ($item['cancelled'] ?? false);
+            $existing = $record->dayPeriods()->whereDate('date', $item['date'])->first();
+
+            $attributes = [
+                'company_id' => $record->company_id,
+                'date' => $item['date'],
+                'period' => $item['period'] ?? BookingDayPeriod::FullDay->value,
+                'time_from' => $item['time_from'] ?? null,
+                'time_to' => $item['time_to'] ?? null,
+                'cancelled_at' => $isCancelled ? ($existing?->cancelled_at ?? now()) : null,
+            ];
+
+            if ($existing) {
+                $existing->update($attributes);
+            } else {
+                $record->dayPeriods()->create($attributes);
+            }
         }
     }
 }

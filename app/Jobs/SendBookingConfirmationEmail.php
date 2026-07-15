@@ -116,7 +116,7 @@ class SendBookingConfirmationEmail implements ShouldQueue
                 $row['date']->format('d/m/Y'),
                 $row['period']->label(),
                 $row['start'],
-                $row['rate'] !== null ? '£'.number_format($row['rate'], 2) : ''
+                $row['cancelled'] ? 'Cancelled' : ($row['rate'] !== null ? '£'.number_format($row['rate'], 2) : '')
             ))
             ->implode('');
 

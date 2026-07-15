@@ -10,7 +10,7 @@ use Illuminate\Support\Collection;
 
 class BookingDayPeriods
 {
-    /** @return Collection<int, array{date: Carbon, period: BookingDayPeriod, start: string, rate: ?float, hours: ?float}> */
+    /** @return Collection<int, array{date: Carbon, period: BookingDayPeriod, start: string, rate: ?float, hours: ?float, cancelled: bool}> */
     public static function rows(Booking $booking, string $rateType = 'pay'): Collection
     {
         $rates = self::rates($booking, $rateType);
@@ -19,8 +19,9 @@ class BookingDayPeriods
             'date' => $dayPeriod->date,
             'period' => $dayPeriod->period,
             'start' => self::formatTimes($dayPeriod),
-            'rate' => $rates[$dayPeriod->period->value] ?? null,
+            'rate' => $dayPeriod->isCancelled() ? null : ($rates[$dayPeriod->period->value] ?? null),
             'hours' => self::totalHours($dayPeriod),
+            'cancelled' => $dayPeriod->isCancelled(),
         ]);
     }
 
