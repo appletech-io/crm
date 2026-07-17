@@ -1,14 +1,13 @@
 <?php
 
 use App\Enums\BookingDayPeriod;
-use App\Filament\Widgets\BookingsPerWeekChart;
+use App\Filament\Widgets\BookingsPerDayChart;
 use App\Models\Booking;
 use App\Models\Client;
 use App\Models\EducationCandidate;
 use App\Models\JobTitle;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
 
@@ -29,7 +28,7 @@ beforeEach(function () {
 
 function getChartData(?string $filter = null): array
 {
-    $component = Livewire::test(BookingsPerWeekChart::class);
+    $component = Livewire::test(BookingsPerDayChart::class);
 
     if ($filter !== null) {
         $component->set('filter', $filter);
@@ -52,25 +51,33 @@ function addChartDayPeriod(Booking $booking, string $date, BookingDayPeriod $per
 }
 
 test('the widget renders successfully', function () {
-    Livewire::test(BookingsPerWeekChart::class)->assertSuccessful();
+    Livewire::test(BookingsPerDayChart::class)->assertSuccessful();
 });
 
-test('it defaults to the 3 month filter, returning 13 week labels starting with the current week', function () {
+test('it defaults to the 2 week filter, returning one day label per day starting today', function () {
+    $today = now()->startOfDay();
+    $expectedDays = (int) $today->diffInDays($today->copy()->addWeeks(2)->subDay()) + 1;
+
     $data = getChartData();
 
-    expect($data['labels'])->toHaveCount(13)
-        ->and($data['labels'][0])->toBe(now()->startOfWeek(Carbon::MONDAY)->format('d M'))
-        ->and($data['datasets'][0]['data'])->toHaveCount(13);
+    expect($data['labels'])->toHaveCount($expectedDays)
+        ->and($data['labels'][0])->toBe($today->format('d M'))
+        ->and($data['datasets'][0]['data'])->toHaveCount($expectedDays);
 });
 
-test('the time horizon filter changes how many weeks of data are returned', function () {
-    expect(getChartData(filter: '1_month')['labels'])->toHaveCount(4)
-        ->and(getChartData(filter: '3_months')['labels'])->toHaveCount(13)
-        ->and(getChartData(filter: '6_months')['labels'])->toHaveCount(26);
+test('the time horizon filter changes how many days of data are returned', function () {
+    $today = now()->startOfDay();
+
+    $expectedWeeks = fn (int $weeks): int => (int) $today->diffInDays($today->copy()->addWeeks($weeks)->subDay()) + 1;
+    $expectedMonth = (int) $today->diffInDays($today->copy()->addMonth()->subDay()) + 1;
+
+    expect(getChartData(filter: '1_week')['labels'])->toHaveCount($expectedWeeks(1))
+        ->and(getChartData(filter: '2_weeks')['labels'])->toHaveCount($expectedWeeks(2))
+        ->and(getChartData(filter: '1_month')['labels'])->toHaveCount($expectedMonth);
 });
 
-test('it counts distinct bookings per week and excludes weeks outside the selected range', function () {
-    $monday = now()->startOfWeek(Carbon::MONDAY);
+test('it counts distinct bookings per day and excludes days outside the selected range', function () {
+    $today = now()->startOfDay();
 
     $bookingA = Booking::factory()->create([
         'company_id' => $this->company->id,
@@ -79,8 +86,8 @@ test('it counts distinct bookings per week and excludes weeks outside the select
         'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
-    addChartDayPeriod($bookingA, $monday->toDateString());
-    addChartDayPeriod($bookingA, $monday->copy()->addDay()->toDateString());
+    addChartDayPeriod($bookingA, $today->toDateString());
+    addChartDayPeriod($bookingA, $today->copy()->addDay()->toDateString());
 
     $bookingB = Booking::factory()->create([
         'company_id' => $this->company->id,
@@ -89,7 +96,7 @@ test('it counts distinct bookings per week and excludes weeks outside the select
         'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
-    addChartDayPeriod($bookingB, $monday->toDateString());
+    addChartDayPeriod($bookingB, $today->toDateString());
 
     $futureBooking = Booking::factory()->create([
         'company_id' => $this->company->id,
@@ -98,7 +105,7 @@ test('it counts distinct bookings per week and excludes weeks outside the select
         'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
-    addChartDayPeriod($futureBooking, $monday->copy()->addWeeks(3)->toDateString());
+    addChartDayPeriod($futureBooking, $today->copy()->addDays(5)->toDateString());
 
     $tooFarBooking = Booking::factory()->create([
         'company_id' => $this->company->id,
@@ -107,18 +114,19 @@ test('it counts distinct bookings per week and excludes weeks outside the select
         'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
-    addChartDayPeriod($tooFarBooking, $monday->copy()->addWeeks(20)->toDateString());
+    addChartDayPeriod($tooFarBooking, $today->copy()->addMonths(6)->toDateString());
 
     $data = getChartData();
     $counts = $data['datasets'][0]['data'];
 
     expect($counts[0])->toBe(2)
-        ->and($counts[3])->toBe(1)
-        ->and(array_sum($counts))->toBe(3);
+        ->and($counts[1])->toBe(1)
+        ->and($counts[5])->toBe(1)
+        ->and(array_sum($counts))->toBe(4);
 });
 
 test('it excludes day periods belonging to a soft-deleted booking', function () {
-    $monday = now()->startOfWeek(Carbon::MONDAY);
+    $today = now()->startOfDay();
 
     $activeBooking = Booking::factory()->create([
         'company_id' => $this->company->id,
@@ -127,7 +135,7 @@ test('it excludes day periods belonging to a soft-deleted booking', function () 
         'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
-    addChartDayPeriod($activeBooking, $monday->toDateString());
+    addChartDayPeriod($activeBooking, $today->toDateString());
 
     $cancelledBooking = Booking::factory()->create([
         'company_id' => $this->company->id,
@@ -136,7 +144,7 @@ test('it excludes day periods belonging to a soft-deleted booking', function () 
         'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
-    addChartDayPeriod($cancelledBooking, $monday->toDateString());
+    addChartDayPeriod($cancelledBooking, $today->toDateString());
     $cancelledBooking->delete();
 
     $data = getChartData();

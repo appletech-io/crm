@@ -6,6 +6,7 @@ use App\Actions\Bookings\BookingCreated;
 use App\Enums\BookingStatus;
 use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\Bookings\Schemas\BookingForm;
+use App\Models\Booking;
 use App\Models\Industry;
 use Filament\Resources\Pages\CreateRecord;
 
@@ -29,10 +30,15 @@ class CreateBooking extends CreateRecord
         $clientId = request()->query('client_id');
         $jobTitleId = request()->query('job_title_id');
         $startDate = request()->query('start_date');
+        $sourceBookingId = request()->query('source_booking_id');
 
         if (blank($candidateId) && blank($clientId) && blank($jobTitleId) && blank($startDate)) {
             return null;
         }
+
+        $sourceBooking = filled($sourceBookingId)
+            ? Booking::query()->visibleToCurrentUser()->find($sourceBookingId)
+            : null;
 
         return [
             'status' => BookingStatus::Upcoming->value,
@@ -42,7 +48,9 @@ class CreateBooking extends CreateRecord
             'start_date' => $startDate,
             'end_date' => $startDate,
             'day_periods' => BookingForm::dayPeriodsForRange($startDate, $startDate),
-            ...BookingForm::defaultRates($candidateId, $clientId, $jobTitleId),
+            ...($sourceBooking
+                ? BookingForm::ratesFromBooking($sourceBooking)
+                : BookingForm::defaultRates($candidateId, $clientId, $jobTitleId)),
         ];
     }
 

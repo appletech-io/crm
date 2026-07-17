@@ -173,6 +173,7 @@ class WeeklyBookingsByClient extends BaseWidget
                             'client_id' => $record->client_id,
                             'job_title_id' => $record->job_title_id,
                             'start_date' => $date->toDateString(),
+                            'source_booking_id' => $record->id,
                         ]);
                     });
             })

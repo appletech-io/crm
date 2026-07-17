@@ -170,6 +170,98 @@ test('pay rates and charge rates pull through independently for the same job tit
         ]);
 });
 
+test('navigating to create a booking from the weekly view query string pulls through pay and charge rates', function () {
+    PayRate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'model_type' => EducationCandidate::class,
+        'model_id' => $this->candidate->id,
+        'job_title_id' => $this->jobTitle->id,
+        'hourly_rate' => 25,
+        'day_rate' => 200,
+        'half_day_rate' => 100,
+    ]);
+
+    PayRate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'model_type' => Client::class,
+        'model_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'hourly_rate' => 40,
+        'day_rate' => 320,
+        'half_day_rate' => 160,
+    ]);
+
+    Livewire::withQueryParams([
+        'candidate_id' => $this->candidate->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'start_date' => '2026-08-03',
+    ])->test(CreateBooking::class)
+        ->assertFormSet([
+            'candidate_id' => $this->candidate->id,
+            'client_id' => $this->client->id,
+            'job_title_id' => $this->jobTitle->id,
+            'hourly_rate' => 25,
+            'day_rate' => 200,
+            'half_day_rate' => 100,
+            'hourly_charge_rate' => 40,
+            'day_charge_rate' => 320,
+            'half_day_charge_rate' => 160,
+        ]);
+});
+
+test('navigating to create a booking from an existing booking on the weekly view pulls through that bookings actual rates instead of the pay rate defaults', function () {
+    PayRate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'model_type' => EducationCandidate::class,
+        'model_id' => $this->candidate->id,
+        'job_title_id' => $this->jobTitle->id,
+        'hourly_rate' => 25,
+        'day_rate' => 200,
+        'half_day_rate' => 100,
+    ]);
+
+    PayRate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'model_type' => Client::class,
+        'model_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'hourly_rate' => 40,
+        'day_rate' => 320,
+        'half_day_rate' => 160,
+    ]);
+
+    $sourceBooking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'hourly_rate' => 30,
+        'day_rate' => 250,
+        'half_day_rate' => 125,
+        'hourly_charge_rate' => 45,
+        'day_charge_rate' => 350,
+        'half_day_charge_rate' => 175,
+    ]);
+
+    Livewire::withQueryParams([
+        'candidate_id' => $this->candidate->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'start_date' => '2026-08-03',
+        'source_booking_id' => $sourceBooking->id,
+    ])->test(CreateBooking::class)
+        ->assertFormSet([
+            'hourly_rate' => 30,
+            'day_rate' => 250,
+            'half_day_rate' => 125,
+            'hourly_charge_rate' => 45,
+            'day_charge_rate' => 350,
+            'half_day_charge_rate' => 175,
+        ]);
+});
+
 test('charge rates are required to create a booking', function () {
     Livewire::test(CreateBooking::class)
         ->fillForm([

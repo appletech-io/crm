@@ -327,6 +327,19 @@ class BookingForm
         return $rates;
     }
 
+    /** @return array<string, mixed> */
+    public static function ratesFromBooking(Booking $booking): array
+    {
+        return [
+            'day_rate' => $booking->day_rate,
+            'half_day_rate' => $booking->half_day_rate,
+            'hourly_rate' => $booking->hourly_rate,
+            'day_charge_rate' => $booking->day_charge_rate,
+            'half_day_charge_rate' => $booking->half_day_charge_rate,
+            'hourly_charge_rate' => $booking->hourly_charge_rate,
+        ];
+    }
+
     protected static function regenerateDayPeriods(Set $set, Get $get): void
     {
         $set('day_periods', static::dayPeriodsForRange($get('start_date'), $get('end_date'), $get('day_periods') ?? []));

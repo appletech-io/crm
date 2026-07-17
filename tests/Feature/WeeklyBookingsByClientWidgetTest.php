@@ -297,6 +297,7 @@ test('an unbooked day icon with no booking the day before links through to the c
         'client_id' => $this->client->id,
         'job_title_id' => $this->jobTitle->id,
         'start_date' => $monday->copy()->addDays(3)->toDateString(),
+        'source_booking_id' => $booking->id,
     ]);
 
     expect($html)->toContain(e($quickAddUrl));
@@ -322,6 +323,7 @@ test('an unbooked day icon immediately after a booked day links through to the e
         'client_id' => $this->client->id,
         'job_title_id' => $this->jobTitle->id,
         'start_date' => $monday->copy()->addDay()->toDateString(),
+        'source_booking_id' => $booking->id,
     ]);
 
     expect($html)->toContain(e($editUrl))
@@ -347,6 +349,7 @@ test('mondays unbooked icon always links to create since there is no visible pre
         'client_id' => $this->client->id,
         'job_title_id' => $this->jobTitle->id,
         'start_date' => $monday->toDateString(),
+        'source_booking_id' => $thisWeekBooking->id,
     ]);
 
     expect($html)->toContain(e($createUrlForMonday));
