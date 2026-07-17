@@ -4,9 +4,8 @@ namespace App\Filament\Widgets;
 
 use App\Models\BookingDay;
 use Filament\Widgets\ChartWidget;
-use Illuminate\Support\Carbon;
 
-class BookingsPerWeekChart extends ChartWidget
+class BookingsPerDayChart extends ChartWidget
 {
     protected static ?int $sort = 1;
 
@@ -14,25 +13,24 @@ class BookingsPerWeekChart extends ChartWidget
 
     protected ?string $maxHeight = '200px';
 
-    public ?string $filter = '3_months';
+    public ?string $filter = '2_weeks';
 
     private const FILTER_WEEKS = [
-        '1_month' => 4,
-        '3_months' => 13,
-        '6_months' => 26,
+        '1_week' => 1,
+        '2_weeks' => 2,
     ];
 
     public function getHeading(): string
     {
-        return 'Bookings Per Week';
+        return 'Daily Bookings';
     }
 
     protected function getFilters(): array
     {
         return [
+            '1_week' => '1 Week',
+            '2_weeks' => '2 Weeks',
             '1_month' => '1 Month',
-            '3_months' => '3 Months',
-            '6_months' => '6 Months',
         ];
     }
 
@@ -54,27 +52,27 @@ class BookingsPerWeekChart extends ChartWidget
 
     protected function getData(): array
     {
-        $weeksAhead = self::FILTER_WEEKS[$this->filter] ?? self::FILTER_WEEKS['3_months'];
-
-        $weekStart = now()->startOfWeek(Carbon::MONDAY);
-        $rangeEnd = $weekStart->copy()->addWeeks($weeksAhead)->subDay();
+        $start = now()->startOfDay();
+        $rangeEnd = $this->filter === '1_month'
+            ? $start->copy()->addMonth()->subDay()
+            : $start->copy()->addWeeks(self::FILTER_WEEKS[$this->filter] ?? self::FILTER_WEEKS['2_weeks'])->subDay();
+        $totalDays = (int) $start->diffInDays($rangeEnd) + 1;
 
         $dayPeriods = BookingDay::query()
             ->whereHas('booking', fn ($query) => $query->visibleToCurrentUser())
-            ->whereBetween('date', [$weekStart->toDateString(), $rangeEnd->toDateString()])
+            ->whereBetween('date', [$start->toDateString(), $rangeEnd->toDateString()])
             ->get(['booking_id', 'date']);
 
         $labels = [];
         $counts = [];
 
-        for ($week = 0; $week < $weeksAhead; $week++) {
-            $start = $weekStart->copy()->addWeeks($week);
-            $end = $start->copy()->endOfWeek(Carbon::SUNDAY);
+        for ($day = 0; $day < $totalDays; $day++) {
+            $date = $start->copy()->addDays($day);
 
-            $labels[] = $start->format('d M');
+            $labels[] = $date->format('d M');
 
             $counts[] = $dayPeriods
-                ->filter(fn (BookingDay $dayPeriod): bool => $dayPeriod->date->betweenIncluded($start, $end))
+                ->filter(fn (BookingDay $dayPeriod): bool => $dayPeriod->date->isSameDay($date))
                 ->pluck('booking_id')
                 ->unique()
                 ->count();

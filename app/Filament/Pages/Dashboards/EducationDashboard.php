@@ -2,7 +2,7 @@
 
 namespace App\Filament\Pages\Dashboards;
 
-use App\Filament\Widgets\BookingsPerWeekChart;
+use App\Filament\Widgets\BookingsPerDayChart;
 use App\Filament\Widgets\EducationStatsOverview;
 
 class EducationDashboard implements DashboardInterface
@@ -11,7 +11,7 @@ class EducationDashboard implements DashboardInterface
     {
         return [
             EducationStatsOverview::class,
-            BookingsPerWeekChart::class,
+            BookingsPerDayChart::class,
         ];
     }
 
