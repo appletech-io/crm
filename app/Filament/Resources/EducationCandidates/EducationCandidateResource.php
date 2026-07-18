@@ -14,6 +14,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class EducationCandidateResource extends Resource
@@ -33,6 +34,22 @@ class EducationCandidateResource extends Resource
     public static function canViewAny(): bool
     {
         return active_industry() === 'education';
+    }
+
+    /** @return array<string> */
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['first_name', 'phone', 'mobile', 'email'];
+    }
+
+    /** @return array<string, string> */
+    public static function getGlobalSearchResultDetails(Model $record): array
+    {
+        return array_filter([
+            'Phone' => $record->phone,
+            'Mobile' => $record->mobile,
+            'Email' => $record->email,
+        ]);
     }
 
     public static function form(Schema $schema): Schema

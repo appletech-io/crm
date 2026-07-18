@@ -13,6 +13,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class ClientResource extends Resource
@@ -32,6 +33,22 @@ class ClientResource extends Resource
     public static function canViewAny(): bool
     {
         return active_industry() === 'education';
+    }
+
+    /** @return array<string> */
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['name', 'phone', 'contacts.email'];
+    }
+
+    /** @return array<string, string> */
+    public static function getGlobalSearchResultDetails(Model $record): array
+    {
+        /** @var Client $record */
+        return array_filter([
+            'Phone' => $record->phone,
+            'Email' => $record->mainContact?->email ?? $record->contacts->first()?->email,
+        ]);
     }
 
     public static function form(Schema $schema): Schema
