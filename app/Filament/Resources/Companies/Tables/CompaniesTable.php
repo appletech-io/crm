@@ -68,6 +68,12 @@ class CompaniesTable
                         Auth::login($targetUser);
                         session(['impersonator_id' => $originalUserId]);
 
+                        // AuthenticateSession stores a password hash tied to whoever was
+                        // logged in; forgetting it here forces it to recompute for the
+                        // impersonated user on the next request instead of comparing
+                        // against the site_admin's stale hash and forcing a logout.
+                        session()->forget('password_hash_web');
+
                         return redirect('/crm');
                     }),
                 EditAction::make(),

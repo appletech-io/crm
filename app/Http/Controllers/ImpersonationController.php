@@ -23,6 +23,9 @@ class ImpersonationController extends Controller
         Auth::login($impersonator);
         session()->forget('impersonator_id');
 
+        // See CompaniesTable::configure() for why this is necessary.
+        session()->forget('password_hash_web');
+
         return redirect(CompanyResource::getUrl('index'));
     }
 }
