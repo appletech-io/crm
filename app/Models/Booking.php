@@ -67,28 +67,14 @@ class Booking extends Model
             ->sortByDesc('disputed_at')
             ->first();
 
-        if ($latestDispute) {
-            $this->update([
-                'disputed_at' => $latestDispute->disputed_at,
-                'dispute_reason' => $latestDispute->dispute_reason,
-            ]);
+        $allApproved = $sentDays->every(fn (BookingDay $day): bool => $day->isApproved());
 
-            return;
-        }
-
-        if ($sentDays->every(fn (BookingDay $day): bool => $day->isApproved())) {
-            $this->update([
-                'status' => BookingStatus::Approved,
-                'disputed_at' => null,
-                'dispute_reason' => null,
-            ]);
-
-            return;
-        }
+        $status = $allApproved && ! $latestDispute ? BookingStatus::Approved : BookingStatus::AwaitingApproval;
 
         $this->update([
-            'disputed_at' => null,
-            'dispute_reason' => null,
+            'status' => $this->status === BookingStatus::Completed ? $this->status : $status,
+            'disputed_at' => $latestDispute?->disputed_at,
+            'dispute_reason' => $latestDispute?->dispute_reason,
         ]);
     }
 

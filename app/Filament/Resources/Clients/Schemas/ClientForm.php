@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Clients\Schemas;
 
 use App\Enums\Education\KeyStage;
 use App\Filament\Widgets\ClientActivityTimeline;
+use App\Filament\Widgets\ClientTimesheetOverview;
 use App\Models\Client;
 use App\Models\ClientType;
 use App\Models\JobTitle;
@@ -42,6 +43,13 @@ class ClientForm
                             ->schema([
                                 LivewireComponent::make(ClientActivityTimeline::class)
                                     ->key('client-activity-timeline')
+                                    ->hidden(fn (?Model $record): bool => $record === null),
+                            ]),
+
+                        Tab::make('Timesheets')
+                            ->schema([
+                                LivewireComponent::make(ClientTimesheetOverview::class)
+                                    ->key('client-timesheet-overview')
                                     ->hidden(fn (?Model $record): bool => $record === null),
                             ]),
 
@@ -237,6 +245,7 @@ class ClientForm
                                             )
                                             ->columns(3),
                                     ]),
+
                             ]),
 
                         Tab::make('Contacts')

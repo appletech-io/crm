@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\EmailProvider;
+use App\Enums\TimesheetFrequency;
 use App\Filament\Resources\Companies\Pages\EditCompany;
 use App\Models\Company;
 use App\Models\User;
@@ -48,4 +49,39 @@ test('microsoft credentials can be saved and the client secret is encrypted at r
         ->and($company->ms_client_id)->toBe('client-456')
         ->and($company->ms_client_secret)->toBe('super-secret')
         ->and($company->getRawOriginal('ms_client_secret'))->not->toBe('super-secret');
+});
+
+test('a company defaults to weekly timesheet frequency', function () {
+    $company = Company::factory()->create();
+
+    expect($company->timesheet_frequency)->toBe(TimesheetFrequency::Weekly);
+});
+
+test('the day of month field is only visible and required when monthly frequency is selected', function () {
+    $company = Company::factory()->create();
+
+    Livewire::test(EditCompany::class, ['record' => $company->getRouteKey()])
+        ->assertFormFieldIsHidden('timesheet_day_of_month')
+        ->set('data.timesheet_frequency', 'monthly')
+        ->assertFormFieldIsVisible('timesheet_day_of_month')
+        ->fillForm(['timesheet_day_of_month' => null])
+        ->call('save')
+        ->assertHasFormErrors(['timesheet_day_of_month']);
+});
+
+test('timesheet frequency and day of month can be saved via the edit page', function () {
+    $company = Company::factory()->create(['email_provider' => EmailProvider::Mailgun]);
+
+    Livewire::test(EditCompany::class, ['record' => $company->getRouteKey()])
+        ->fillForm([
+            'timesheet_frequency' => 'monthly',
+            'timesheet_day_of_month' => 15,
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $fresh = $company->fresh();
+
+    expect($fresh->timesheet_frequency)->toBe(TimesheetFrequency::Monthly)
+        ->and($fresh->timesheet_day_of_month)->toBe(15);
 });

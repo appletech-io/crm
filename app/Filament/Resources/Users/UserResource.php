@@ -36,7 +36,7 @@ class UserResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasAnyRole(['admin', 'site_admin']);
+        return auth()->user()?->hasRole('site_admin') ?? false;
     }
 
     public static function form(Schema $schema): Schema

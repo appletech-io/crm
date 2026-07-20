@@ -593,8 +593,8 @@ test('editing a booking loads its existing day periods and syncs changes back to
 
     expect(collect($test->instance()->form->getRawState()['day_periods'] ?? [])->values()->all())
         ->toBe([
-            ['date' => '2026-08-03', 'period' => 'am', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
-            ['date' => '2026-08-04', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
+            ['date' => '2026-08-03', 'period' => 'am', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'disputed' => false, 'dispute_reason' => null],
+            ['date' => '2026-08-04', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'disputed' => false, 'dispute_reason' => null],
         ]);
 
     $test
@@ -690,6 +690,64 @@ test('re-saving an already-cancelled day preserves the original cancellation tim
     $day = $booking->dayPeriods()->whereDate('date', '2026-08-03')->first();
 
     expect($day->cancelled_at->toDateTimeString())->toBe($originalTimestamp->toDateTimeString());
+});
+
+test('a disputed day shows the dispute reason on the edit form', function () {
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'start_date' => '2026-08-03',
+        'end_date' => '2026-08-04',
+        'day_charge_rate' => 320,
+    ]);
+
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-03',
+        'period' => 'full_day',
+        'disputed_at' => now(),
+        'dispute_reason' => 'Candidate never showed up',
+    ]);
+
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-04',
+        'period' => 'full_day',
+    ]);
+
+    $html = Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->toContain('(Disputed)')
+        ->and($html)->toContain('Candidate never showed up');
+});
+
+test('a non-disputed day does not show a dispute reason field', function () {
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'start_date' => '2026-08-03',
+        'day_charge_rate' => 320,
+    ]);
+
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-03',
+        'period' => 'full_day',
+    ]);
+
+    $html = Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->not->toContain('(Disputed)');
 });
 
 test('the list page does not crash and flags the candidate as deleted when the candidate is soft-deleted', function () {

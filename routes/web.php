@@ -17,6 +17,4 @@ Route::livewire('/application/{token}/form', 'application.application-form')->na
 
 Route::get('/booking-confirmation', [BookingConfirmationController::class, 'show'])->name('booking-confirmation.show');
 
-Route::livewire('/payroll-confirmation', 'payroll.confirm-timesheet')->name('payroll-confirmation.show');
-
 require __DIR__.'/settings.php';

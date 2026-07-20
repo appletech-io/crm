@@ -75,6 +75,24 @@ test('candidates are redirected to the candidate panel after login', function ()
     $this->assertAuthenticated();
 });
 
+test('clients are redirected to the client panel after login', function () {
+    $this->seed(RoleSeeder::class);
+
+    $user = User::factory()->create();
+    $user->assignRole('client');
+
+    $response = $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $response
+        ->assertSessionHasNoErrors()
+        ->assertRedirect('/client');
+
+    $this->assertAuthenticated();
+});
+
 test('users can logout', function () {
     $user = User::factory()->create();
 

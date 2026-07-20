@@ -15,9 +15,11 @@ class LoginResponse implements LoginResponseContract
         }
 
         /** @var Request $request */
-        $redirectTo = $request->user()?->hasRole('candidate')
-            ? '/candidate'
-            : Fortify::redirects('login');
+        $redirectTo = match (true) {
+            $request->user()?->hasRole('candidate') => '/candidate',
+            $request->user()?->hasRole('client') => '/client',
+            default => Fortify::redirects('login'),
+        };
 
         return redirect()->intended($redirectTo);
     }

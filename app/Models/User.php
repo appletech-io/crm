@@ -10,6 +10,7 @@ use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -34,7 +35,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'password', 'company_id', 'candidate_id', 'candidate_type'])]
+#[Fillable(['name', 'email', 'password', 'company_id', 'candidate_id', 'candidate_type', 'client_contact_id'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser, PasskeyUser
 {
@@ -78,6 +79,16 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
         return $this->morphTo();
     }
 
+    public function clientContact(): BelongsTo
+    {
+        return $this->belongsTo(ClientContact::class);
+    }
+
+    public function client(): ?Client
+    {
+        return $this->clientContact?->client;
+    }
+
     public function isAdmin(): bool
     {
         return $this->hasAnyRole(['admin', 'site_admin']);
@@ -85,10 +96,10 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
 
     public function canAccessPanel(Panel $panel): bool
     {
-        if ($panel->getId() === 'candidate') {
-            return $this->hasRole('candidate');
-        }
-
-        return ! $this->hasRole('candidate');
+        return match ($panel->getId()) {
+            'candidate' => $this->hasRole('candidate'),
+            'client' => $this->hasRole('client'),
+            default => ! $this->hasRole('candidate') && ! $this->hasRole('client'),
+        };
     }
 }

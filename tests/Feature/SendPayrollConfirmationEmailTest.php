@@ -2,6 +2,7 @@
 
 use App\Enums\ActivityType;
 use App\Enums\BookingDayPeriod;
+use App\Enums\BookingStatus;
 use App\Enums\EmailTemplateType;
 use App\Jobs\SendPayrollConfirmationEmail;
 use App\Models\Booking;
@@ -12,7 +13,7 @@ use App\Models\EducationCandidate;
 use App\Models\EmailTemplate;
 use App\Models\Industry;
 use App\Models\JobTitle;
-use App\Services\Booking\PayrollConfirmationLink;
+use App\Services\Booking\TimesheetPeriod;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 
@@ -111,6 +112,56 @@ test('it sends to the timesheet contact, marks the days sent, and logs a client 
 
     expect($day->fresh()->payroll_confirmation_sent_at)->not->toBeNull()
         ->and(ClientActivity::where('type', ActivityType::Email)->count())->toBe(1);
+});
+
+test('it moves the booking from upcoming to awaiting approval once sent', function () {
+    $this->client->contacts()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Main',
+        'last_name' => 'Contact',
+        'email' => 'main@example.com',
+        'main_contact' => true,
+    ]);
+
+    createPayrollTemplate($this->company);
+
+    $this->booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => $this->weekStart->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+
+    expect($this->booking->status)->toBe(BookingStatus::Upcoming);
+
+    (new SendPayrollConfirmationEmail($this->client, $this->weekStart->toDateString()))->handle();
+
+    expect($this->booking->fresh()->status)->toBe(BookingStatus::AwaitingApproval);
+});
+
+test('it uses the companys real weekly period boundaries, not a monday to sunday assumption', function () {
+    $this->client->contacts()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Main',
+        'last_name' => 'Contact',
+        'email' => 'main@example.com',
+        'main_contact' => true,
+    ]);
+
+    createPayrollTemplate($this->company);
+
+    $period = TimesheetPeriod::containing($this->company, Carbon::parse($this->weekStart));
+
+    // A Saturday belonging to the same weekly period, which would fall outside a naive
+    // Monday-Sunday range but is well within the real Saturday-Friday period.
+    $saturdayDay = $this->booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => $period['start']->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+
+    (new SendPayrollConfirmationEmail($this->client, $this->weekStart->toDateString()))->handle();
+
+    expect($saturdayDay->fresh()->payroll_confirmation_sent_at)->not->toBeNull();
 });
 
 test('it falls back to the main contact when there is no timesheet contact', function () {
@@ -235,24 +286,16 @@ test('it includes a working payroll confirmation link', function () {
 
     (new SendPayrollConfirmationEmail($this->client, $this->weekStart->toDateString()))->handle();
 
-    $linkBaseUrl = route('payroll-confirmation.show');
-    $client = $this->client;
-    $weekStart = $this->weekStart;
+    $clientPanelUrl = url('/client');
 
-    Http::assertSent(function ($request) use ($linkBaseUrl, $client, $weekStart) {
+    Http::assertSent(function ($request) use ($clientPanelUrl) {
         if (! str_contains($request->url(), 'graph.microsoft.com')) {
             return false;
         }
 
         $body = $request['message']['body']['content'];
 
-        expect($body)->toContain('<a href="'.$linkBaseUrl);
-
-        preg_match('/crypt=([^"&]+)/', $body, $matches);
-        $decoded = PayrollConfirmationLink::decode(urldecode($matches[1] ?? ''));
-
-        return $decoded !== null
-            && $decoded['client']->is($client)
-            && $decoded['weekStart']->isSameDay($weekStart);
+        return str_contains($body, '<a href="'.$clientPanelUrl.'">Review &amp; Confirm Timesheet</a>')
+            || str_contains($body, '<a href="'.$clientPanelUrl.'">Review & Confirm Timesheet</a>');
     });
 });

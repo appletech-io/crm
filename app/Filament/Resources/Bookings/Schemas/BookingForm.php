@@ -18,6 +18,7 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Components\Toggle;
@@ -138,7 +139,9 @@ class BookingForm
                             ->reorderable(false)
                             ->dehydrated(false)
                             ->itemLabel(fn (array $state): ?string => filled($state['date'] ?? null)
-                                ? Carbon::parse($state['date'])->format('D j M Y').(($state['cancelled'] ?? false) ? ' (Cancelled)' : '')
+                                ? Carbon::parse($state['date'])->format('D j M Y')
+                                    .(($state['cancelled'] ?? false) ? ' (Cancelled)' : '')
+                                    .(($state['disputed'] ?? false) ? ' (Disputed)' : '')
                                 : null
                             )
                             ->rule(function (Get $get, ?Booking $record): Closure {
@@ -185,6 +188,14 @@ class BookingForm
                                 Toggle::make('cancelled')
                                     ->label('Cancelled')
                                     ->live()
+                                    ->columnSpanFull(),
+                                Textarea::make('dispute_reason')
+                                    ->label('Dispute Reason')
+                                    ->helperText('Raised by the client when confirming this timesheet.')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->rows(2)
+                                    ->visible(fn (Get $get): bool => (bool) $get('disputed'))
                                     ->columnSpanFull(),
                             ])
                             ->columns(3)
@@ -377,7 +388,7 @@ class BookingForm
             ->all();
     }
 
-    /** @return array<int, array{date: string, period: string, time_from: ?string, time_to: ?string, cancelled: bool}> */
+    /** @return array<int, array{date: string, period: string, time_from: ?string, time_to: ?string, cancelled: bool, disputed: bool, dispute_reason: ?string}> */
     public static function loadDayPeriods(Booking $record): array
     {
         return $record->dayPeriods()
@@ -388,6 +399,8 @@ class BookingForm
                 'time_from' => $period->time_from,
                 'time_to' => $period->time_to,
                 'cancelled' => $period->isCancelled(),
+                'disputed' => $period->isDisputed(),
+                'dispute_reason' => $period->dispute_reason,
             ])
             ->values()
             ->all();
