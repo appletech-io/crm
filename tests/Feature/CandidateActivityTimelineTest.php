@@ -75,3 +75,24 @@ test('activity tab renders on edit page', function () {
     Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
         ->assertSuccessful();
 });
+
+test('activities can be filtered by type', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    $call = $candidate->activities()->create([
+        'user_id' => $this->user->id,
+        'type' => 'call',
+        'note' => 'Called candidate',
+    ]);
+
+    $note = $candidate->activities()->create([
+        'user_id' => $this->user->id,
+        'type' => 'note',
+        'note' => 'Left a note',
+    ]);
+
+    Livewire::test(CandidateActivityTimeline::class, ['record' => $candidate])
+        ->filterTable('type', 'call')
+        ->assertCanSeeTableRecords([$call])
+        ->assertCanNotSeeTableRecords([$note]);
+});

@@ -23,7 +23,8 @@ class ClientsTable
                 TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('client_type')
+                TextColumn::make('clientType.name')
+                    ->label('Client Type')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('city')

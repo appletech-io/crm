@@ -8,6 +8,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 
@@ -41,6 +42,13 @@ trait HasActivityTimeline
                     ->label('Date & time')
                     ->dateTime('d M Y, H:i')
                     ->sortable(),
+            ])
+            ->filters([
+                SelectFilter::make('type')
+                    ->options(collect(ActivityType::cases())
+                        ->mapWithKeys(fn (ActivityType $type): array => [$type->value => $type->label()])
+                        ->toArray()
+                    ),
             ])
             ->recordActions([
                 Action::make('view')

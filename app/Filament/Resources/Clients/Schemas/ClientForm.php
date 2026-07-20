@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Clients\Schemas;
 use App\Enums\Education\KeyStage;
 use App\Filament\Widgets\ClientActivityTimeline;
 use App\Models\Client;
+use App\Models\ClientType;
 use App\Models\JobTitle;
 use App\Models\User;
 use Filament\Actions\Action;
@@ -53,8 +54,16 @@ class ClientForm
                                             ->label('Client Name')
                                             ->required()
                                             ->maxLength(255),
-                                        TextInput::make('client_type')
-                                            ->maxLength(255),
+                                        Select::make('client_type_id')
+                                            ->label('Client Type')
+                                            ->options(fn (): array => ClientType::query()
+                                                ->where('company_id', Auth::user()->company_id)
+                                                ->where('industry_id', active_industry_id())
+                                                ->pluck('name', 'id')
+                                                ->toArray()
+                                            )
+                                            ->searchable()
+                                            ->preload(),
                                         Select::make('consultant_id')
                                             ->label('Consultant')
                                             ->options(fn (): array => User::role('consultant')

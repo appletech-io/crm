@@ -74,3 +74,24 @@ test('activity tab renders on edit page', function () {
     Livewire::test(EditClient::class, ['record' => $client->getRouteKey()])
         ->assertSuccessful();
 });
+
+test('activities can be filtered by type', function () {
+    $client = Client::factory()->create(['company_id' => $this->user->company_id]);
+
+    $call = $client->activities()->create([
+        'user_id' => $this->user->id,
+        'type' => 'call',
+        'note' => 'Called client',
+    ]);
+
+    $note = $client->activities()->create([
+        'user_id' => $this->user->id,
+        'type' => 'note',
+        'note' => 'Left a note',
+    ]);
+
+    Livewire::test(ClientActivityTimeline::class, ['record' => $client])
+        ->filterTable('type', 'call')
+        ->assertCanSeeTableRecords([$call])
+        ->assertCanNotSeeTableRecords([$note]);
+});

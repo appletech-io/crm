@@ -4,6 +4,7 @@ use App\Filament\Resources\Clients\Pages\EditClient;
 use App\Filament\Resources\Clients\Pages\ListClients;
 use App\Models\Client;
 use App\Models\ClientContact;
+use App\Models\ClientType;
 use App\Models\Industry;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
@@ -42,9 +43,15 @@ test('client details can be filled in later via the edit page', function () {
         'company_id' => $this->user->company_id,
     ]);
 
+    $clientType = ClientType::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => Cache::get("user.{$this->user->id}.active_industry_id"),
+        'name' => 'School',
+    ]);
+
     Livewire::test(EditClient::class, ['record' => $client->id])
         ->fillForm([
-            'client_type' => 'School',
+            'client_type_id' => $clientType->id,
             'address' => '123 Example Road',
             'city' => 'Halesowen',
             'postcode' => 'B63 3HY',
@@ -54,7 +61,7 @@ test('client details can be filled in later via the edit page', function () {
         ->assertHasNoFormErrors();
 
     expect($client->fresh())
-        ->client_type->toBe('School')
+        ->client_type_id->toBe($clientType->id)
         ->address->toBe('123 Example Road')
         ->city->toBe('Halesowen')
         ->postcode->toBe('B63 3HY')
@@ -114,16 +121,18 @@ test('the clients list can be filtered by consultant', function () {
 });
 
 test('it can create an education client', function () {
+    $clientType = ClientType::factory()->create(['company_id' => $this->user->company_id, 'name' => 'School']);
+
     $client = Client::factory()->create([
         'name' => 'Applebough Recruitment Ltd',
-        'client_type' => 'School',
+        'client_type_id' => $clientType->id,
         'city' => 'Halesowen',
         'postcode' => 'B63 3HY',
         'county' => 'West Midlands',
     ]);
 
     expect($client->name)->toBe('Applebough Recruitment Ltd')
-        ->and($client->client_type)->toBe('School')
+        ->and($client->clientType->name)->toBe('School')
         ->and($client->city)->toBe('Halesowen')
         ->and($client->postcode)->toBe('B63 3HY')
         ->and($client->county)->toBe('West Midlands');

@@ -21,7 +21,6 @@ class ClientFactory extends Factory
         return [
             'company_id' => Company::factory(),
             'name' => $this->faker->company(),
-            'client_type' => $this->faker->randomElement(['School', 'Nursery', 'Academy Trust']),
             'address' => $this->faker->streetAddress(),
             'city' => $this->faker->city(),
             'postcode' => $this->faker->postcode(),

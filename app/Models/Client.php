@@ -36,6 +36,11 @@ class Client extends Model
         return $this->belongsTo(User::class, 'consultant_id');
     }
 
+    public function clientType(): BelongsTo
+    {
+        return $this->belongsTo(ClientType::class);
+    }
+
     public function contacts(): HasMany
     {
         return $this->hasMany(ClientContact::class);
