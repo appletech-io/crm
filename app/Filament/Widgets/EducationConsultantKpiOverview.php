@@ -30,7 +30,6 @@ class EducationConsultantKpiOverview extends StatsOverviewWidget
     public function consultantOptions(): array
     {
         return User::role('consultant')
-            ->where('company_id', Auth::user()?->company_id)
             ->orderBy('name')
             ->pluck('name', 'id')
             ->toArray();
@@ -61,7 +60,7 @@ class EducationConsultantKpiOverview extends StatsOverviewWidget
         $end = Carbon::now()->endOfMonth();
 
         $consultantId = $this->activeConsultantId();
-        $companyUserIds = User::query()->where('company_id', Auth::user()?->company_id)->pluck('id');
+        $companyUserIds = User::query()->pluck('id');
 
         $calls = $this->activityCount(ActivityType::Call, $start, $end, $consultantId, $companyUserIds);
         $meetings = $this->activityCount(ActivityType::Meeting, $start, $end, $consultantId, $companyUserIds);

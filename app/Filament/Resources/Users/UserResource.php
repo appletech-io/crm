@@ -36,7 +36,7 @@ class UserResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasAnyRole(['admin', 'site_admin']);
+        return auth()->user()?->hasRole('site_admin') ?? false;
     }
 
     public static function form(Schema $schema): Schema
@@ -57,6 +57,7 @@ class UserResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
+            ->withoutGlobalScope('company')
             ->whereNull('candidate_id');
     }
 

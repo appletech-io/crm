@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\EmailProvider;
+use App\Enums\TimesheetFrequency;
 use Database\Factories\CompanyFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,11 +17,16 @@ class Company extends Model
 
     protected $guarded = [];
 
+    protected $attributes = [
+        'timesheet_frequency' => 'weekly',
+    ];
+
     protected function casts(): array
     {
         return [
             'email_provider' => EmailProvider::class,
             'ms_client_secret' => 'encrypted',
+            'timesheet_frequency' => TimesheetFrequency::class,
         ];
     }
 

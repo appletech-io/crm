@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Clients\Schemas;
 
 use App\Enums\Education\KeyStage;
 use App\Filament\Widgets\ClientActivityTimeline;
+use App\Filament\Widgets\ClientTimesheetOverview;
 use App\Models\Client;
 use App\Models\ClientType;
 use App\Models\JobTitle;
@@ -45,6 +46,13 @@ class ClientForm
                                     ->hidden(fn (?Model $record): bool => $record === null),
                             ]),
 
+                        Tab::make('Timesheets')
+                            ->schema([
+                                LivewireComponent::make(ClientTimesheetOverview::class)
+                                    ->key('client-timesheet-overview')
+                                    ->hidden(fn (?Model $record): bool => $record === null),
+                            ]),
+
                         Tab::make('Details')
                             ->schema([
                                 Section::make('Client Name & Address')
@@ -67,7 +75,6 @@ class ClientForm
                                         Select::make('consultant_id')
                                             ->label('Consultant')
                                             ->options(fn (): array => User::role('consultant')
-                                                ->where('company_id', Auth::user()->company_id)
                                                 ->whereHas('industries', fn ($query) => $query->where('industries.id', active_industry_id()))
                                                 ->pluck('name', 'id')
                                                 ->toArray()
@@ -237,6 +244,7 @@ class ClientForm
                                             )
                                             ->columns(3),
                                     ]),
+
                             ]),
 
                         Tab::make('Contacts')

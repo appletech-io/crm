@@ -98,7 +98,6 @@ class EducationCandidateForm
                                         Select::make('consultant_id')
                                             ->label('Consultant')
                                             ->options(fn (): array => User::role('consultant')
-                                                ->where('company_id', Auth::user()->company_id)
                                                 ->whereHas('industries', fn ($query) => $query->where('industries.id', active_industry_id()))
                                                 ->pluck('name', 'id')
                                                 ->toArray()

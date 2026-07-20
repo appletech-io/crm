@@ -26,7 +26,6 @@ class BookingWeekStats extends StatsOverviewWidget
     public function consultantOptions(): array
     {
         return User::role('consultant')
-            ->where('company_id', Auth::user()?->company_id)
             ->orderBy('name')
             ->pluck('name', 'id')
             ->toArray();

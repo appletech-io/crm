@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\TimesheetFrequency;
 use App\Filament\Resources\Clients\Pages\EditClient;
 use App\Filament\Resources\Clients\Pages\ListClients;
 use App\Models\Client;
@@ -144,6 +145,23 @@ test('it has soft deletes', function () {
     $client->delete();
 
     expect($client->fresh()->deleted_at)->not->toBeNull();
+});
+
+test('a client reads its timesheet frequency and day of month through from its company', function () {
+    $client = Client::factory()->create(['company_id' => $this->user->company_id]);
+
+    expect($client->timesheet_frequency)->toBe(TimesheetFrequency::Weekly)
+        ->and($client->timesheet_day_of_month)->toBeNull();
+
+    $client->company->update([
+        'timesheet_frequency' => TimesheetFrequency::Monthly,
+        'timesheet_day_of_month' => 15,
+    ]);
+
+    $fresh = $client->fresh();
+
+    expect($fresh->timesheet_frequency)->toBe(TimesheetFrequency::Monthly)
+        ->and($fresh->timesheet_day_of_month)->toBe(15);
 });
 
 test('a contact can be added via the Contacts tab on the edit page', function () {

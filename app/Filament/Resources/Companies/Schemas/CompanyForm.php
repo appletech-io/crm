@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Companies\Schemas;
 
 use App\Enums\EmailProvider;
+use App\Enums\TimesheetFrequency;
 use App\Models\Company;
 use App\Models\Industry;
 use Filament\Forms\Components\Select;
@@ -51,6 +52,26 @@ class CompanyForm
                                 TextInput::make('name')
                                     ->required(),
                             ]),
+                    ]),
+
+                Section::make('Timesheet Settings')
+                    ->columns(2)
+                    ->schema([
+                        Select::make('timesheet_frequency')
+                            ->label('Timesheet Frequency')
+                            ->helperText('How often payroll timesheets are run for this company\'s clients.')
+                            ->options(TimesheetFrequency::options())
+                            ->default(TimesheetFrequency::Weekly->value)
+                            ->required()
+                            ->live(),
+                        TextInput::make('timesheet_day_of_month')
+                            ->label('Day of Month')
+                            ->helperText('The period runs from this day to the day before it in the following month.')
+                            ->numeric()
+                            ->minValue(1)
+                            ->maxValue(31)
+                            ->required(fn (Get $get): bool => $get('timesheet_frequency') === TimesheetFrequency::Monthly->value)
+                            ->visible(fn (Get $get): bool => $get('timesheet_frequency') === TimesheetFrequency::Monthly->value),
                     ]),
 
                 Section::make('Email Settings')

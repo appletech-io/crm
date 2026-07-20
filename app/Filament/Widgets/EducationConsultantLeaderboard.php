@@ -8,7 +8,6 @@ use App\Models\User;
 use Filament\Widgets\Widget;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Auth;
 
 class EducationConsultantLeaderboard extends Widget
 {
@@ -77,7 +76,6 @@ class EducationConsultantLeaderboard extends Widget
         $referenceWeek = $weeks->first(fn (Carbon $week): bool => $this->isCurrentWeek($week)) ?? $weeks->last();
 
         $consultants = User::role('consultant')
-            ->where('company_id', Auth::user()?->company_id)
             ->orderBy('name')
             ->get();
 

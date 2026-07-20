@@ -41,6 +41,12 @@ return Application::configure(basePath: dirname(__DIR__))
             // resource's canViewAny() check), Livewire rebinds redirect() to its own
             // Redirector, which isn't a valid HTTP response and breaks middleware
             // further down the pipeline.
-            return new RedirectResponse($user->hasRole('candidate') ? '/candidate' : '/crm');
+            $redirectTo = match (true) {
+                $user->hasRole('candidate') => '/candidate',
+                $user->hasRole('client') => '/client',
+                default => '/crm',
+            };
+
+            return new RedirectResponse($redirectTo);
         });
     })->create();

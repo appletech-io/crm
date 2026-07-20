@@ -20,6 +20,10 @@ class UsersTable
                 TextColumn::make('email')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('company.name')
+                    ->label('Company')
+                    ->searchable()
+                    ->sortable(),
                 TextColumn::make('roles.name')
                     ->badge()
                     ->searchable(),

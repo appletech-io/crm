@@ -46,7 +46,6 @@ class ClientsTable
                     ->searchable()
                     ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false)
                     ->options(fn (): array => User::role('consultant')
-                        ->where('company_id', Auth::user()?->company_id)
                         ->orderBy('name')
                         ->pluck('name', 'id')
                         ->toArray()

@@ -5,11 +5,12 @@ namespace App\Jobs;
 use App\Enums\ActivityType;
 use App\Enums\EmailProvider;
 use App\Enums\EmailTemplateType;
+use App\Models\Booking;
 use App\Models\BookingDay;
 use App\Models\Client;
 use App\Models\ClientContact;
 use App\Models\EmailTemplate;
-use App\Services\Booking\PayrollConfirmationLink;
+use App\Services\Booking\TimesheetPeriod;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -29,7 +30,7 @@ class SendPayrollConfirmationEmail implements ShouldQueue
 
     public function __construct(
         public readonly Client $client,
-        public readonly string $weekStart,
+        public readonly string $periodStart,
     ) {}
 
     /**
@@ -53,7 +54,7 @@ class SendPayrollConfirmationEmail implements ShouldQueue
             return;
         }
 
-        $dayPeriods = $this->weekDayPeriods();
+        $dayPeriods = $this->periodDayPeriods();
 
         if ($dayPeriods->isEmpty()) {
             return;
@@ -73,6 +74,9 @@ class SendPayrollConfirmationEmail implements ShouldQueue
             );
 
             $dayPeriods->each->update(['payroll_confirmation_sent_at' => now()]);
+
+            $dayPeriods->pluck('booking')->filter()->unique('id')
+                ->each(fn (Booking $booking) => $booking->refreshPayrollStatus());
 
             $this->client->activities()->create([
                 'user_id' => null,
@@ -94,14 +98,13 @@ class SendPayrollConfirmationEmail implements ShouldQueue
     }
 
     /** @return Collection<int, BookingDay> */
-    private function weekDayPeriods(): Collection
+    private function periodDayPeriods(): Collection
     {
-        $start = Carbon::parse($this->weekStart)->startOfDay();
-        $end = $start->copy()->endOfWeek(Carbon::SUNDAY);
+        $period = TimesheetPeriod::containing($this->client->company, Carbon::parse($this->periodStart));
 
         return BookingDay::query()
             ->whereHas('booking', fn ($query) => $query->where('client_id', $this->client->id))
-            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
+            ->whereBetween('date', [$period['start']->toDateString(), $period['end']->toDateString()])
             ->whereNull('cancelled_at')
             ->with(['booking.candidate', 'booking.jobTitle'])
             ->orderBy('date')
@@ -111,16 +114,16 @@ class SendPayrollConfirmationEmail implements ShouldQueue
     /** @param  Collection<int, BookingDay>  $dayPeriods */
     private function replacePlaceholders(string $content, ClientContact $contact, Collection $dayPeriods): string
     {
-        $weekStart = Carbon::parse($this->weekStart);
+        $period = TimesheetPeriod::containing($this->client->company, Carbon::parse($this->periodStart));
         $contactName = trim(collect([$contact->title, $contact->first_name, $contact->last_name])->filter()->implode(' '));
 
         $replacements = [
             '{client_contact_name}' => $contactName,
             '{client_name}' => $this->client->name ?? '',
-            '{week_start}' => $weekStart->format('d-m-Y'),
-            '{week_end}' => $weekStart->copy()->endOfWeek(Carbon::SUNDAY)->format('d-m-Y'),
+            '{week_start}' => $period['start']->format('d-m-Y'),
+            '{week_end}' => $period['end']->format('d-m-Y'),
             '{day_breakdown}' => $this->dayBreakdownTable($dayPeriods),
-            '{payroll_confirmation_link}' => '<a href="'.PayrollConfirmationLink::url($this->client, $weekStart).'">Review & Confirm Timesheet</a>',
+            '{payroll_confirmation_link}' => '<a href="'.url('/client').'">Review & Confirm Timesheet</a>',
         ];
 
         return str_replace(array_keys($replacements), array_values($replacements), $content);

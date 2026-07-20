@@ -63,6 +63,10 @@ class AdminPanelProvider extends PanelProvider
                     ->icon('heroicon-o-arrows-right-left')
                     ->url(fn () => route('sector.select')),
             ])
+            ->renderHook(
+                PanelsRenderHook::TOPBAR_AFTER,
+                fn () => view('filament.impersonation-banner'),
+            )
             ->navigationGroups([
                 'Settings',
                 'Admin',

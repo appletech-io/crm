@@ -2,11 +2,13 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
+use App\Models\ClientContact;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
-use Illuminate\Database\Eloquent\Model;
+use Spatie\Permission\Models\Role;
 
 class UserForm
 {
@@ -14,6 +16,17 @@ class UserForm
     {
         return $schema
             ->components([
+                Section::make('Company')
+                    ->schema([
+                        Select::make('company_id')
+                            ->label('Company')
+                            ->relationship('company', 'name')
+                            ->required()
+                            ->live()
+                            ->searchable()
+                            ->preload(),
+                    ]),
+
                 Section::make('User Details')
                     ->columns(2)
                     ->schema([
@@ -40,6 +53,25 @@ class UserForm
                         Select::make('roles')
                             ->multiple()
                             ->relationship('roles', 'name')
+                            ->live()
+                            ->preload(),
+                    ]),
+
+                Section::make('Client Contact')
+                    ->description('Link this login to a specific client contact so they can access the client portal.')
+                    ->visible(fn (Get $get): bool => static::hasClientRole($get('roles')))
+                    ->schema([
+                        Select::make('client_contact_id')
+                            ->label('Client Contact')
+                            ->options(fn (Get $get): array => ClientContact::withoutGlobalScope('company')
+                                ->where('company_id', $get('company_id'))
+                                ->get()
+                                ->mapWithKeys(fn (ClientContact $contact): array => [
+                                    $contact->id => trim("{$contact->first_name} {$contact->last_name}").($contact->client ? " ({$contact->client->name})" : ''),
+                                ])
+                                ->toArray()
+                            )
+                            ->searchable()
                             ->preload(),
                     ]),
 
@@ -51,15 +83,24 @@ class UserForm
                             ->relationship(
                                 name: 'industries',
                                 titleAttribute: 'name',
-                                modifyQueryUsing: fn ($query, ?Model $record) => $query
-                                    ->whereIn('industries.id', function ($sub) use ($record) {
+                                modifyQueryUsing: fn ($query, Get $get) => $query
+                                    ->whereIn('industries.id', function ($sub) use ($get) {
                                         $sub->select('industry_id')
                                             ->from('company_industry')
-                                            ->where('company_id', $record?->company_id ?? auth()->user()->company_id);
+                                            ->where('company_id', $get('company_id'));
                                     }),
                             )
                             ->preload(),
                     ]),
             ]);
+    }
+
+    protected static function hasClientRole(mixed $roleIds): bool
+    {
+        if (blank($roleIds)) {
+            return false;
+        }
+
+        return Role::whereIn('id', (array) $roleIds)->where('name', 'client')->exists();
     }
 }
