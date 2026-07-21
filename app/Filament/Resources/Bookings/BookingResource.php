@@ -30,7 +30,7 @@ class BookingResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return active_industry() === 'education';
+        return active_industry() !== null;
     }
 
     public static function form(Schema $schema): Schema

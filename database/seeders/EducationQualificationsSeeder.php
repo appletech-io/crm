@@ -2,6 +2,8 @@
 
 namespace Database\Seeders;
 
+use App\Models\Company;
+use App\Models\Industry;
 use App\Models\Qualification;
 use Illuminate\Database\Seeder;
 
@@ -9,6 +11,9 @@ class EducationQualificationsSeeder extends Seeder
 {
     public function run(): void
     {
+        $company = Company::where('name', 'applebough')->firstOrFail();
+        $industry = Industry::where('slug', 'education')->firstOrFail();
+
         $qualifications = [
             '3rd Year',
             'Teacher - QTS',
@@ -39,10 +44,10 @@ class EducationQualificationsSeeder extends Seeder
             'SENDco',
         ];
 
-        foreach ($qualifications as $index => $name) {
-            Qualification::create([
-                'company_id' => 1,
-                'industry_id' => 1,
+        foreach ($qualifications as $name) {
+            Qualification::firstOrCreate([
+                'company_id' => $company->id,
+                'industry_id' => $industry->id,
                 'name' => $name,
             ]);
         }

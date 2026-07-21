@@ -26,6 +26,11 @@ class ListClients extends ListRecords
                         ->required()
                         ->maxLength(255),
                 ])
+                ->mutateFormDataUsing(function (array $data): array {
+                    $data['industry_id'] = active_industry_id();
+
+                    return $data;
+                })
                 ->after(function (Client $record) {
                     return redirect($this->getResource()::getUrl('edit', ['record' => $record]));
                 }),

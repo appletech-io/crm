@@ -2,6 +2,8 @@
 
 namespace App\Services\Education;
 
+use App\Models\EducationCandidate;
+use App\Models\HealthcareCandidate;
 use Illuminate\Database\Eloquent\Model;
 
 class CandidateDocumentRequirements
@@ -22,22 +24,35 @@ class CandidateDocumentRequirements
                 'label' => 'Photo',
                 'description' => 'A clear, recent photo of yourself.',
             ],
-            'prevent_training' => [
+        ];
+
+        if ($candidate instanceof EducationCandidate) {
+            $definitions['prevent_training'] = [
                 'label' => 'Prevent Training',
                 'description' => 'Certificate confirming completion of Prevent duty training.',
-            ],
-            'safeguarding_training' => [
+            ];
+
+            $definitions['safeguarding_training'] = [
                 'label' => 'Safeguarding Training',
                 'description' => 'Certificate confirming completion of safeguarding training.',
-            ],
-            'proof_of_address' => [
-                'label' => 'Proof of Address',
-                'description' => 'A recent utility bill or bank statement.',
-            ],
-            'proof_of_ni' => [
-                'label' => 'Proof of NI',
-                'description' => 'A document confirming your National Insurance number.',
-            ],
+            ];
+        }
+
+        if ($candidate instanceof HealthcareCandidate) {
+            $definitions['professional_registration'] = [
+                'label' => 'Professional Registration Certificate',
+                'description' => 'Evidence of your current professional registration (e.g. NMC, HCPC).',
+            ];
+        }
+
+        $definitions['proof_of_address'] = [
+            'label' => 'Proof of Address',
+            'description' => 'A recent utility bill or bank statement.',
+        ];
+
+        $definitions['proof_of_ni'] = [
+            'label' => 'Proof of NI',
+            'description' => 'A document confirming your National Insurance number.',
         ];
 
         match ($candidate->right_to_work_type) {

@@ -42,6 +42,7 @@ test('client details can be filled in later via the edit page', function () {
     $client = Client::factory()->create([
         'name' => 'Applebough Primary School',
         'company_id' => $this->user->company_id,
+        'industry_id' => Cache::get("user.{$this->user->id}.active_industry_id"),
     ]);
 
     $clientType = ClientType::factory()->create([
@@ -74,7 +75,10 @@ test('a consultant can be assigned to a client via the edit page', function () {
     $consultant->assignRole('consultant');
     $consultant->industries()->attach(Industry::where('slug', 'education')->sole());
 
-    $client = Client::factory()->create(['company_id' => $this->user->company_id]);
+    $client = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => Cache::get("user.{$this->user->id}.active_industry_id"),
+    ]);
 
     Livewire::test(EditClient::class, ['record' => $client->id])
         ->fillForm(['consultant_id' => $consultant->id])
@@ -110,10 +114,14 @@ test('the clients list can be filtered by consultant', function () {
 
     $matchingClient = Client::factory()->create([
         'company_id' => $this->user->company_id,
+        'industry_id' => Cache::get("user.{$this->user->id}.active_industry_id"),
         'consultant_id' => $consultant->id,
     ]);
 
-    $otherClient = Client::factory()->create(['company_id' => $this->user->company_id]);
+    $otherClient = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => Cache::get("user.{$this->user->id}.active_industry_id"),
+    ]);
 
     Livewire::test(ListClients::class)
         ->filterTable('consultant_id', $consultant->id)
@@ -165,7 +173,10 @@ test('a client reads its timesheet frequency and day of month through from its c
 });
 
 test('a contact can be added via the Contacts tab on the edit page', function () {
-    $client = Client::factory()->create(['company_id' => $this->user->company_id]);
+    $client = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => Cache::get("user.{$this->user->id}.active_industry_id"),
+    ]);
 
     Livewire::test(EditClient::class, ['record' => $client->id])
         ->fillForm([

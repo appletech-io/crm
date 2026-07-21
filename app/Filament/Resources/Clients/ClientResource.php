@@ -32,7 +32,7 @@ class ClientResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return active_industry() === 'education';
+        return active_industry() !== null;
     }
 
     /** @return array<string> */
@@ -66,6 +66,12 @@ class ClientResource extends Resource
         return [
             //
         ];
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->where('industry_id', active_industry_id());
     }
 
     public static function getPages(): array

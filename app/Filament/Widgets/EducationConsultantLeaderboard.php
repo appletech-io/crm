@@ -80,6 +80,7 @@ class EducationConsultantLeaderboard extends Widget
             ->get();
 
         $bookings = Booking::query()
+            ->forActiveIndustry()
             ->whereIn('consultant_id', $consultants->pluck('id'))
             ->with(['dayPeriods' => fn ($query) => $query->whereNull('cancelled_at')])
             ->get(['id', 'consultant_id', 'created_at']);

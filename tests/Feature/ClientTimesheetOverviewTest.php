@@ -25,7 +25,7 @@ beforeEach(function () {
     $this->company = $this->user->company;
 
     $this->jobTitle = JobTitle::factory()->create(['company_id' => $this->company->id]);
-    $this->client = Client::factory()->create(['company_id' => $this->company->id]);
+    $this->client = Client::factory()->create(['company_id' => $this->company->id, 'industry_id' => 1]);
     $this->candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
 });
 

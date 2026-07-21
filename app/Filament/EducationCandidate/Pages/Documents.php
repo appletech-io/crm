@@ -2,7 +2,6 @@
 
 namespace App\Filament\EducationCandidate\Pages;
 
-use App\Models\EducationCandidate;
 use App\Services\Education\CandidateDocumentRequirements;
 use App\Services\Education\Document;
 use Filament\Actions\Action;
@@ -14,6 +13,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -178,9 +178,9 @@ class Documents extends Page implements HasTable
             ->send();
     }
 
-    private function candidate(): EducationCandidate
+    private function candidate(): Model
     {
-        /** @var EducationCandidate $candidate */
+        /** @var Model $candidate */
         $candidate = auth()->user()->candidate;
 
         return $candidate;

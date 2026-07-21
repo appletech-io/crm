@@ -27,7 +27,10 @@ beforeEach(function () {
 });
 
 test('a charge rate can be added per job title via the Charge Rates tab', function () {
-    $client = Client::factory()->create(['company_id' => $this->user->company_id]);
+    $client = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => Cache::get("user.{$this->user->id}.active_industry_id"),
+    ]);
 
     Livewire::test(EditClient::class, ['record' => $client->getRouteKey()])
         ->fillForm([

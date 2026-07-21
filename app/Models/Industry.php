@@ -18,6 +18,7 @@ class Industry extends Model
     /** @var array<string, class-string<Model>|null> */
     protected static array $candidateModelMap = [
         'education' => EducationCandidate::class,
+        'healthcare' => HealthcareCandidate::class,
     ];
 
     /** @return class-string<Model>|null */

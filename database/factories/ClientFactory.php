@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Client;
 use App\Models\Company;
+use App\Models\Industry;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -20,6 +21,7 @@ class ClientFactory extends Factory
     {
         return [
             'company_id' => Company::factory(),
+            'industry_id' => Industry::factory(),
             'name' => $this->faker->company(),
             'address' => $this->faker->streetAddress(),
             'city' => $this->faker->city(),

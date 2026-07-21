@@ -105,10 +105,28 @@ class Booking extends Model
 
     public function scopeVisibleToCurrentUser(Builder $query): Builder
     {
+        $query->forActiveIndustry();
+
         if (auth()->user()?->isAdmin()) {
             return $query;
         }
 
         return $query->where('consultant_id', auth()->id());
+    }
+
+    /**
+     * Restrict bookings to whichever candidate model belongs to the current
+     * user's active sector, so a multi-sector company's consultants don't see
+     * bookings belonging to a different sector's candidates mixed together.
+     */
+    public function scopeForActiveIndustry(Builder $query): Builder
+    {
+        $candidateModel = Industry::candidateModelForSlug(active_industry() ?? '');
+
+        if (! $candidateModel) {
+            return $query;
+        }
+
+        return $query->where('candidate_type', $candidateModel);
     }
 }

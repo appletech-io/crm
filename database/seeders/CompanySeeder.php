@@ -2,7 +2,8 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\Company;
+use App\Models\Industry;
 use Illuminate\Database\Seeder;
 
 class CompanySeeder extends Seeder
@@ -12,11 +13,13 @@ class CompanySeeder extends Seeder
      */
     public function run(): void
     {
-        $company = \App\Models\Company::create([
+        $company = Company::create([
             'name' => 'applebough',
+            'trading_name' => 'Applebough Education Recruitment',
+            'phone' => '0121 555 0142',
         ]);
 
-        $educationIndustry = \App\Models\Industry::where('slug', 'education')->first();
+        $educationIndustry = Industry::where('slug', 'education')->first();
 
         if ($educationIndustry) {
             $company->industries()->attach($educationIndustry);

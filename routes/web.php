@@ -20,6 +20,9 @@ Route::post('/impersonate/stop', [ImpersonationController::class, 'stop'])
 Route::livewire('/application/{token}', 'application.verify-application')->name('application.verify');
 Route::livewire('/application/{token}/form', 'application.application-form')->name('application.form');
 
+Route::livewire('/application/healthcare/{token}', 'application.healthcare-verify-application')->name('application.healthcare.verify');
+Route::livewire('/application/healthcare/{token}/form', 'application.healthcare-application-form')->name('application.healthcare.form');
+
 Route::get('/booking-confirmation', [BookingConfirmationController::class, 'show'])->name('booking-confirmation.show');
 
 require __DIR__.'/settings.php';

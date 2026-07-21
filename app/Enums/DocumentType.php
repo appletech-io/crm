@@ -16,6 +16,7 @@ enum DocumentType: string
     case DbsFront = 'dbs_front';
     case DbsBack = 'dbs_back';
     case UkNaric = 'uk_naric';
+    case ProfessionalRegistration = 'professional_registration';
 
     public function label(): string
     {
@@ -32,6 +33,7 @@ enum DocumentType: string
             self::DbsFront => 'DBS (Front)',
             self::DbsBack => 'DBS (Back)',
             self::UkNaric => 'UK NARIC',
+            self::ProfessionalRegistration => 'Professional Registration Certificate',
         };
     }
 }

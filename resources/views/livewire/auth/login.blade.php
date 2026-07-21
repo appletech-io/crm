@@ -1,6 +1,16 @@
+@php
+    $isDemo = app()->environment(['demo', 'DEMO', 'Demo']);
+@endphp
+
 <x-layouts::auth.card :title="__('Log in')">
     <div class="flex flex-col gap-6">
         <x-auth-header :title="__('Log in to your account')" :description="__('Enter your email and password below to log in')" />
+
+        @if ($isDemo)
+            <div class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                {{ __('Demo credentials are pre-filled — just click Log in.') }}
+            </div>
+        @endif
 
         <!-- Session Status -->
         <x-auth-session-status class="text-center" :status="session('status')" />
@@ -14,7 +24,7 @@
             <flux:input
                 name="email"
                 :label="__('Email address')"
-                :value="old('email')"
+                :value="old('email', $isDemo ? 'admin@applebough.test' : null)"
                 type="email"
                 required
                 autofocus
@@ -28,6 +38,7 @@
                     name="password"
                     :label="__('Password')"
                     type="password"
+                    :value="$isDemo ? 'password' : null"
                     required
                     autocomplete="current-password"
                     :placeholder="__('Password')"
