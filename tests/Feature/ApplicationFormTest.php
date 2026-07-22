@@ -1608,7 +1608,7 @@ test('completeApplication has already marked the application completed by the ti
     CandidateStatusAutomation::factory()->create([
         'candidate_status_id' => $onboarding->id,
         'to_candidate_status_id' => $vetting->id,
-        'completed_fields' => ['application.completed_at'],
+        'conditions' => [['field' => 'application.completed_at', 'operator' => 'filled']],
     ]);
 
     ApplicationCompleted::shouldRun()->once();

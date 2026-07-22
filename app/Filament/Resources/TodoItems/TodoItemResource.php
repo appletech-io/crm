@@ -23,7 +23,7 @@ class TodoItemResource extends Resource
 
     protected static ?string $navigationLabel = 'My To-Dos';
 
-    protected static ?string $recordTitleAttribute = 'task';
+    protected static ?string $recordTitleAttribute = 'name';
 
     protected static ?string $pluralModelLabel = 'To-Dos';
 

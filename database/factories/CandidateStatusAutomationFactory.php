@@ -21,7 +21,7 @@ class CandidateStatusAutomationFactory extends Factory
         return [
             'candidate_status_id' => CandidateStatus::factory(),
             'to_candidate_status_id' => CandidateStatus::factory(),
-            'completed_fields' => [],
+            'conditions' => [],
         ];
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\TodoItems\Tables;
 
 use App\Enums\TodoPriority;
+use App\Filament\Resources\TodoItems\Schemas\TodoItemForm;
 use App\Models\TodoItem;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -24,10 +25,10 @@ class TodoItemsTable
                     ->label('Done')
                     ->boolean()
                     ->state(fn (TodoItem $record): bool => $record->isComplete()),
-                TextColumn::make('task')
+                TextColumn::make('name')
                     ->searchable()
                     ->wrap()
-                    ->limit(60),
+                    ->limit(TodoItemForm::NAME_MAX_LENGTH),
                 TextColumn::make('priority')
                     ->badge()
                     ->formatStateUsing(fn (TodoPriority $state): string => $state->label())

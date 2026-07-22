@@ -21,7 +21,7 @@ beforeEach(function () {
     Cache::put("user.{$this->user->id}.active_industry_id", $this->industry->id);
 });
 
-test('can create an automation with a relation column field from the suggestion list', function () {
+test('can create an automation with a filled condition from the suggestion list', function () {
     $onboarding = CandidateStatus::factory()->create([
         'company_id' => $this->user->company_id,
         'industry_id' => $this->industry->id,
@@ -38,14 +38,49 @@ test('can create an automation with a relation column field from the suggestion 
         ->callAction('create', data: [
             'candidate_status_id' => $onboarding->id,
             'to_candidate_status_id' => $vetting->id,
-            'completed_fields' => ['application.completed_at'],
+            'conditions' => [
+                'item-1' => ['field' => 'application.completed_at', 'operator' => 'filled'],
+            ],
         ])
         ->assertHasNoActionErrors();
 
     $automation = CandidateStatusAutomation::where('candidate_status_id', $onboarding->id)->first();
 
     expect($automation)->not->toBeNull();
-    expect($automation->completed_fields)->toBe(['application.completed_at']);
+    expect($automation->conditions)->toBe([
+        ['field' => 'application.completed_at', 'operator' => 'filled'],
+    ]);
+});
+
+test('can create an automation with an equals condition and a value', function () {
+    $onboarding = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Onboarding',
+    ]);
+
+    $vetting = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Vetting',
+    ]);
+
+    Livewire::test(ManageCandidateStatusAutomations::class)
+        ->callAction('create', data: [
+            'candidate_status_id' => $onboarding->id,
+            'to_candidate_status_id' => $vetting->id,
+            'conditions' => [
+                'item-1' => ['field' => 'first_name', 'operator' => 'equals', 'value' => 'Jane'],
+            ],
+        ])
+        ->assertHasNoActionErrors();
+
+    $automation = CandidateStatusAutomation::where('candidate_status_id', $onboarding->id)->first();
+
+    expect($automation)->not->toBeNull();
+    expect($automation->conditions)->toBe([
+        ['field' => 'first_name', 'operator' => 'equals', 'value' => 'Jane'],
+    ]);
 });
 
 test('can create an automation with a healthcare relation column field from the suggestion list', function () {
@@ -69,28 +104,36 @@ test('can create an automation with a healthcare relation column field from the 
         ->callAction('create', data: [
             'candidate_status_id' => $onboarding->id,
             'to_candidate_status_id' => $vetting->id,
-            'completed_fields' => ['application.email_verified'],
+            'conditions' => [
+                'item-1' => ['field' => 'application.email_verified', 'operator' => 'filled'],
+            ],
         ])
         ->assertHasNoActionErrors();
 
     $automation = CandidateStatusAutomation::where('candidate_status_id', $onboarding->id)->first();
 
     expect($automation)->not->toBeNull();
-    expect($automation->completed_fields)->toBe(['application.email_verified']);
+    expect($automation->conditions)->toBe([
+        ['field' => 'application.email_verified', 'operator' => 'filled'],
+    ]);
 });
 
 test('healthcare candidate field suggestions include own columns, application fields and to-many relations', function () {
     $suggestions = HealthcareCandidate::candidateFieldSuggestions();
 
-    expect($suggestions)->toContain('first_name')
-        ->toContain('email')
-        ->toContain('application.email_verified')
-        ->toContain('application.status')
-        ->toContain('skills.*')
-        ->not->toContain('id')
-        ->not->toContain('company_id')
-        ->not->toContain('application.candidate_id')
-        ->not->toContain('application.candidate_type');
+    expect($suggestions)->toHaveKey('first_name')
+        ->toHaveKey('email')
+        ->toHaveKey('application.email_verified')
+        ->toHaveKey('application.status')
+        ->toHaveKey('skills.*')
+        ->not->toHaveKey('id')
+        ->not->toHaveKey('company_id')
+        ->not->toHaveKey('application.candidate_id')
+        ->not->toHaveKey('application.candidate_type');
+
+    expect($suggestions['first_name'])->toBe(['label' => 'First Name', 'type' => 'string']);
+    expect($suggestions['application.email_verified'])->toBe(['label' => 'Application: Email Verified', 'type' => 'boolean']);
+    expect($suggestions['skills.*'])->toBe(['label' => 'Skills', 'type' => 'relation_exists']);
 });
 
 test('cannot create an automation with a field that is not in the suggestion list', function () {
@@ -110,7 +153,33 @@ test('cannot create an automation with a field that is not in the suggestion lis
         ->callAction('create', data: [
             'candidate_status_id' => $onboarding->id,
             'to_candidate_status_id' => $vetting->id,
-            'completed_fields' => ['made_up_field_that_does_not_exist'],
+            'conditions' => [
+                'item-1' => ['field' => 'made_up_field_that_does_not_exist', 'operator' => 'filled'],
+            ],
         ])
-        ->assertHasActionErrors(['completed_fields.0']);
+        ->assertHasActionErrors(['conditions.item-1.field']);
+});
+
+test('cannot create an equals condition without a value', function () {
+    $onboarding = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Onboarding',
+    ]);
+
+    $vetting = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Vetting',
+    ]);
+
+    Livewire::test(ManageCandidateStatusAutomations::class)
+        ->callAction('create', data: [
+            'candidate_status_id' => $onboarding->id,
+            'to_candidate_status_id' => $vetting->id,
+            'conditions' => [
+                'item-1' => ['field' => 'first_name', 'operator' => 'equals', 'value' => ''],
+            ],
+        ])
+        ->assertHasActionErrors(['conditions.item-1.value']);
 });

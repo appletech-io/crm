@@ -32,7 +32,7 @@ class ChangeCandidateStatus
             'body' => json_encode([
                 'from' => $fromStatus?->name,
                 'to' => $toStatus?->name,
-                'required_fields' => $automation->completed_fields,
+                'conditions' => $automation->conditions,
                 'snapshot' => $candidate->toArray(),
             ]),
             'contacted' => false,

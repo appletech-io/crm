@@ -23,7 +23,8 @@ class TodoItemFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
-            'task' => $this->faker->sentence(),
+            'name' => $this->faker->sentence(4),
+            'description' => $this->faker->optional()->paragraph(),
             'priority' => $this->faker->randomElement(TodoPriority::cases())->value,
             'completed_at' => null,
         ];

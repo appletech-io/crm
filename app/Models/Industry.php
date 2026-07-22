@@ -39,7 +39,7 @@ class Industry extends Model
         return array_search($model, static::$candidateModelMap, strict: true) ?: null;
     }
 
-    /** @return array<int, string> */
+    /** @return array<string, array{label: string, type: string}> */
     public function candidateFieldSuggestions(): array
     {
         $model = $this->candidateModel();

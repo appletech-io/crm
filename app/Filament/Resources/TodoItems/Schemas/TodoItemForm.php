@@ -11,18 +11,24 @@ use Filament\Forms\Components\MorphToSelect;
 use Filament\Forms\Components\MorphToSelect\Type;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Builder;
 
 class TodoItemForm
 {
+    public const NAME_MAX_LENGTH = 100;
+
     public static function configure(Schema $schema): Schema
     {
         return $schema->components([
-            Textarea::make('task')
+            TextInput::make('name')
                 ->required()
-                ->maxLength(500)
-                ->rows(2)
+                ->maxLength(self::NAME_MAX_LENGTH)
+                ->columnSpanFull(),
+
+            Textarea::make('description')
+                ->rows(3)
                 ->columnSpanFull(),
 
             Select::make('priority')

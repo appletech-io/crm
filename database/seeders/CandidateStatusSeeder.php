@@ -36,7 +36,10 @@ class CandidateStatusSeeder extends Seeder
             'candidate_status_id' => $statuses['Onboarding']->id,
             'to_candidate_status_id' => $statuses['Vetting']->id,
         ], [
-            'completed_fields' => ['references.*', 'employmentHistories.*'],
+            'conditions' => [
+                ['field' => 'references.*', 'operator' => 'filled'],
+                ['field' => 'employmentHistories.*', 'operator' => 'filled'],
+            ],
         ]);
     }
 }

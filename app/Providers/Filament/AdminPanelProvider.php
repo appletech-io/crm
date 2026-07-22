@@ -67,6 +67,10 @@ class AdminPanelProvider extends PanelProvider
                 PanelsRenderHook::TOPBAR_AFTER,
                 fn () => view('filament.impersonation-banner'),
             )
+            ->renderHook(
+                PanelsRenderHook::GLOBAL_SEARCH_AFTER,
+                fn () => view('filament.high-priority-todo-notifications-topbar'),
+            )
             ->navigationGroups([
                 'Settings',
                 'Admin',

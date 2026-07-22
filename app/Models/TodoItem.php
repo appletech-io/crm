@@ -14,7 +14,8 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $user_id
- * @property string $task
+ * @property string $name
+ * @property string|null $description
  * @property TodoPriority $priority
  * @property Carbon|null $completed_at
  * @property string|null $model_type

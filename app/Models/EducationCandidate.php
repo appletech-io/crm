@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\BelongsToCompany;
+use App\Models\Traits\HasCandidateFieldSuggestions;
 use Database\Factories\EducationCandidateFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,13 +13,13 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Schema;
 
 class EducationCandidate extends Model
 {
     /** @use HasFactory<EducationCandidateFactory> */
     use BelongsToCompany;
 
+    use HasCandidateFieldSuggestions;
     use HasFactory;
     use SoftDeletes;
 
@@ -46,43 +47,15 @@ class EducationCandidate extends Model
         'update_service_checked_at' => 'datetime',
     ];
 
-    /** @return array<int, string> */
-    public static function candidateFieldSuggestions(): array
+    protected static function applicationModelClass(): string
     {
-        $excluded = ['id', 'company_id', 'industry_id', 'created_at', 'updated_at', 'deleted_at'];
-
-        $columns = collect(Schema::getColumnListing((new static)->getTable()))
-            ->reject(fn (string $col) => in_array($col, $excluded))
-            ->values();
-
-        $relationColumns = collect([
-            ...static::relationFieldSuggestions('application', (new EducationApplication)->getTable(), ['education_candidate_id']),
-            ...static::relationFieldSuggestions('qualification', (new Qualification)->getTable()),
-        ]);
-
-        $toManyRelations = collect(['skills'])
-            ->map(fn (string $rel): string => "{$rel}.*");
-
-        return $columns
-            ->merge($relationColumns)
-            ->merge($toManyRelations)
-            ->values()
-            ->toArray();
+        return EducationApplication::class;
     }
 
-    /**
-     * @param  array<int, string>  $additionalExcluded
-     * @return array<int, string>
-     */
-    protected static function relationFieldSuggestions(string $relation, string $table, array $additionalExcluded = []): array
+    /** @return array<int, string> */
+    protected static function applicationExcludedColumns(): array
     {
-        $excluded = [...['id', 'company_id', 'industry_id', 'created_at', 'updated_at', 'deleted_at'], ...$additionalExcluded];
-
-        return collect(Schema::getColumnListing($table))
-            ->reject(fn (string $col) => in_array($col, $excluded))
-            ->map(fn (string $col): string => "{$relation}.{$col}")
-            ->values()
-            ->toArray();
+        return ['education_candidate_id'];
     }
 
     public function application(): HasOne

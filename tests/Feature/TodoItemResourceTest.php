@@ -2,6 +2,7 @@
 
 use App\Filament\Resources\TodoItems\Pages\CreateTodoItem;
 use App\Filament\Resources\TodoItems\Pages\ListTodoItems;
+use App\Filament\Resources\TodoItems\Schemas\TodoItemForm;
 use App\Models\Booking;
 use App\Models\Client;
 use App\Models\Company;
@@ -46,17 +47,42 @@ test('site_admin cannot access the todo items resource', function () {
 test('can create a todo item and it is owned by the current user', function () {
     Livewire::test(CreateTodoItem::class)
         ->fillForm([
-            'task' => 'Chase reference for candidate',
+            'name' => 'Chase reference for candidate',
             'priority' => 'high',
         ])
         ->call('create')
         ->assertHasNoFormErrors();
 
-    $todoItem = TodoItem::where('task', 'Chase reference for candidate')->first();
+    $todoItem = TodoItem::where('name', 'Chase reference for candidate')->first();
 
     expect($todoItem)->not->toBeNull()
         ->and($todoItem->user_id)->toBe($this->user->id)
         ->and($todoItem->priority->value)->toBe('high');
+});
+
+test('a todo item can be created with a description', function () {
+    Livewire::test(CreateTodoItem::class)
+        ->fillForm([
+            'name' => 'Chase reference for candidate',
+            'description' => 'Call the second referee, the first one already replied.',
+            'priority' => 'medium',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $todoItem = TodoItem::where('name', 'Chase reference for candidate')->first();
+
+    expect($todoItem->description)->toBe('Call the second referee, the first one already replied.');
+});
+
+test('the todo item name cannot exceed the maximum length', function () {
+    Livewire::test(CreateTodoItem::class)
+        ->fillForm([
+            'name' => str_repeat('a', TodoItemForm::NAME_MAX_LENGTH + 1),
+            'priority' => 'medium',
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['name' => 'max']);
 });
 
 test('a todo item can be linked to a client', function () {
@@ -67,7 +93,7 @@ test('a todo item can be linked to a client', function () {
 
     Livewire::test(CreateTodoItem::class)
         ->fillForm([
-            'task' => 'Follow up with client',
+            'name' => 'Follow up with client',
             'priority' => 'medium',
             'model_type' => Client::class,
             'model_id' => $client->id,
@@ -75,7 +101,7 @@ test('a todo item can be linked to a client', function () {
         ->call('create')
         ->assertHasNoFormErrors();
 
-    $todoItem = TodoItem::where('task', 'Follow up with client')->first();
+    $todoItem = TodoItem::where('name', 'Follow up with client')->first();
 
     expect($todoItem->model_type)->toBe(Client::class)
         ->and($todoItem->model_id)->toBe($client->id)
@@ -90,7 +116,7 @@ test('a todo item can be linked to a candidate', function () {
 
     Livewire::test(CreateTodoItem::class)
         ->fillForm([
-            'task' => 'Chase compliance documents',
+            'name' => 'Chase compliance documents',
             'priority' => 'medium',
             'model_type' => EducationCandidate::class,
             'model_id' => $candidate->id,
@@ -98,7 +124,7 @@ test('a todo item can be linked to a candidate', function () {
         ->call('create')
         ->assertHasNoFormErrors();
 
-    $todoItem = TodoItem::where('task', 'Chase compliance documents')->first();
+    $todoItem = TodoItem::where('name', 'Chase compliance documents')->first();
 
     expect($todoItem->model_type)->toBe(EducationCandidate::class)
         ->and($todoItem->model_id)->toBe($candidate->id);
@@ -255,8 +281,8 @@ test('users only see their own todo items', function () {
     $otherUser = User::factory()->create(['company_id' => $this->company->id]);
     $otherUser->assignRole('consultant');
 
-    $mine = TodoItem::factory()->create(['user_id' => $this->user->id, 'task' => 'My task']);
-    $theirs = TodoItem::factory()->create(['user_id' => $otherUser->id, 'task' => 'Their task']);
+    $mine = TodoItem::factory()->create(['user_id' => $this->user->id, 'name' => 'My task']);
+    $theirs = TodoItem::factory()->create(['user_id' => $otherUser->id, 'name' => 'Their task']);
 
     Livewire::test(ListTodoItems::class)
         ->assertCanSeeTableRecords([$mine])
