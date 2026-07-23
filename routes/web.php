@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Route;
 Route::redirect('/', '/crm')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::view('dashboard', 'dashboard')->name('dashboard');
+    Route::redirect('dashboard', '/crm')->name('dashboard');
 
     Route::livewire('/select-sector', 'sector-selector')->name('sector.select');
 });

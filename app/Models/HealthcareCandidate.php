@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\BelongsToCompany;
-use App\Models\Traits\HasCandidateFieldSuggestions;
+use App\Models\Traits\HasFieldSuggestions;
 use Database\Factories\HealthcareCandidateFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,8 +19,8 @@ class HealthcareCandidate extends Model
     /** @use HasFactory<HealthcareCandidateFactory> */
     use BelongsToCompany;
 
-    use HasCandidateFieldSuggestions;
     use HasFactory;
+    use HasFieldSuggestions;
     use SoftDeletes;
 
     protected $guarded = [];
@@ -42,15 +42,19 @@ class HealthcareCandidate extends Model
         'update_service_checked_at' => 'datetime',
     ];
 
-    protected static function applicationModelClass(): string
+    /** @return array<string, array{0: class-string<Model>, 1: array<int, string>}> */
+    protected static function relationSuggestions(): array
     {
-        return HealthcareApplication::class;
+        return [
+            'application' => [HealthcareApplication::class, ['candidate_type', 'candidate_id']],
+            'qualification' => [Qualification::class, []],
+        ];
     }
 
     /** @return array<int, string> */
-    protected static function applicationExcludedColumns(): array
+    protected static function toManyRelationSuggestions(): array
     {
-        return ['candidate_type', 'candidate_id'];
+        return ['skills'];
     }
 
     public function application(): MorphOne

@@ -7,6 +7,7 @@ use App\Filament\Pages\CandidateSettings;
 use App\Filament\Pages\ClientSettings;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\RunPayroll;
+use App\Http\Middleware\EnsureAccountSetupIsComplete;
 use App\Http\Middleware\SetActiveIndustry;
 use Filament\Actions\Action;
 use Filament\Http\Middleware\Authenticate;
@@ -62,6 +63,10 @@ class AdminPanelProvider extends PanelProvider
                     ->label('Switch Sector')
                     ->icon('heroicon-o-arrows-right-left')
                     ->url(fn () => route('sector.select')),
+                Action::make('account_security')
+                    ->label('Password & 2FA')
+                    ->icon('heroicon-o-shield-check')
+                    ->url(fn () => route('security.edit')),
             ])
             ->renderHook(
                 PanelsRenderHook::TOPBAR_AFTER,
@@ -103,6 +108,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
+                EnsureAccountSetupIsComplete::class,
                 SetActiveIndustry::class,
             ])
             ->brandLogo(asset('images/applebough.png'))

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\TimesheetFrequency;
 use App\Models\Traits\BelongsToCompany;
+use App\Models\Traits\HasFieldSuggestions;
 use Database\Factories\ClientFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -20,6 +21,7 @@ class Client extends Model
     use BelongsToCompany;
 
     use HasFactory;
+    use HasFieldSuggestions;
     use SoftDeletes;
 
     protected $guarded = [];
@@ -31,6 +33,20 @@ class Client extends Model
             'latitude' => 'float',
             'longitude' => 'float',
         ];
+    }
+
+    /** @return array<string, array{0: class-string<Model>, 1: array<int, string>}> */
+    protected static function relationSuggestions(): array
+    {
+        return [
+            'clientType' => [ClientType::class, []],
+        ];
+    }
+
+    /** @return array<int, string> */
+    protected static function toManyRelationSuggestions(): array
+    {
+        return ['contacts'];
     }
 
     /**

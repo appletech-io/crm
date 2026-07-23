@@ -2,11 +2,15 @@
 
 namespace App\Providers;
 
+use App\Models\Booking;
 use App\Models\Client;
 use App\Models\EducationCandidate;
+use App\Models\HealthcareCandidate;
 use App\Models\User;
+use App\Observers\BookingObserver;
 use App\Observers\ClientObserver;
 use App\Observers\EducationCandidateObserver;
+use App\Observers\HealthcareCandidateObserver;
 use App\Observers\UserObserver;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
@@ -35,7 +39,9 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
 
         EducationCandidate::observe(EducationCandidateObserver::class);
+        HealthcareCandidate::observe(HealthcareCandidateObserver::class);
         Client::observe(ClientObserver::class);
+        Booking::observe(BookingObserver::class);
         User::observe(UserObserver::class);
     }
 

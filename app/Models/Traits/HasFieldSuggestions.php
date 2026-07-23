@@ -2,22 +2,38 @@
 
 namespace App\Models\Traits;
 
-use App\Models\Qualification;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
-trait HasCandidateFieldSuggestions
+trait HasFieldSuggestions
 {
-    /** @return class-string<Model> */
-    abstract protected static function applicationModelClass(): string;
-
-    /** @return array<int, string> */
-    abstract protected static function applicationExcludedColumns(): array;
+    /**
+     * Singular relations to expose as "relation.column" suggestions, keyed by
+     * relation name, each holding the related model class and any of its own
+     * columns to exclude (e.g. the foreign key back to this model).
+     *
+     * @return array<string, array{0: class-string<Model>, 1: array<int, string>}>
+     */
+    protected static function relationSuggestions(): array
+    {
+        return [];
+    }
 
     /**
-     * Fields available for status automation conditions, keyed by dot-notation
-     * path, with a human-readable label and an inferred value type.
+     * To-many relations exposed only as a "relation.*" wildcard suggestion,
+     * satisfied by the relation having at least one record.
+     *
+     * @return array<int, string>
+     */
+    protected static function toManyRelationSuggestions(): array
+    {
+        return [];
+    }
+
+    /**
+     * Fields available for automation conditions, keyed by dot-notation path,
+     * with a human-readable label and an inferred value type.
      *
      * @return array<string, array{label: string, type: string}>
      */
@@ -32,12 +48,14 @@ trait HasCandidateFieldSuggestions
                 'type' => $meta['type'],
             ]]);
 
-        $relationColumns = collect([
-            ...static::relationFieldSuggestions('application', static::applicationModelClass(), static::applicationExcludedColumns()),
-            ...static::relationFieldSuggestions('qualification', Qualification::class),
-        ]);
+        $relationColumns = collect(static::relationSuggestions())
+            ->flatMap(fn (array $config, string $relation): array => static::relationFieldSuggestions(
+                $relation,
+                $config[0],
+                $config[1] ?? [],
+            ));
 
-        $toManyRelations = collect(['skills'])
+        $toManyRelations = collect(static::toManyRelationSuggestions())
             ->mapWithKeys(fn (string $rel): array => ["{$rel}.*" => [
                 'label' => static::humanizeLabel($rel),
                 'type' => 'relation_exists',
@@ -92,6 +110,6 @@ trait HasCandidateFieldSuggestions
 
     protected static function humanizeLabel(string $column): string
     {
-        return Str::of($column)->replace('_', ' ')->title()->toString();
+        return Str::headline($column);
     }
 }

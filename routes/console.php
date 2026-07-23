@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\CheckTimeBasedActions;
 use App\Console\Commands\CheckTimeBasedStatusAutomations;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -10,3 +11,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command(CheckTimeBasedStatusAutomations::class)->daily();
+Schedule::command(CheckTimeBasedActions::class)->daily();

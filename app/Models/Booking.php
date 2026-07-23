@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Casts\Money;
 use App\Enums\BookingStatus;
 use App\Models\Traits\BelongsToCompany;
+use App\Models\Traits\HasFieldSuggestions;
 use Database\Factories\BookingFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -21,6 +22,7 @@ class Booking extends Model
     /** @use HasFactory<BookingFactory> */
     use HasFactory;
 
+    use HasFieldSuggestions;
     use SoftDeletes;
 
     protected $guarded = [];
@@ -76,6 +78,21 @@ class Booking extends Model
             'disputed_at' => $latestDispute?->disputed_at,
             'dispute_reason' => $latestDispute?->dispute_reason,
         ]);
+    }
+
+    /** @return array<string, array{0: class-string<Model>, 1: array<int, string>}> */
+    protected static function relationSuggestions(): array
+    {
+        return [
+            'client' => [Client::class, ['company_id', 'industry_id']],
+            'jobTitle' => [JobTitle::class, []],
+        ];
+    }
+
+    /** @return array<int, string> */
+    protected static function toManyRelationSuggestions(): array
+    {
+        return ['dayPeriods'];
     }
 
     public function client(): BelongsTo

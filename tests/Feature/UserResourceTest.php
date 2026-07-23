@@ -73,6 +73,72 @@ test('site_admin can create a user with a role', function () {
     expect($created->hasRole('consultant'))->toBeTrue();
 });
 
+test('a user created by site_admin is flagged to require account setup', function () {
+    $siteAdmin = User::factory()->create();
+    $siteAdmin->assignRole('site_admin');
+    $this->actingAs($siteAdmin);
+
+    Livewire::test(CreateUser::class)
+        ->fillForm([
+            'company_id' => $siteAdmin->company_id,
+            'name' => 'New Consultant',
+            'email' => 'needs-setup@example.com',
+            'password' => 'password',
+            'roles' => [Role::where('name', 'consultant')->first()->id],
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $created = User::where('email', 'needs-setup@example.com')->first();
+
+    expect($created->requires_account_setup)->toBeTrue()
+        ->and($created->mustCompleteAccountSetup())->toBeTrue();
+});
+
+test('resetting a users password from the edit page re-flags them for account setup', function () {
+    $siteAdmin = User::factory()->create();
+    $siteAdmin->assignRole('site_admin');
+    $this->actingAs($siteAdmin);
+
+    $existing = User::factory()->create([
+        'company_id' => $siteAdmin->company_id,
+        'password_changed_at' => now(),
+        'two_factor_confirmed_at' => now(),
+    ]);
+
+    expect($existing->mustCompleteAccountSetup())->toBeFalse();
+
+    Livewire::test(EditUser::class, ['record' => $existing->getRouteKey()])
+        ->fillForm(['password' => 'a-brand-new-password'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $existing->refresh();
+
+    expect($existing->requires_account_setup)->toBeTrue()
+        ->and($existing->password_changed_at)->toBeNull()
+        ->and($existing->mustCompleteAccountSetup())->toBeTrue();
+});
+
+test('editing a user without changing their password does not re-flag them', function () {
+    $siteAdmin = User::factory()->create();
+    $siteAdmin->assignRole('site_admin');
+    $this->actingAs($siteAdmin);
+
+    $existing = User::factory()->create([
+        'company_id' => $siteAdmin->company_id,
+        'password_changed_at' => now(),
+        'two_factor_confirmed_at' => now(),
+    ]);
+
+    Livewire::test(EditUser::class, ['record' => $existing->getRouteKey()])
+        ->fillForm(['name' => 'Updated Name'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($existing->refresh()->mustCompleteAccountSetup())->toBeFalse();
+});
+
 test('site_admin can create a user under a different company', function () {
     $siteAdmin = User::factory()->create();
     $siteAdmin->assignRole('site_admin');

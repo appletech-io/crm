@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\BelongsToCompany;
-use App\Models\Traits\HasCandidateFieldSuggestions;
+use App\Models\Traits\HasFieldSuggestions;
 use Database\Factories\EducationCandidateFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,8 +19,8 @@ class EducationCandidate extends Model
     /** @use HasFactory<EducationCandidateFactory> */
     use BelongsToCompany;
 
-    use HasCandidateFieldSuggestions;
     use HasFactory;
+    use HasFieldSuggestions;
     use SoftDeletes;
 
     protected $guarded = [];
@@ -47,15 +47,19 @@ class EducationCandidate extends Model
         'update_service_checked_at' => 'datetime',
     ];
 
-    protected static function applicationModelClass(): string
+    /** @return array<string, array{0: class-string<Model>, 1: array<int, string>}> */
+    protected static function relationSuggestions(): array
     {
-        return EducationApplication::class;
+        return [
+            'application' => [EducationApplication::class, ['education_candidate_id']],
+            'qualification' => [Qualification::class, []],
+        ];
     }
 
     /** @return array<int, string> */
-    protected static function applicationExcludedColumns(): array
+    protected static function toManyRelationSuggestions(): array
     {
-        return ['education_candidate_id'];
+        return ['skills'];
     }
 
     public function application(): HasOne

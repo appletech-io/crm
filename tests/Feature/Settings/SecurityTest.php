@@ -18,6 +18,25 @@ beforeEach(function () {
     ]);
 });
 
+test('the settings index redirects to security, not a profile page', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->withSession(['auth.password_confirmed_at' => time()])
+        ->get('/settings')
+        ->assertRedirect('/settings/security');
+});
+
+test('the profile settings page no longer exists', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->get('/settings/profile')->assertNotFound();
+});
+
+test('users cannot delete their own account', function () {
+    expect(file_exists(app_path('Livewire/Settings/DeleteUserForm.php')))->toBeFalse();
+});
+
 test('security settings page can be rendered', function () {
     $user = User::factory()->create();
 

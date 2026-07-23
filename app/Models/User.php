@@ -28,6 +28,8 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string $email
  * @property Carbon|null $email_verified_at
  * @property string $password
+ * @property Carbon|null $password_changed_at
+ * @property bool $requires_account_setup
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
@@ -35,7 +37,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'password', 'company_id', 'candidate_id', 'candidate_type', 'client_contact_id'])]
+#[Fillable(['name', 'email', 'password', 'password_changed_at', 'requires_account_setup', 'company_id', 'candidate_id', 'candidate_type', 'client_contact_id'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser, PasskeyUser
 {
@@ -54,7 +56,33 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'password_changed_at' => 'datetime',
+            'requires_account_setup' => 'boolean',
         ];
+    }
+
+    /**
+     * True once the user has changed the password an admin set for them.
+     * Only meaningful for accounts a site admin created or reset — everyone
+     * else is exempt regardless of these underlying timestamps.
+     */
+    public function mustResetPassword(): bool
+    {
+        return $this->requires_account_setup && $this->password_changed_at === null;
+    }
+
+    /**
+     * True until the user has confirmed two-factor authentication is set up.
+     * Only meaningful for accounts a site admin created or reset.
+     */
+    public function mustSetUpTwoFactor(): bool
+    {
+        return $this->requires_account_setup && $this->two_factor_confirmed_at === null;
+    }
+
+    public function mustCompleteAccountSetup(): bool
+    {
+        return $this->mustResetPassword() || $this->mustSetUpTwoFactor();
     }
 
     /**

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureAccountSetupIsComplete;
 use App\Http\Middleware\SetActiveIndustry;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -15,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->appendToGroup('auth', EnsureAccountSetupIsComplete::class);
         $middleware->appendToGroup('auth', SetActiveIndustry::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
