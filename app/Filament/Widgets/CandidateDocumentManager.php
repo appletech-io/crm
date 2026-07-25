@@ -11,8 +11,8 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
 class CandidateDocumentManager extends TableWidget
 {
@@ -61,7 +61,7 @@ class CandidateDocumentManager extends TableWidget
                     ->icon('heroicon-o-eye')
                     ->color('gray')
                     ->url(fn (array $record): ?string => $record['path']
-                        ? Storage::disk('local')->temporaryUrl($record['path'], now()->addMinutes(10))
+                        ? Storage::disk(config('filesystems.default'))->temporaryUrl($record['path'], now()->addMinutes(10))
                         : null
                     )
                     ->openUrlInNewTab()
@@ -104,14 +104,14 @@ class CandidateDocumentManager extends TableWidget
             ->action(fn (array $data, array $record) => $this->uploadDocument($record['document_type'], $data['file']));
     }
 
-    private function uploadDocument(string $documentType, UploadedFile $file): void
+    private function uploadDocument(string $documentType, TemporaryUploadedFile $file): void
     {
         $path = Document::upload($file, $this->record, $documentType);
 
         $existing = $this->record->documents()->where('document_type', $documentType)->first();
 
         if ($existing) {
-            Storage::disk('local')->delete($existing->path);
+            Storage::disk(config('filesystems.default'))->delete($existing->path);
             $existing->update(['path' => $path]);
         } else {
             $this->record->documents()->create([
@@ -135,7 +135,7 @@ class CandidateDocumentManager extends TableWidget
         $document = $this->record->documents()->where('document_type', $documentType)->first();
 
         if ($document) {
-            Storage::disk('local')->delete($document->path);
+            Storage::disk(config('filesystems.default'))->delete($document->path);
             $document->delete();
         }
 

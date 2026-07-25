@@ -4,25 +4,37 @@ namespace App\Services\Candidates;
 
 use App\Models\Industry;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
 class Document
 {
-    public static function upload(UploadedFile $file, Model $candidate, ?string $prefix = null): string
+    /**
+     * Streams the file's contents into place with a plain write rather than
+     * using Storage::move()/copy(), which for the S3 driver issues a
+     * server-side CopyObject that first reads the source object's ACL —
+     * requiring s3:GetObjectAcl, a permission this app's IAM user isn't
+     * granted. A content-based write only needs PutObject/DeleteObject.
+     */
+    public static function upload(TemporaryUploadedFile $file, Model $candidate, ?string $prefix = null): string
     {
-        return $file->storeAs(
-            self::directoryFor($candidate),
-            self::prefixedFilename($file->getClientOriginalName(), $prefix),
-        );
+        $path = self::directoryFor($candidate).'/'.self::prefixedFilename($file->getClientOriginalName(), $prefix);
+
+        Storage::disk(config('filesystems.default'))->writeStream($path, $file->readStream());
+
+        $file->delete();
+
+        return $path;
     }
 
     public static function move(string $existingPath, Model $candidate, ?string $prefix = null, string $disk = 'local'): string
     {
         $newPath = self::directoryFor($candidate).'/'.self::prefixedFilename(basename($existingPath), $prefix);
 
-        Storage::disk($disk)->move($existingPath, $newPath);
+        $storage = Storage::disk($disk);
+        $storage->writeStream($newPath, $storage->readStream($existingPath));
+        $storage->delete($existingPath);
 
         return $newPath;
     }
