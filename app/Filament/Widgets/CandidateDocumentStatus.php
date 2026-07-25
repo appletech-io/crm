@@ -56,7 +56,7 @@ class CandidateDocumentStatus extends TableWidget
                     ->icon('heroicon-o-eye')
                     ->color('gray')
                     ->url(fn (array $record): ?string => $record['path']
-                        ? Storage::disk('local')->temporaryUrl($record['path'], now()->addMinutes(10))
+                        ? Storage::disk(config('filesystems.default'))->temporaryUrl($record['path'], now()->addMinutes(10))
                         : null
                     )
                     ->openUrlInNewTab()

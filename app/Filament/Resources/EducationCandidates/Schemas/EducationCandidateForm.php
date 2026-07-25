@@ -766,7 +766,7 @@ class EducationCandidateForm
         $document = static::document($record, $documentType);
 
         return $document
-            ? Storage::disk('local')->temporaryUrl($document->path, now()->addMinutes(10))
+            ? Storage::disk(config('filesystems.default'))->temporaryUrl($document->path, now()->addMinutes(10))
             : null;
     }
 

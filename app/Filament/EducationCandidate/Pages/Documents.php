@@ -14,8 +14,8 @@ use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
 class Documents extends Page implements HasTable
 {
@@ -133,7 +133,7 @@ class Documents extends Page implements HasTable
             ->action(fn (array $data, array $record) => $this->uploadDocument($record['document_type'], $data['file']));
     }
 
-    private function uploadDocument(string $documentType, UploadedFile $file): void
+    private function uploadDocument(string $documentType, TemporaryUploadedFile $file): void
     {
         $candidate = $this->candidate();
 
@@ -142,7 +142,7 @@ class Documents extends Page implements HasTable
         $existing = $candidate->documents()->where('document_type', $documentType)->first();
 
         if ($existing) {
-            Storage::disk('local')->delete($existing->path);
+            Storage::disk(config('filesystems.default'))->delete($existing->path);
             $existing->update(['path' => $path]);
         } else {
             $candidate->documents()->create([
@@ -168,7 +168,7 @@ class Documents extends Page implements HasTable
         $document = $candidate->documents()->where('document_type', $documentType)->first();
 
         if ($document) {
-            Storage::disk('local')->delete($document->path);
+            Storage::disk(config('filesystems.default'))->delete($document->path);
             $document->delete();
         }
 
