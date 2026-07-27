@@ -43,6 +43,7 @@ test('a non-admin consultant sees all candidates in their company, not just thei
     Cache::put("user.{$consultant->id}.active_industry_id", $this->industry->id);
 
     Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'all')
         ->assertCanSeeTableRecords([$ownCandidate, $otherConsultantCandidate, $unassignedCandidate]);
 });
 
@@ -57,6 +58,7 @@ test('a non-admin consultant does not see candidates belonging to a different co
     Cache::put("user.{$consultant->id}.active_industry_id", $this->industry->id);
 
     Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'all')
         ->assertCanNotSeeTableRecords([$otherCompanyCandidate]);
 });
 
@@ -69,6 +71,7 @@ test('an admin sees all candidates regardless of consultant_id', function () {
     ]);
 
     Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'all')
         ->assertCanSeeTableRecords([$candidate]);
 });
 
@@ -94,6 +97,7 @@ test('the consultant filter is only visible to admins', function () {
     $consultant->assignRole('consultant');
 
     Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'all')
         ->assertTableFilterVisible('consultant_id');
 
     $this->actingAs($consultant);
@@ -101,5 +105,6 @@ test('the consultant filter is only visible to admins', function () {
     Cache::put("user.{$consultant->id}.active_industry_id", $this->industry->id);
 
     Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'all')
         ->assertTableFilterHidden('consultant_id');
 });

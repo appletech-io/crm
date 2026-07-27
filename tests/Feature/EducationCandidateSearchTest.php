@@ -3,7 +3,6 @@
 use App\Enums\BookingDayPeriod;
 use App\Enums\BookingStatus;
 use App\Filament\Resources\EducationCandidates\Pages\ListEducationCandidates;
-use App\Filament\Resources\EducationCandidates\Pages\SearchEducationCandidates;
 use App\Models\CandidateSkill;
 use App\Models\Client;
 use App\Models\EducationCandidate;
@@ -42,7 +41,8 @@ test('only the logged in consultants own candidates are returned, even for an ad
     $otherConsultant = User::factory()->create(['company_id' => $this->consultant->company_id]);
     $otherConsultantCandidate = makeSearchCandidate(['consultant_id' => $otherConsultant->id]);
 
-    Livewire::test(SearchEducationCandidates::class)
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'search')
         ->assertCanSeeTableRecords([$ownCandidate])
         ->assertCanNotSeeTableRecords([$otherConsultantCandidate]);
 
@@ -54,7 +54,8 @@ test('only the logged in consultants own candidates are returned, even for an ad
     Cache::put("user.{$admin->id}.active_industry", $this->industry->slug);
     Cache::put("user.{$admin->id}.active_industry_id", $this->industry->id);
 
-    Livewire::test(SearchEducationCandidates::class)
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'search')
         ->assertCanNotSeeTableRecords([$ownCandidate, $otherConsultantCandidate]);
 });
 
@@ -62,8 +63,9 @@ test('name filter narrows results', function () {
     $match = makeSearchCandidate(['first_name' => 'Jane', 'last_name' => 'Doe']);
     $nonMatch = makeSearchCandidate(['first_name' => 'John', 'last_name' => 'Smith']);
 
-    Livewire::test(SearchEducationCandidates::class)
+    Livewire::test(ListEducationCandidates::class)
         ->fillForm(['name' => 'jane'])
+        ->set('activeSection', 'search')
         ->call('search')
         ->assertCanSeeTableRecords([$match])
         ->assertCanNotSeeTableRecords([$nonMatch]);
@@ -73,8 +75,9 @@ test('email filter narrows results', function () {
     $match = makeSearchCandidate(['email' => 'jane@example.com']);
     $nonMatch = makeSearchCandidate(['email' => 'john@other.com']);
 
-    Livewire::test(SearchEducationCandidates::class)
+    Livewire::test(ListEducationCandidates::class)
         ->fillForm(['email' => 'jane@'])
+        ->set('activeSection', 'search')
         ->call('search')
         ->assertCanSeeTableRecords([$match])
         ->assertCanNotSeeTableRecords([$nonMatch]);
@@ -91,8 +94,9 @@ test('skills filter narrows results', function () {
 
     $nonMatch = makeSearchCandidate();
 
-    Livewire::test(SearchEducationCandidates::class)
+    Livewire::test(ListEducationCandidates::class)
         ->fillForm(['skill_ids' => [$skill->id]])
+        ->set('activeSection', 'search')
         ->call('search')
         ->assertCanSeeTableRecords([$match])
         ->assertCanNotSeeTableRecords([$nonMatch]);
@@ -113,7 +117,8 @@ test('client dropdown only offers clients belonging to the logged in consultant'
         'name' => 'Someone Elses School',
     ]);
 
-    Livewire::test(SearchEducationCandidates::class)
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'search')
         ->assertSee('My School')
         ->assertDontSee('Someone Elses School');
 });
@@ -152,8 +157,9 @@ test('day filter excludes candidates booked on a selected day and respects cance
 
     $freeCandidate = makeSearchCandidate();
 
-    Livewire::test(SearchEducationCandidates::class)
+    Livewire::test(ListEducationCandidates::class)
         ->fillForm(['days' => [1]])
+        ->set('activeSection', 'search')
         ->call('search')
         ->assertCanSeeTableRecords([$cancelledBookingCandidate, $freeCandidate])
         ->assertCanNotSeeTableRecords([$bookedCandidate]);
@@ -179,8 +185,9 @@ test('selecting two days requires availability on both', function () {
 
     $freeBothDays = makeSearchCandidate();
 
-    Livewire::test(SearchEducationCandidates::class)
+    Livewire::test(ListEducationCandidates::class)
         ->fillForm(['days' => [1, 2]])
+        ->set('activeSection', 'search')
         ->call('search')
         ->assertCanSeeTableRecords([$freeBothDays])
         ->assertCanNotSeeTableRecords([$bookedTuesday]);
@@ -208,8 +215,9 @@ test('location filter using a client keeps candidates inside the radius and excl
     // No coordinates at all.
     $unlocated = makeSearchCandidate(['latitude' => null, 'longitude' => null]);
 
-    Livewire::test(SearchEducationCandidates::class)
+    Livewire::test(ListEducationCandidates::class)
         ->fillForm(['client_id' => $client->id, 'radius_miles' => 10])
+        ->set('activeSection', 'search')
         ->call('search')
         ->assertCanSeeTableRecords([$nearby])
         ->assertCanNotSeeTableRecords([$farAway, $unlocated]);
@@ -228,15 +236,17 @@ test('location filter using an address geocodes it and filters by radius', funct
     $nearby = makeSearchCandidate(['latitude' => 52.4700, 'longitude' => -1.9000]);
     $farAway = makeSearchCandidate(['latitude' => 51.5072, 'longitude' => -0.1276]);
 
-    Livewire::test(SearchEducationCandidates::class)
+    Livewire::test(ListEducationCandidates::class)
         ->fillForm(['address' => 'Birmingham City Centre', 'radius_miles' => 10])
+        ->set('activeSection', 'search')
         ->call('search')
         ->assertCanSeeTableRecords([$nearby])
         ->assertCanNotSeeTableRecords([$farAway]);
 });
 
 test('the tab bar renders on both the search and all candidates pages with the correct tab active', function () {
-    Livewire::test(SearchEducationCandidates::class)
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'search')
         ->assertSeeHtml('fi-active')
         ->assertSee('Search')
         ->assertSee('All Candidates');
