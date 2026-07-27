@@ -4,6 +4,7 @@ namespace App\Filament\Resources\EducationCandidates\Pages;
 
 use App\Actions\Candidates\CandidateCreated;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
+use App\Filament\Resources\EducationCandidates\Pages\Concerns\HasCandidateSearchTabs;
 use App\Models\EducationCandidate;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
@@ -12,7 +13,14 @@ use Filament\Resources\Pages\ListRecords;
 
 class ListEducationCandidates extends ListRecords
 {
+    use HasCandidateSearchTabs;
+
     protected static string $resource = EducationCandidateResource::class;
+
+    protected function candidateSearchActiveTab(): string
+    {
+        return 'index';
+    }
 
     protected function getHeaderActions(): array
     {

@@ -2,12 +2,26 @@
 
 namespace App\Filament\Resources\HealthcareCandidates\Pages\Concerns;
 
+use App\Actions\Candidates\HealthcareCandidateCreated;
+use Filament\Notifications\Notification;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
 
 trait HasCandidateStatusSubheading
 {
+    public function sendApplicationEmail(): void
+    {
+        HealthcareCandidateCreated::run($this->record, true);
+
+        $this->record->unsetRelation('application');
+
+        Notification::make()
+            ->success()
+            ->title('Application email sent')
+            ->send();
+    }
+
     public function getSubheading(): string|Htmlable|null
     {
         $this->record->loadMissing(['statuses.status', 'application']);
@@ -39,7 +53,9 @@ trait HasCandidateStatusSubheading
                 ['url' => $url]
             );
         } else {
-            $applicationHtml = '';
+            $applicationHtml = Blade::render(
+                '<x-filament::button size="sm" color="gray" wire:click="sendApplicationEmail" wire:confirm="Send the application email to this candidate?">Send Application</x-filament::button>'
+            );
         }
 
         return new HtmlString($applicationHtml ? $statusHtml.' '.$applicationHtml : $statusHtml);
