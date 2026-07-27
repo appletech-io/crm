@@ -40,6 +40,7 @@ class BookingWeekStats extends StatsOverviewWidget
             Stat::make('Clients This Week', $stats['clients']),
             Stat::make('Candidates This Week', $stats['candidates']),
             Stat::make('GP This Week', '£'.number_format($stats['gp'], 2)),
+            Stat::make('Avg Margin This Week', number_format($stats['avgMargin'] * 100, 1).'%'),
             Stat::make('Days Placed This Week', $stats['daysPlaced']),
         ];
     }
@@ -47,10 +48,10 @@ class BookingWeekStats extends StatsOverviewWidget
     /** @return int | array<string, ?int> | null */
     protected function getColumns(): int|array|null
     {
-        return 4;
+        return 5;
     }
 
-    /** @return array{clients: int, candidates: int, gp: float, daysPlaced: int} */
+    /** @return array{clients: int, candidates: int, gp: float, avgMargin: float, daysPlaced: int} */
     public function weekStats(): array
     {
         $start = now()->startOfWeek(Carbon::MONDAY);
@@ -71,11 +72,16 @@ class BookingWeekStats extends StatsOverviewWidget
 
         $bookings = $dayPeriods->pluck('booking')->unique('id');
 
-        $gp = $dayPeriods->groupBy('booking_id')->sum(function ($periods) {
+        $totalCharge = 0.0;
+        $gp = $dayPeriods->groupBy('booking_id')->sum(function ($periods) use (&$totalCharge) {
             /** @var Booking $booking */
             $booking = $periods->first()->booking;
             $payRates = BookingDayPeriods::ratesFor($booking, 'pay');
             $chargeRates = BookingDayPeriods::ratesFor($booking, 'charge');
+
+            $totalCharge += $periods->sum(
+                fn (BookingDay $period): float => $chargeRates[$period->period->value] ?? 0
+            );
 
             return $periods->sum(
                 fn (BookingDay $period): float => ($chargeRates[$period->period->value] ?? 0) - ($payRates[$period->period->value] ?? 0)
@@ -86,6 +92,7 @@ class BookingWeekStats extends StatsOverviewWidget
             'clients' => $bookings->pluck('client_id')->unique()->count(),
             'candidates' => $bookings->map(fn (Booking $booking): string => "{$booking->candidate_type}|{$booking->candidate_id}")->unique()->count(),
             'gp' => round($gp, 2),
+            'avgMargin' => $totalCharge > 0 ? round($gp / $totalCharge, 4) : 0.0,
             'daysPlaced' => $dayPeriods->count(),
         ];
     }
