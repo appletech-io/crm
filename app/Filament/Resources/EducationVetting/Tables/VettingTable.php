@@ -7,14 +7,25 @@ use App\Models\EducationCandidate;
 use Filament\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
 
 class VettingTable
 {
+    /** @var array<int, string> */
+    protected const STEP_LABELS = [
+        'Personal Details',
+        'Pay Rates',
+        'Skills',
+        'Documents',
+        'Security Checks',
+        'TRA Checks',
+        'DBS',
+        'References',
+        'Confirm',
+    ];
+
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query) => $query->with('statuses.status'))
             ->columns([
                 TextColumn::make('first_name')
                     ->label('First Name')
@@ -27,13 +38,11 @@ class VettingTable
                 TextColumn::make('email')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('phone')
-                    ->searchable(),
-                TextColumn::make('candidate_status')
-                    ->label('Status')
+                TextColumn::make('vetting_progress')
+                    ->label('Vetting Progress')
                     ->badge()
-                    ->state(fn (EducationCandidate $record): string => $record->currentStatusName() ?? 'No Status')
-                    ->color(fn (EducationCandidate $record): string => $record->statuses->first()?->status?->color ?? 'gray'),
+                    ->state(fn (EducationCandidate $record): string => static::vettingProgressLabel($record))
+                    ->color(fn (EducationCandidate $record): string => static::vettingProgressColor($record)),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -45,5 +54,32 @@ class VettingTable
                     ->url(fn (EducationCandidate $record): string => VettingResource::getUrl('edit', ['record' => $record])),
             ])
             ->defaultSort('created_at');
+    }
+
+    protected static function vettingProgressLabel(EducationCandidate $record): string
+    {
+        if ($record->compliance_completed_at) {
+            return 'Complete';
+        }
+
+        $totalSteps = count(static::STEP_LABELS);
+        $stepNumber = min($record->compliance_step ?? 1, $totalSteps);
+
+        return "Step {$stepNumber} of {$totalSteps}: ".static::STEP_LABELS[$stepNumber - 1];
+    }
+
+    protected static function vettingProgressColor(EducationCandidate $record): string
+    {
+        if ($record->compliance_completed_at) {
+            return 'success';
+        }
+
+        $stepNumber = min($record->compliance_step ?? 1, count(static::STEP_LABELS));
+
+        return match (true) {
+            $stepNumber <= 3 => 'danger',
+            $stepNumber <= 6 => 'warning',
+            default => 'info',
+        };
     }
 }
