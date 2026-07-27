@@ -50,6 +50,7 @@ test('consultants cannot see the delete bulk action on the education candidates 
     actingAsIndustryUser('consultant', 'education');
 
     Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'all')
         ->assertTableBulkActionHidden('delete');
 });
 
@@ -57,6 +58,7 @@ test('admins can see the delete bulk action on the education candidates table', 
     actingAsIndustryUser('admin', 'education');
 
     Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'all')
         ->assertTableBulkActionVisible('delete');
 });
 
