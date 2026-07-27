@@ -71,7 +71,8 @@ class ClientResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->where('industry_id', active_industry_id());
+            ->where('industry_id', active_industry_id())
+            ->visibleToCurrentUser();
     }
 
     public static function getPages(): array

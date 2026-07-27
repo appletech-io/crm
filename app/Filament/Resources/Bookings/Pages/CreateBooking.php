@@ -57,10 +57,8 @@ class CreateBooking extends CreateRecord
     /** @param  array<string, mixed>  $data */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $candidateModelClass = Industry::candidateModelForSlug(active_industry() ?? '');
-
-        $data['candidate_type'] = $candidateModelClass;
-        $data['consultant_id'] = $candidateModelClass ? $candidateModelClass::find($data['candidate_id'] ?? null)?->consultant_id : null;
+        $data['candidate_type'] = Industry::candidateModelForSlug(active_industry() ?? '');
+        $data['consultant_id'] = auth()->id();
 
         return $data;
     }

@@ -845,9 +845,9 @@ test('the all section table can be filtered by client and by candidate', functio
         ->assertCanNotSeeTableRecords([$otherCandidateBooking]);
 });
 
-test('creating a booking copies the consultant_id from the selected candidate', function () {
-    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
-    $this->candidate->update(['consultant_id' => $consultant->id]);
+test('creating a booking sets consultant_id to the user creating it', function () {
+    $candidatesConsultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $this->candidate->update(['consultant_id' => $candidatesConsultant->id]);
 
     Livewire::test(CreateBooking::class)
         ->fillForm([
@@ -871,17 +871,14 @@ test('creating a booking copies the consultant_id from the selected candidate', 
         ->call('create')
         ->assertHasNoFormErrors();
 
-    expect(Booking::first()->consultant_id)->toBe($consultant->id);
+    expect(Booking::first()->consultant_id)->toBe($this->user->id);
 });
 
-test('editing a booking re-syncs consultant_id when the candidate changes', function () {
+test('editing a booking does not change consultant_id when the candidate changes', function () {
     $originalConsultant = User::factory()->create(['company_id' => $this->user->company_id]);
-    $newConsultant = User::factory()->create(['company_id' => $this->user->company_id]);
-
-    $this->candidate->update(['consultant_id' => $originalConsultant->id]);
     $otherCandidate = EducationCandidate::factory()->create([
         'company_id' => $this->user->company_id,
-        'consultant_id' => $newConsultant->id,
+        'consultant_id' => User::factory()->create(['company_id' => $this->user->company_id])->id,
     ]);
 
     $booking = Booking::factory()->create([
@@ -903,7 +900,7 @@ test('editing a booking re-syncs consultant_id when the candidate changes', func
         ->call('save')
         ->assertHasNoFormErrors();
 
-    expect($booking->fresh()->consultant_id)->toBe($newConsultant->id);
+    expect($booking->fresh()->consultant_id)->toBe($originalConsultant->id);
 });
 
 test('a non-admin user only sees bookings assigned to their own consultant_id', function () {

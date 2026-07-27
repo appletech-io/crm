@@ -12,6 +12,7 @@ use Livewire\Livewire;
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
     $this->user = User::factory()->create();
+    $this->user->assignRole('admin');
     $this->actingAs($this->user);
     Cache::put("user.{$this->user->id}.active_industry", 'education');
     Cache::put("user.{$this->user->id}.active_industry_id", 1);

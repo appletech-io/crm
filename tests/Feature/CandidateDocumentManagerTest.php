@@ -87,6 +87,25 @@ test('a document can be uploaded', function () {
     Storage::disk('local')->assertExists($document->path);
 });
 
+test('the table reflects an upload immediately, without needing a fresh page load', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $file = UploadedFile::fake()->create('cv.pdf', 100, 'application/pdf');
+
+    $component = Livewire::test(CandidateDocumentManager::class, ['record' => $candidate])
+        ->assertActionVisible(TestAction::make('upload')->table(record: 'cv'))
+        ->assertActionHidden(TestAction::make('update')->table(record: 'cv'));
+
+    $component->callAction(
+        TestAction::make('upload')->table(record: 'cv'),
+        data: ['file' => $file],
+    )->assertHasNoActionErrors();
+
+    $component
+        ->assertActionHidden(TestAction::make('upload')->table(record: 'cv'))
+        ->assertActionVisible(TestAction::make('update')->table(record: 'cv'))
+        ->assertActionVisible(TestAction::make('view')->table(record: 'cv'));
+});
+
 test('once uploaded, the update and view actions replace the upload action', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
     $candidate->documents()->create(['document_type' => 'cv', 'path' => 'fake/path/cv.pdf']);

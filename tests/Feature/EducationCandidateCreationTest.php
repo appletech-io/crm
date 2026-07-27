@@ -45,3 +45,17 @@ test('creating a candidate with a first and last name succeeds', function () {
     expect($candidate->first_name)->toBe('Jane');
     expect($candidate->last_name)->toBe('Doe');
 });
+
+test('creating a candidate attaches the logged in user as their consultant', function () {
+    Livewire::test(ListEducationCandidates::class)
+        ->callAction('create', data: [
+            'first_name' => 'Jane',
+            'last_name' => 'Doe',
+            'email' => 'jane.doe@example.com',
+        ])
+        ->assertHasNoActionErrors();
+
+    $candidate = EducationCandidate::where('email', 'jane.doe@example.com')->first();
+
+    expect($candidate->consultant_id)->toBe($this->user->id);
+});

@@ -101,7 +101,8 @@ class EducationCandidatesTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()
+                        ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false),
                     ForceDeleteBulkAction::make(),
                     RestoreBulkAction::make(),
                 ]),

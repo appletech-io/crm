@@ -13,6 +13,7 @@ use App\Models\EducationCandidate;
 use App\Models\EmailTemplate;
 use App\Models\Industry;
 use App\Models\JobTitle;
+use App\Models\User;
 use App\Services\Booking\TimesheetPeriod;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
@@ -265,6 +266,53 @@ test('it excludes cancelled days from the breakdown and does not mark them sent'
 
     expect($activeDay->fresh()->payroll_confirmation_sent_at)->not->toBeNull()
         ->and($cancelledDay->fresh()->payroll_confirmation_sent_at)->toBeNull();
+});
+
+test('it appends the consultants email footer to the sent body', function () {
+    $consultant = User::factory()->create([
+        'company_id' => $this->company->id,
+        'name' => 'Kirsty Greaves',
+        'mobile' => '07792 810 290',
+        'job_title' => 'Consultant',
+    ]);
+
+    $this->client->update(['consultant_id' => $consultant->id]);
+    $this->company->update(['website' => 'www.applebough.co.uk']);
+
+    $this->client->contacts()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Main',
+        'last_name' => 'Contact',
+        'email' => 'main@example.com',
+        'main_contact' => true,
+    ]);
+
+    createPayrollTemplate($this->company);
+
+    $this->booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => $this->weekStart->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+
+    (new SendPayrollConfirmationEmail($this->client, $this->weekStart->toDateString()))->handle();
+
+    Http::assertSent(function ($request) {
+        if (! str_contains($request->url(), 'graph.microsoft.com')) {
+            return false;
+        }
+
+        $body = $request['message']['body']['content'];
+        $attachment = $request['message']['attachments'][0] ?? null;
+
+        return str_contains($body, 'Kirsty Greaves')
+            && str_contains($body, '07792 810 290')
+            && str_contains($body, 'www.applebough.co.uk')
+            && str_contains($body, 'cid:applebough-logo')
+            && $attachment
+            && $attachment['isInline'] === true
+            && $attachment['contentId'] === 'applebough-logo';
+    });
 });
 
 test('it includes a working payroll confirmation link', function () {

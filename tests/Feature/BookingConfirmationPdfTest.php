@@ -303,6 +303,8 @@ test('the email job includes the booking breakdown and a crypt-secured pdf link,
 
         $body = $request['message']['body']['content'];
 
+        $attachments = $request['message']['attachments'] ?? [];
+
         return $request['message']['subject'] === 'Booking confirmed for Stephen'
             && str_contains($body, 'Dear Mr. Stephen Platts')
             && str_contains($body, "({$this->booking->id})")
@@ -312,7 +314,10 @@ test('the email job includes the booking breakdown and a crypt-secured pdf link,
             && str_contains($body, 'Full Day')
             && str_contains($body, '£200.00')
             && str_contains($body, route('booking-confirmation.show'))
-            && empty($request['message']['attachments'] ?? []);
+            // The PDF is linked, not attached — the only attachment should be the inline logo.
+            && count($attachments) === 1
+            && $attachments[0]['isInline'] === true
+            && $attachments[0]['contentId'] === 'applebough-logo';
     });
 
     expect(CandidateActivity::where('type', ActivityType::Email)->count())->toBe(1);

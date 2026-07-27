@@ -7,6 +7,8 @@ use App\Filament\Pages\CandidateSettings;
 use App\Filament\Pages\ClientSettings;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\RunPayroll;
+use App\Filament\Resources\EducationCandidates\Pages\EditEducationCandidate;
+use App\Filament\Resources\HealthcareCandidates\Pages\EditHealthcareCandidate;
 use App\Http\Middleware\EnsureAccountSetupIsComplete;
 use App\Http\Middleware\SetActiveIndustry;
 use Filament\Actions\Action;
@@ -75,6 +77,11 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::GLOBAL_SEARCH_AFTER,
                 fn () => view('filament.high-priority-todo-notifications-topbar'),
+            )
+            ->renderHook(
+                PanelsRenderHook::PAGE_HEADER_HEADING_BEFORE,
+                fn () => view('filament.candidate-header-photo'),
+                scopes: [EditEducationCandidate::class, EditHealthcareCandidate::class],
             )
             ->navigationGroups([
                 'Settings',

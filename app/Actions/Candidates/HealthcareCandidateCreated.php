@@ -2,7 +2,7 @@
 
 namespace App\Actions\Candidates;
 
-use App\Jobs\SendHealthcareApplicationEmail;
+use App\Jobs\SendApplicationEmail;
 use App\Models\CandidateStatus;
 use App\Models\HealthcareApplication;
 use App\Models\HealthcareCandidate;
@@ -32,6 +32,6 @@ class HealthcareCandidateCreated
             $candidate->statuses()->firstOrCreate(['candidate_status_id' => $onboarding->id]);
         }
 
-        SendHealthcareApplicationEmail::dispatch($candidate, $application);
+        SendApplicationEmail::dispatch($candidate, $application, auth()->id());
     }
 }

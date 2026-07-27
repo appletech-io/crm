@@ -80,6 +80,7 @@ enum Nationality: string
     case Haitian = 'Haitian';
     case Herzegovinian = 'Herzegovinian';
     case Honduran = 'Honduran';
+    case HongKonger = 'Hong Konger';
     case Hungarian = 'Hungarian';
     case Icelander = 'Icelander';
     case Indian = 'Indian';
@@ -121,6 +122,7 @@ enum Nationality: string
     case Moldovan = 'Moldovan';
     case Monacan = 'Monacan';
     case Mongolian = 'Mongolian';
+    case Montserratian = 'Montserratian';
     case Moroccan = 'Moroccan';
     case Mosotho = 'Mosotho';
     case Motswana = 'Motswana';
@@ -137,6 +139,7 @@ enum Nationality: string
     case Omani = 'Omani';
     case Pakistani = 'Pakistani';
     case Palauan = 'Palauan';
+    case Palestinian = 'Palestinian';
     case Panamanian = 'Panamanian';
     case PapuaNewGuinean = 'Papua New Guinean';
     case Paraguayan = 'Paraguayan';

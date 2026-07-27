@@ -7,10 +7,17 @@ use App\Enums\EmailProvider;
 use App\Models\EducationApplication;
 use App\Models\EducationCandidate;
 use App\Models\EmailTemplate;
+use App\Models\HealthcareApplication;
+use App\Models\HealthcareCandidate;
+use App\Models\Industry;
+use App\Models\User;
+use App\Services\Mail\EmailFooter;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class SendApplicationEmail implements ShouldQueue
 {
@@ -20,19 +27,32 @@ class SendApplicationEmail implements ShouldQueue
 
     public int $backoff = 60;
 
+    /**
+     * Handles both Education and Healthcare candidates — the two sides only
+     * differ in which industry their template/route belongs to, both
+     * resolved dynamically below rather than needing two near-identical job
+     * classes.
+     *
+     * $createdByUserId must be captured by the caller at dispatch time (e.g.
+     * auth()->id()) — this job runs on a queue worker with no session, so
+     * auth() inside handle() would always resolve to null.
+     */
     public function __construct(
-        public readonly EducationCandidate $candidate,
-        public readonly EducationApplication $application,
+        public readonly EducationCandidate|HealthcareCandidate $candidate,
+        public readonly EducationApplication|HealthcareApplication $application,
+        public readonly ?int $createdByUserId = null,
     ) {}
 
     /**
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function handle(): void
     {
+        $industryId = Industry::where('slug', $this->industrySlug())->value('id');
+
         $template = EmailTemplate::query()
             ->where('company_id', $this->candidate->company_id)
-            ->where('industry_id', 1)
+            ->where('industry_id', $industryId)
             ->where('type', 'application')
             ->first();
 
@@ -41,6 +61,8 @@ class SendApplicationEmail implements ShouldQueue
         }
 
         try {
+            $creator = $this->createdByUserId ? User::find($this->createdByUserId) : null;
+
             $mailer = match ($this->candidate->company->email_provider) {
                 EmailProvider::Mailgun => new MailgunMailer,
                 default => new MicrosoftGraphMailer($this->candidate->company),
@@ -49,26 +71,40 @@ class SendApplicationEmail implements ShouldQueue
             $mailer->send(
                 to: $this->candidate->email,
                 subject: $this->replacePlaceholders($template->subject ?? ''),
-                body: $this->replacePlaceholders($template->body ?? ''),
-                from: $this->candidate->consultant?->email ?? $this->candidate->company->defaultFromEmail(),
+                body: $this->replacePlaceholders($template->body ?? '').EmailFooter::render($this->candidate->company, $this->candidate->consultant),
+                from: $this->candidate->consultant?->email ?? $creator?->email ?? $this->candidate->company->defaultFromEmail(),
+                attachments: [EmailFooter::logoAttachment()],
             );
 
             $this->candidate->activities()->create([
-                'user_id' => $this->candidate->consultant_id ?? auth()->id(),
+                'user_id' => $this->candidate->consultant_id ?? $this->createdByUserId,
                 'type' => ActivityType::Email->value,
                 'note' => 'Application pack sent',
                 'body' => "Application email sent to {$this->candidate->email}",
                 'contacted' => true,
             ]);
-        } catch (\Throwable $e) {
-            \Log::error("Failed to send application email to {$this->candidate->email}: {$e->getMessage()}");
+        } catch (Throwable $e) {
+            Log::error("Failed to send application email to {$this->candidate->email}: {$e->getMessage()}");
             throw $e;
         }
     }
 
+    private function industrySlug(): string
+    {
+        return Industry::slugForCandidateModel($this->candidate::class) ?? 'education';
+    }
+
+    private function applicationRouteName(): string
+    {
+        return match ($this->candidate::class) {
+            HealthcareCandidate::class => 'application.healthcare.form',
+            default => 'application.form',
+        };
+    }
+
     private function replacePlaceholders(string $content): string
     {
-        $applicationUrl = route('application.form', ['token' => $this->application->token]);
+        $applicationUrl = route($this->applicationRouteName(), ['token' => $this->application->token]);
 
         $replacements = [
             '{firstname}' => $this->candidate->first_name ?? '',

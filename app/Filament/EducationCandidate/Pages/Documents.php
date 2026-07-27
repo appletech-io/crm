@@ -155,6 +155,8 @@ class Documents extends Page implements HasTable
             $candidate->update(['has_dbs' => 'yes']);
         }
 
+        $this->resetTable();
+
         Notification::make()
             ->success()
             ->title('Document uploaded')
@@ -171,6 +173,8 @@ class Documents extends Page implements HasTable
             Storage::disk(config('filesystems.default'))->delete($document->path);
             $document->delete();
         }
+
+        $this->resetTable();
 
         Notification::make()
             ->success()

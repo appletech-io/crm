@@ -18,8 +18,11 @@ use App\Services\ApplicationAccessSession;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
+use PhpOffice\PhpWord\IOFactory;
+use PhpOffice\PhpWord\PhpWord;
 
 beforeEach(function () {
     Storage::fake('local');
@@ -39,6 +42,17 @@ function makePendingApplication(): EducationApplication
     ApplicationAccessSession::markVerified($application->token);
 
     return $application;
+}
+
+function fakeDocxUpload(string $filename, string $bodyText): UploadedFile
+{
+    $phpWord = new PhpWord;
+    $phpWord->addSection()->addText($bodyText);
+
+    $tempPath = tempnam(sys_get_temp_dir(), 'cv').'.docx';
+    IOFactory::createWriter($phpWord, 'Word2007')->save($tempPath);
+
+    return UploadedFile::fake()->createWithContent($filename, file_get_contents($tempPath));
 }
 
 test('form renders step 1 for valid pending application', function () {
@@ -138,15 +152,40 @@ test('form shows the analyse button once a new CV is staged to replace an existi
         ->assertDontSee('Next');
 });
 
-test('parseCv validates pdf mime type', function () {
+test('parseCv rejects unsupported file types', function () {
     $application = makePendingApplication();
 
-    $file = UploadedFile::fake()->create('cv.docx', 100, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    $file = UploadedFile::fake()->create('cv.txt', 100, 'text/plain');
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('cv', $file)
         ->call('parseCv')
         ->assertHasErrors(['cv' => 'mimes']);
+});
+
+test('parseCv accepts and parses a docx cv', function () {
+    CvParser::fake(fn () => [
+        'firstName' => 'Jane',
+        'lastName' => 'Doe',
+        'city' => 'London',
+    ]);
+
+    $application = makePendingApplication();
+
+    $file = fakeDocxUpload('cv.docx', 'Jane Doe, a teacher in London.');
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('cv', $file)
+        ->call('parseCv')
+        ->assertHasNoErrors()
+        ->assertSet('currentStep', 2)
+        ->assertSet('first_name', 'Jane')
+        ->assertSet('last_name', 'Doe')
+        ->assertSet('city', 'London');
+
+    $cvPath = $application->fresh()->educationCandidate->documents()->where('document_type', DocumentType::Cv)->value('path');
+    expect($cvPath)->toEndWith('.docx');
+    Storage::disk('local')->assertExists($cvPath);
 });
 
 test('parseCv populates fields and advances to step 2', function () {
@@ -249,6 +288,131 @@ test('nextStep persists candidate data and advances to step 3', function () {
     expect($application->fresh()->status)->toBe('pending');
     expect($application->fresh()->completed_at)->toBeNull();
     expect($application->fresh()->current_step)->toBe(3);
+});
+
+test('nextStep rejects an invalid postcode', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 2)
+        ->set('title', 'Mr')
+        ->set('first_name', 'Jane')
+        ->set('last_name', 'Doe')
+        ->set('date_of_birth', '1990-05-15')
+        ->set('gender', 'female')
+        ->set('nationality', 'British')
+        ->set('address', '10 Downing Street')
+        ->set('city', 'London')
+        ->set('postcode', 'not a postcode')
+        ->call('nextStep')
+        ->assertHasErrors(['postcode' => 'regex']);
+});
+
+test('nextStep accepts valid uk postcode formats', function (string $postcode) {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 2)
+        ->set('title', 'Mr')
+        ->set('first_name', 'Jane')
+        ->set('last_name', 'Doe')
+        ->set('date_of_birth', '1990-05-15')
+        ->set('gender', 'female')
+        ->set('nationality', 'British')
+        ->set('address', '10 Downing Street')
+        ->set('city', 'London')
+        ->set('postcode', $postcode)
+        ->call('nextStep')
+        ->assertHasNoErrors();
+})->with([
+    'SW1A 2AA',
+    'SW1A2AA',
+    'M1 1AE',
+    'B33 8TH',
+    'CR2 6XH',
+    'DN55 1PT',
+    'GIR 0AA',
+]);
+
+test('address search returns suggestions from the google places autocomplete api', function () {
+    Http::fake([
+        'places.googleapis.com/v1/places:autocomplete' => Http::response([
+            'suggestions' => [
+                ['placePrediction' => ['placeId' => 'place-1', 'text' => ['text' => '10 Downing Street, London, UK']]],
+                ['placePrediction' => ['placeId' => 'place-2', 'text' => ['text' => '10 Downing Court, Leeds, UK']]],
+            ],
+        ], 200),
+    ]);
+
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 2)
+        ->set('address_search', '10 Downing')
+        ->assertSet('address_suggestions', [
+            'place-1' => '10 Downing Street, London, UK',
+            'place-2' => '10 Downing Court, Leeds, UK',
+        ]);
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), 'places:autocomplete')
+        && $request['input'] === '10 Downing'
+        && $request['includedRegionCodes'] === ['gb']);
+});
+
+test('address search does not call the api for very short input', function () {
+    Http::fake();
+
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 2)
+        ->set('address_search', 'SW')
+        ->assertSet('address_suggestions', []);
+
+    Http::assertNothingSent();
+});
+
+test('selecting an address suggestion populates the address fields from the google places details api', function () {
+    Http::fake([
+        'places.googleapis.com/v1/places/place-1' => Http::response([
+            'formattedAddress' => '10 Downing St, London SW1A 2AA, UK',
+            'addressComponents' => [
+                ['types' => ['street_number'], 'longText' => '10'],
+                ['types' => ['route'], 'longText' => 'Downing Street'],
+                ['types' => ['postal_town'], 'longText' => 'London'],
+                ['types' => ['administrative_area_level_2'], 'longText' => 'Greater London'],
+                ['types' => ['country'], 'longText' => 'United Kingdom'],
+                ['types' => ['postal_code'], 'longText' => 'SW1A 2AA'],
+            ],
+        ], 200),
+    ]);
+
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 2)
+        ->set('address_suggestions', ['place-1' => '10 Downing Street, London, UK'])
+        ->call('selectAddress', 'place-1')
+        ->assertSet('address', '10 Downing Street')
+        ->assertSet('city', 'London')
+        ->assertSet('county', 'Greater London')
+        ->assertSet('country', 'United Kingdom')
+        ->assertSet('postcode', 'SW1A 2AA')
+        ->assertSet('address_search', '10 Downing St, London SW1A 2AA, UK')
+        ->assertSet('address_suggestions', []);
+});
+
+test('address defaults to search mode, and manual mode shows the plain fields with the reverse toggle label', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 2)
+        ->assertSet('address_manual', false)
+        ->assertSee('Enter address manually')
+        ->assertDontSee('Search address instead')
+        ->set('address_manual', true)
+        ->assertSee('Search address instead')
+        ->assertDontSee('Start typing an address or postcode');
 });
 
 test('mount hydrates step 2 fields already saved on the candidate, preferring them over cv parsed data', function () {
@@ -946,7 +1110,7 @@ test('saveWorkPreferences persists skills, qualification, and work preferences a
         ->set('available_from', now()->addWeek()->toDateString())
         ->set('key_stages', ['keystage_1', 'keystage_2'])
         ->set('skills', [$childSkill->id])
-        ->set('ni_number', 'qq123456c')
+        ->set('ni_number', 'ab123456c')
         ->set('trn_number', '1234567')
         ->call('saveWorkPreferences')
         ->assertHasNoErrors()
@@ -958,7 +1122,7 @@ test('saveWorkPreferences persists skills, qualification, and work preferences a
     expect($candidate->available_from->toDateString())->toBe(now()->addWeek()->toDateString());
     expect($candidate->key_stages)->toBe(['keystage_1', 'keystage_2']);
     expect($candidate->skills->pluck('id')->sort()->values()->all())->toBe([$parentSkill->id, $childSkill->id]);
-    expect($candidate->ni_number)->toBe('QQ123456C');
+    expect($candidate->ni_number)->toBe('AB123456C');
     expect($candidate->trn_number)->toBe('1234567');
 
     expect($application->fresh()->status)->toBe('pending');
@@ -991,6 +1155,42 @@ test('saveWorkPreferences requires a valid ni number', function () {
         ->set('ni_number', 'not-valid')
         ->call('saveWorkPreferences')
         ->assertHasErrors(['ni_number']);
+});
+
+test('saveWorkPreferences rejects ni numbers with a disallowed prefix or suffix letter', function (string $niNumber) {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 7)
+        ->set('ni_number', $niNumber)
+        ->call('saveWorkPreferences')
+        ->assertHasErrors(['ni_number']);
+})->with([
+    'DF123456A', // D is not a valid first letter
+    'AQ123456A', // Q is not a valid second letter
+    'BG123456A', // BG is a disallowed prefix pair
+    'GB123456A', // GB is a disallowed prefix pair
+    'ZZ123456A', // ZZ is a disallowed prefix pair
+    'AB123456E', // E is not a valid suffix letter
+]);
+
+test('saveWorkPreferences strips spaces and uppercases the ni number before validating and saving', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    $parentSkill = CandidateSkill::factory()->create([
+        'company_id' => $candidate->company_id,
+        'industry_id' => Industry::where('slug', 'education')->value('id'),
+    ]);
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 7)
+        ->set('skills', [$parentSkill->id])
+        ->set('ni_number', 'ab 12 34 56 c')
+        ->call('saveWorkPreferences')
+        ->assertHasNoErrors();
+
+    expect($candidate->refresh()->ni_number)->toBe('AB123456C');
 });
 
 test('saveWorkPreferences does not require a trn number', function () {
@@ -1211,6 +1411,58 @@ test('saveReference validates and persists a single reference, then collapses it
     $component->assertSet('references.0.id', $reference->id);
 });
 
+test('saveReference rejects a title that is not one of the dropdown options', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 9)
+        ->set('references.0', [
+            'type' => 'professional',
+            'title' => 'Sir',
+            'first_name' => 'Jane',
+            'last_name' => 'Smith',
+            'job_title' => 'Head Teacher',
+            'worked_from' => now()->subYears(2)->format('M j, Y'),
+            'worked_to' => now()->format('M j, Y'),
+            'email' => 'jane@example.com',
+            'mobile' => '07700900000',
+            'address' => '1 School Lane',
+            'city' => 'London',
+            'county' => 'Greater London',
+            'country' => 'United Kingdom',
+            'postcode' => 'SW1A 1AA',
+            'consent_to_contact' => true,
+        ])
+        ->call('saveReference', 0)
+        ->assertHasErrors(['references.0.title']);
+});
+
+test('saveReference allows a reference title to be left blank', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 9)
+        ->set('references.0', [
+            'type' => 'professional',
+            'title' => '',
+            'first_name' => 'Jane',
+            'last_name' => 'Smith',
+            'job_title' => 'Head Teacher',
+            'worked_from' => now()->subYears(2)->format('M j, Y'),
+            'worked_to' => now()->format('M j, Y'),
+            'email' => 'jane@example.com',
+            'mobile' => '07700900000',
+            'address' => '1 School Lane',
+            'city' => 'London',
+            'county' => 'Greater London',
+            'country' => 'United Kingdom',
+            'postcode' => 'SW1A 1AA',
+            'consent_to_contact' => true,
+        ])
+        ->call('saveReference', 0)
+        ->assertHasNoErrors();
+});
+
 test('a new reference defaults to contact_now being off, requiring the candidate to opt in', function () {
     $application = makePendingApplication();
 
@@ -1352,6 +1604,20 @@ test('submitApplication validates required reference fields', function () {
             'references.0.worked_from',
             'references.0.consent_to_contact',
         ]);
+});
+
+test('reference validation error messages use friendly field names, not raw array paths', function () {
+    $application = makePendingApplication();
+
+    $component = Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 9)
+        ->call('submitApplication');
+
+    $messages = collect($component->instance()->getErrorBag()->all())->implode(' ');
+
+    expect($messages)->not->toContain('references.0')
+        ->and($messages)->toContain('first name')
+        ->and($messages)->toContain('last name');
 });
 
 test('submitApplication rejects references that leave a gap in the last 3 years', function () {

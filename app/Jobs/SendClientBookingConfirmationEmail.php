@@ -10,6 +10,7 @@ use App\Models\ClientContact;
 use App\Models\EmailTemplate;
 use App\Services\Booking\BookingDayPeriods;
 use App\Services\Education\BookingConfirmationLink;
+use App\Services\Mail\EmailFooter;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -60,8 +61,9 @@ class SendClientBookingConfirmationEmail implements ShouldQueue
             $mailer->send(
                 to: $contact->email,
                 subject: $this->replacePlaceholders($template->subject ?? '', $contact),
-                body: $this->replacePlaceholders($template->body ?? '', $contact),
+                body: $this->replacePlaceholders($template->body ?? '', $contact).EmailFooter::render($client->company, $client->consultant),
                 from: $client->consultant?->email ?? $client->company->defaultFromEmail(),
+                attachments: [EmailFooter::logoAttachment()],
             );
 
             $client->activities()->create([

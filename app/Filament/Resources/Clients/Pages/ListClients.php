@@ -28,6 +28,7 @@ class ListClients extends ListRecords
                 ])
                 ->mutateFormDataUsing(function (array $data): array {
                     $data['industry_id'] = active_industry_id();
+                    $data['consultant_id'] = auth()->id();
 
                     return $data;
                 })

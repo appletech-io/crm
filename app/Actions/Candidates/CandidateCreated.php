@@ -32,6 +32,6 @@ class CandidateCreated
             $candidate->statuses()->firstOrCreate(['candidate_status_id' => $onboarding->id]);
         }
 
-        SendApplicationEmail::dispatch($candidate, $application);
+        SendApplicationEmail::dispatch($candidate, $application, auth()->id());
     }
 }

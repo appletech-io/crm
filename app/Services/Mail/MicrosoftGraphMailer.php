@@ -11,7 +11,7 @@ class MicrosoftGraphMailer
 {
     public function __construct(private readonly Company $company) {}
 
-    /** @param  array<int, array{name: string, path: string, mimeType?: string}>  $attachments */
+    /** @param  array<int, array{name: string, path: string, mimeType?: string, inline?: bool, contentId?: string}>  $attachments */
     public function send(string $to, string $subject, string $body, ?string $from = null, array $attachments = []): void
     {
         $this->guardConfiguration();
@@ -31,12 +31,14 @@ class MicrosoftGraphMailer
 
         if (filled($attachments)) {
             $message['attachments'] = collect($attachments)
-                ->map(fn (array $attachment): array => [
+                ->map(fn (array $attachment): array => array_filter([
                     '@odata.type' => '#microsoft.graph.fileAttachment',
                     'name' => $attachment['name'],
                     'contentType' => $attachment['mimeType'] ?? 'application/octet-stream',
                     'contentBytes' => base64_encode(file_get_contents($attachment['path'])),
-                ])
+                    'isInline' => $attachment['inline'] ?? false,
+                    'contentId' => $attachment['contentId'] ?? null,
+                ], fn ($value): bool => $value !== null))
                 ->all();
         }
 

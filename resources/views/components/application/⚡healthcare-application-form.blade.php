@@ -154,7 +154,7 @@ new #[Layout('layouts.application')] class extends Component
 
     public function saveCv(): void
     {
-        $this->validate(['cv' => ['required', 'file', 'mimes:pdf', 'max:10240']]);
+        $this->validate(['cv' => ['required', 'file', 'mimes:pdf,docx', 'max:10240']]);
 
         $candidate = $this->application->candidate;
         $path = Document::upload($this->cv, $candidate, 'cv');
@@ -170,6 +170,7 @@ new #[Layout('layouts.application')] class extends Component
     public function savePersonalDetails(): void
     {
         $this->validate([
+            'title' => ['nullable', 'string', 'in:Mr,Mrs,Miss,Ms,Dr,Prof'],
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:255'],
@@ -295,7 +296,7 @@ new #[Layout('layouts.application')] class extends Component
 
     @if ($step === 1)
         <form wire:submit="saveCv" class="flex flex-col gap-6">
-            <flux:input type="file" wire:model="cv" label="Upload your CV (PDF)" required />
+            <flux:input type="file" wire:model="cv" label="Upload your CV (PDF or Word document)" required />
             @error('cv') <flux:error>{{ $message }}</flux:error> @enderror
             <flux:button type="submit" variant="primary" class="w-full">Continue</flux:button>
         </form>
@@ -303,7 +304,11 @@ new #[Layout('layouts.application')] class extends Component
 
     @if ($step === 2)
         <form wire:submit="savePersonalDetails" class="flex flex-col gap-4">
-            <flux:input wire:model="title" label="Title" />
+            <flux:select wire:model="title" label="Title" placeholder="Select…">
+                @foreach (['Mr', 'Mrs', 'Miss', 'Ms', 'Dr', 'Prof'] as $t)
+                    <flux:select.option value="{{ $t }}">{{ $t }}</flux:select.option>
+                @endforeach
+            </flux:select>
             <flux:input wire:model="first_name" label="First Name" required />
             <flux:input wire:model="last_name" label="Last Name" required />
             <flux:input wire:model="phone" label="Phone" />

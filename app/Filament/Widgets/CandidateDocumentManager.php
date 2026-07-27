@@ -124,6 +124,8 @@ class CandidateDocumentManager extends TableWidget
             $this->record->update(['has_dbs' => 'yes']);
         }
 
+        $this->resetTable();
+
         Notification::make()
             ->success()
             ->title('Document uploaded')
@@ -138,6 +140,8 @@ class CandidateDocumentManager extends TableWidget
             Storage::disk(config('filesystems.default'))->delete($document->path);
             $document->delete();
         }
+
+        $this->resetTable();
 
         Notification::make()
             ->success()

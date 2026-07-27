@@ -38,6 +38,15 @@ class UserForm
                             ->required()
                             ->maxLength(255)
                             ->unique(ignoreRecord: true),
+                        TextInput::make('mobile')
+                            ->tel()
+                            ->maxLength(255)
+                            ->helperText('Shown in this user\'s email signature footer, if set.'),
+                        TextInput::make('job_title')
+                            ->label('Job Title')
+                            ->maxLength(255)
+                            ->placeholder('Consultant')
+                            ->helperText('Shown under their name in the email signature footer. Defaults to "Consultant" if left blank.'),
                         TextInput::make('password')
                             ->password()
                             ->revealable()

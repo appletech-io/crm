@@ -18,6 +18,7 @@ use Filament\Notifications\Notification;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -97,6 +98,13 @@ new #[Layout('layouts.application')] class extends Component
     public string $country = '';
 
     public string $postcode = '';
+
+    public bool $address_manual = false;
+
+    public string $address_search = '';
+
+    /** @var array<string, string> */
+    public array $address_suggestions = [];
 
     // Contact
     public string $phone = '';
@@ -299,7 +307,7 @@ new #[Layout('layouts.application')] class extends Component
         }
 
         $this->validate([
-            'cv' => ['file', 'mimes:pdf', 'max:10240'],
+            'cv' => ['file', 'mimes:pdf,docx', 'max:10240'],
         ]);
 
         $documentPath = Document::upload($this->cv, $this->application->educationCandidate, 'cv');
@@ -308,7 +316,7 @@ new #[Layout('layouts.application')] class extends Component
             ['path' => $documentPath],
         );
 
-        $localPath = 'cv-uploads/'.$this->application->id.'.pdf';
+        $localPath = 'cv-uploads/'.$this->application->id.'.'.pathinfo($documentPath, PATHINFO_EXTENSION);
         Storage::disk('local')->put($localPath, Storage::readStream($documentPath));
 
         try {
@@ -346,6 +354,63 @@ new #[Layout('layouts.application')] class extends Component
         $this->goToStep(2, ['cv_parsed_data' => $this->cv_parsed_data]);
     }
 
+    public function updatedAddressSearch(?string $value): void
+    {
+        if (! $value || strlen($value) < 3) {
+            $this->address_suggestions = [];
+
+            return;
+        }
+
+        $response = Http::withHeaders([
+            'X-Goog-Api-Key' => config('services.google.places_key'),
+            'X-Goog-FieldMask' => 'suggestions.placePrediction.placeId,suggestions.placePrediction.text',
+        ])->post('https://places.googleapis.com/v1/places:autocomplete', [
+            'input' => $value,
+            'includedRegionCodes' => ['gb'],
+        ]);
+
+        if ($response->failed()) {
+            $this->address_suggestions = [];
+
+            return;
+        }
+
+        $this->address_suggestions = collect($response->json('suggestions') ?? [])
+            ->mapWithKeys(fn (array $s): array => [
+                $s['placePrediction']['placeId'] => $s['placePrediction']['text']['text'],
+            ])
+            ->toArray();
+    }
+
+    public function selectAddress(string $placeId): void
+    {
+        $response = Http::withHeaders([
+            'X-Goog-Api-Key' => config('services.google.places_key'),
+            'X-Goog-FieldMask' => 'addressComponents,formattedAddress',
+        ])->get("https://places.googleapis.com/v1/places/{$placeId}");
+
+        if ($response->failed()) {
+            return;
+        }
+
+        $components = collect($response->json('addressComponents') ?? []);
+
+        $getComponent = fn (string $type): string => $components
+            ->first(fn (array $c): bool => in_array($type, $c['types'] ?? []))['longText'] ?? '';
+
+        $streetNumber = $getComponent('street_number');
+        $route = $getComponent('route');
+
+        $this->address = collect([$streetNumber, $route])->filter()->implode(' ');
+        $this->city = $getComponent('postal_town') ?: $getComponent('locality');
+        $this->county = $getComponent('administrative_area_level_2');
+        $this->country = $getComponent('country');
+        $this->postcode = $getComponent('postal_code');
+        $this->address_search = (string) $response->json('formattedAddress');
+        $this->address_suggestions = [];
+    }
+
     public function nextStep(): void
     {
         $this->validate([
@@ -354,8 +419,8 @@ new #[Layout('layouts.application')] class extends Component
             'date_of_birth' => ['required', 'date', 'before:today'],
             'address' => ['required', 'string', 'max:500'],
             'city' => ['required', 'string', 'max:255'],
-            'postcode' => ['required', 'string', 'max:10'],
-            'title' => ['required', 'string', 'max:10'],
+            'postcode' => ['required', 'string', 'max:10', 'regex:/^([Gg][Ii][Rr] ?0[Aa]{2})|((([A-Za-z][0-9]{1,2})|(([A-Za-z][A-Ha-hJ-Yj-y][0-9]{1,2})|(([A-Za-z][0-9][A-Za-z])|([A-Za-z][A-Ha-hJ-Yj-y][0-9][A-Za-z]?))))\s?[0-9][A-Za-z]{2})$/i'],
+            'title' => ['required', 'string', 'in:Mr,Mrs,Miss,Ms,Dr,Prof'],
             'middle_name' => ['nullable', 'string', 'max:255'],
             'previous_surname' => ['nullable', 'string', 'max:255'],
             'gender' => ['required', 'string', 'in:male,female,non_binary,prefer_not_to_say'],
@@ -364,6 +429,8 @@ new #[Layout('layouts.application')] class extends Component
             'country' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:20'],
             'mobile' => ['nullable', 'string', 'max:20'],
+        ], [
+            'postcode.regex' => 'Please enter a valid UK postcode.',
         ]);
 
         $this->application->educationCandidate->update([
@@ -594,6 +661,8 @@ new #[Layout('layouts.application')] class extends Component
 
     public function saveWorkPreferences(): void
     {
+        $this->ni_number = strtoupper(str_replace(' ', '', $this->ni_number));
+
         $this->validate([
             'qualification_id' => ['nullable', 'integer', 'exists:qualifications,id'],
             'availability' => ['nullable', 'array'],
@@ -603,10 +672,10 @@ new #[Layout('layouts.application')] class extends Component
             'key_stages.*' => ['string', Rule::enum(KeyStage::class)],
             'skills' => ['required', 'array', 'min:1'],
             'skills.*' => ['integer', 'exists:candidate_skills,id'],
-            'ni_number' => ['required', 'string', 'regex:/^[A-Za-z]{2}[0-9]{6}[A-Za-z]$/'],
+            'ni_number' => ['required', 'string', 'regex:/^(?!BG)(?!GB)(?!NK)(?!KN)(?!TN)(?!NT)(?!ZZ)[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z][0-9]{6}[A-D]$/i'],
             'trn_number' => ['nullable', 'string', 'max:20'],
         ], [
-            'ni_number.regex' => 'Please enter a valid National Insurance number (e.g. QQ123456C).',
+            'ni_number.regex' => 'Please enter a valid National Insurance number (e.g. AB123456C).',
         ]);
 
         $skillIds = collect($this->skills);
@@ -622,7 +691,7 @@ new #[Layout('layouts.application')] class extends Component
             'availability' => $this->availability,
             'available_from' => $this->available_from,
             'key_stages' => $this->key_stages,
-            'ni_number' => strtoupper($this->ni_number),
+            'ni_number' => $this->ni_number,
             'trn_number' => $this->trn_number ?: null,
         ]);
 
@@ -793,7 +862,7 @@ new #[Layout('layouts.application')] class extends Component
 
     public function saveReference(int $index): void
     {
-        $this->validate($this->referenceValidationRules((string) $index));
+        $this->validate($this->referenceValidationRules((string) $index), attributes: $this->referenceAttributeNames());
 
         $this->persistReference($index);
 
@@ -804,6 +873,8 @@ new #[Layout('layouts.application')] class extends Component
     {
         $this->validate($this->referenceValidationRules('*') + [
             'references' => ['required', 'array', 'min:1'],
+        ], attributes: $this->referenceAttributeNames() + [
+            'references' => 'references',
         ]);
 
         $this->validateReferenceHistoryCoverage();
@@ -889,7 +960,7 @@ new #[Layout('layouts.application')] class extends Component
     {
         return [
             "references.{$index}.type" => ['required', 'string', Rule::enum(ReferenceType::class)],
-            "references.{$index}.title" => ['nullable', 'string', 'max:10'],
+            "references.{$index}.title" => ['nullable', 'string', 'in:Mr,Mrs,Miss,Ms,Dr,Prof'],
             "references.{$index}.first_name" => ['required', 'string', 'max:255'],
             "references.{$index}.last_name" => ['required', 'string', 'max:255'],
             "references.{$index}.job_title" => ['nullable', 'string', 'max:255'],
@@ -905,6 +976,35 @@ new #[Layout('layouts.application')] class extends Component
             "references.{$index}.consent_to_contact" => ['accepted'],
             "references.{$index}.contact_now" => ['boolean'],
         ];
+    }
+
+    /**
+     * Friendly field names for reference validation errors — without these,
+     * Laravel falls back to the raw array path (e.g. "references.0.title")
+     * since it has no attribute name to prettify for an indexed array field.
+     *
+     * @return array<string, string>
+     */
+    private function referenceAttributeNames(): array
+    {
+        return collect([
+            'type' => 'reference type',
+            'title' => 'title',
+            'first_name' => 'first name',
+            'last_name' => 'last name',
+            'job_title' => 'job title',
+            'worked_from' => 'worked from date',
+            'worked_to' => 'worked to date',
+            'email' => 'email',
+            'mobile' => 'mobile number',
+            'address' => 'address',
+            'city' => 'city',
+            'county' => 'county',
+            'country' => 'country',
+            'postcode' => 'postcode',
+            'consent_to_contact' => 'consent to contact',
+            'contact_now' => 'contact now',
+        ])->mapWithKeys(fn (string $label, string $field): array => ["references.*.{$field}" => $label])->all();
     }
 
     private function persistReference(int $index): void

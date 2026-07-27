@@ -10,6 +10,60 @@
         stream: null,
         cameraError: null,
         capturing: false,
+        zoom: 1,
+
+        cropAndContinue() {
+            if (this.zoom === 1) {
+                $wire.savePhoto();
+                return;
+            }
+
+            try {
+                const img = this.$refs.previewImg;
+                const size = 400;
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+
+                const coverScale = Math.max(size / img.naturalWidth, size / img.naturalHeight);
+                const scale = coverScale * this.zoom;
+                const drawWidth = img.naturalWidth * scale;
+                const drawHeight = img.naturalHeight * scale;
+
+                canvas.getContext('2d').drawImage(
+                    img,
+                    (size - drawWidth) / 2,
+                    (size - drawHeight) / 2,
+                    drawWidth,
+                    drawHeight,
+                );
+
+                canvas.toBlob((blob) => {
+                    if (! blob) {
+                        $wire.savePhoto();
+                        return;
+                    }
+
+                    const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
+
+                    this.capturing = true;
+
+                    $wire.upload('photo', file, () => {
+                        this.capturing = false;
+                        this.zoom = 1;
+                        $wire.savePhoto();
+                    }, () => {
+                        this.capturing = false;
+                        this.cameraError = @js(__('Photo upload failed. Please try again.'));
+                    });
+                }, 'image/jpeg', 0.92);
+            } catch (e) {
+                // The preview image failed to export (e.g. a cross-origin storage
+                // URL without CORS headers tainting the canvas) — fall back to
+                // saving the photo as originally uploaded, unzoomed.
+                $wire.savePhoto();
+            }
+        },
 
         async startCamera() {
             this.cameraError = null;
@@ -45,6 +99,7 @@
 
                 $wire.upload('photo', file, () => {
                     this.capturing = false;
+                    this.zoom = 1;
                     this.stopCamera();
                     this.mode = 'choose';
                 }, () => {
@@ -67,7 +122,29 @@
     @if ($photo)
         <div class="flex flex-col items-center gap-4">
             @if ($photo->isPreviewable())
-                <img src="{{ $photo->temporaryUrl() }}" alt="{{ __('Candidate photo preview') }}" class="size-40 rounded-full object-cover ring-4 ring-zinc-100 dark:ring-zinc-800" />
+                <div class="size-40 overflow-hidden rounded-full ring-4 ring-zinc-100 dark:ring-zinc-800">
+                    <img
+                        x-ref="previewImg"
+                        src="{{ $photo->temporaryUrl() }}"
+                        crossorigin="anonymous"
+                        alt="{{ __('Candidate photo preview') }}"
+                        class="size-full object-cover"
+                        x-bind:style="'transform: scale(' + zoom + ')'"
+                    />
+                </div>
+
+                <div class="flex w-full max-w-xs items-center gap-3">
+                    <flux:icon.magnifying-glass-minus class="size-4 shrink-0 text-zinc-400" />
+                    <input
+                        type="range"
+                        min="1"
+                        max="3"
+                        step="0.05"
+                        x-model.number="zoom"
+                        class="w-full accent-zinc-700 dark:accent-zinc-300"
+                    />
+                    <flux:icon.magnifying-glass-plus class="size-4 shrink-0 text-zinc-400" />
+                </div>
             @else
                 <p class="text-sm text-zinc-600 dark:text-zinc-400">{{ $photo->getClientOriginalName() }}</p>
             @endif
@@ -76,7 +153,7 @@
                 <flux:error>{{ $message }}</flux:error>
             @enderror
 
-            <flux:button type="button" variant="ghost" wire:click="$set('photo', null)">
+            <flux:button type="button" variant="ghost" wire:click="$set('photo', null)" @click="zoom = 1">
                 {{ __('Remove photo') }}
             </flux:button>
         </div>
@@ -104,6 +181,7 @@
                             wire:model="photo"
                             accept="image/*"
                             class="absolute inset-0 cursor-pointer opacity-0"
+                            @change="zoom = 1"
                         />
                     </div>
                 </div>
@@ -151,11 +229,12 @@
         type="button"
         variant="primary"
         class="w-full"
-        wire:click="savePhoto"
+        @click="cropAndContinue()"
         wire:loading.attr="disabled"
         wire:target="savePhoto"
-        :disabled="! $photo && ! $this->existingPhotoUrl"
+        x-bind:disabled="capturing || {{ (! $photo && ! $this->existingPhotoUrl) ? 'true' : 'false' }}"
     >
-        {{ __('Next') }}
+        <span x-show="!capturing">{{ __('Next') }}</span>
+        <span x-show="capturing">{{ __('Uploading…') }}</span>
     </flux:button>
 </div>

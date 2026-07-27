@@ -42,6 +42,11 @@ class ListEducationCandidates extends ListRecords
                         ->maxLength(255)
                         ->unique(EducationCandidate::class, 'email'),
                 ])
+                ->mutateFormDataUsing(function (array $data): array {
+                    $data['consultant_id'] = auth()->id();
+
+                    return $data;
+                })
                 ->after(function (EducationCandidate $record) {
                     CandidateCreated::run($record);
 
