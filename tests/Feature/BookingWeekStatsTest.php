@@ -80,7 +80,8 @@ test('it counts distinct clients, candidates, days placed, and computes gp for t
     expect($stats['clients'])->toBe(2)
         ->and($stats['candidates'])->toBe(2)
         ->and($stats['daysPlaced'])->toBe(3)
-        ->and($stats['gp'])->toBe(140.0);
+        ->and($stats['gp'])->toBe(140.0)
+        ->and($stats['avgMargin'])->toBe(0.3333);
 });
 
 test('cancelled days do not count towards days placed or gp', function () {
@@ -104,7 +105,8 @@ test('cancelled days do not count towards days placed or gp', function () {
     $stats = Livewire::test(BookingWeekStats::class)->instance()->weekStats();
 
     expect($stats['daysPlaced'])->toBe(1)
-        ->and($stats['gp'])->toBe(50.0);
+        ->and($stats['gp'])->toBe(50.0)
+        ->and($stats['avgMargin'])->toBe(0.3333);
 });
 
 test('am and pm sessions each count as a full day placed', function () {
