@@ -5,6 +5,7 @@ namespace App\Filament\Resources\EducationCandidates;
 use App\Filament\Resources\EducationCandidates\Pages\BulkUploadCvs;
 use App\Filament\Resources\EducationCandidates\Pages\EditEducationCandidate;
 use App\Filament\Resources\EducationCandidates\Pages\ListEducationCandidates;
+use App\Filament\Resources\EducationCandidates\Pages\SearchEducationCandidates;
 use App\Filament\Resources\EducationCandidates\Schemas\EducationCandidateForm;
 use App\Filament\Resources\EducationCandidates\Tables\EducationCandidatesTable;
 use App\Models\EducationCandidate;
@@ -71,6 +72,7 @@ class EducationCandidateResource extends Resource
     {
         return [
             'index' => ListEducationCandidates::route('/'),
+            'search' => SearchEducationCandidates::route('/search'),
             'bulk-upload-cvs' => BulkUploadCvs::route('/bulk-upload-cvs'),
             'edit' => EditEducationCandidate::route('/{record}/edit'),
         ];

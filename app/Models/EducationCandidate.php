@@ -153,4 +153,9 @@ class EducationCandidate extends Model
     {
         return $this->morphMany(PayRate::class, 'model');
     }
+
+    public function bookings(): MorphMany
+    {
+        return $this->morphMany(Booking::class, 'candidate');
+    }
 }

@@ -13,7 +13,7 @@ class CandidateCreated
 {
     use AsAction;
 
-    public function handle(EducationCandidate $candidate): void
+    public function handle(EducationCandidate $candidate, bool $sync = false): void
     {
         /** @var EducationApplication $application */
         $application = $candidate->application()->create([
@@ -32,6 +32,10 @@ class CandidateCreated
             $candidate->statuses()->firstOrCreate(['candidate_status_id' => $onboarding->id]);
         }
 
-        SendApplicationEmail::dispatch($candidate, $application, auth()->id());
+        if ($sync) {
+            SendApplicationEmail::dispatchSync($candidate, $application, auth()->id());
+        } else {
+            SendApplicationEmail::dispatch($candidate, $application, auth()->id());
+        }
     }
 }
