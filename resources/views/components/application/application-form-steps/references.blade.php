@@ -51,7 +51,11 @@
                 </flux:select>
 
                 <div class="grid grid-cols-3 gap-4">
-                    <flux:input wire:model="references.{{ $index }}.title" :label="__('Title')" placeholder="Mr" />
+                    <flux:select wire:model="references.{{ $index }}.title" :label="__('Title')" placeholder="{{ __('Select…') }}">
+                        @foreach (['Mr', 'Mrs', 'Miss', 'Ms', 'Dr', 'Prof'] as $t)
+                            <flux:select.option value="{{ $t }}">{{ $t }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
                     <flux:input wire:model="references.{{ $index }}.first_name" :label="__('First Name')" />
                     <flux:input wire:model="references.{{ $index }}.last_name" :label="__('Last Name')" />
                 </div>

@@ -217,48 +217,91 @@
     </div>
 
     {{-- Address --}}
-    <div class="flex flex-col gap-4">
-        <p class="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{{ __('Address') }}</p>
+    <div class="flex flex-col gap-4" x-data="{ get isDark() { return document.documentElement.classList.contains('dark'); } }">
+        <div class="flex items-center justify-between">
+            <p class="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{{ __('Address') }}</p>
 
-        <flux:input
-            wire:model="address"
-            :label="__('Address')"
-            placeholder="123 Example Street"
-            required
-            x-bind:class="attempted && !$wire.address ? '!border-red-500' : ''"
-        />
-
-        <div class="grid grid-cols-2 gap-4">
-            <flux:input
-                wire:model="city"
-                :label="__('City / Town')"
-                placeholder="London"
-                required
-                x-bind:class="attempted && !$wire.city ? '!border-red-500' : ''"
-            />
-
-            <flux:input
-                wire:model="postcode"
-                :label="__('Postcode')"
-                placeholder="SW1A 1AA"
-                required
-                x-bind:class="attempted && !$wire.postcode ? '!border-red-500' : ''"
-            />
+            <flux:button type="button" wire:click="$toggle('address_manual')" variant="ghost" size="sm">
+                @if ($address_manual)
+                    {{ __('Search address instead') }}
+                @else
+                    {{ __('Enter address manually') }}
+                @endif
+            </flux:button>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
+        @unless ($address_manual)
+            <div class="relative">
+                <flux:input
+                    wire:model.live.debounce.500ms="address_search"
+                    :label="__('Search Address')"
+                    placeholder="{{ __('Start typing an address or postcode...') }}"
+                    icon="magnifying-glass"
+                />
+
+                @if (! empty($address_suggestions))
+                    <div
+                        class="absolute z-10 mt-1 w-full rounded-lg border shadow-lg"
+                        :style="isDark
+                            ? 'background-color: #27272a; border-color: rgba(255,255,255,0.1);'
+                            : 'background-color: #ffffff; border-color: #e4e4e7;'"
+                    >
+                        @foreach ($address_suggestions as $placeId => $label)
+                            <button
+                                type="button"
+                                wire:click="selectAddress('{{ $placeId }}')"
+                                class="block w-full px-3 py-2 text-left text-sm"
+                                :class="isDark ? 'text-zinc-100 hover:bg-zinc-700' : 'text-zinc-900 hover:bg-zinc-100'"
+                            >
+                                {{ $label }}
+                            </button>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+        @endunless
+
+        @if ($address_manual || $address || $postcode)
             <flux:input
-                wire:model="county"
-                :label="__('County')"
-                placeholder="Greater London"
+                wire:model="address"
+                :label="__('Address')"
+                placeholder="123 Example Street"
+                required
+                x-bind:class="attempted && !$wire.address ? '!border-red-500' : ''"
             />
 
-            <flux:input
-                wire:model="country"
-                :label="__('Country')"
-                placeholder="United Kingdom"
-            />
-        </div>
+            <div class="grid grid-cols-2 gap-4">
+                <flux:input
+                    wire:model="city"
+                    :label="__('City / Town')"
+                    placeholder="London"
+                    required
+                    x-bind:class="attempted && !$wire.city ? '!border-red-500' : ''"
+                />
+
+                <flux:input
+                    wire:model="postcode"
+                    :label="__('Postcode')"
+                    placeholder="SW1A 1AA"
+                    required
+                    x-bind:class="attempted && !$wire.postcode ? '!border-red-500' : ''"
+                />
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <flux:input
+                    wire:model="county"
+                    :label="__('County')"
+                    placeholder="Greater London"
+                />
+
+                <flux:input
+                    wire:model="country"
+                    :label="__('Country')"
+                    placeholder="United Kingdom"
+                />
+            </div>
+        @endif
     </div>
 
     {{-- Contact Details --}}

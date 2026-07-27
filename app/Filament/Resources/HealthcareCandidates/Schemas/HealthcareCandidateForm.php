@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\HealthcareCandidates\Schemas;
 
+use App\Enums\DocumentType;
 use App\Enums\Education\Availability;
 use App\Enums\Healthcare\CareSetting;
 use App\Enums\Nationality;
@@ -9,6 +10,7 @@ use App\Enums\ReferenceStatus;
 use App\Enums\ReferenceType;
 use App\Filament\Resources\HealthcareVetting\HealthcareVettingResource;
 use App\Filament\Widgets\CandidateActivityTimeline;
+use App\Models\CandidateDocument;
 use App\Models\HealthcareCandidate;
 use App\Models\JobTitle;
 use App\Models\Qualification;
@@ -24,13 +26,17 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Actions;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Image;
 use Filament\Schemas\Components\Livewire as LivewireComponent;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Components\Text;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class HealthcareCandidateForm
 {
@@ -50,47 +56,66 @@ class HealthcareCandidateForm
 
                         Tab::make('Personal Details')
                             ->schema([
-                                Section::make('Personal Information')
-                                    ->columns(2)
+                                Grid::make(3)
                                     ->schema([
-                                        Select::make('title')
-                                            ->options([
-                                                'Mr' => 'Mr',
-                                                'Mrs' => 'Mrs',
-                                                'Miss' => 'Miss',
-                                                'Ms' => 'Ms',
-                                                'Dr' => 'Dr',
-                                                'Prof' => 'Prof',
+                                        Section::make('Photo')
+                                            ->schema([
+                                                Text::make('No photo uploaded.')
+                                                    ->color('gray')
+                                                    ->visible(fn (?HealthcareCandidate $record): bool => ! static::document($record, DocumentType::Photo)),
+                                                Image::make(
+                                                    url: fn (?HealthcareCandidate $record): ?string => static::documentUrl($record, DocumentType::Photo),
+                                                    alt: 'Candidate photo',
+                                                )
+                                                    ->imageHeight(160)
+                                                    ->imageWidth(160)
+                                                    ->alignCenter()
+                                                    ->visible(fn (?HealthcareCandidate $record): bool => (bool) static::document($record, DocumentType::Photo)),
                                             ]),
-                                        TextInput::make('first_name')
-                                            ->maxLength(255),
-                                        TextInput::make('middle_name')
-                                            ->maxLength(255),
-                                        TextInput::make('last_name')
-                                            ->maxLength(255),
-                                        TextInput::make('previous_surname')
-                                            ->maxLength(255),
-                                        Select::make('gender')
-                                            ->options([
-                                                'male' => 'Male',
-                                                'female' => 'Female',
-                                                'non_binary' => 'Non-binary',
-                                                'prefer_not_to_say' => 'Prefer not to say',
+
+                                        Section::make('Personal Information')
+                                            ->columnSpan(2)
+                                            ->columns(2)
+                                            ->schema([
+                                                Select::make('title')
+                                                    ->options([
+                                                        'Mr' => 'Mr',
+                                                        'Mrs' => 'Mrs',
+                                                        'Miss' => 'Miss',
+                                                        'Ms' => 'Ms',
+                                                        'Dr' => 'Dr',
+                                                        'Prof' => 'Prof',
+                                                    ]),
+                                                TextInput::make('first_name')
+                                                    ->maxLength(255),
+                                                TextInput::make('middle_name')
+                                                    ->maxLength(255),
+                                                TextInput::make('last_name')
+                                                    ->maxLength(255),
+                                                TextInput::make('previous_surname')
+                                                    ->maxLength(255),
+                                                Select::make('gender')
+                                                    ->options([
+                                                        'male' => 'Male',
+                                                        'female' => 'Female',
+                                                        'non_binary' => 'Non-binary',
+                                                        'prefer_not_to_say' => 'Prefer not to say',
+                                                    ]),
+                                                Select::make('nationality')
+                                                    ->options(Nationality::options())
+                                                    ->searchable(),
+                                                DatePicker::make('date_of_birth')
+                                                    ->label('Date of Birth')
+                                                    ->native(false),
+                                                Select::make('consultant_id')
+                                                    ->label('Consultant')
+                                                    ->options(fn (): array => User::role('consultant')
+                                                        ->whereHas('industries', fn ($query) => $query->where('industries.id', active_industry_id()))
+                                                        ->pluck('name', 'id')
+                                                        ->toArray()
+                                                    )
+                                                    ->searchable(),
                                             ]),
-                                        Select::make('nationality')
-                                            ->options(Nationality::options())
-                                            ->searchable(),
-                                        DatePicker::make('date_of_birth')
-                                            ->label('Date of Birth')
-                                            ->native(false),
-                                        Select::make('consultant_id')
-                                            ->label('Consultant')
-                                            ->options(fn (): array => User::role('consultant')
-                                                ->whereHas('industries', fn ($query) => $query->where('industries.id', active_industry_id()))
-                                                ->pluck('name', 'id')
-                                                ->toArray()
-                                            )
-                                            ->searchable(),
                                     ]),
 
                                 Section::make('Contact Details')
@@ -410,5 +435,19 @@ class HealthcareCandidateForm
                     ->placeholder('Not set'),
             ])
             ->columns(2);
+    }
+
+    protected static function document(?HealthcareCandidate $record, DocumentType $documentType): ?CandidateDocument
+    {
+        return $record?->documents()->where('document_type', $documentType)->first();
+    }
+
+    protected static function documentUrl(?HealthcareCandidate $record, DocumentType $documentType): ?string
+    {
+        $document = static::document($record, $documentType);
+
+        return $document
+            ? Storage::disk(config('filesystems.default'))->temporaryUrl($document->path, now()->addMinutes(10))
+            : null;
     }
 }

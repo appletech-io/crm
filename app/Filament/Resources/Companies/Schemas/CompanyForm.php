@@ -30,6 +30,10 @@ class CompanyForm
                             ->tel()
                             ->helperText('Used in candidate/client emails, e.g. as a contact number for booking queries')
                             ->columnSpanFull(),
+                        TextInput::make('website')
+                            ->url()
+                            ->helperText('Shown in the email signature footer, e.g. https://www.applebough.co.uk')
+                            ->columnSpanFull(),
                         Select::make('industries')
                             ->relationship('industries', 'name')
                             ->multiple()
@@ -52,6 +56,20 @@ class CompanyForm
                                 TextInput::make('name')
                                     ->required(),
                             ]),
+                    ]),
+
+                Section::make('Legal Details')
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('trading_name')
+                            ->label('Trading Name')
+                            ->helperText('The name this company trades as, if different from its legal name.'),
+                        TextInput::make('legal_name')
+                            ->label('Legal Name')
+                            ->helperText('The registered legal entity name, used on DBS checks and application consent text.'),
+                        TextInput::make('company_number')
+                            ->label('Company Number')
+                            ->helperText('Companies House registration number.'),
                     ]),
 
                 Section::make('Timesheet Settings')

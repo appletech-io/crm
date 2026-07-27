@@ -6,7 +6,6 @@ use App\Models\EducationCandidate;
 use App\Models\Industry;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
 
@@ -21,7 +20,7 @@ beforeEach(function () {
     Cache::put("user.{$this->user->id}.active_industry_id", $this->industry->id);
 });
 
-test('a non-admin consultant only sees candidates assigned to them', function () {
+test('a non-admin consultant sees all candidates in their company, not just their own', function () {
     $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
     $consultant->assignRole('consultant');
 
@@ -44,8 +43,21 @@ test('a non-admin consultant only sees candidates assigned to them', function ()
     Cache::put("user.{$consultant->id}.active_industry_id", $this->industry->id);
 
     Livewire::test(ListEducationCandidates::class)
-        ->assertCanSeeTableRecords([$ownCandidate])
-        ->assertCanNotSeeTableRecords([$otherConsultantCandidate, $unassignedCandidate]);
+        ->assertCanSeeTableRecords([$ownCandidate, $otherConsultantCandidate, $unassignedCandidate]);
+});
+
+test('a non-admin consultant does not see candidates belonging to a different company', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+
+    $otherCompanyCandidate = EducationCandidate::factory()->create();
+
+    $this->actingAs($consultant);
+    Cache::put("user.{$consultant->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$consultant->id}.active_industry_id", $this->industry->id);
+
+    Livewire::test(ListEducationCandidates::class)
+        ->assertCanNotSeeTableRecords([$otherCompanyCandidate]);
 });
 
 test('an admin sees all candidates regardless of consultant_id', function () {
@@ -60,7 +72,7 @@ test('an admin sees all candidates regardless of consultant_id', function () {
         ->assertCanSeeTableRecords([$candidate]);
 });
 
-test('a non-admin cannot directly open another consultants candidate edit page', function () {
+test('a non-admin consultant can directly open another consultants candidate edit page', function () {
     $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
     $consultant->assignRole('consultant');
 
@@ -73,8 +85,8 @@ test('a non-admin cannot directly open another consultants candidate edit page',
     Cache::put("user.{$consultant->id}.active_industry", $this->industry->slug);
     Cache::put("user.{$consultant->id}.active_industry_id", $this->industry->id);
 
-    expect(fn () => Livewire::test(EditEducationCandidate::class, ['record' => $otherConsultantCandidate->getRouteKey()]))
-        ->toThrow(ModelNotFoundException::class);
+    Livewire::test(EditEducationCandidate::class, ['record' => $otherConsultantCandidate->getRouteKey()])
+        ->assertSuccessful();
 });
 
 test('the consultant filter is only visible to admins', function () {

@@ -67,11 +67,6 @@ class EducationCandidateResource extends Resource
         return [];
     }
 
-    public static function getEloquentQuery(): Builder
-    {
-        return parent::getEloquentQuery()->visibleToCurrentUser();
-    }
-
     public static function getPages(): array
     {
         return [

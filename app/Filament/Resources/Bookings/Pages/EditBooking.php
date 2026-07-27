@@ -84,10 +84,7 @@ class EditBooking extends EditRecord
     /** @param  array<string, mixed>  $data */
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        $candidateModelClass = Industry::candidateModelForSlug(active_industry() ?? '');
-
-        $data['candidate_type'] = $candidateModelClass;
-        $data['consultant_id'] = $candidateModelClass ? $candidateModelClass::find($data['candidate_id'] ?? null)?->consultant_id : null;
+        $data['candidate_type'] = Industry::candidateModelForSlug(active_industry() ?? '');
 
         return $data;
     }

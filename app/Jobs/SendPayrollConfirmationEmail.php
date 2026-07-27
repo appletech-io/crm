@@ -11,6 +11,7 @@ use App\Models\Client;
 use App\Models\ClientContact;
 use App\Models\EmailTemplate;
 use App\Services\Booking\TimesheetPeriod;
+use App\Services\Mail\EmailFooter;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -69,8 +70,9 @@ class SendPayrollConfirmationEmail implements ShouldQueue
             $mailer->send(
                 to: $contact->email,
                 subject: $this->replacePlaceholders($template->subject ?? '', $contact, $dayPeriods),
-                body: $this->replacePlaceholders($template->body ?? '', $contact, $dayPeriods),
+                body: $this->replacePlaceholders($template->body ?? '', $contact, $dayPeriods).EmailFooter::render($this->client->company, $this->client->consultant),
                 from: $this->client->consultant?->email ?? $this->client->company->defaultFromEmail(),
+                attachments: [EmailFooter::logoAttachment()],
             );
 
             $dayPeriods->each->update(['payroll_confirmation_sent_at' => now()]);

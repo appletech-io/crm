@@ -39,7 +39,7 @@
             <flux:input
                 wire:model="ni_number"
                 :label="__('National Insurance Number')"
-                placeholder="QQ123456C"
+                placeholder="AB123456C"
                 required
             />
 

@@ -51,6 +51,25 @@ test('microsoft credentials can be saved and the client secret is encrypted at r
         ->and($company->getRawOriginal('ms_client_secret'))->not->toBe('super-secret');
 });
 
+test('legal details can be saved via the edit page', function () {
+    $company = Company::factory()->create(['email_provider' => EmailProvider::Mailgun]);
+
+    Livewire::test(EditCompany::class, ['record' => $company->getRouteKey()])
+        ->fillForm([
+            'trading_name' => 'Applebough Recruitment',
+            'legal_name' => 'Applebough Group Ltd',
+            'company_number' => '12345678',
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $fresh = $company->fresh();
+
+    expect($fresh->trading_name)->toBe('Applebough Recruitment')
+        ->and($fresh->legal_name)->toBe('Applebough Group Ltd')
+        ->and($fresh->company_number)->toBe('12345678');
+});
+
 test('a company defaults to weekly timesheet frequency', function () {
     $company = Company::factory()->create();
 

@@ -36,6 +36,11 @@ class ListHealthcareCandidates extends ListRecords
                         ->maxLength(255)
                         ->unique(HealthcareCandidate::class, 'email'),
                 ])
+                ->mutateFormDataUsing(function (array $data): array {
+                    $data['consultant_id'] = auth()->id();
+
+                    return $data;
+                })
                 ->after(function (HealthcareCandidate $record) {
                     HealthcareCandidateCreated::run($record);
 

@@ -2,7 +2,7 @@
 
     <x-auth-header
         :title="__('Upload Your CV')"
-        :description="__('Upload your CV as a PDF and we\'ll pre-fill your details automatically.')"
+        :description="__('Upload your CV as a PDF or Word document and we\'ll pre-fill your details automatically.')"
     />
 
     <form wire:submit="parseCv" class="mt-6 flex flex-col gap-6">
@@ -39,12 +39,12 @@
                             <span>{{ __('Click to select or drag and drop') }}</span>
                         @endif
                     </p>
-                    <p class="mt-1 text-xs text-zinc-500">{{ __('PDF up to 10MB') }}</p>
+                    <p class="mt-1 text-xs text-zinc-500">{{ __('PDF or Word document, up to 10MB') }}</p>
                     <input
                         id="cv"
                         type="file"
                         wire:model="cv"
-                        accept=".pdf"
+                        accept=".pdf,.docx"
                         class="absolute inset-0 cursor-pointer opacity-0"
                     />
                 </div>
