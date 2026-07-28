@@ -39,6 +39,18 @@ test('site_admin can view a company as one of its consultant users', function ()
     expect(auth()->id())->toBe($consultant->id);
 });
 
+test('site_admin can view a company as one of its compliance users', function () {
+    $company = Company::factory()->create();
+    $compliance = User::factory()->create(['company_id' => $company->id]);
+    $compliance->assignRole('compliance');
+
+    Livewire::test(ListCompanies::class)
+        ->callTableAction('viewAs', $company, data: ['user_id' => $compliance->id])
+        ->assertRedirect('/crm');
+
+    expect(auth()->id())->toBe($compliance->id);
+});
+
 test('a site_admin cannot access run payroll until impersonating an admin', function () {
     $company = Company::factory()->create();
     $admin = User::factory()->create(['company_id' => $company->id]);

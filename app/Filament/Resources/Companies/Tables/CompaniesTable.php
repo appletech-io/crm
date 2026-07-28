@@ -47,7 +47,7 @@ class CompaniesTable
                             ->label('View as')
                             ->options(fn (): array => self::eligibleUsers($record)
                                 ->mapWithKeys(fn (User $user): array => [
-                                    $user->id => "{$user->name} (".($user->hasRole('admin') ? 'Admin' : 'Consultant').')',
+                                    $user->id => "{$user->name} (".self::roleLabelFor($user).')',
                                 ])
                                 ->toArray())
                             ->required()
@@ -90,8 +90,18 @@ class CompaniesTable
     {
         return User::withoutGlobalScope('company')
             ->where('company_id', $record->id)
-            ->whereHas('roles', fn ($query) => $query->whereIn('name', ['admin', 'consultant']))
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', ['admin', 'consultant', 'compliance']))
             ->orderBy('name')
             ->get();
+    }
+
+    private static function roleLabelFor(User $user): string
+    {
+        return match (true) {
+            $user->hasRole('admin') => 'Admin',
+            $user->hasRole('consultant') => 'Consultant',
+            $user->hasRole('compliance') => 'Compliance',
+            default => 'User',
+        };
     }
 }
