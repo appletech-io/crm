@@ -4,6 +4,7 @@ namespace App\Filament\Resources\HealthcareVetting\Schemas;
 
 use App\Enums\DocumentType;
 use App\Enums\Healthcare\CareSetting;
+use App\Filament\Widgets\CandidateAdditionalDocuments;
 use App\Filament\Widgets\CandidateDocumentStatus;
 use App\Models\CandidateDocument;
 use App\Models\CandidateSkill;
@@ -50,7 +51,7 @@ class HealthcareVettingSteps
             static::securityChecks(),
             static::professionalRegistration(),
             static::dbs(),
-            static::placeholder('References'),
+            static::references(),
             static::confirm(),
         ];
 
@@ -263,6 +264,15 @@ class HealthcareVettingSteps
             ->schema([
                 LivewireComponent::make(CandidateDocumentStatus::class)
                     ->key('candidate-document-status'),
+            ]);
+    }
+
+    protected static function references(): Step
+    {
+        return Step::make('References')
+            ->schema([
+                LivewireComponent::make(CandidateAdditionalDocuments::class)
+                    ->key('candidate-additional-documents'),
             ]);
     }
 
@@ -634,15 +644,6 @@ class HealthcareVettingSteps
                         TextInput::make('country')
                             ->maxLength(255),
                     ]),
-            ]);
-    }
-
-    protected static function placeholder(string $title): Step
-    {
-        return Step::make($title)
-            ->schema([
-                Text::make('This step has not been built yet.')
-                    ->color('gray'),
             ]);
     }
 

@@ -17,4 +17,10 @@ class NoSectorDashboard implements DashboardInterface
     {
         return 'No sector set for user';
     }
+
+    /** @return int | array<string, ?int> */
+    public function getColumns(): int|array
+    {
+        return 2;
+    }
 }

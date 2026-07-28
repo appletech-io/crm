@@ -3,6 +3,7 @@
 namespace App\Services\Healthcare;
 
 use App\Enums\DocumentType;
+use App\Enums\ReferenceStatus;
 use App\Models\HealthcareCandidate;
 
 class CandidateVettingRequirements
@@ -32,6 +33,12 @@ class CandidateVettingRequirements
                 'label' => 'Headshot Photo',
                 'description' => 'Headshot photo has been uploaded.',
                 'complete' => $candidate->documents()->where('document_type', DocumentType::Photo)->exists(),
+            ],
+            'reference' => [
+                'label' => 'Reference',
+                'description' => 'At least one reference has been confirmed, or a reference document has been uploaded.',
+                'complete' => $candidate->references()->where('status', ReferenceStatus::Confirmed)->exists()
+                    || $candidate->documents()->where('document_type', DocumentType::Reference)->exists(),
             ],
             'skills' => [
                 'label' => 'Skills',

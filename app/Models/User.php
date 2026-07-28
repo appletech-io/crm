@@ -115,6 +115,17 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
         return $this->hasAnyRole(['admin', 'site_admin']);
     }
 
+    /**
+     * True when the compliance role is the user's only role. Compliance-only users
+     * get a cut-down dashboard and lose access to modules (Bookings, Clients) that
+     * fall outside their remit. A user with an additional role sees the standard
+     * experience instead.
+     */
+    public function isComplianceOnly(): bool
+    {
+        return $this->hasRole('compliance') && $this->roles->count() === 1;
+    }
+
     public function canAccessPanel(Panel $panel): bool
     {
         return match ($panel->getId()) {

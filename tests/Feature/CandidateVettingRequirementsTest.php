@@ -108,6 +108,13 @@ function fullyCompliantCandidate(array $attributes = []): EducationCandidate
         'path' => 'fake/dbs-back.pdf',
     ]);
 
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::Reference,
+        'path' => 'fake/reference.pdf',
+    ]);
+
     return $candidate->fresh();
 }
 
@@ -366,6 +373,39 @@ test('headshot photo check fails unless a photo document is uploaded', function 
     $candidate->documents()->where('document_type', DocumentType::Photo)->delete();
 
     expect(CandidateVettingRequirements::for($candidate)['headshot_photo']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('reference check fails when there is neither a confirmed reference nor a reference document', function () {
+    $candidate = fullyCompliantCandidate();
+    $candidate->documents()->where('document_type', DocumentType::Reference)->delete();
+
+    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('reference check passes with a reference document even without a confirmed reference', function () {
+    $candidate = fullyCompliantCandidate();
+
+    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeTrue();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeTrue();
+});
+
+test('reference check passes with a confirmed reference even without a reference document', function () {
+    $candidate = fullyCompliantCandidate();
+    $candidate->documents()->where('document_type', DocumentType::Reference)->delete();
+    $candidate->references()->create(['type' => 'professional', 'first_name' => 'Jane', 'last_name' => 'Doe', 'status' => 'confirmed']);
+
+    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeTrue();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeTrue();
+});
+
+test('reference check fails when a reference exists but is not confirmed', function () {
+    $candidate = fullyCompliantCandidate();
+    $candidate->documents()->where('document_type', DocumentType::Reference)->delete();
+    $candidate->references()->create(['type' => 'professional', 'first_name' => 'Jane', 'last_name' => 'Doe', 'status' => 'pending']);
+
+    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeFalse();
     expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
 });
 
