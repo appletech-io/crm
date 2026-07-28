@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Concerns\HasAdditionalDocuments;
 use App\Services\Candidates\CandidateDocumentRequirements;
 use App\Services\Candidates\Document;
 use Filament\Actions\Action;
@@ -16,6 +17,8 @@ use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
 class CandidateDocumentManager extends TableWidget
 {
+    use HasAdditionalDocuments;
+
     protected int|string|array $columnSpan = 'full';
 
     public ?Model $record = null;
@@ -32,7 +35,7 @@ class CandidateDocumentManager extends TableWidget
             return [];
         }
 
-        return CandidateDocumentRequirements::for($this->record, includeGetDbsAction: false);
+        return CandidateDocumentRequirements::for($this->record, includeGetDbsAction: false) + $this->additionalDocumentRows();
     }
 
     public function table(Table $table): Table
@@ -40,6 +43,9 @@ class CandidateDocumentManager extends TableWidget
         return $table
             ->heading(null)
             ->records(fn (): array => $this->rows())
+            ->headerActions([
+                $this->addAdditionalDocumentAction(),
+            ])
             ->columns([
                 TextColumn::make('label')
                     ->label('Document'),
@@ -71,7 +77,7 @@ class CandidateDocumentManager extends TableWidget
                     ->visible(fn (array $record): bool => ! $record['uploaded']),
 
                 $this->uploadAction('update', 'Update', 'heroicon-o-arrow-path')
-                    ->visible(fn (array $record): bool => $record['uploaded']),
+                    ->visible(fn (array $record): bool => $record['uploaded'] && ! $this->isAdditionalDocumentRecord($record)),
 
                 Action::make('remove')
                     ->label('Remove')
@@ -80,10 +86,25 @@ class CandidateDocumentManager extends TableWidget
                     ->requiresConfirmation()
                     ->modalHeading('Remove document')
                     ->modalDescription('Are you sure you want to remove this document? The candidate will need to provide it again.')
-                    ->visible(fn (array $record): bool => $record['uploaded'])
+                    ->visible(fn (array $record): bool => $record['uploaded'] && ! $this->isAdditionalDocumentRecord($record))
                     ->action(fn (array $record) => $this->removeDocument($record['document_type'])),
+
+                Action::make('removeAdditionalDocument')
+                    ->label('Remove')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Remove document')
+                    ->modalDescription('Are you sure you want to remove this document?')
+                    ->visible(fn (array $record): bool => $this->isAdditionalDocumentRecord($record))
+                    ->action(fn (array $record) => $this->removeAdditionalDocument($record['additional_document_id'])),
             ])
             ->paginated(false);
+    }
+
+    private function isAdditionalDocumentRecord(array $record): bool
+    {
+        return isset($record['additional_document_id']);
     }
 
     private function uploadAction(string $name, string $label, string $icon): Action
@@ -147,5 +168,10 @@ class CandidateDocumentManager extends TableWidget
             ->success()
             ->title('Document removed')
             ->send();
+    }
+
+    protected function additionalDocumentsCandidate(): ?Model
+    {
+        return $this->record;
     }
 }

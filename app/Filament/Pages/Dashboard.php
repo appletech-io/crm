@@ -19,7 +19,8 @@ class Dashboard extends BaseDashboard
         if (! $industry) {
             $this->dashboard = new NoSectorDashboard;
         } else {
-            $dashboardClass = 'App\\Filament\\Pages\\Dashboards\\'.ucfirst($industry).'Dashboard';
+            $prefix = auth()->user()?->isComplianceOnly() ? 'Compliance' : '';
+            $dashboardClass = 'App\\Filament\\Pages\\Dashboards\\'.$prefix.ucfirst($industry).'Dashboard';
 
             if (class_exists($dashboardClass)) {
                 $dashboard = app($dashboardClass);
@@ -56,5 +57,11 @@ class Dashboard extends BaseDashboard
         }
 
         return [];
+    }
+
+    /** @return int | array<string, ?int> */
+    public function getColumns(): int|array
+    {
+        return $this->dashboard?->getColumns() ?? 2;
     }
 }

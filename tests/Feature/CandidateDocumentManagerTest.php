@@ -179,3 +179,54 @@ test('uploading either side of the dbs sets has_dbs to yes', function () {
 
     expect($candidate->fresh()->has_dbs)->toBe('yes');
 });
+
+test('a consultant can add a reference document by picking the type from the dropdown', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    Livewire::test(CandidateDocumentManager::class, ['record' => $candidate])
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'document_type' => 'reference',
+            'file' => UploadedFile::fake()->create('reference.pdf', 100, 'application/pdf'),
+        ])
+        ->assertHasNoActionErrors();
+
+    expect($candidate->fresh()->documents()->where('document_type', 'reference')->exists())->toBeTrue();
+});
+
+test('a consultant can add more than one other document via the same dropdown', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    Livewire::test(CandidateDocumentManager::class, ['record' => $candidate])
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'document_type' => 'other',
+            'file' => UploadedFile::fake()->create('misc-one.pdf', 100, 'application/pdf'),
+        ])
+        ->assertHasNoActionErrors()
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'document_type' => 'other',
+            'file' => UploadedFile::fake()->create('misc-two.pdf', 100, 'application/pdf'),
+        ])
+        ->assertHasNoActionErrors();
+
+    expect($candidate->fresh()->documents()->where('document_type', 'other')->count())->toBe(2);
+});
+
+test('removing an additional document only deletes that document, leaving required documents alone', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $candidate->documents()->create(['document_type' => 'cv', 'path' => 'fake/path/cv.pdf']);
+
+    Livewire::test(CandidateDocumentManager::class, ['record' => $candidate])
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'document_type' => 'reference',
+            'file' => UploadedFile::fake()->create('reference.pdf', 100, 'application/pdf'),
+        ]);
+
+    $reference = $candidate->fresh()->documents()->where('document_type', 'reference')->first();
+
+    Livewire::test(CandidateDocumentManager::class, ['record' => $candidate])
+        ->callAction(TestAction::make('removeAdditionalDocument')->table(record: "additional_document_{$reference->id}"));
+
+    expect($candidate->fresh()->documents()->where('document_type', 'reference')->exists())->toBeFalse();
+    expect($candidate->fresh()->documents()->where('document_type', 'cv')->exists())->toBeTrue();
+    Storage::disk('local')->assertMissing($reference->path);
+});

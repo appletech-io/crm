@@ -30,7 +30,7 @@ class BookingResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return active_industry() !== null;
+        return active_industry() !== null && ! (auth()->user()?->isComplianceOnly() ?? false);
     }
 
     public static function form(Schema $schema): Schema

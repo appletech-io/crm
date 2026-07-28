@@ -19,4 +19,10 @@ class HealthcareDashboard implements DashboardInterface
     {
         return 'Home';
     }
+
+    /** @return int | array<string, ?int> */
+    public function getColumns(): int|array
+    {
+        return 2;
+    }
 }

@@ -380,6 +380,19 @@ test('the documents step shows required documents for the candidate', function (
     expect($html)->not->toContain('UK NARIC');
 });
 
+test('the references step lets a consultant add reference documents instead of showing a placeholder', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    $html = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->toContain('References');
+    expect($html)->toContain('Add Reference');
+    expect($html)->not->toContain('This step has not been built yet.');
+});
+
 test('overseas police clearance section only shows when the candidate lived overseas', function () {
     $candidate = EducationCandidate::factory()->create([
         'company_id' => $this->user->company_id,
@@ -1004,7 +1017,7 @@ test('the Complete button is enabled when the vetting checklist is fully met', f
         'hourly_rate' => 20,
     ]);
 
-    foreach ([DocumentType::Cv, DocumentType::Photo, DocumentType::BirthCertificate, DocumentType::DbsFront, DocumentType::DbsBack, DocumentType::SafeguardingTraining] as $documentType) {
+    foreach ([DocumentType::Cv, DocumentType::Photo, DocumentType::BirthCertificate, DocumentType::DbsFront, DocumentType::DbsBack, DocumentType::SafeguardingTraining, DocumentType::Reference] as $documentType) {
         CandidateDocument::create([
             'candidate_type' => EducationCandidate::class,
             'candidate_id' => $candidate->id,
