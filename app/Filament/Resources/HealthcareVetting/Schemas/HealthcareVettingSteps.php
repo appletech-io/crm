@@ -6,6 +6,7 @@ use App\Enums\DocumentType;
 use App\Enums\Healthcare\CareSetting;
 use App\Filament\Widgets\CandidateAdditionalDocuments;
 use App\Filament\Widgets\CandidateDocumentStatus;
+use App\Filament\Widgets\CandidateReferencesSummary;
 use App\Models\CandidateDocument;
 use App\Models\CandidateSkill;
 use App\Models\HealthcareCandidate;
@@ -262,6 +263,8 @@ class HealthcareVettingSteps
     {
         return Step::make('Documents')
             ->schema([
+                LivewireComponent::make(CandidateReferencesSummary::class)
+                    ->key('candidate-references-summary'),
                 LivewireComponent::make(CandidateDocumentStatus::class)
                     ->key('candidate-document-status'),
             ]);
