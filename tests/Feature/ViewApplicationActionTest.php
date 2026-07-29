@@ -1,7 +1,11 @@
 <?php
 
+use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Filament\Resources\EducationCandidates\Pages\EditEducationCandidate;
+use App\Filament\Resources\EducationCandidates\Pages\ViewApplication as EducationViewApplication;
+use App\Filament\Resources\HealthcareCandidates\HealthcareCandidateResource;
 use App\Filament\Resources\HealthcareCandidates\Pages\EditHealthcareCandidate;
+use App\Filament\Resources\HealthcareCandidates\Pages\ViewApplication as HealthcareViewApplication;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use App\Models\Industry;
@@ -25,7 +29,28 @@ function activateIndustryFor(string $slug): void
     Cache::put('user.'.test()->user->id.'.active_industry_id', $industry->id);
 }
 
-test('the application complete badge is clickable and the view application action is hidden until the application is complete', function () {
+test('the application complete badge links to the view application page and opens in a new tab', function () {
+    activateIndustryFor('education');
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $candidate->application()->create([
+        'email' => $candidate->email,
+        'status' => 'completed',
+        'token' => Str::uuid(),
+        'expires_on' => now()->addDays(7)->toDateString(),
+        'completed_at' => now(),
+    ]);
+
+    $html = Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    $url = EducationCandidateResource::getUrl('view-application', ['record' => $candidate]);
+
+    expect($html)->toContain('href="'.$url.'"');
+    expect($html)->toContain('target="_blank"');
+});
+
+test('the view application page is not reachable-looking (no badge link) until the application is complete', function () {
     activateIndustryFor('education');
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
     $candidate->application()->create([
@@ -35,11 +60,16 @@ test('the application complete badge is clickable and the view application actio
         'expires_on' => now()->addDays(7)->toDateString(),
     ]);
 
-    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
-        ->assertActionHidden('viewApplication');
+    $html = Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    $url = EducationCandidateResource::getUrl('view-application', ['record' => $candidate]);
+
+    expect($html)->not->toContain('href="'.$url.'"');
 });
 
-test('the education view application action shows the candidates submitted personal details, employment history and references', function () {
+test('the education view application page shows the candidates submitted personal details, employment history and references', function () {
     activateIndustryFor('education');
     $candidate = EducationCandidate::factory()->create([
         'company_id' => $this->user->company_id,
@@ -65,20 +95,44 @@ test('the education view application action shows the candidates submitted perso
         'consent_to_contact' => true,
     ]);
 
-    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
-        ->assertActionVisible('viewApplication')
-        ->mountAction('viewApplication')
-        ->assertSchemaStateSet([
-            'first_name' => 'Jane',
-            'last_name' => 'Applicant',
-        ])
-        ->assertMountedActionModalSee('Oakwood Primary')
-        ->assertMountedActionModalSee('Class Teacher')
-        ->assertMountedActionModalSee('Ref')
-        ->assertMountedActionModalSee('Eree');
+    Livewire::test(EducationViewApplication::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->assertSee('Jane')
+        ->assertSee('Applicant')
+        ->assertSee('Oakwood Primary')
+        ->assertSee('Class Teacher')
+        ->assertSee('Ref')
+        ->assertSee('Eree');
 });
 
-test('the education view application action tolerates a key_stages or availability value stored as a bare string instead of an array', function () {
+test('the education view application page shows the terms of engagement, kcsie and declaration the candidate agreed to', function () {
+    activateIndustryFor('education');
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $candidate->application()->create([
+        'email' => $candidate->email,
+        'status' => 'completed',
+        'token' => Str::uuid(),
+        'expires_on' => now()->addDays(7)->toDateString(),
+        'completed_at' => now(),
+        'terms_of_engagement_accepted_at' => '2026-01-05 10:00:00',
+        'terms_accepted_at' => '2026-01-05 10:05:00',
+        'declaration_accepted_at' => '2026-01-05 10:10:00',
+    ]);
+
+    $html = Livewire::test(EducationViewApplication::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->toContain('05/01/2026');
+    // Terms of Engagement clause text, reused from the live application form.
+    expect($html)->toContain('Definitions &amp; Interpretation');
+    // Declaration text, reused from the live application form.
+    expect($html)->toContain('I agree to references being sought.');
+    // KCSIE is an actual PDF document, embedded directly.
+    expect($html)->toContain(asset('documents/kcsie.pdf'));
+});
+
+test('the education view application page tolerates a key_stages or availability value stored as a bare string instead of an array', function () {
     activateIndustryFor('education');
     $candidate = EducationCandidate::factory()->create([
         'company_id' => $this->user->company_id,
@@ -96,13 +150,41 @@ test('the education view application action tolerates a key_stages or availabili
     // replicates that legacy-data shape rather than a proper array.
     $candidate->update(['key_stages' => 'keystage_1', 'availability' => 'permanent']);
 
-    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
-        ->mountAction('viewApplication')
-        ->assertMountedActionModalSee('Keystage 1')
-        ->assertMountedActionModalSee('Permanent');
+    Livewire::test(EducationViewApplication::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->assertSee('Keystage 1')
+        ->assertSee('Permanent');
 });
 
-test('the healthcare view application action is hidden until the application is complete and shows submitted details once it is', function () {
+test('the healthcare application complete badge links to the view application page and opens in a new tab', function () {
+    activateIndustryFor('healthcare');
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $candidate->application()->create([
+        'email' => $candidate->email,
+        'status' => 'pending',
+        'token' => Str::uuid(),
+        'expires_on' => now()->addDays(7)->toDateString(),
+    ]);
+
+    $urlWhilePending = HealthcareCandidateResource::getUrl('view-application', ['record' => $candidate]);
+
+    $htmlWhilePending = Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($htmlWhilePending)->not->toContain('href="'.$urlWhilePending.'"');
+
+    $candidate->application->update(['status' => 'completed', 'completed_at' => now()]);
+
+    $html = Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->toContain('href="'.$urlWhilePending.'"');
+    expect($html)->toContain('target="_blank"');
+});
+
+test('the healthcare view application page shows the candidates submitted details', function () {
     activateIndustryFor('healthcare');
     $candidate = HealthcareCandidate::factory()->create([
         'company_id' => $this->user->company_id,
@@ -111,21 +193,14 @@ test('the healthcare view application action is hidden until the application is 
     ]);
     $candidate->application()->create([
         'email' => $candidate->email,
-        'status' => 'pending',
+        'status' => 'completed',
         'token' => Str::uuid(),
         'expires_on' => now()->addDays(7)->toDateString(),
+        'completed_at' => now(),
     ]);
 
-    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
-        ->assertActionHidden('viewApplication');
-
-    $candidate->application->update(['status' => 'completed', 'completed_at' => now()]);
-
-    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
-        ->assertActionVisible('viewApplication')
-        ->mountAction('viewApplication')
-        ->assertSchemaStateSet([
-            'first_name' => 'John',
-            'last_name' => 'Nurse',
-        ]);
+    Livewire::test(HealthcareViewApplication::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->assertSee('John')
+        ->assertSee('Nurse');
 });

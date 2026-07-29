@@ -171,7 +171,7 @@ test('the compliance tab shows safeguarding, prevent training and kcsie fields',
 
     EducationApplication::factory()->create([
         'education_candidate_id' => $candidate->id,
-        'declaration_accepted_at' => '2025-02-04 10:00:00',
+        'terms_accepted_at' => '2025-02-04 10:00:00',
     ]);
 
     $html = Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
@@ -199,4 +199,50 @@ test('the compliance tab shows a document view link when a safeguarding certific
 
     expect($html)->toContain('Uploaded');
     expect($html)->toContain('href=');
+});
+
+test('the compliance tab shows the candidates medical information', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'has_health_condition_or_disability' => 'yes',
+        'health_condition_details' => 'Asthma, carries an inhaler.',
+        'reasonable_accommodations' => 'Ground floor classroom where possible.',
+    ]);
+
+    $html = Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->html();
+
+    expect($html)->toContain('Medical Information');
+    expect($html)->toContain('Asthma, carries an inhaler.');
+    expect($html)->toContain('Ground floor classroom where possible.');
+});
+
+test('the compliance tab shows the candidates employment and conduct disclosures', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'dismissed_from_relevant_position' => 'yes',
+        'dismissal_details' => 'Redundancy following restructure.',
+        'subject_to_disciplinary_action' => 'no',
+    ]);
+
+    $html = Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->html();
+
+    expect($html)->toContain('Employment &amp; Conduct');
+    expect($html)->toContain('Redundancy following restructure.');
+});
+
+test('the compliance tab shows the candidates disclosure and rehabilitation of offenders answers', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'lived_overseas_six_months' => 'yes',
+        'overseas_details' => 'Spain, 2019-2020.',
+        'unspent_convictions' => 'no',
+    ]);
+
+    $html = Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->html();
+
+    expect($html)->toContain('Disclosure &amp; Rehabilitation of Offenders');
+    expect($html)->toContain('Spain, 2019-2020.');
 });

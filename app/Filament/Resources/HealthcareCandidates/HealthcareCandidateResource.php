@@ -4,6 +4,7 @@ namespace App\Filament\Resources\HealthcareCandidates;
 
 use App\Filament\Resources\HealthcareCandidates\Pages\EditHealthcareCandidate;
 use App\Filament\Resources\HealthcareCandidates\Pages\ListHealthcareCandidates;
+use App\Filament\Resources\HealthcareCandidates\Pages\ViewApplication;
 use App\Filament\Resources\HealthcareCandidates\Schemas\HealthcareCandidateForm;
 use App\Filament\Resources\HealthcareCandidates\Tables\HealthcareCandidatesTable;
 use App\Models\HealthcareCandidate;
@@ -71,6 +72,7 @@ class HealthcareCandidateResource extends Resource
         return [
             'index' => ListHealthcareCandidates::route('/'),
             'edit' => EditHealthcareCandidate::route('/{record}/edit'),
+            'view-application' => ViewApplication::route('/{record}/application'),
         ];
     }
 
