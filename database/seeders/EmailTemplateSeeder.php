@@ -36,6 +36,10 @@ class EmailTemplateSeeder extends Seeder
                 'subject' => 'Timesheet for {client_name} — {week_start} to {week_end}',
                 'body' => '<p>Dear {client_contact_name},</p><p>Please review and confirm the timesheet for {client_name} covering {week_start} to {week_end}.</p><table><tr><th>Date</th><th>Candidate</th><th>Job Title</th></tr>{day_breakdown}</table><p>{payroll_confirmation_link}</p><p>Best wishes,<br>The Applebough Team</p>',
             ],
+            EmailTemplateType::ReferenceRequest->value => [
+                'subject' => 'Reference request for {candidate_name}',
+                'body' => '<p>Dear {referee_name},</p><p>{candidate_name} has listed you as a reference as part of their application with Applebough Education Recruitment. Please complete the short reference form using the link below by {expiry_date}.</p><p>{reference_link}</p><p>Thank you for your time.</p><p>Best wishes,<br>The Applebough Team</p>',
+            ],
         ];
 
         foreach ($templates as $typeValue => $content) {

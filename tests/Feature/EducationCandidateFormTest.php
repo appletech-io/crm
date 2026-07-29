@@ -165,6 +165,42 @@ test('references default to contact_now being enabled and can be switched off vi
     expect($reference->refresh()->contact_now)->toBeFalse();
 });
 
+test('the view reference response action is hidden when the reference has not been contacted yet', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    $candidate->references()->create([
+        'type' => 'character',
+        'first_name' => 'Existing',
+        'last_name' => 'Referee',
+        'worked_from' => '2019-01-01',
+        'consent_to_contact' => true,
+    ]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertDontSee('View Reference Response');
+});
+
+test('the view reference response action links to the reference form once the reference has a token', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    $reference = $candidate->references()->create([
+        'type' => 'character',
+        'first_name' => 'Existing',
+        'last_name' => 'Referee',
+        'worked_from' => '2019-01-01',
+        'consent_to_contact' => true,
+        'status' => 'contacted',
+        'token' => 'the-token',
+        'expires_on' => now()->addDays(7),
+    ]);
+
+    $html = Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertSee('View Reference Response')
+        ->html();
+
+    expect($html)->toContain(route('reference.form', ['token' => 'the-token']));
+});
+
 test('employment history can be viewed and saved via the repeater on the candidate edit form', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => null]);
 

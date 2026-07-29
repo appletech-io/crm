@@ -550,6 +550,19 @@ class EducationCandidateForm
                                             ->suffixIconColor(fn (Get $get) => ReferenceStatus::tryFrom($get('status') ?? '')?->color()),
                                         DatePicker::make('last_contacted')
                                             ->native(false),
+                                        Hidden::make('token'),
+                                        Actions::make([
+                                            Action::make('viewResponse')
+                                                ->label('View Reference Response')
+                                                ->icon('heroicon-o-eye')
+                                                ->color('gray')
+                                                ->url(fn (Get $get): ?string => filled($get('token'))
+                                                    ? route('reference.form', ['token' => $get('token')])
+                                                    : null
+                                                )
+                                                ->openUrlInNewTab()
+                                                ->visible(fn (Get $get): bool => filled($get('token'))),
+                                        ])->columnSpanFull(),
                                     ])
                                     ->columns(2)
                                     ->itemLabel(function (array $state): ?string {

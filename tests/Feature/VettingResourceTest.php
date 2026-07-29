@@ -380,6 +380,24 @@ test('the documents step shows required documents for the candidate', function (
     expect($html)->not->toContain('UK NARIC');
 });
 
+test('the documents step also shows a references summary with a link to the response once contacted', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    $candidate->references()->create([
+        'type' => 'agency', 'first_name' => 'Ref', 'last_name' => 'Eree',
+        'consent_to_contact' => true, 'status' => 'contacted',
+        'token' => 'the-token', 'expires_on' => now()->addDays(7),
+    ]);
+
+    $html = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->toContain('Ref Eree');
+    expect($html)->toContain(route('reference.form', ['token' => 'the-token']));
+});
+
 test('the references step lets a consultant add reference documents instead of showing a placeholder', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
     assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');

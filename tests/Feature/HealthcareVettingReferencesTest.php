@@ -43,3 +43,31 @@ test('the healthcare references step lets a consultant add documents instead of 
     expect($html)->toContain('Add Reference');
     expect($html)->not->toContain('This step has not been built yet.');
 });
+
+test('the documents step also shows a references summary with a link to the response once contacted', function () {
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    $status = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Vetting',
+    ]);
+    CandidateCandidateStatus::create([
+        'model_type' => HealthcareCandidate::class,
+        'model_id' => $candidate->id,
+        'candidate_status_id' => $status->id,
+    ]);
+
+    $candidate->references()->create([
+        'type' => 'agency', 'first_name' => 'Ref', 'last_name' => 'Eree',
+        'consent_to_contact' => true, 'status' => 'contacted',
+        'token' => 'the-token', 'expires_on' => now()->addDays(7),
+    ]);
+
+    $html = Livewire::test(HealthcareVettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->toContain('Ref Eree');
+    expect($html)->toContain(route('reference.form', ['token' => 'the-token']));
+});

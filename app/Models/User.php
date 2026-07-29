@@ -134,4 +134,13 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
             default => ! $this->hasRole('candidate') && ! $this->hasRole('client'),
         };
     }
+
+    /**
+     * A logged-in staff user (admin/consultant/resourcer/compliance/etc.) as
+     * opposed to a candidate or client contact logging into their own panel.
+     */
+    public function isCrmUser(): bool
+    {
+        return ! $this->hasRole('candidate') && ! $this->hasRole('client');
+    }
 }

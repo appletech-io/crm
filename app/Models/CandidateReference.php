@@ -19,6 +19,9 @@ class CandidateReference extends Model
         'last_contacted' => 'date',
         'consent_to_contact' => 'boolean',
         'contact_now' => 'boolean',
+        'expires_on' => 'date',
+        'answers' => 'array',
+        'submitted_at' => 'datetime',
     ];
 
     public function candidate(): MorphTo
