@@ -2,6 +2,7 @@
 
 namespace App\Filament\EducationCandidate\Pages;
 
+use App\Filament\Concerns\HasAdditionalDocuments;
 use App\Services\Candidates\CandidateDocumentRequirements;
 use App\Services\Candidates\Document;
 use Filament\Actions\Action;
@@ -19,6 +20,7 @@ use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
 class Documents extends Page implements HasTable
 {
+    use HasAdditionalDocuments;
     use InteractsWithTable;
 
     protected string $view = 'filament.candidate.pages.documents';
@@ -39,7 +41,26 @@ class Documents extends Page implements HasTable
     /** @return array<string, array{document_type: string, label: string, description: string, uploaded: bool, path: ?string, url: ?string}> */
     public function documentTypes(): array
     {
-        return CandidateDocumentRequirements::for($this->candidate());
+        return CandidateDocumentRequirements::for($this->candidate()) + $this->additionalDocumentRows();
+    }
+
+    /**
+     * References are added by staff only, on the candidate edit page — never
+     * shown or addable here.
+     *
+     * @return array<string, string>
+     */
+    protected function additionalDocumentTypes(): array
+    {
+        return [
+            'other' => 'Other',
+            'qualification' => 'Qualification',
+        ];
+    }
+
+    protected function additionalDocumentsCandidate(): ?Model
+    {
+        return $this->candidate();
     }
 
     /** @return array<string, array{document_type: string, label: string, description: string, uploaded: bool, path: ?string, url: ?string}> */
@@ -54,6 +75,9 @@ class Documents extends Page implements HasTable
     {
         return $table
             ->records(fn (): array => $this->visibleRows())
+            ->headerActions([
+                $this->addAdditionalDocumentAction(),
+            ])
             ->columns([
                 TextColumn::make('label')
                     ->label('Document'),
@@ -101,7 +125,7 @@ class Documents extends Page implements HasTable
                     ->visible(fn (array $record): bool => $record['url'] === null && ! $record['uploaded']),
 
                 $this->uploadAction('update', 'Update', 'heroicon-o-arrow-path')
-                    ->visible(fn (array $record): bool => $record['url'] === null && $record['uploaded']),
+                    ->visible(fn (array $record): bool => $record['url'] === null && $record['uploaded'] && ! $this->isAdditionalDocumentRecord($record)),
 
                 Action::make('remove')
                     ->label('Remove')
@@ -110,9 +134,32 @@ class Documents extends Page implements HasTable
                     ->requiresConfirmation()
                     ->modalHeading('Remove document')
                     ->modalDescription('Are you sure you want to remove this document? You will need to upload it again.')
-                    ->visible(fn (array $record): bool => $record['url'] === null && $record['uploaded'])
+                    ->visible(fn (array $record): bool => $record['url'] === null && $record['uploaded'] && ! $this->isAdditionalDocumentRecord($record))
                     ->action(fn (array $record) => $this->removeDocument($record['document_type'])),
+
+                Action::make('view')
+                    ->label('View')
+                    ->icon('heroicon-o-eye')
+                    ->color('gray')
+                    ->url(fn (array $record): ?string => Storage::disk(config('filesystems.default'))->temporaryUrl($record['path'], now()->addMinutes(10)))
+                    ->openUrlInNewTab()
+                    ->visible(fn (array $record): bool => $this->isAdditionalDocumentRecord($record)),
+
+                Action::make('removeAdditionalDocument')
+                    ->label('Remove')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Remove document')
+                    ->modalDescription('Are you sure you want to remove this document?')
+                    ->visible(fn (array $record): bool => $this->isAdditionalDocumentRecord($record))
+                    ->action(fn (array $record) => $this->removeAdditionalDocument($record['additional_document_id'])),
             ]);
+    }
+
+    private function isAdditionalDocumentRecord(array $record): bool
+    {
+        return isset($record['additional_document_id']);
     }
 
     private function uploadAction(string $name, string $label, string $icon): Action

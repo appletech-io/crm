@@ -396,6 +396,131 @@ test('removing a document deletes the stored file and record', function () {
     Storage::disk('local')->assertMissing($path);
 });
 
+test('a candidate can add more than one other document', function () {
+    $user = makeCandidateUser('Onboarding');
+    $this->actingAs($user);
+
+    Livewire::test(Documents::class)
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'document_type' => 'other',
+            'file' => UploadedFile::fake()->create('misc-one.pdf', 100, 'application/pdf'),
+        ])
+        ->assertHasNoActionErrors()
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'document_type' => 'other',
+            'file' => UploadedFile::fake()->create('misc-two.pdf', 100, 'application/pdf'),
+        ])
+        ->assertHasNoActionErrors();
+
+    expect($user->candidate->fresh()->documents()->where('document_type', 'other')->count())->toBe(2);
+});
+
+test('a candidate can add more than one qualification document', function () {
+    $user = makeCandidateUser('Onboarding');
+    $this->actingAs($user);
+
+    Livewire::test(Documents::class)
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'document_type' => 'qualification',
+            'file' => UploadedFile::fake()->create('degree.pdf', 100, 'application/pdf'),
+        ])
+        ->assertHasNoActionErrors()
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'document_type' => 'qualification',
+            'file' => UploadedFile::fake()->create('certificate.pdf', 100, 'application/pdf'),
+        ])
+        ->assertHasNoActionErrors();
+
+    expect($user->candidate->fresh()->documents()->where('document_type', 'qualification')->count())->toBe(2);
+});
+
+test('the candidates add document action offers other and qualification but not reference', function () {
+    $user = makeCandidateUser('Onboarding');
+    $this->actingAs($user);
+
+    Livewire::test(Documents::class)
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'document_type' => 'other',
+            'file' => UploadedFile::fake()->create('misc.pdf', 100, 'application/pdf'),
+        ])
+        ->assertHasNoActionErrors()
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'document_type' => 'qualification',
+            'file' => UploadedFile::fake()->create('degree.pdf', 100, 'application/pdf'),
+        ])
+        ->assertHasNoActionErrors()
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'document_type' => 'reference',
+            'file' => UploadedFile::fake()->create('reference.pdf', 100, 'application/pdf'),
+        ])
+        ->assertHasActionErrors(['document_type']);
+});
+
+test('a candidate cannot upload a reference document', function () {
+    $user = makeCandidateUser('Onboarding');
+    $this->actingAs($user);
+
+    Livewire::test(Documents::class)
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'document_type' => 'reference',
+            'file' => UploadedFile::fake()->create('reference.pdf', 100, 'application/pdf'),
+        ]);
+
+    expect($user->candidate->fresh()->documents()->where('document_type', 'reference')->exists())->toBeFalse();
+});
+
+test('reference documents added by staff are never shown to the candidate', function () {
+    $user = makeCandidateUser('Onboarding');
+    $user->candidate->documents()->create(['document_type' => 'reference', 'path' => 'company/education/1/reference.pdf']);
+    $this->actingAs($user);
+
+    Livewire::test(Documents::class)
+        ->set('activeTab', 'documents')
+        ->assertDontSee('Reference');
+});
+
+test('an additional document uploaded by the candidate appears on the documents tab with view and remove actions', function () {
+    $user = makeCandidateUser('Onboarding');
+    $this->actingAs($user);
+
+    Livewire::test(Documents::class)
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'document_type' => 'other',
+            'file' => UploadedFile::fake()->create('misc.pdf', 100, 'application/pdf'),
+        ]);
+
+    $document = $user->candidate->fresh()->documents()->where('document_type', 'other')->first();
+    $recordKey = "additional_document_{$document->id}";
+
+    Livewire::test(Documents::class)
+        ->set('activeTab', 'documents')
+        ->assertActionVisible(TestAction::make('view')->table(record: $recordKey))
+        ->assertActionVisible(TestAction::make('removeAdditionalDocument')->table(record: $recordKey))
+        ->assertActionHidden(TestAction::make('update')->table(record: $recordKey))
+        ->assertActionHidden(TestAction::make('remove')->table(record: $recordKey));
+});
+
+test('a candidate can remove an additional document they uploaded', function () {
+    $user = makeCandidateUser('Onboarding');
+    $this->actingAs($user);
+
+    Livewire::test(Documents::class)
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'document_type' => 'other',
+            'file' => UploadedFile::fake()->create('misc.pdf', 100, 'application/pdf'),
+        ]);
+
+    $document = $user->candidate->fresh()->documents()->where('document_type', 'other')->first();
+    $path = $document->path;
+
+    Livewire::test(Documents::class)
+        ->set('activeTab', 'documents')
+        ->callAction(TestAction::make('removeAdditionalDocument')->table(record: "additional_document_{$document->id}"));
+
+    expect($user->candidate->fresh()->documents()->where('document_type', 'other')->exists())->toBeFalse();
+    Storage::disk('local')->assertMissing($path);
+});
+
 test('uploaded documents are stored under the company and industry name, not their ids', function () {
     $user = makeCandidateUser('Onboarding');
     $this->actingAs($user);
