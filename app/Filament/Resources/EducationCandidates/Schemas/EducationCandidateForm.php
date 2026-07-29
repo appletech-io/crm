@@ -636,6 +636,9 @@ class EducationCandidateForm
                                 static::dbsSection(),
                                 static::rightToWorkSection(),
                                 static::safeguardingSection(),
+                                static::medicalInformationSection(),
+                                static::employmentConductSection(),
+                                static::disclosureSection(),
                             ]),
                     ]),
             ]);
@@ -680,11 +683,6 @@ class EducationCandidateForm
                     ->placeholder('Not set'),
 
                 static::documentEntry('UK Naric Document', DocumentType::UkNaric),
-
-                TextEntry::make('has_health_condition_or_disability')
-                    ->label('Any Medical Issue')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set'),
             ])
             ->columns(2);
     }
@@ -803,9 +801,102 @@ class EducationCandidateForm
                     ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
                     ->placeholder('Not set'),
 
-                TextEntry::make('application.declaration_accepted_at')
+                TextEntry::make('application.terms_accepted_at')
                     ->label('Keeping Children Safe in Education (Read on Application)')
                     ->date('d/m/Y')
+                    ->placeholder('Not set'),
+            ])
+            ->columns(2);
+    }
+
+    protected static function medicalInformationSection(): Section
+    {
+        return Section::make('Medical Information')
+            ->schema([
+                TextEntry::make('has_health_condition_or_disability')
+                    ->label('Health Condition or Disability')
+                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
+                    ->placeholder('Not set')
+                    ->badge()
+                    ->color(fn (?string $state): string => $state === 'yes' ? 'warning' : 'success'),
+
+                TextEntry::make('health_condition_details')
+                    ->label('Details')
+                    ->placeholder('None recorded')
+                    ->columnSpanFull(),
+
+                TextEntry::make('reasonable_accommodations')
+                    ->label('Reasonable Accommodations Needed')
+                    ->placeholder('None recorded')
+                    ->columnSpanFull(),
+            ])
+            ->columns(2);
+    }
+
+    protected static function employmentConductSection(): Section
+    {
+        return Section::make('Employment & Conduct')
+            ->schema([
+                TextEntry::make('retired_early')
+                    ->label('Retired Early')
+                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
+                    ->placeholder('Not set'),
+
+                TextEntry::make('retired_early_medical_grounds')
+                    ->label('On Medical Grounds')
+                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
+                    ->placeholder('Not set'),
+
+                TextEntry::make('dismissed_from_relevant_position')
+                    ->label('Dismissed from a Relevant Position')
+                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
+                    ->placeholder('Not set'),
+
+                TextEntry::make('dismissal_details')
+                    ->label('Dismissal Details')
+                    ->placeholder('None recorded')
+                    ->columnSpanFull(),
+
+                TextEntry::make('subject_to_disciplinary_action')
+                    ->label('Subject to Disciplinary Action')
+                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
+                    ->placeholder('Not set'),
+
+                TextEntry::make('disciplinary_action_details')
+                    ->label('Disciplinary Action Details')
+                    ->placeholder('None recorded')
+                    ->columnSpanFull(),
+            ])
+            ->columns(2);
+    }
+
+    protected static function disclosureSection(): Section
+    {
+        return Section::make('Disclosure & Rehabilitation of Offenders')
+            ->schema([
+                TextEntry::make('lived_overseas_six_months')
+                    ->label('Lived Overseas 6+ Months')
+                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
+                    ->placeholder('Not set'),
+
+                TextEntry::make('overseas_details')
+                    ->label('Overseas Details')
+                    ->placeholder('None recorded')
+                    ->columnSpanFull(),
+
+                TextEntry::make('unspent_convictions')
+                    ->label('Unspent Convictions')
+                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
+                    ->placeholder('Not set'),
+
+                TextEntry::make('unspent_convictions_details')
+                    ->label('Conviction Details')
+                    ->placeholder('None recorded')
+                    ->columnSpanFull(),
+
+                TextEntry::make('spent_convictions_not_protected')
+                    ->label('Spent Convictions Not Protected')
+                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
                     ->placeholder('Not set'),
             ])
             ->columns(2);
