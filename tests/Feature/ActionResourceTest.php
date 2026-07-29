@@ -35,7 +35,31 @@ test('list page renders for admins', function () {
     Livewire::test(ListActions::class)->assertSuccessful();
 });
 
-test('consultants cannot access the actions resource', function () {
+test('consultants and compliance can view the actions list but not create, edit or delete', function () {
+    foreach (['consultant', 'compliance'] as $role) {
+        $user = User::factory()->create(['company_id' => $this->company->id]);
+        $user->industries()->attach($this->industry);
+        $user->assignRole($role);
+        $this->actingAs($user);
+
+        Cache::put("user.{$user->id}.active_industry", $this->industry->slug);
+        Cache::put("user.{$user->id}.active_industry_id", $this->industry->id);
+
+        Livewire::test(ListActions::class)->assertSuccessful();
+
+        // Resource-level 403s (canCreate/canEdit) are caught by the app's global
+        // exception handler and redirected to /crm, same as a canViewAny failure.
+        $this->get('/crm/actions/create')->assertRedirect('/crm');
+    }
+});
+
+test('consultants cannot edit an existing action', function () {
+    $action = Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+    ]);
+
     $consultant = User::factory()->create(['company_id' => $this->company->id]);
     $consultant->industries()->attach($this->industry);
     $consultant->assignRole('consultant');
@@ -44,7 +68,7 @@ test('consultants cannot access the actions resource', function () {
     Cache::put("user.{$consultant->id}.active_industry", $this->industry->slug);
     Cache::put("user.{$consultant->id}.active_industry_id", $this->industry->id);
 
-    $this->get('/crm/actions')->assertRedirect('/crm');
+    $this->get("/crm/actions/{$action->getRouteKey()}/edit")->assertRedirect('/crm');
 });
 
 test('site_admin can access the actions resource', function () {
@@ -199,4 +223,57 @@ test('actions are scoped to the current company and industry', function () {
     Livewire::test(ListActions::class)
         ->assertCanSeeTableRecords([$mine])
         ->assertCanNotSeeTableRecords([$theirs, $otherIndustryAction]);
+});
+
+test('an action can be created targeting everyone with a given role instead of the records consultant', function () {
+    Livewire::test(CreateAction::class)
+        ->fillForm([
+            'name' => 'Notify compliance',
+            'model_type' => Client::class,
+            'conditions' => [
+                'item-1' => ['field' => 'name', 'operator' => 'filled'],
+            ],
+            'assignee_type' => 'role',
+            'assignee_role' => 'compliance',
+            'todo_name' => 'Review this client',
+            'todo_priority' => 'medium',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $action = Action::where('name', 'Notify compliance')->first();
+
+    expect($action->assignee_type->value)->toBe('role')
+        ->and($action->assignee_role)->toBe('compliance');
+});
+
+test('assignee role is required when targeting by role but not when targeting the consultant', function () {
+    Livewire::test(CreateAction::class)
+        ->fillForm([
+            'name' => 'Missing role',
+            'model_type' => Client::class,
+            'conditions' => [
+                'item-1' => ['field' => 'name', 'operator' => 'filled'],
+            ],
+            'assignee_type' => 'role',
+            'assignee_role' => null,
+            'todo_name' => 'x',
+            'todo_priority' => 'medium',
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['assignee_role']);
+
+    Livewire::test(CreateAction::class)
+        ->fillForm([
+            'name' => 'Consultant targeted',
+            'model_type' => Client::class,
+            'conditions' => [
+                'item-1' => ['field' => 'name', 'operator' => 'filled'],
+            ],
+            'assignee_type' => 'consultant',
+            'todo_name' => 'x',
+            'todo_priority' => 'medium',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
 });

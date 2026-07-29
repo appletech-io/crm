@@ -380,7 +380,7 @@ test('the documents step shows required documents for the candidate', function (
     expect($html)->not->toContain('UK NARIC');
 });
 
-test('the documents step also shows a references summary with a link to the response once contacted', function () {
+test('the references step shows a references summary with a link to the response once contacted', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
     assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
 

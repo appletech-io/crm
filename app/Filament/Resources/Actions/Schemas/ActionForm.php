@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Actions\Schemas;
 
+use App\Enums\ActionAssigneeType;
 use App\Enums\TodoPriority;
 use App\Filament\Resources\TodoItems\Schemas\TodoItemForm;
 use App\Filament\Support\ConditionsRepeaterField;
@@ -15,6 +16,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Spatie\Permission\Models\Role;
 
 class ActionForm
 {
@@ -37,6 +39,20 @@ class ActionForm
                 ->columnSpanFull(),
 
             ConditionsRepeaterField::make('conditions', fn (Get $get): array => static::suggestionsFor($get('/data.model_type'))),
+
+            Select::make('assignee_type')
+                ->label('Notify')
+                ->options(ActionAssigneeType::options())
+                ->default(ActionAssigneeType::Consultant->value)
+                ->required()
+                ->live()
+                ->afterStateUpdated(fn (Set $set) => $set('assignee_role', null)),
+
+            Select::make('assignee_role')
+                ->label('Role')
+                ->options(static::roleOptions())
+                ->visible(fn (Get $get): bool => $get('assignee_type') === ActionAssigneeType::Role->value)
+                ->required(fn (Get $get): bool => $get('assignee_type') === ActionAssigneeType::Role->value),
 
             TextInput::make('todo_name')
                 ->label('To-Do Name')
@@ -86,5 +102,16 @@ class ActionForm
         }
 
         return $modelType::candidateFieldSuggestions();
+    }
+
+    /** @return array<string, string> */
+    public static function roleOptions(): array
+    {
+        return Role::query()
+            ->whereNotIn('name', ['candidate', 'client'])
+            ->orderBy('name')
+            ->pluck('name', 'name')
+            ->map(fn (string $name): string => ucfirst(str_replace('_', ' ', $name)))
+            ->all();
     }
 }

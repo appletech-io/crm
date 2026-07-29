@@ -201,6 +201,78 @@ test('the view reference response action links to the reference form once the re
     expect($html)->toContain(route('reference.form', ['token' => 'the-token']));
 });
 
+test('the resend action is labelled "send" before the reference has been contacted and "resend" after', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    $candidate->references()->create([
+        'type' => 'character',
+        'first_name' => 'Never',
+        'last_name' => 'Contacted',
+        'worked_from' => '2019-01-01',
+        'consent_to_contact' => true,
+        'contact_now' => true,
+        'email' => 'referee@example.com',
+        'status' => 'pending',
+    ]);
+
+    $candidate->references()->create([
+        'type' => 'character',
+        'first_name' => 'Already',
+        'last_name' => 'Contacted',
+        'worked_from' => '2019-01-01',
+        'consent_to_contact' => true,
+        'contact_now' => true,
+        'email' => 'referee2@example.com',
+        'status' => 'contacted',
+        'token' => 'the-token',
+        'expires_on' => now()->addDays(7),
+    ]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertSee('Send Reference Email')
+        ->assertSee('Resend Reference Email');
+});
+
+test('the resend action is hidden once a reference has been submitted', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    $candidate->references()->create([
+        'type' => 'character',
+        'first_name' => 'Existing',
+        'last_name' => 'Referee',
+        'worked_from' => '2019-01-01',
+        'consent_to_contact' => true,
+        'contact_now' => true,
+        'email' => 'referee@example.com',
+        'status' => 'submitted',
+        'token' => 'the-token',
+        'expires_on' => now()->addDays(7),
+    ]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertDontSee('Send Reference Email')
+        ->assertDontSee('Resend Reference Email');
+});
+
+test('the resend action is hidden when the referee should not be contacted yet', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    $candidate->references()->create([
+        'type' => 'character',
+        'first_name' => 'Existing',
+        'last_name' => 'Referee',
+        'worked_from' => '2019-01-01',
+        'consent_to_contact' => true,
+        'contact_now' => false,
+        'email' => 'referee@example.com',
+        'status' => 'pending',
+    ]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertDontSee('Send Reference Email')
+        ->assertDontSee('Resend Reference Email');
+});
+
 test('employment history can be viewed and saved via the repeater on the candidate edit form', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => null]);
 

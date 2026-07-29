@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class ActionTrigger extends Model
@@ -33,9 +34,9 @@ class ActionTrigger extends Model
         return $this->morphTo();
     }
 
-    public function todoItem(): BelongsTo
+    public function todoItems(): HasMany
     {
-        return $this->belongsTo(TodoItem::class);
+        return $this->hasMany(TodoItem::class);
     }
 
     public function scopeOpen(Builder $query): Builder

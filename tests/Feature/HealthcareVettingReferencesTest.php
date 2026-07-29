@@ -44,7 +44,7 @@ test('the healthcare references step lets a consultant add documents instead of 
     expect($html)->not->toContain('This step has not been built yet.');
 });
 
-test('the documents step also shows a references summary with a link to the response once contacted', function () {
+test('the references step shows a references summary with a link to the response once contacted', function () {
     $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
 
     $status = CandidateStatus::factory()->create([
