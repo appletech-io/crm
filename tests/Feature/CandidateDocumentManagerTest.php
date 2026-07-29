@@ -211,6 +211,57 @@ test('a consultant can add more than one other document via the same dropdown', 
     expect($candidate->fresh()->documents()->where('document_type', 'other')->count())->toBe(2);
 });
 
+test('a consultant can add more than one qualification document via the same dropdown', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    Livewire::test(CandidateDocumentManager::class, ['record' => $candidate])
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'document_type' => 'qualification',
+            'file' => UploadedFile::fake()->create('degree.pdf', 100, 'application/pdf'),
+        ])
+        ->assertHasNoActionErrors()
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'document_type' => 'qualification',
+            'file' => UploadedFile::fake()->create('certificate.pdf', 100, 'application/pdf'),
+        ])
+        ->assertHasNoActionErrors();
+
+    expect($candidate->fresh()->documents()->where('document_type', 'qualification')->count())->toBe(2);
+});
+
+test('an additional document can be given a name, which is then used as its label', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    $html = Livewire::test(CandidateDocumentManager::class, ['record' => $candidate])
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'name' => 'BSc Nursing Certificate',
+            'document_type' => 'qualification',
+            'file' => UploadedFile::fake()->create('degree.pdf', 100, 'application/pdf'),
+        ])
+        ->assertHasNoActionErrors()
+        ->html();
+
+    $document = $candidate->fresh()->documents()->where('document_type', 'qualification')->first();
+
+    expect($document->name)->toBe('BSc Nursing Certificate');
+    expect($html)->toContain('BSc Nursing Certificate');
+    expect($html)->not->toContain('Qualification 1');
+});
+
+test('an additional document without a name falls back to the generated type label', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    $html = Livewire::test(CandidateDocumentManager::class, ['record' => $candidate])
+        ->callAction(TestAction::make('addDocument')->table(), data: [
+            'document_type' => 'qualification',
+            'file' => UploadedFile::fake()->create('degree.pdf', 100, 'application/pdf'),
+        ])
+        ->assertHasNoActionErrors()
+        ->html();
+
+    expect($html)->toContain('Qualification 1');
+});
+
 test('removing an additional document only deletes that document, leaving required documents alone', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
     $candidate->documents()->create(['document_type' => 'cv', 'path' => 'fake/path/cv.pdf']);

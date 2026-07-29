@@ -8,6 +8,7 @@ use App\Services\Candidates\Document;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Component;
 use Illuminate\Database\Eloquent\Collection;
@@ -17,22 +18,34 @@ use Illuminate\Support\Str;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
 /**
- * "Additional" documents (references and other miscellaneous files) are the only
- * document types a candidate can upload more than one of. Used by the staff-side
- * candidate edit page's Documents tab (type is picked from a dropdown) and the
- * compliance wizard's References step (type is always "reference", so no dropdown
- * is shown) only — deliberately not part of {@see CandidateDocumentRequirements},
- * since these are optional and must not affect required-document completeness.
+ * "Additional" documents (references, qualifications, and other miscellaneous
+ * files) are the only document types a candidate can upload more than one of.
+ * Used by the staff-side candidate edit page's Documents tab (type is picked
+ * from a dropdown) and the compliance wizard's References step (type is
+ * always "reference", so no dropdown is shown) only — deliberately not part
+ * of {@see CandidateDocumentRequirements}, since these are optional and must
+ * not affect required-document completeness.
  */
 trait HasAdditionalDocuments
 {
-    /** @var array<string, string> */
-    private static array $additionalDocumentTypes = [
-        'reference' => 'Reference',
-        'other' => 'Other',
-    ];
-
     abstract protected function additionalDocumentsCandidate(): ?Model;
+
+    /**
+     * The types offered by {@see addAdditionalDocumentAction()}'s dropdown and
+     * scoped by {@see additionalDocuments()}. Override this in the using class
+     * to restrict which types are available in that context — the candidate
+     * self-service portal excludes "reference", for example.
+     *
+     * @return array<string, string>
+     */
+    protected function additionalDocumentTypes(): array
+    {
+        return [
+            'reference' => 'Reference',
+            'other' => 'Other',
+            'qualification' => 'Qualification',
+        ];
+    }
 
     /** @return Collection<int, CandidateDocument> */
     public function additionalDocuments(): Collection
@@ -44,7 +57,7 @@ trait HasAdditionalDocuments
         }
 
         return $candidate->documents()
-            ->whereIn('document_type', array_keys(self::$additionalDocumentTypes))
+            ->whereIn('document_type', array_keys($this->additionalDocumentTypes()))
             ->oldest()
             ->get();
     }
@@ -53,13 +66,14 @@ trait HasAdditionalDocuments
     public function additionalDocumentRows(): array
     {
         $countsByType = [];
+        $types = $this->additionalDocumentTypes();
 
         return $this->additionalDocuments()
-            ->mapWithKeys(function (CandidateDocument $document) use (&$countsByType): array {
+            ->mapWithKeys(function (CandidateDocument $document) use (&$countsByType, $types): array {
                 $type = $document->document_type->value;
                 $countsByType[$type] = ($countsByType[$type] ?? 0) + 1;
 
-                $label = self::$additionalDocumentTypes[$type].' '.$countsByType[$type];
+                $label = $document->name ?: ($types[$type] ?? $document->document_type->label()).' '.$countsByType[$type];
 
                 return ["additional_document_{$document->id}" => [
                     'document_type' => $type,
@@ -76,24 +90,34 @@ trait HasAdditionalDocuments
 
     /**
      * For contexts where staff choose the document's type from a dropdown
-     * (the candidate edit page's Documents tab).
+     * (the candidate edit page's Documents tab, and the candidate portal's
+     * own Documents page, each with its own {@see additionalDocumentTypes()}).
      */
-    public function addAdditionalDocumentAction(): Action
+    public function addAdditionalDocumentAction(bool $withName = false): Action
     {
-        return $this->buildAddDocumentAction([
-            Select::make('document_type')
-                ->label('Type')
-                ->options(self::$additionalDocumentTypes)
-                ->native(false)
-                ->required(),
+        $schema = [];
 
-            FileUpload::make('file')
-                ->label('File')
-                ->storeFiles(false)
-                ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
-                ->maxSize(10240)
-                ->required(),
-        ]);
+        if ($withName) {
+            $schema[] = TextInput::make('name')
+                ->label('Name')
+                ->helperText('Optional — used to label this document instead of its type.')
+                ->maxLength(255);
+        }
+
+        $schema[] = Select::make('document_type')
+            ->label('Type')
+            ->options($this->additionalDocumentTypes())
+            ->native(false)
+            ->required();
+
+        $schema[] = FileUpload::make('file')
+            ->label('File')
+            ->storeFiles(false)
+            ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
+            ->maxSize(10240)
+            ->required();
+
+        return $this->buildAddDocumentAction($schema);
     }
 
     /**
@@ -138,6 +162,7 @@ trait HasAdditionalDocuments
 
                 $candidate->documents()->create([
                     'document_type' => $documentType,
+                    'name' => $data['name'] ?? null,
                     'path' => $path,
                 ]);
 
@@ -160,7 +185,7 @@ trait HasAdditionalDocuments
 
         $document = $candidate->documents()
             ->where('id', $documentId)
-            ->whereIn('document_type', array_keys(self::$additionalDocumentTypes))
+            ->whereIn('document_type', array_keys($this->additionalDocumentTypes()))
             ->first();
 
         if (! $document) {

@@ -44,7 +44,7 @@ class CandidateDocumentManager extends TableWidget
             ->heading(null)
             ->records(fn (): array => $this->rows())
             ->headerActions([
-                $this->addAdditionalDocumentAction(),
+                $this->addAdditionalDocumentAction(withName: true),
             ])
             ->columns([
                 TextColumn::make('label')
