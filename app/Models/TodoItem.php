@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $user_id
+ * @property int|null $action_trigger_id
  * @property string $name
  * @property string|null $description
  * @property TodoPriority $priority
@@ -48,6 +49,11 @@ class TodoItem extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function actionTrigger(): BelongsTo
+    {
+        return $this->belongsTo(ActionTrigger::class);
     }
 
     public function model(): MorphTo

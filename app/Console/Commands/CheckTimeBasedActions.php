@@ -26,7 +26,6 @@ class CheckTimeBasedActions extends Command
 
         foreach ($modelTypes as $modelType) {
             $modelType::query()
-                ->whereNotNull('consultant_id')
                 ->chunkById(100, function ($records): void {
                     $records->each(fn (Model $record) => CheckActions::run($record));
                 });

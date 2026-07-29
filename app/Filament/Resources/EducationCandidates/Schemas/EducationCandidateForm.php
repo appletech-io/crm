@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\EducationCandidates\Schemas;
 
+use App\Actions\References\ResendReferenceRequestEmail;
 use App\Enums\DocumentType;
 use App\Enums\Education\Availability;
 use App\Enums\Education\KeyStage;
@@ -13,6 +14,7 @@ use App\Filament\Resources\EducationVetting\VettingResource;
 use App\Filament\Widgets\CandidateActivityTimeline;
 use App\Filament\Widgets\CandidateDocumentManager;
 use App\Models\CandidateDocument;
+use App\Models\CandidateReference;
 use App\Models\CandidateSkill;
 use App\Models\EducationCandidate;
 use App\Models\JobTitle;
@@ -551,6 +553,8 @@ class EducationCandidateForm
                                         DatePicker::make('last_contacted')
                                             ->native(false),
                                         Hidden::make('token'),
+                                        Hidden::make('id')
+                                            ->dehydrated(false),
                                         Actions::make([
                                             Action::make('viewResponse')
                                                 ->label('View Reference Response')
@@ -562,6 +566,39 @@ class EducationCandidateForm
                                                 )
                                                 ->openUrlInNewTab()
                                                 ->visible(fn (Get $get): bool => filled($get('token'))),
+                                            Action::make('resendReference')
+                                                ->label(fn (Get $get): string => filled($get('token')) ? 'Resend Reference Email' : 'Send Reference Email')
+                                                ->icon('heroicon-o-paper-airplane')
+                                                ->color('gray')
+                                                ->requiresConfirmation()
+                                                ->visible(function (Get $get): bool {
+                                                    $status = ReferenceStatus::tryFrom($get('status') ?? '');
+
+                                                    return filled($get('id'))
+                                                        && filled($get('email'))
+                                                        && $get('contact_now')
+                                                        && ! in_array($status, [ReferenceStatus::Submitted, ReferenceStatus::Confirmed], true);
+                                                })
+                                                ->action(function (Get $get, Set $set): void {
+                                                    $reference = CandidateReference::find($get('id'));
+
+                                                    if (! $reference) {
+                                                        return;
+                                                    }
+
+                                                    ResendReferenceRequestEmail::run($reference);
+                                                    $reference->refresh();
+
+                                                    $set('token', $reference->token);
+                                                    $set('status', $reference->status->value);
+                                                    $set('last_contacted', $reference->last_contacted?->toDateString());
+
+                                                    Notification::make()
+                                                        ->success()
+                                                        ->title('Reference email sent')
+                                                        ->body("A reference request email has been sent to {$reference->email}.")
+                                                        ->send();
+                                                }),
                                         ])->columnSpanFull(),
                                     ])
                                     ->columns(2)

@@ -2,11 +2,14 @@
 
 namespace App\Actions\Automations;
 
+use App\Enums\ActionAssigneeType;
 use App\Models\Action;
 use App\Models\ActionTrigger;
 use App\Models\Booking;
 use App\Models\TodoItem;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 class CheckActions
@@ -15,10 +18,6 @@ class CheckActions
 
     public function handle(Model $record): void
     {
-        if (! $record->consultant_id) {
-            return;
-        }
-
         Action::query()
             ->where('model_type', $record->getMorphClass())
             ->where('company_id', $record->company_id)
@@ -30,7 +29,7 @@ class CheckActions
                 $isSatisfied = $action->isSatisfiedBy($record);
 
                 if ($isSatisfied && ! $openTrigger) {
-                    $this->createTodo($action, $record);
+                    $this->createTodos($action, $record);
 
                     return;
                 }
@@ -43,18 +42,16 @@ class CheckActions
 
     /**
      * Resolving a trigger means whatever it flagged is no longer true, so the
-     * todo it created is done too — without touching one a consultant already
+     * todos it created are done too — without touching one someone already
      * completed themselves.
      */
     private function resolveTrigger(ActionTrigger $trigger): void
     {
         $trigger->update(['resolved_at' => now()]);
 
-        $todoItem = $trigger->todoItem;
-
-        if ($todoItem && ! $todoItem->isComplete()) {
-            $todoItem->update(['completed_at' => now()]);
-        }
+        $trigger->todoItems
+            ->reject(fn (TodoItem $todoItem): bool => $todoItem->isComplete())
+            ->each(fn (TodoItem $todoItem) => $todoItem->update(['completed_at' => now()]));
     }
 
     /**
@@ -75,22 +72,51 @@ class CheckActions
         return true;
     }
 
-    private function createTodo(Action $action, Model $record): void
+    /**
+     * Nothing to notify means the action never fires — no trigger, no todos —
+     * so it's free to fire again once someone becomes assignable later.
+     */
+    private function createTodos(Action $action, Model $record): void
     {
-        $todoItem = TodoItem::create([
-            'user_id' => $record->consultant_id,
+        $assigneeIds = $this->resolveAssigneeIds($action, $record);
+
+        if ($assigneeIds->isEmpty()) {
+            return;
+        }
+
+        $trigger = ActionTrigger::create([
+            'action_id' => $action->id,
+            'model_type' => $record->getMorphClass(),
+            'model_id' => $record->getKey(),
+        ]);
+
+        $assigneeIds->each(fn (int $userId) => TodoItem::create([
+            'user_id' => $userId,
+            'action_trigger_id' => $trigger->id,
             'name' => $action->todo_name,
             'description' => $action->todo_description,
             'priority' => $action->todo_priority,
             'model_type' => $record->getMorphClass(),
             'model_id' => $record->getKey(),
-        ]);
+        ]));
+    }
 
-        ActionTrigger::create([
-            'action_id' => $action->id,
-            'model_type' => $record->getMorphClass(),
-            'model_id' => $record->getKey(),
-            'todo_item_id' => $todoItem->id,
-        ]);
+    /**
+     * Consultant-targeted actions notify only the record's own consultant, if
+     * it has one. Role-based actions notify every user with the configured
+     * role, scoped to the action's own company and industry.
+     *
+     * @return Collection<int, int>
+     */
+    private function resolveAssigneeIds(Action $action, Model $record): Collection
+    {
+        if ($action->assignee_type === ActionAssigneeType::Role) {
+            return User::role($action->assignee_role)
+                ->where('company_id', $action->company_id)
+                ->whereHas('industries', fn ($query) => $query->where('industries.id', $action->industry_id))
+                ->pluck('id');
+        }
+
+        return $record->consultant_id ? collect([$record->consultant_id]) : collect();
     }
 }

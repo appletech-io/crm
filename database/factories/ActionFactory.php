@@ -25,6 +25,8 @@ class ActionFactory extends Factory
             'industry_id' => Industry::factory(),
             'name' => $this->faker->sentence(3),
             'model_type' => Client::class,
+            'assignee_type' => 'consultant',
+            'assignee_role' => null,
             'conditions' => [
                 ['field' => 'name', 'operator' => 'filled'],
             ],
@@ -33,5 +35,13 @@ class ActionFactory extends Factory
             'todo_priority' => 'medium',
             'is_active' => true,
         ];
+    }
+
+    public function roleBased(string $role): static
+    {
+        return $this->state([
+            'assignee_type' => 'role',
+            'assignee_role' => $role,
+        ]);
     }
 }

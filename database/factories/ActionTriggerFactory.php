@@ -23,7 +23,6 @@ class ActionTriggerFactory extends Factory
             'action_id' => Action::factory(),
             'model_type' => Client::class,
             'model_id' => Client::factory(),
-            'todo_item_id' => null,
         ];
     }
 }

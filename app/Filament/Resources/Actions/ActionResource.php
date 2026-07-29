@@ -14,6 +14,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 
 class ActionResource extends Resource
@@ -34,7 +35,32 @@ class ActionResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return active_industry() !== null && auth()->user()?->hasAnyRole(['admin', 'site_admin']);
+        return active_industry() !== null
+            && auth()->user()?->hasAnyRole(['admin', 'site_admin', 'consultant', 'compliance']);
+    }
+
+    /**
+     * Only admins configure automations — consultants and compliance can see
+     * this list to understand what's notifying them, but not change it.
+     */
+    public static function canCreate(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'site_admin']) ?? false;
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'site_admin']) ?? false;
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'site_admin']) ?? false;
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'site_admin']) ?? false;
     }
 
     public static function form(Schema $schema): Schema

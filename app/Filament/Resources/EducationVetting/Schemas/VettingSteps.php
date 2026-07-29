@@ -282,8 +282,6 @@ class VettingSteps
     {
         return Step::make('Documents')
             ->schema([
-                LivewireComponent::make(CandidateReferencesSummary::class)
-                    ->key('candidate-references-summary'),
                 LivewireComponent::make(CandidateDocumentStatus::class)
                     ->key('candidate-document-status'),
             ]);
@@ -293,6 +291,8 @@ class VettingSteps
     {
         return Step::make('References')
             ->schema([
+                LivewireComponent::make(CandidateReferencesSummary::class)
+                    ->key('candidate-references-summary'),
                 LivewireComponent::make(CandidateAdditionalDocuments::class)
                     ->key('candidate-additional-documents'),
             ]);

@@ -11,6 +11,7 @@ use App\Models\HealthcareCandidate;
 use App\Models\Industry;
 use App\Models\TodoItem;
 use App\Models\User;
+use Database\Seeders\RoleSeeder;
 
 beforeEach(function () {
     $this->company = Company::factory()->create();
@@ -49,11 +50,13 @@ test('creates a todo for the records consultant when conditions are satisfied', 
         ->and($todo->model_type)->toBe(Client::class)
         ->and($todo->model_id)->toBe($client->id);
 
-    expect(ActionTrigger::where('action_id', $action->id)
+    $trigger = ActionTrigger::where('action_id', $action->id)
         ->where('model_type', Client::class)
         ->where('model_id', $client->id)
-        ->where('todo_item_id', $todo->id)
-        ->exists())->toBeTrue();
+        ->first();
+
+    expect($trigger)->not->toBeNull()
+        ->and($trigger->todoItems->pluck('id')->all())->toBe([$todo->id]);
 });
 
 test('does not create a todo when conditions are not satisfied', function () {
@@ -129,7 +132,7 @@ test('closes the open trigger once the condition is no longer satisfied', functi
 
     expect($trigger->refresh()->isOpen())->toBeFalse()
         ->and(TodoItem::count())->toBe(1)
-        ->and($trigger->todoItem->refresh()->isComplete())->toBeTrue();
+        ->and($trigger->todoItems->first()->refresh()->isComplete())->toBeTrue();
 });
 
 test('does not overwrite a todo the consultant already completed themselves when resolving', function () {
@@ -153,12 +156,12 @@ test('does not overwrite a todo the consultant already completed themselves when
 
     $trigger = ActionTrigger::where('action_id', $action->id)->where('model_id', $client->id)->first();
     $completedAt = now()->subDays(3);
-    $trigger->todoItem->update(['completed_at' => $completedAt]);
+    $trigger->todoItems->first()->update(['completed_at' => $completedAt]);
 
     $client->update(['notes' => null]);
     CheckActions::run($client);
 
-    expect($trigger->todoItem->refresh()->completed_at->toDateTimeString())->toBe($completedAt->toDateTimeString());
+    expect($trigger->todoItems->first()->refresh()->completed_at->toDateTimeString())->toBe($completedAt->toDateTimeString());
 });
 
 test('fires again as a new occurrence once the condition becomes true again after resolving', function () {
@@ -407,4 +410,122 @@ test('saving a client through the observer triggers matching actions', function 
     $client->update(['notes' => 'Needs a follow up call']);
 
     expect(TodoItem::where('user_id', $this->consultant->id)->where('name', 'Follow up with client')->exists())->toBeTrue();
+});
+
+test('a role-based action creates a todo for every user with that role in the same company and industry', function () {
+    $this->seed(RoleSeeder::class);
+
+    $compliance1 = User::factory()->create(['company_id' => $this->company->id]);
+    $compliance1->industries()->attach($this->industry);
+    $compliance1->assignRole('compliance');
+
+    $compliance2 = User::factory()->create(['company_id' => $this->company->id]);
+    $compliance2->industries()->attach($this->industry);
+    $compliance2->assignRole('compliance');
+
+    // Wrong company — must not be notified even with a matching role and industry.
+    $otherCompany = Company::factory()->create();
+    $outsider = User::factory()->create(['company_id' => $otherCompany->id]);
+    $outsider->industries()->attach($this->industry);
+    $outsider->assignRole('compliance');
+
+    // Same company, wrong industry — must not be notified either.
+    $otherIndustry = Industry::factory()->create(['slug' => 'healthcare']);
+    $wrongIndustry = User::factory()->create(['company_id' => $this->company->id]);
+    $wrongIndustry->industries()->attach($otherIndustry);
+    $wrongIndustry->assignRole('compliance');
+
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => null,
+        'notes' => 'Needs a follow up call',
+    ]);
+
+    Action::factory()->roleBased('compliance')->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'conditions' => [
+            ['field' => 'notes', 'operator' => 'filled'],
+        ],
+        'todo_name' => 'Review client compliance',
+    ]);
+
+    CheckActions::run($client);
+
+    expect(TodoItem::where('name', 'Review client compliance')->pluck('user_id')->sort()->values()->all())
+        ->toBe([$compliance1->id, $compliance2->id]);
+});
+
+test('a role-based action with nobody in the matching role does not create a trigger, leaving it free to fire once someone is added', function () {
+    $this->seed(RoleSeeder::class);
+
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => null,
+        'notes' => 'Needs a follow up call',
+    ]);
+
+    $action = Action::factory()->roleBased('compliance')->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'conditions' => [
+            ['field' => 'notes', 'operator' => 'filled'],
+        ],
+    ]);
+
+    CheckActions::run($client);
+
+    expect(TodoItem::count())->toBe(0)
+        ->and($action->openTriggerFor($client))->toBeNull();
+
+    $compliance = User::factory()->create(['company_id' => $this->company->id]);
+    $compliance->industries()->attach($this->industry);
+    $compliance->assignRole('compliance');
+
+    CheckActions::run($client);
+
+    expect(TodoItem::where('user_id', $compliance->id)->exists())->toBeTrue();
+});
+
+test('resolving a role-based trigger completes every todo it created', function () {
+    $this->seed(RoleSeeder::class);
+
+    $compliance1 = User::factory()->create(['company_id' => $this->company->id]);
+    $compliance1->industries()->attach($this->industry);
+    $compliance1->assignRole('compliance');
+
+    $compliance2 = User::factory()->create(['company_id' => $this->company->id]);
+    $compliance2->industries()->attach($this->industry);
+    $compliance2->assignRole('compliance');
+
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => null,
+        'notes' => 'Needs a follow up call',
+    ]);
+
+    $action = Action::factory()->roleBased('compliance')->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'conditions' => [
+            ['field' => 'notes', 'operator' => 'filled'],
+        ],
+    ]);
+
+    CheckActions::run($client);
+
+    $trigger = $action->openTriggerFor($client);
+    expect($trigger->todoItems)->toHaveCount(2);
+
+    $client->update(['notes' => null]);
+    CheckActions::run($client);
+
+    expect($trigger->refresh()->isOpen())->toBeFalse();
+    expect($trigger->todoItems->every(fn (TodoItem $todoItem) => $todoItem->refresh()->isComplete()))->toBeTrue();
 });

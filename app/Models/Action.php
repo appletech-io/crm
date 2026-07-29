@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ActionAssigneeType;
 use App\Enums\TodoPriority;
 use App\Models\Traits\BelongsToCompany;
 use App\Models\Traits\EvaluatesConditions;
@@ -25,6 +26,7 @@ class Action extends Model
     {
         return [
             'conditions' => 'array',
+            'assignee_type' => ActionAssigneeType::class,
             'todo_priority' => TodoPriority::class,
             'is_active' => 'boolean',
         ];
@@ -33,6 +35,11 @@ class Action extends Model
     public function industry(): BelongsTo
     {
         return $this->belongsTo(Industry::class);
+    }
+
+    public function isRoleBased(): bool
+    {
+        return $this->assignee_type === ActionAssigneeType::Role;
     }
 
     public function triggers(): HasMany
