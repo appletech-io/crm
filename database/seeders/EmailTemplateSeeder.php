@@ -22,7 +22,7 @@ class EmailTemplateSeeder extends Seeder
             ],
             EmailTemplateType::Application->value => [
                 'subject' => 'Complete your application with Applebough',
-                'body' => '<p>Hi {candidate_name},</p><p>Thanks for registering with us. Please complete your application using the link below so we can start finding you the right placements.</p><p>{application_pdf_link}</p><p>Best wishes,<br>The Applebough Team</p>',
+                'body' => '<p>Hi {candidate_name},</p><p>Thanks for registering with us. Please complete your application using the link below so we can start finding you the right placements.</p><p>{application_link}</p><p>Best wishes,<br>The Applebough Team</p>',
             ],
             EmailTemplateType::CandidateBookingConfirmation->value => [
                 'subject' => 'Booking Confirmation — {job_title} at {client_name}',

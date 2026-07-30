@@ -3,13 +3,16 @@
 namespace App\Filament\Resources\EducationCandidates\Pages;
 
 use App\Actions\Candidates\CandidateCreated;
+use App\Enums\EmailTemplateAudience;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
+use App\Filament\Support\SendCustomEmailAction;
 use App\Models\CandidateSkill;
 use App\Models\Client;
 use App\Models\EducationCandidate;
 use App\Services\Education\CandidateSearchService;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
+use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Select;
@@ -263,7 +266,11 @@ class ListEducationCandidates extends ListRecords implements HasForms
             ->recordUrl(fn (EducationCandidate $record): string => EducationCandidateResource::getUrl('edit', ['record' => $record]))
             ->filters([])
             ->recordActions([])
-            ->toolbarActions([])
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    SendCustomEmailAction::bulk(EmailTemplateAudience::Candidate),
+                ]),
+            ])
             ->columns([
                 TextColumn::make('first_name')
                     ->label('First Name'),

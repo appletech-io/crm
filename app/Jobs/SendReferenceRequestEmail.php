@@ -7,10 +7,12 @@ use App\Enums\EmailProvider;
 use App\Models\CandidateReference;
 use App\Models\EmailTemplate;
 use App\Models\Industry;
+use App\Services\Mail\Concerns\ReplacesEmailPlaceholders;
 use App\Services\Mail\EmailFooter;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -18,6 +20,7 @@ use Throwable;
 class SendReferenceRequestEmail implements ShouldQueue
 {
     use Queueable;
+    use ReplacesEmailPlaceholders;
 
     public int $tries = 3;
 
@@ -65,10 +68,12 @@ class SendReferenceRequestEmail implements ShouldQueue
                 default => new MicrosoftGraphMailer($candidate->company),
             };
 
+            $replacements = $this->buildReplacements($candidate);
+
             $mailer->send(
                 to: $this->reference->email,
-                subject: $this->replacePlaceholders($template->subject ?? ''),
-                body: $this->replacePlaceholders($template->body ?? '').EmailFooter::render($candidate->company, $candidate->consultant),
+                subject: $this->replacePlaceholders($template->subject ?? '', $replacements),
+                body: $this->replacePlaceholders($template->body ?? '', $replacements).EmailFooter::render($candidate->company, $candidate->consultant),
                 from: $candidate->consultant?->email ?? $candidate->company->defaultFromEmail(),
                 attachments: [EmailFooter::logoAttachment()],
             );
@@ -91,17 +96,14 @@ class SendReferenceRequestEmail implements ShouldQueue
         return trim("{$this->reference->first_name} {$this->reference->last_name}");
     }
 
-    private function replacePlaceholders(string $content): string
+    /** @return array<string, string> */
+    private function buildReplacements(Model $candidate): array
     {
-        $candidate = $this->reference->candidate;
-
-        $replacements = [
-            '{referee_name}' => $this->refereeName(),
-            '{candidate_name}' => trim("{$candidate->first_name} {$candidate->last_name}"),
-            '{reference_link}' => route('reference.verify', ['token' => $this->reference->token]),
-            '{expiry_date}' => $this->reference->expires_on?->format('d M Y') ?? '',
+        return [
+            'referee_name' => $this->refereeName(),
+            'candidate_name' => trim("{$candidate->first_name} {$candidate->last_name}"),
+            'reference_link' => route('reference.verify', ['token' => $this->reference->token]),
+            'expiry_date' => $this->reference->expires_on?->format('d M Y') ?? '',
         ];
-
-        return str_replace(array_keys($replacements), array_values($replacements), $content);
     }
 }

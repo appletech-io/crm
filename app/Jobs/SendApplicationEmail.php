@@ -11,6 +11,7 @@ use App\Models\HealthcareApplication;
 use App\Models\HealthcareCandidate;
 use App\Models\Industry;
 use App\Models\User;
+use App\Services\Mail\Concerns\ReplacesEmailPlaceholders;
 use App\Services\Mail\EmailFooter;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
@@ -22,6 +23,7 @@ use Throwable;
 class SendApplicationEmail implements ShouldQueue
 {
     use Queueable;
+    use ReplacesEmailPlaceholders;
 
     public int $tries = 3;
 
@@ -68,10 +70,12 @@ class SendApplicationEmail implements ShouldQueue
                 default => new MicrosoftGraphMailer($this->candidate->company),
             };
 
+            $replacements = $this->buildReplacements();
+
             $mailer->send(
                 to: $this->candidate->email,
-                subject: $this->replacePlaceholders($template->subject ?? ''),
-                body: $this->replacePlaceholders($template->body ?? '').EmailFooter::render($this->candidate->company, $this->candidate->consultant),
+                subject: $this->replacePlaceholders($template->subject ?? '', $replacements),
+                body: $this->replacePlaceholders($template->body ?? '', $replacements).EmailFooter::render($this->candidate->company, $this->candidate->consultant),
                 from: $this->candidate->consultant?->email ?? $creator?->email ?? $this->candidate->company->defaultFromEmail(),
                 attachments: [EmailFooter::logoAttachment()],
             );
@@ -102,18 +106,18 @@ class SendApplicationEmail implements ShouldQueue
         };
     }
 
-    private function replacePlaceholders(string $content): string
+    /** @return array<string, string> */
+    private function buildReplacements(): array
     {
         $applicationUrl = route($this->applicationRouteName(), ['token' => $this->application->token]);
 
-        $replacements = [
-            '{firstname}' => $this->candidate->first_name ?? '',
-            '{lastname}' => $this->candidate->last_name ?? '',
-            '{email}' => $this->candidate->email ?? '',
-            '{application_link}' => $applicationUrl,
-            '{expiry_date}' => $this->application->expires_on?->format('d M Y') ?? '',
+        return [
+            'firstname' => $this->candidate->first_name ?? '',
+            'lastname' => $this->candidate->last_name ?? '',
+            'candidate_name' => trim(($this->candidate->first_name ?? '').' '.($this->candidate->last_name ?? '')),
+            'email' => $this->candidate->email ?? '',
+            'application_link' => $applicationUrl,
+            'expiry_date' => $this->application->expires_on?->format('d M Y') ?? '',
         ];
-
-        return str_replace(array_keys($replacements), array_values($replacements), $content);
     }
 }

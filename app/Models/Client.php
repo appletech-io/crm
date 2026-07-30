@@ -102,6 +102,11 @@ class Client extends Model
         return $this->hasOne(ClientContact::class)->where('main_contact', true);
     }
 
+    public function bookingContact(): ?ClientContact
+    {
+        return $this->contacts()->where('booking_contact', true)->first() ?? $this->mainContact;
+    }
+
     public function activities(): MorphMany
     {
         return $this->morphMany(ClientActivity::class, 'model')->latest();

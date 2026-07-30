@@ -573,10 +573,7 @@ class HealthcareVettingSteps
                                     ->color('gray')
                                     ->visible(fn (?HealthcareCandidate $record): bool => ! static::photoDocument($record)),
                                 Image::make(
-                                    url: fn (?HealthcareCandidate $record): string => Storage::disk('local')->temporaryUrl(
-                                        static::photoDocument($record)->path,
-                                        now()->addMinutes(10)
-                                    ),
+                                    url: fn (?HealthcareCandidate $record): string => static::photoUrl($record),
                                     alt: 'Candidate photo',
                                 )
                                     ->imageHeight(160)
@@ -656,5 +653,13 @@ class HealthcareVettingSteps
         $document = $record?->documents->firstWhere('document_type', DocumentType::Photo);
 
         return $document;
+    }
+
+    protected static function photoUrl(?HealthcareCandidate $record): string
+    {
+        return Storage::disk(config('filesystems.default'))->temporaryUrl(
+            static::photoDocument($record)->path,
+            now()->addMinutes(10)
+        );
     }
 }

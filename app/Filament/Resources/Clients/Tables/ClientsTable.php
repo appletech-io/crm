@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Clients\Tables;
 
+use App\Enums\EmailTemplateAudience;
+use App\Filament\Support\SendCustomEmailAction;
 use App\Models\User;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -53,10 +55,12 @@ class ClientsTable
                 TrashedFilter::make(),
             ])
             ->recordActions([
+                SendCustomEmailAction::record(EmailTemplateAudience::Client),
                 EditAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
+                    SendCustomEmailAction::bulk(EmailTemplateAudience::Client),
                     DeleteBulkAction::make()
                         ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false),
                     ForceDeleteBulkAction::make(),

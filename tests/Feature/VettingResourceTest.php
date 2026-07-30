@@ -5,6 +5,7 @@ use App\Ai\Agents\ProofOfNiParser;
 use App\Enums\DocumentType;
 use App\Filament\Resources\EducationVetting\Pages\ListVetting;
 use App\Filament\Resources\EducationVetting\Pages\VettingWizard;
+use App\Filament\Resources\EducationVetting\Schemas\VettingSteps;
 use App\Models\CandidateCandidateStatus;
 use App\Models\CandidateDocument;
 use App\Models\CandidateSkill;
@@ -16,6 +17,7 @@ use App\Models\JobTitle;
 use App\Models\PayRate;
 use App\Models\Qualification;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Database\Seeders\RoleSeeder;
 use Filament\Actions\Testing\TestAction;
 use Illuminate\Support\Facades\Cache;
@@ -1049,4 +1051,36 @@ test('the Complete button is enabled when the vetting checklist is fully met', f
     expect($html)->not->toContain('aria-disabled="true"');
     expect($html)->toContain("confirm('Are you sure you want to confirm the compliance process is complete for this candidate?");
     expect($html)->toContain('$wire.save()');
+});
+
+test('the personal details photo is resolved from the configured default filesystem disk, not a hardcoded one', function () {
+    // Regression test: the photo URL used to hardcode Storage::disk('local'),
+    // so it silently pointed at the wrong disk whenever FILESYSTEM_DISK
+    // wasn't 'local' (e.g. 's3' in production), even though the same photo
+    // rendered fine on the candidate edit form via config('filesystems.default').
+    config(['filesystems.default' => 's3']);
+
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $path = 'candidates/'.$candidate->id.'/photo.jpg';
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::Photo,
+        'path' => $path,
+    ]);
+    $candidate->load('documents');
+
+    Storage::shouldReceive('disk')
+        ->once()
+        ->with('s3')
+        ->andReturnSelf();
+    Storage::shouldReceive('temporaryUrl')
+        ->once()
+        ->with($path, Mockery::type(CarbonInterface::class))
+        ->andReturn('https://example-bucket.s3.amazonaws.com/signed-photo-url');
+
+    $method = new ReflectionMethod(VettingSteps::class, 'photoUrl');
+    $method->setAccessible(true);
+
+    expect($method->invoke(null, $candidate))->toBe('https://example-bucket.s3.amazonaws.com/signed-photo-url');
 });
