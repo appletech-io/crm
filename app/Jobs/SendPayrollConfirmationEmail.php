@@ -11,6 +11,7 @@ use App\Models\Client;
 use App\Models\ClientContact;
 use App\Models\EmailTemplate;
 use App\Services\Booking\TimesheetPeriod;
+use App\Services\Mail\Concerns\ReplacesEmailPlaceholders;
 use App\Services\Mail\EmailFooter;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
@@ -24,6 +25,7 @@ use Throwable;
 class SendPayrollConfirmationEmail implements ShouldQueue
 {
     use Queueable;
+    use ReplacesEmailPlaceholders;
 
     public int $tries = 3;
 
@@ -67,10 +69,12 @@ class SendPayrollConfirmationEmail implements ShouldQueue
                 default => new MicrosoftGraphMailer($this->client->company),
             };
 
+            $replacements = $this->buildReplacements($contact, $dayPeriods);
+
             $mailer->send(
                 to: $contact->email,
-                subject: $this->replacePlaceholders($template->subject ?? '', $contact, $dayPeriods),
-                body: $this->replacePlaceholders($template->body ?? '', $contact, $dayPeriods).EmailFooter::render($this->client->company, $this->client->consultant),
+                subject: $this->replacePlaceholders($template->subject ?? '', $replacements),
+                body: $this->replacePlaceholders($template->body ?? '', $replacements).EmailFooter::render($this->client->company, $this->client->consultant),
                 from: $this->client->consultant?->email ?? $this->client->company->defaultFromEmail(),
                 attachments: [EmailFooter::logoAttachment()],
             );
@@ -113,22 +117,23 @@ class SendPayrollConfirmationEmail implements ShouldQueue
             ->get();
     }
 
-    /** @param  Collection<int, BookingDay>  $dayPeriods */
-    private function replacePlaceholders(string $content, ClientContact $contact, Collection $dayPeriods): string
+    /**
+     * @param  Collection<int, BookingDay>  $dayPeriods
+     * @return array<string, string>
+     */
+    private function buildReplacements(ClientContact $contact, Collection $dayPeriods): array
     {
         $period = TimesheetPeriod::containing($this->client->company, Carbon::parse($this->periodStart));
         $contactName = trim(collect([$contact->title, $contact->first_name, $contact->last_name])->filter()->implode(' '));
 
-        $replacements = [
-            '{client_contact_name}' => $contactName,
-            '{client_name}' => $this->client->name ?? '',
-            '{week_start}' => $period['start']->format('d-m-Y'),
-            '{week_end}' => $period['end']->format('d-m-Y'),
-            '{day_breakdown}' => $this->dayBreakdownTable($dayPeriods),
-            '{payroll_confirmation_link}' => '<a href="'.url('/client').'">Review & Confirm Timesheet</a>',
+        return [
+            'client_contact_name' => $contactName,
+            'client_name' => $this->client->name ?? '',
+            'week_start' => $period['start']->format('d-m-Y'),
+            'week_end' => $period['end']->format('d-m-Y'),
+            'day_breakdown' => $this->dayBreakdownTable($dayPeriods),
+            'payroll_confirmation_link' => '<a href="'.url('/client').'">Review & Confirm Timesheet</a>',
         ];
-
-        return str_replace(array_keys($replacements), array_values($replacements), $content);
     }
 
     /** @param  Collection<int, BookingDay>  $dayPeriods */

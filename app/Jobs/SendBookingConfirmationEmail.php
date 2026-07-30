@@ -9,6 +9,7 @@ use App\Models\Booking;
 use App\Models\EmailTemplate;
 use App\Services\Booking\BookingDayPeriods;
 use App\Services\Education\BookingConfirmationLink;
+use App\Services\Mail\Concerns\ReplacesEmailPlaceholders;
 use App\Services\Mail\EmailFooter;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
@@ -20,6 +21,7 @@ use Throwable;
 class SendBookingConfirmationEmail implements ShouldQueue
 {
     use Queueable;
+    use ReplacesEmailPlaceholders;
 
     public int $tries = 3;
 
@@ -56,10 +58,12 @@ class SendBookingConfirmationEmail implements ShouldQueue
                 default => new MicrosoftGraphMailer($candidate->company),
             };
 
+            $replacements = $this->buildReplacements();
+
             $mailer->send(
                 to: $candidate->email,
-                subject: $this->replacePlaceholders($template->subject ?? ''),
-                body: $this->replacePlaceholders($template->body ?? '').EmailFooter::render($candidate->company, $candidate->consultant),
+                subject: $this->replacePlaceholders($template->subject ?? '', $replacements),
+                body: $this->replacePlaceholders($template->body ?? '', $replacements).EmailFooter::render($candidate->company, $candidate->consultant),
                 from: $candidate->consultant?->email ?? $candidate->company->defaultFromEmail(),
                 attachments: [EmailFooter::logoAttachment()],
             );
@@ -77,7 +81,8 @@ class SendBookingConfirmationEmail implements ShouldQueue
         }
     }
 
-    private function replacePlaceholders(string $content): string
+    /** @return array<string, string> */
+    private function buildReplacements(): array
     {
         $candidate = $this->booking->candidate;
         $client = $this->booking->client;
@@ -88,26 +93,24 @@ class SendBookingConfirmationEmail implements ShouldQueue
         $mainContact = $client?->mainContact;
         $contactName = trim(collect([$mainContact?->title, $mainContact?->first_name, $mainContact?->last_name])->filter()->implode(' '));
 
-        $replacements = [
-            '{firstname}' => $candidate->first_name ?? '',
-            '{lastname}' => $candidate->last_name ?? '',
-            '{email}' => $candidate->email ?? '',
-            '{candidate_name}' => $candidateName,
-            '{job_title}' => $this->booking->jobTitle?->name ?? '',
-            '{start_date}' => $this->booking->start_date?->format('jS M Y') ?? '',
-            '{booking_ref}' => (string) $this->booking->id,
-            '{client_name}' => $client?->name ?? '',
-            '{client_address}' => $client?->address ?? '',
-            '{client_city}' => $client?->city ?? '',
-            '{client_postcode}' => $client?->postcode ?? '',
-            '{client_contact_name}' => $contactName,
-            '{client_contact_phone}' => $client?->phone ?? '',
-            '{company_phone}' => $candidate->company->phone ?? '',
-            '{day_breakdown}' => $this->dayBreakdownTable(),
-            '{application_pdf_link}' => BookingConfirmationLink::url($this->booking),
+        return [
+            'firstname' => $candidate->first_name ?? '',
+            'lastname' => $candidate->last_name ?? '',
+            'email' => $candidate->email ?? '',
+            'candidate_name' => $candidateName,
+            'job_title' => $this->booking->jobTitle?->name ?? '',
+            'start_date' => $this->booking->start_date?->format('jS M Y') ?? '',
+            'booking_ref' => (string) $this->booking->id,
+            'client_name' => $client?->name ?? '',
+            'client_address' => $client?->address ?? '',
+            'client_city' => $client?->city ?? '',
+            'client_postcode' => $client?->postcode ?? '',
+            'client_contact_name' => $contactName,
+            'client_contact_phone' => $client?->phone ?? '',
+            'company_phone' => $candidate->company->phone ?? '',
+            'day_breakdown' => $this->dayBreakdownTable(),
+            'application_pdf_link' => BookingConfirmationLink::url($this->booking),
         ];
-
-        return str_replace(array_keys($replacements), array_values($replacements), $content);
     }
 
     private function dayBreakdownTable(): string

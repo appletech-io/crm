@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\EmailProvider;
 use App\Enums\TimesheetFrequency;
+use App\Services\Mail\MailgunMailer;
+use App\Services\Mail\MicrosoftGraphMailer;
 use Database\Factories\CompanyFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -35,6 +37,14 @@ class Company extends Model
         return match ($this->email_provider) {
             EmailProvider::Mailgun => $this->mailgun_from_email,
             default => $this->ms_sender_email,
+        };
+    }
+
+    public function mailer(): MailgunMailer|MicrosoftGraphMailer
+    {
+        return match ($this->email_provider) {
+            EmailProvider::Mailgun => new MailgunMailer,
+            default => new MicrosoftGraphMailer($this),
         };
     }
 

@@ -10,6 +10,7 @@ use App\Models\ClientContact;
 use App\Models\EmailTemplate;
 use App\Services\Booking\BookingDayPeriods;
 use App\Services\Education\BookingConfirmationLink;
+use App\Services\Mail\Concerns\ReplacesEmailPlaceholders;
 use App\Services\Mail\EmailFooter;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
@@ -21,6 +22,7 @@ use Throwable;
 class SendClientBookingConfirmationEmail implements ShouldQueue
 {
     use Queueable;
+    use ReplacesEmailPlaceholders;
 
     public int $tries = 3;
 
@@ -58,10 +60,12 @@ class SendClientBookingConfirmationEmail implements ShouldQueue
                 default => new MicrosoftGraphMailer($client->company),
             };
 
+            $replacements = $this->buildReplacements($contact);
+
             $mailer->send(
                 to: $contact->email,
-                subject: $this->replacePlaceholders($template->subject ?? '', $contact),
-                body: $this->replacePlaceholders($template->body ?? '', $contact).EmailFooter::render($client->company, $client->consultant),
+                subject: $this->replacePlaceholders($template->subject ?? '', $replacements),
+                body: $this->replacePlaceholders($template->body ?? '', $replacements).EmailFooter::render($client->company, $client->consultant),
                 from: $client->consultant?->email ?? $client->company->defaultFromEmail(),
                 attachments: [EmailFooter::logoAttachment()],
             );
@@ -81,17 +85,11 @@ class SendClientBookingConfirmationEmail implements ShouldQueue
 
     private function recipientContact(): ?ClientContact
     {
-        $client = $this->booking->client;
-
-        if (! $client) {
-            return null;
-        }
-
-        return $client->contacts()->where('booking_contact', true)->first()
-            ?? $client->mainContact;
+        return $this->booking->client?->bookingContact();
     }
 
-    private function replacePlaceholders(string $content, ClientContact $contact): string
+    /** @return array<string, string> */
+    private function buildReplacements(ClientContact $contact): array
     {
         $candidate = $this->booking->candidate;
         $client = $this->booking->client;
@@ -100,21 +98,19 @@ class SendClientBookingConfirmationEmail implements ShouldQueue
 
         $candidateName = trim(collect([$candidate?->first_name, $candidate?->last_name])->filter()->implode(' '));
 
-        $replacements = [
-            '{client_contact_name}' => $contactName,
-            '{client_name}' => $client?->name ?? '',
-            '{client_address}' => $client?->address ?? '',
-            '{client_city}' => $client?->city ?? '',
-            '{client_postcode}' => $client?->postcode ?? '',
-            '{candidate_name}' => $candidateName,
-            '{job_title}' => $this->booking->jobTitle?->name ?? '',
-            '{start_date}' => $this->booking->start_date?->format('d-m-Y') ?? '',
-            '{booking_ref}' => (string) $this->booking->id,
-            '{day_breakdown}' => $this->dayBreakdownTable(),
-            '{application_pdf_link}' => '<a href="'.BookingConfirmationLink::url($this->booking).'">Booking Confirmation</a>',
+        return [
+            'client_contact_name' => $contactName,
+            'client_name' => $client?->name ?? '',
+            'client_address' => $client?->address ?? '',
+            'client_city' => $client?->city ?? '',
+            'client_postcode' => $client?->postcode ?? '',
+            'candidate_name' => $candidateName,
+            'job_title' => $this->booking->jobTitle?->name ?? '',
+            'start_date' => $this->booking->start_date?->format('d-m-Y') ?? '',
+            'booking_ref' => (string) $this->booking->id,
+            'day_breakdown' => $this->dayBreakdownTable(),
+            'application_pdf_link' => '<a href="'.BookingConfirmationLink::url($this->booking).'">Booking Confirmation</a>',
         ];
-
-        return str_replace(array_keys($replacements), array_values($replacements), $content);
     }
 
     private function dayBreakdownTable(): string
