@@ -2,6 +2,7 @@
 
 use App\Enums\BookingDayPeriod;
 use App\Enums\BookingStatus;
+use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\EducationCandidates\Pages\ListEducationCandidates;
 use App\Models\CandidateSkill;
 use App\Models\Client;
@@ -242,6 +243,103 @@ test('location filter using an address geocodes it and filters by radius', funct
         ->call('search')
         ->assertCanSeeTableRecords([$nearby])
         ->assertCanNotSeeTableRecords([$farAway]);
+});
+
+test('day columns have a non-blank state so the icon actually renders rather than a blank placeholder cell', function () {
+    $candidate = makeSearchCandidate();
+
+    $test = Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'search');
+
+    $column = $test->instance()->getTable()->getColumn('day_1');
+    $column->record($candidate);
+
+    expect($column->getState())->not->toBeNull()
+        ->and($column->getIcon($column->getState()))->not->toBeNull();
+});
+
+test('clicking an available day column selects it and shows the book action with that date', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+    $candidate = makeSearchCandidate();
+
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'search')
+        ->assertTableActionHidden('book', record: $candidate)
+        ->callTableColumnAction('day_1', $candidate)
+        ->assertTableActionVisible('book', record: $candidate)
+        ->assertTableActionHasUrl('book', BookingResource::getUrl('create', [
+            'candidate_id' => $candidate->id,
+            'client_id' => null,
+            'dates' => [$monday->toDateString()],
+        ]), record: $candidate);
+});
+
+test('clicking an already-booked day does nothing', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+    $candidate = makeSearchCandidate();
+
+    $booking = $candidate->bookings()->create([
+        'company_id' => $this->consultant->company_id,
+        'client_id' => Client::factory()->create(['company_id' => $this->consultant->company_id])->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => $monday->toDateString(),
+        'status' => BookingStatus::Upcoming,
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->consultant->company_id,
+        'date' => $monday->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'search')
+        ->callTableColumnAction('day_1', $candidate)
+        ->assertTableActionHidden('book', record: $candidate);
+});
+
+test('selecting non-contiguous days for the book action includes only those dates, and a selected client is included', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+    $wednesday = $monday->copy()->addDays(2);
+    $candidate = makeSearchCandidate();
+    $client = Client::factory()->create([
+        'company_id' => $this->consultant->company_id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $this->consultant->id,
+        'postcode' => null,
+    ]);
+
+    Livewire::test(ListEducationCandidates::class)
+        ->fillForm(['client_id' => $client->id])
+        ->set('activeSection', 'search')
+        ->callTableColumnAction('day_1', $candidate)
+        ->callTableColumnAction('day_3', $candidate)
+        ->assertTableActionHasUrl('book', BookingResource::getUrl('create', [
+            'candidate_id' => $candidate->id,
+            'client_id' => $client->id,
+            'dates' => [$monday->toDateString(), $wednesday->toDateString()],
+        ]), record: $candidate);
+});
+
+test('day selections for one candidate do not affect another', function () {
+    $candidateA = makeSearchCandidate();
+    $candidateB = makeSearchCandidate();
+
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'search')
+        ->callTableColumnAction('day_1', $candidateA)
+        ->assertTableActionVisible('book', record: $candidateA)
+        ->assertTableActionHidden('book', record: $candidateB);
+});
+
+test('clicking a selected day again deselects it and hides the book action once no days remain selected', function () {
+    $candidate = makeSearchCandidate();
+
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'search')
+        ->callTableColumnAction('day_1', $candidate)
+        ->assertTableActionVisible('book', record: $candidate)
+        ->callTableColumnAction('day_1', $candidate)
+        ->assertTableActionHidden('book', record: $candidate);
 });
 
 test('the tab bar renders on both the search and all candidates pages with the correct tab active', function () {

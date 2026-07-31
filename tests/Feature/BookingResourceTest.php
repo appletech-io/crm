@@ -1096,6 +1096,43 @@ test('the create form is prefilled from the query string with candidate, client,
         ]);
 });
 
+test('the create form is prefilled from a non-contiguous dates query array, skipping days in between', function () {
+    $test = Livewire::withQueryParams([
+        'candidate_id' => $this->candidate->id,
+        'client_id' => $this->client->id,
+        'dates' => ['2026-08-05', '2026-08-03'],
+    ])->test(CreateBooking::class)
+        ->assertFormSet([
+            'candidate_id' => $this->candidate->id,
+            'client_id' => $this->client->id,
+            'start_date' => '2026-08-03',
+            'end_date' => '2026-08-05',
+        ]);
+
+    expect(collect($test->instance()->form->getRawState()['day_periods'] ?? [])->values()->all())
+        ->toBe([
+            ['date' => '2026-08-03', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'dispute_reason' => null],
+            ['date' => '2026-08-05', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'dispute_reason' => null],
+        ]);
+});
+
+test('dayPeriodsForDates builds sorted, deduped entries and preserves matching existing periods', function () {
+    expect(BookingForm::dayPeriodsForDates(['2026-08-05', '2026-08-03', '2026-08-03']))
+        ->toBe([
+            ['date' => '2026-08-03', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
+            ['date' => '2026-08-05', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
+        ]);
+
+    expect(BookingForm::dayPeriodsForDates(['2026-08-03', '2026-08-05'], [
+        ['date' => '2026-08-03', 'period' => 'am', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
+    ]))->toBe([
+        ['date' => '2026-08-03', 'period' => 'am', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
+        ['date' => '2026-08-05', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
+    ]);
+
+    expect(BookingForm::dayPeriodsForDates([]))->toBe([]);
+});
+
 test('the create form falls back to normal defaults when the query string has no prefill values', function () {
     Livewire::test(CreateBooking::class)
         ->assertFormSet([

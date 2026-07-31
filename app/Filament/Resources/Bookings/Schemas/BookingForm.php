@@ -388,6 +388,39 @@ class BookingForm
             ->all();
     }
 
+    /**
+     * @param  array<int, string>  $dates
+     * @param  array<int, array<string, mixed>>  $existing
+     * @return array<int, array{date: string, period: string, time_from: ?string, time_to: ?string, cancelled: bool}>
+     */
+    public static function dayPeriodsForDates(array $dates, array $existing = []): array
+    {
+        if (empty($dates)) {
+            return [];
+        }
+
+        $existingPeriods = collect($existing)
+            ->filter(fn (array $entry): bool => filled($entry['date'] ?? null))
+            ->keyBy('date');
+
+        return collect($dates)
+            ->unique()
+            ->sort()
+            ->values()
+            ->map(function (string $date) use ($existingPeriods): array {
+                $existing = $existingPeriods->get($date);
+
+                return [
+                    'date' => $date,
+                    'period' => $existing['period'] ?? BookingDayPeriod::FullDay->value,
+                    'time_from' => $existing['time_from'] ?? null,
+                    'time_to' => $existing['time_to'] ?? null,
+                    'cancelled' => $existing['cancelled'] ?? false,
+                ];
+            })
+            ->all();
+    }
+
     /** @return array<int, array{date: string, period: string, time_from: ?string, time_to: ?string, cancelled: bool, disputed: bool, dispute_reason: ?string}> */
     public static function loadDayPeriods(Booking $record): array
     {

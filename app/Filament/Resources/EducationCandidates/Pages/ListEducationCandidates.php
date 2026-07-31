@@ -4,6 +4,7 @@ namespace App\Filament\Resources\EducationCandidates\Pages;
 
 use App\Actions\Candidates\CandidateCreated;
 use App\Enums\EmailTemplateAudience;
+use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Filament\Support\SendCustomEmailAction;
 use App\Models\CandidateSkill;
@@ -24,6 +25,7 @@ use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -46,6 +48,9 @@ class ListEducationCandidates extends ListRecords implements HasForms
     public ?float $searchLat = null;
 
     public ?float $searchLng = null;
+
+    /** @var array<int, array<int, bool>> */
+    public array $selectedDays = [];
 
     public function mount(): void
     {
@@ -254,7 +259,6 @@ class ListEducationCandidates extends ListRecords implements HasForms
                     'radius_miles' => $this->data['radius_miles'] ?? null,
                 ])
                 ->with([
-                    'skills',
                     'bookings' => fn ($query) => $query
                         ->whereHas('dayPeriods', fn ($q) => $q
                             ->whereBetween('date', [$weekStart->toDateString(), $weekStart->copy()->addDays(4)->toDateString()])
@@ -265,7 +269,18 @@ class ListEducationCandidates extends ListRecords implements HasForms
                 ]))
             ->recordUrl(fn (EducationCandidate $record): string => EducationCandidateResource::getUrl('edit', ['record' => $record]))
             ->filters([])
-            ->recordActions([])
+            ->recordActions([
+                Action::make('book')
+                    ->label('Book')
+                    ->icon(Heroicon::OutlinedCalendarDays)
+                    ->color('success')
+                    ->visible(fn (EducationCandidate $record): bool => filled($this->selectedDatesFor($record->id, $weekStart)))
+                    ->url(fn (EducationCandidate $record): string => BookingResource::getUrl('create', [
+                        'candidate_id' => $record->id,
+                        'client_id' => $this->data['client_id'] ?? null,
+                        'dates' => $this->selectedDatesFor($record->id, $weekStart),
+                    ])),
+            ])
             ->toolbarActions([
                 BulkActionGroup::make([
                     SendCustomEmailAction::bulk(EmailTemplateAudience::Candidate),
@@ -279,9 +294,6 @@ class ListEducationCandidates extends ListRecords implements HasForms
                 TextColumn::make('email'),
                 TextColumn::make('phone')
                     ->placeholder('—'),
-                TextColumn::make('skills_list')
-                    ->label('Skills')
-                    ->getStateUsing(fn (EducationCandidate $record): string => $record->skills->pluck('name')->implode(', ') ?: '—'),
                 TextColumn::make('distance')
                     ->label('Distance')
                     ->getStateUsing(function (EducationCandidate $record): ?string {
@@ -314,12 +326,27 @@ class ListEducationCandidates extends ListRecords implements HasForms
 
                 return IconColumn::make("day_{$isoWeekday}")
                     ->label($date->format('D'))
-                    ->getStateUsing(fn (EducationCandidate $record): bool => $this->isAvailableOn($record, $date))
-                    ->boolean()
-                    ->trueIcon('heroicon-o-check-circle')
-                    ->falseIcon('heroicon-o-x-circle')
-                    ->trueColor('success')
-                    ->falseColor('danger');
+                    ->getStateUsing(fn (): bool => true)
+                    ->icon(fn (EducationCandidate $record): string => match (true) {
+                        ! $this->isAvailableOn($record, $date) => 'heroicon-o-x-circle',
+                        $this->isDaySelected($record->id, $isoWeekday) => 'heroicon-s-check-circle',
+                        default => 'heroicon-o-check-circle',
+                    })
+                    ->color(fn (EducationCandidate $record): string => match (true) {
+                        ! $this->isAvailableOn($record, $date) => 'danger',
+                        $this->isDaySelected($record->id, $isoWeekday) => 'success',
+                        default => 'gray',
+                    })
+                    ->tooltip(fn (EducationCandidate $record): string => $this->isAvailableOn($record, $date)
+                        ? 'Click to select this day for booking'
+                        : 'Already has a booking this day')
+                    ->action(function (EducationCandidate $record) use ($date, $isoWeekday): void {
+                        if (! $this->isAvailableOn($record, $date)) {
+                            return;
+                        }
+
+                        $this->toggleDay($record->id, $isoWeekday);
+                    });
             })
             ->all();
     }
@@ -335,5 +362,33 @@ class ListEducationCandidates extends ListRecords implements HasForms
         }
 
         return true;
+    }
+
+    private function toggleDay(int $candidateId, int $isoWeekday): void
+    {
+        if (! empty($this->selectedDays[$candidateId][$isoWeekday])) {
+            unset($this->selectedDays[$candidateId][$isoWeekday]);
+
+            return;
+        }
+
+        $this->selectedDays[$candidateId][$isoWeekday] = true;
+    }
+
+    private function isDaySelected(int $candidateId, int $isoWeekday): bool
+    {
+        return ! empty($this->selectedDays[$candidateId][$isoWeekday]);
+    }
+
+    /** @return array<int, string> */
+    private function selectedDatesFor(int $candidateId, CarbonImmutable $weekStart): array
+    {
+        return collect($this->selectedDays[$candidateId] ?? [])
+            ->filter()
+            ->keys()
+            ->map(fn (int $isoWeekday): string => $weekStart->copy()->addDays($isoWeekday - 1)->toDateString())
+            ->sort()
+            ->values()
+            ->all();
     }
 }
