@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\EmailTemplateType;
 use App\Filament\Resources\Actions\Pages\CreateAction;
 use App\Filament\Resources\Actions\Pages\EditAction;
 use App\Filament\Resources\Actions\Pages\ListActions;
@@ -8,6 +9,7 @@ use App\Models\Booking;
 use App\Models\Client;
 use App\Models\Company;
 use App\Models\EducationCandidate;
+use App\Models\EmailTemplate;
 use App\Models\HealthcareCandidate;
 use App\Models\Industry;
 use App\Models\User;
@@ -91,6 +93,7 @@ test('can create an action targeting a client with a valid condition', function 
             'conditions' => [
                 'item-1' => ['field' => 'name', 'operator' => 'filled'],
             ],
+            'wants_todo' => true,
             'todo_name' => 'Follow up with client',
             'todo_description' => 'Client has notes that need chasing.',
             'todo_priority' => 'high',
@@ -119,6 +122,7 @@ test('a condition field valid for one model type is rejected for another', funct
             'conditions' => [
                 'item-1' => ['field' => 'name', 'operator' => 'filled'],
             ],
+            'wants_todo' => true,
             'todo_name' => 'x',
             'todo_priority' => 'medium',
         ])
@@ -135,6 +139,7 @@ test('a condition field valid for the selected model type is accepted', function
             'conditions' => [
                 'item-1' => ['field' => 'status', 'operator' => 'filled'],
             ],
+            'wants_todo' => true,
             'todo_name' => 'x',
             'todo_priority' => 'medium',
         ])
@@ -156,6 +161,61 @@ test('model type options include client, booking and the active industrys candid
                 && array_key_exists(EducationCandidate::class, $options)
                 && ! array_key_exists(HealthcareCandidate::class, $options);
         });
+});
+
+test('the to-do and email fields are hidden on a fresh create form until their toggle is switched on', function () {
+    Livewire::test(CreateAction::class)
+        ->assertFormFieldHidden('assignee_type')
+        ->assertFormFieldHidden('todo_name')
+        ->assertFormFieldHidden('todo_priority')
+        ->assertFormFieldHidden('email_template_id')
+        ->set('data.wants_todo', true)
+        ->assertFormFieldVisible('assignee_type')
+        ->assertFormFieldVisible('todo_name')
+        ->assertFormFieldVisible('todo_priority')
+        ->assertFormFieldHidden('email_template_id')
+        ->set('data.wants_email', true)
+        ->assertFormFieldVisible('email_template_id');
+});
+
+test('editing an action with only a todo configured shows the to-do toggle on and the email toggle off', function () {
+    $action = Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'todo_name' => 'Follow up',
+        'email_template_id' => null,
+    ]);
+
+    Livewire::test(EditAction::class, ['record' => $action->getRouteKey()])
+        ->assertFormSet(['wants_todo' => true, 'wants_email' => false])
+        ->assertFormFieldVisible('todo_name')
+        ->assertFormFieldHidden('email_template_id');
+});
+
+test('editing an action with only an email configured shows the email toggle on and the to-do toggle off', function () {
+    $template = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Client template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => 'client',
+        'subject' => 'Hi',
+        'body' => 'Body',
+    ]);
+
+    $action = Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'todo_name' => null,
+        'email_template_id' => $template->id,
+    ]);
+
+    Livewire::test(EditAction::class, ['record' => $action->getRouteKey()])
+        ->assertFormSet(['wants_todo' => false, 'wants_email' => true])
+        ->assertFormFieldHidden('todo_name')
+        ->assertFormFieldVisible('email_template_id');
 });
 
 test('edit page renders and loads the existing conditions', function () {
@@ -233,6 +293,7 @@ test('an action can be created targeting everyone with a given role instead of t
             'conditions' => [
                 'item-1' => ['field' => 'name', 'operator' => 'filled'],
             ],
+            'wants_todo' => true,
             'assignee_type' => 'role',
             'assignee_role' => 'compliance',
             'todo_name' => 'Review this client',
@@ -247,6 +308,219 @@ test('an action can be created targeting everyone with a given role instead of t
         ->and($action->assignee_role)->toBe('compliance');
 });
 
+test('a client action only offers client-audience email templates', function () {
+    $clientTemplate = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Client template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => 'client',
+        'subject' => 'Hi',
+        'body' => 'Body',
+    ]);
+
+    $candidateTemplate = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Candidate template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => 'candidate',
+        'subject' => 'Hi',
+        'body' => 'Body',
+    ]);
+
+    Livewire::test(CreateAction::class)
+        ->set('data.model_type', Client::class)
+        ->assertFormFieldExists('email_template_id', function ($field) use ($clientTemplate, $candidateTemplate): bool {
+            $options = $field->getOptions();
+
+            return array_key_exists($clientTemplate->id, $options)
+                && ! array_key_exists($candidateTemplate->id, $options);
+        });
+});
+
+test('a booking action hides send email to and offers no templates until a recipient is chosen, then scopes correctly', function () {
+    $clientTemplate = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Client template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => 'client',
+        'subject' => 'Hi',
+        'body' => 'Body',
+    ]);
+
+    $candidateTemplate = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Candidate template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => 'candidate',
+        'subject' => 'Hi',
+        'body' => 'Body',
+    ]);
+
+    Livewire::test(CreateAction::class)
+        ->set('data.model_type', Client::class)
+        ->set('data.wants_email', true)
+        ->assertFormFieldHidden('email_recipient')
+        ->set('data.model_type', Booking::class)
+        ->assertFormFieldVisible('email_recipient')
+        ->assertFormFieldExists('email_template_id', fn ($field): bool => $field->getOptions() === [])
+        ->set('data.email_recipient', 'client')
+        ->assertFormFieldExists('email_template_id', function ($field) use ($clientTemplate, $candidateTemplate): bool {
+            $options = $field->getOptions();
+
+            return array_key_exists($clientTemplate->id, $options)
+                && ! array_key_exists($candidateTemplate->id, $options);
+        })
+        ->set('data.email_recipient', 'candidate')
+        ->assertFormFieldExists('email_template_id', function ($field) use ($clientTemplate, $candidateTemplate): bool {
+            $options = $field->getOptions();
+
+            return array_key_exists($candidateTemplate->id, $options)
+                && ! array_key_exists($clientTemplate->id, $options);
+        });
+});
+
+test('switching applies to clears a previously selected email template', function () {
+    $clientTemplate = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Client template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => 'client',
+        'subject' => 'Hi',
+        'body' => 'Body',
+    ]);
+
+    Livewire::test(CreateAction::class)
+        ->set('data.model_type', Client::class)
+        ->set('data.email_template_id', $clientTemplate->id)
+        ->set('data.model_type', EducationCandidate::class)
+        ->assertFormSet(['email_template_id' => null]);
+});
+
+test('creating a client action with an email template persists it', function () {
+    $template = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Client template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => 'client',
+        'subject' => 'Hi',
+        'body' => 'Body',
+    ]);
+
+    Livewire::test(CreateAction::class)
+        ->fillForm([
+            'name' => 'Chase client notes with email',
+            'model_type' => Client::class,
+            'conditions' => [
+                'item-1' => ['field' => 'name', 'operator' => 'filled'],
+            ],
+            'wants_todo' => true,
+            'todo_name' => 'Follow up with client',
+            'todo_priority' => 'medium',
+            'wants_email' => true,
+            'email_template_id' => $template->id,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $action = Action::where('name', 'Chase client notes with email')->first();
+
+    expect($action->email_template_id)->toBe($template->id);
+});
+
+test('to-do name is not required when an email template is selected', function () {
+    $template = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Client template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => 'client',
+        'subject' => 'Hi',
+        'body' => 'Body',
+    ]);
+
+    Livewire::test(CreateAction::class)
+        ->fillForm([
+            'name' => 'Email only, no todo',
+            'model_type' => Client::class,
+            'conditions' => [
+                'item-1' => ['field' => 'name', 'operator' => 'filled'],
+            ],
+            'wants_email' => true,
+            'email_template_id' => $template->id,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $action = Action::where('name', 'Email only, no todo')->first();
+
+    expect($action->todo_name)->toBeNull()
+        ->and($action->email_template_id)->toBe($template->id);
+});
+
+test('an action needs at least a to-do name or an email template', function () {
+    Livewire::test(CreateAction::class)
+        ->fillForm([
+            'name' => 'Does nothing',
+            'model_type' => Client::class,
+            'conditions' => [
+                'item-1' => ['field' => 'name', 'operator' => 'filled'],
+            ],
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['wants_email']);
+});
+
+test('a booking action with no email configured at all saves fine without a recipient', function () {
+    Livewire::test(CreateAction::class)
+        ->fillForm([
+            'name' => 'No email for this booking action',
+            'model_type' => Booking::class,
+            'conditions' => [
+                'item-1' => ['field' => 'status', 'operator' => 'filled'],
+            ],
+            'wants_todo' => true,
+            'todo_name' => 'x',
+            'todo_priority' => 'medium',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+});
+
+test('a booking action with an email template selected but no recipient fails validation', function () {
+    $template = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Client template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => 'client',
+        'subject' => 'Hi',
+        'body' => 'Body',
+    ]);
+
+    Livewire::test(CreateAction::class)
+        ->fillForm([
+            'name' => 'Missing email recipient',
+            'model_type' => Booking::class,
+            'conditions' => [
+                'item-1' => ['field' => 'status', 'operator' => 'filled'],
+            ],
+            'wants_todo' => true,
+            'todo_name' => 'x',
+            'todo_priority' => 'medium',
+            'wants_email' => true,
+            'email_recipient' => null,
+            'email_template_id' => $template->id,
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['email_recipient']);
+});
+
 test('assignee role is required when targeting by role but not when targeting the consultant', function () {
     Livewire::test(CreateAction::class)
         ->fillForm([
@@ -255,6 +529,7 @@ test('assignee role is required when targeting by role but not when targeting th
             'conditions' => [
                 'item-1' => ['field' => 'name', 'operator' => 'filled'],
             ],
+            'wants_todo' => true,
             'assignee_type' => 'role',
             'assignee_role' => null,
             'todo_name' => 'x',
@@ -270,6 +545,7 @@ test('assignee role is required when targeting by role but not when targeting th
             'conditions' => [
                 'item-1' => ['field' => 'name', 'operator' => 'filled'],
             ],
+            'wants_todo' => true,
             'assignee_type' => 'consultant',
             'todo_name' => 'x',
             'todo_priority' => 'medium',

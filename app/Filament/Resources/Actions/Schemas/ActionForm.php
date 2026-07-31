@@ -3,19 +3,26 @@
 namespace App\Filament\Resources\Actions\Schemas;
 
 use App\Enums\ActionAssigneeType;
+use App\Enums\ActionEmailRecipient;
+use App\Enums\EmailTemplateAudience;
 use App\Enums\TodoPriority;
 use App\Filament\Resources\TodoItems\Schemas\TodoItemForm;
 use App\Filament\Support\ConditionsRepeaterField;
+use App\Models\Action;
 use App\Models\Booking;
 use App\Models\Client;
+use App\Models\EmailTemplate;
 use App\Models\Industry;
+use Closure;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Auth;
 use Spatie\Permission\Models\Role;
 
 class ActionForm
@@ -35,41 +42,106 @@ class ActionForm
                 ->options(static::modelTypeOptions())
                 ->required()
                 ->live()
-                ->afterStateUpdated(fn (Set $set) => $set('conditions', []))
+                ->afterStateUpdated(function (Set $set): void {
+                    $set('conditions', []);
+                    $set('email_recipient', null);
+                    $set('email_template_id', null);
+                })
                 ->columnSpanFull(),
 
             ConditionsRepeaterField::make('conditions', fn (Get $get): array => static::suggestionsFor($get('/data.model_type'))),
 
-            Select::make('assignee_type')
-                ->label('Notify')
-                ->options(ActionAssigneeType::options())
-                ->default(ActionAssigneeType::Consultant->value)
-                ->required()
-                ->live()
-                ->afterStateUpdated(fn (Set $set) => $set('assignee_role', null)),
+            Section::make('To-Do')
+                ->description('Create a to-do item for someone to action when this fires.')
+                ->columns(2)
+                ->schema([
+                    Toggle::make('wants_todo')
+                        ->label('Create a To-Do')
+                        ->live()
+                        ->dehydrated(false)
+                        ->afterStateHydrated(fn (Toggle $component, ?Action $record) => $component->state(filled($record?->todo_name)))
+                        ->afterStateUpdated(function (Set $set, bool $state): void {
+                            if (! $state) {
+                                $set('assignee_type', ActionAssigneeType::Consultant->value);
+                                $set('assignee_role', null);
+                                $set('todo_name', null);
+                                $set('todo_description', null);
+                            }
+                        })
+                        ->columnSpanFull(),
 
-            Select::make('assignee_role')
-                ->label('Role')
-                ->options(static::roleOptions())
-                ->visible(fn (Get $get): bool => $get('assignee_type') === ActionAssigneeType::Role->value)
-                ->required(fn (Get $get): bool => $get('assignee_type') === ActionAssigneeType::Role->value),
+                    Select::make('assignee_type')
+                        ->label('Notify')
+                        ->options(ActionAssigneeType::options())
+                        ->default(ActionAssigneeType::Consultant->value)
+                        ->visible(fn (Get $get): bool => $get('wants_todo'))
+                        ->required(fn (Get $get): bool => $get('wants_todo'))
+                        ->live()
+                        ->afterStateUpdated(fn (Set $set) => $set('assignee_role', null)),
 
-            TextInput::make('todo_name')
-                ->label('To-Do Name')
-                ->required()
-                ->maxLength(TodoItemForm::NAME_MAX_LENGTH)
-                ->columnSpanFull(),
+                    Select::make('assignee_role')
+                        ->label('Role')
+                        ->options(static::roleOptions())
+                        ->visible(fn (Get $get): bool => $get('wants_todo') && $get('assignee_type') === ActionAssigneeType::Role->value)
+                        ->required(fn (Get $get): bool => $get('wants_todo') && $get('assignee_type') === ActionAssigneeType::Role->value),
 
-            Textarea::make('todo_description')
-                ->label('To-Do Description')
-                ->rows(3)
-                ->columnSpanFull(),
+                    TextInput::make('todo_name')
+                        ->label('To-Do Name')
+                        ->visible(fn (Get $get): bool => $get('wants_todo'))
+                        ->required(fn (Get $get): bool => $get('wants_todo'))
+                        ->maxLength(TodoItemForm::NAME_MAX_LENGTH)
+                        ->columnSpanFull(),
 
-            Select::make('todo_priority')
-                ->label('To-Do Priority')
-                ->options(TodoPriority::options())
-                ->default(TodoPriority::Medium->value)
-                ->required(),
+                    Textarea::make('todo_description')
+                        ->label('To-Do Description')
+                        ->visible(fn (Get $get): bool => $get('wants_todo'))
+                        ->rows(3)
+                        ->columnSpanFull(),
+
+                    Select::make('todo_priority')
+                        ->label('To-Do Priority')
+                        ->options(TodoPriority::options())
+                        ->default(TodoPriority::Medium->value)
+                        ->visible(fn (Get $get): bool => $get('wants_todo'))
+                        ->required(fn (Get $get): bool => $get('wants_todo')),
+                ]),
+
+            Section::make('Email')
+                ->description('Send an email to the candidate or client this action is about.')
+                ->columns(2)
+                ->schema([
+                    Toggle::make('wants_email')
+                        ->label('Send an Email')
+                        ->live()
+                        ->dehydrated(false)
+                        ->afterStateHydrated(fn (Toggle $component, ?Action $record) => $component->state(filled($record?->email_template_id)))
+                        ->afterStateUpdated(function (Set $set, bool $state): void {
+                            if (! $state) {
+                                $set('email_recipient', null);
+                                $set('email_template_id', null);
+                            }
+                        })
+                        ->rule(fn (Get $get): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get): void {
+                            if (! $value && ! $get('wants_todo')) {
+                                $fail('Enable at least a to-do or an email for this action to do something.');
+                            }
+                        })
+                        ->columnSpanFull(),
+
+                    Select::make('email_recipient')
+                        ->label('Send Email To')
+                        ->options(ActionEmailRecipient::options())
+                        ->visible(fn (Get $get): bool => $get('wants_email') && $get('model_type') === Booking::class)
+                        ->required(fn (Get $get): bool => $get('wants_email') && $get('model_type') === Booking::class)
+                        ->live()
+                        ->afterStateUpdated(fn (Set $set) => $set('email_template_id', null)),
+
+                    Select::make('email_template_id')
+                        ->label('Email Template')
+                        ->visible(fn (Get $get): bool => $get('wants_email'))
+                        ->required(fn (Get $get): bool => $get('wants_email'))
+                        ->options(fn (Get $get): array => static::emailTemplateOptions($get('model_type'), $get('email_recipient'))),
+                ]),
 
             Toggle::make('is_active')
                 ->label('Active')
@@ -102,6 +174,45 @@ class ActionForm
         }
 
         return $modelType::candidateFieldSuggestions();
+    }
+
+    /** @return array<string, string> */
+    private static function emailTemplateOptions(?string $modelType, ?string $emailRecipient): array
+    {
+        $audience = static::audienceFor($modelType, $emailRecipient);
+
+        if (! $audience) {
+            return [];
+        }
+
+        return EmailTemplate::query()
+            ->custom()
+            ->forAudience($audience)
+            ->where('company_id', Auth::user()->company_id)
+            ->where('industry_id', active_industry_id())
+            ->pluck('name', 'id')
+            ->toArray();
+    }
+
+    private static function audienceFor(?string $modelType, ?string $emailRecipient): ?EmailTemplateAudience
+    {
+        if ($modelType === Client::class) {
+            return EmailTemplateAudience::Client;
+        }
+
+        if ($modelType === Booking::class) {
+            return match ($emailRecipient) {
+                ActionEmailRecipient::Client->value => EmailTemplateAudience::Client,
+                ActionEmailRecipient::Candidate->value => EmailTemplateAudience::Candidate,
+                default => null,
+            };
+        }
+
+        if ($modelType && method_exists($modelType, 'candidateFieldSuggestions')) {
+            return EmailTemplateAudience::Candidate;
+        }
+
+        return null;
     }
 
     /** @return array<string, string> */

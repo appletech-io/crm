@@ -1,17 +1,22 @@
 <?php
 
 use App\Actions\Automations\CheckActions;
+use App\Enums\ActionEmailRecipient;
+use App\Enums\EmailTemplateType;
+use App\Jobs\SendCustomTemplateEmail;
 use App\Models\Action;
 use App\Models\ActionTrigger;
 use App\Models\Booking;
 use App\Models\Client;
 use App\Models\Company;
 use App\Models\EducationCandidate;
+use App\Models\EmailTemplate;
 use App\Models\HealthcareCandidate;
 use App\Models\Industry;
 use App\Models\TodoItem;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Support\Facades\Bus;
 
 beforeEach(function () {
     $this->company = Company::factory()->create();
@@ -528,4 +533,281 @@ test('resolving a role-based trigger completes every todo it created', function 
 
     expect($trigger->refresh()->isOpen())->toBeFalse();
     expect($trigger->todoItems->every(fn (TodoItem $todoItem) => $todoItem->refresh()->isComplete()))->toBeTrue();
+});
+
+function makeActionEmailTemplate(string $companyId, string $industryId, string $audience): EmailTemplate
+{
+    return EmailTemplate::create([
+        'company_id' => $companyId,
+        'industry_id' => $industryId,
+        'name' => 'Action template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => $audience,
+        'subject' => 'Hello',
+        'body' => 'Body',
+    ]);
+}
+
+test('a client action with an email template dispatches it to the client', function () {
+    Bus::fake();
+
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $this->consultant->id,
+        'notes' => 'Needs a follow up call',
+    ]);
+
+    $template = makeActionEmailTemplate($this->company->id, $this->industry->id, 'client');
+
+    Action::factory()->withEmailTemplate($template)->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'conditions' => [
+            ['field' => 'notes', 'operator' => 'filled'],
+        ],
+    ]);
+
+    CheckActions::run($client);
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->template->is($template) && $job->recipient->is($client));
+});
+
+test('a candidate action with an email template dispatches it to the candidate', function () {
+    Bus::fake();
+
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+        'first_name' => 'Jane',
+    ]);
+
+    $template = makeActionEmailTemplate($this->company->id, $this->industry->id, 'candidate');
+
+    Action::factory()->withEmailTemplate($template)->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => EducationCandidate::class,
+        'conditions' => [
+            ['field' => 'first_name', 'operator' => 'filled'],
+        ],
+    ]);
+
+    CheckActions::run($candidate);
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->template->is($template) && $job->recipient->is($candidate));
+});
+
+test('a booking action configured to email the client dispatches it to the bookings client', function () {
+    Bus::fake();
+
+    $booking = Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+        'candidate_type' => EducationCandidate::class,
+    ]);
+
+    $template = makeActionEmailTemplate($this->company->id, $this->industry->id, 'client');
+
+    Action::factory()->withEmailTemplate($template, ActionEmailRecipient::Client)->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Booking::class,
+        'conditions' => [
+            ['field' => 'status', 'operator' => 'filled'],
+        ],
+    ]);
+
+    CheckActions::run($booking);
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->recipient->is($booking->client));
+});
+
+test('a booking action configured to email the candidate dispatches it to the bookings candidate', function () {
+    Bus::fake();
+
+    $booking = Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+        'candidate_type' => EducationCandidate::class,
+    ]);
+
+    $template = makeActionEmailTemplate($this->company->id, $this->industry->id, 'candidate');
+
+    Action::factory()->withEmailTemplate($template, ActionEmailRecipient::Candidate)->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Booking::class,
+        'conditions' => [
+            ['field' => 'status', 'operator' => 'filled'],
+        ],
+    ]);
+
+    CheckActions::run($booking);
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->recipient->is($booking->candidate));
+});
+
+test('an action with no email template configured does not dispatch an email', function () {
+    Bus::fake();
+
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $this->consultant->id,
+        'notes' => 'Needs a follow up call',
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'conditions' => [
+            ['field' => 'notes', 'operator' => 'filled'],
+        ],
+    ]);
+
+    CheckActions::run($client);
+
+    Bus::assertNotDispatched(SendCustomTemplateEmail::class);
+});
+
+test('the email is not re-dispatched on a second run while the trigger stays open', function () {
+    Bus::fake();
+
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $this->consultant->id,
+        'notes' => 'Needs a follow up call',
+    ]);
+
+    $template = makeActionEmailTemplate($this->company->id, $this->industry->id, 'client');
+
+    Action::factory()->withEmailTemplate($template)->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'conditions' => [
+            ['field' => 'notes', 'operator' => 'filled'],
+        ],
+    ]);
+
+    CheckActions::run($client);
+    CheckActions::run($client);
+    CheckActions::run($client);
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class, 1);
+});
+
+test('the email still sends even when a role-based todo has nobody in the matching role, since they are independent', function () {
+    $this->seed(RoleSeeder::class);
+    Bus::fake();
+
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => null,
+        'notes' => 'Needs a follow up call',
+    ]);
+
+    $template = makeActionEmailTemplate($this->company->id, $this->industry->id, 'client');
+
+    Action::factory()->roleBased('compliance')->withEmailTemplate($template)->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'conditions' => [
+            ['field' => 'notes', 'operator' => 'filled'],
+        ],
+    ]);
+
+    CheckActions::run($client);
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->recipient->is($client));
+    expect(TodoItem::count())->toBe(0);
+});
+
+test('an email-only action (no todo name) sends the email without creating any todo', function () {
+    Bus::fake();
+
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $this->consultant->id,
+        'notes' => 'Needs a follow up call',
+    ]);
+
+    $template = makeActionEmailTemplate($this->company->id, $this->industry->id, 'client');
+
+    Action::factory()->withEmailTemplate($template)->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'conditions' => [
+            ['field' => 'notes', 'operator' => 'filled'],
+        ],
+        'todo_name' => null,
+        'todo_description' => null,
+    ]);
+
+    CheckActions::run($client);
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->recipient->is($client));
+    expect(TodoItem::count())->toBe(0);
+});
+
+test('an email-only action still fires even when the record has no consultant, since no todo assignee is needed', function () {
+    Bus::fake();
+
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => null,
+        'notes' => 'Needs a follow up call',
+    ]);
+
+    $template = makeActionEmailTemplate($this->company->id, $this->industry->id, 'client');
+
+    Action::factory()->withEmailTemplate($template)->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'conditions' => [
+            ['field' => 'notes', 'operator' => 'filled'],
+        ],
+        'todo_name' => null,
+    ]);
+
+    CheckActions::run($client);
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class);
+});
+
+test('an action with neither a todo name nor an email template configured never fires', function () {
+    Bus::fake();
+
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $this->consultant->id,
+        'notes' => 'Needs a follow up call',
+    ]);
+
+    $action = Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'conditions' => [
+            ['field' => 'notes', 'operator' => 'filled'],
+        ],
+        'todo_name' => null,
+    ]);
+
+    CheckActions::run($client);
+
+    expect(TodoItem::count())->toBe(0)
+        ->and($action->openTriggerFor($client))->toBeNull();
+    Bus::assertNotDispatched(SendCustomTemplateEmail::class);
 });
