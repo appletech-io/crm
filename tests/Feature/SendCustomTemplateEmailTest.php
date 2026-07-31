@@ -3,12 +3,14 @@
 use App\Enums\EmailTemplateAudience;
 use App\Enums\EmailTemplateType;
 use App\Jobs\SendCustomTemplateEmail;
+use App\Models\CampaignSend;
 use App\Models\Client;
 use App\Models\ClientContact;
 use App\Models\Company;
 use App\Models\EducationCandidate;
 use App\Models\EmailTemplate;
 use App\Models\Industry;
+use App\Models\MarketingCampaign;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
 
@@ -123,4 +125,117 @@ test('it does not send when a client has no bookable contact at all', function (
 
     Http::assertNotSent(fn ($request) => str_contains($request->url(), 'graph.microsoft.com'));
     expect($client->activities()->count())->toBe(0);
+});
+
+test('it sends an ad-hoc email with no saved template, resolving placeholders the same way', function () {
+    $consultant = User::factory()->create(['company_id' => $this->company->id, 'email' => 'consultant@example.com']);
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Jane',
+        'last_name' => 'Doe',
+        'email' => 'jane@example.com',
+        'consultant_id' => $consultant->id,
+    ]);
+
+    (new SendCustomTemplateEmail(
+        template: null,
+        recipient: $candidate,
+        sentByUserId: $consultant->id,
+        adHocSubject: 'Quick note for {recipient_first_name}',
+        adHocBody: 'Hi {recipient_name}, just checking in.',
+    ))->handle();
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), "users/{$consultant->email}/sendMail")
+        && str_contains($request['message']['subject'], 'Quick note for Jane')
+        && str_contains($request['message']['body']['content'], 'Hi Jane Doe, just checking in.'));
+
+    $activity = $candidate->activities()->latest()->first();
+    expect($activity->user_id)->toBe($consultant->id);
+    expect($activity->note)->toBe('Email sent: Quick note for Jane');
+});
+
+test('it records a campaign send when a campaign is passed, with the resolved content', function () {
+    $client = Client::factory()->create(['company_id' => $this->company->id]);
+    $contact = ClientContact::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $client->id,
+        'first_name' => 'Sam',
+        'last_name' => 'Smith',
+        'email' => 'sam@acme.test',
+        'main_contact' => true,
+    ]);
+    $campaign = MarketingCampaign::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+
+    $template = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Campaign template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => EmailTemplateAudience::Client->value,
+        'subject' => 'Hello {recipient_first_name}',
+        'body' => 'Dear {recipient_name}',
+    ]);
+
+    (new SendCustomTemplateEmail($template, $client, null, campaign: $campaign))->handle();
+
+    expect($campaign->sends()->count())->toBe(1);
+
+    $send = $campaign->sends()->first();
+    expect($send->client_id)->toBe($client->id);
+    expect($send->client_contact_id)->toBe($contact->id);
+    expect($send->email_template_id)->toBe($template->id);
+    expect($send->subject)->toBe('Hello Sam');
+    expect($send->body)->toBe('Dear Sam Smith');
+});
+
+test('it records a campaign send for an ad-hoc email with a null template_id', function () {
+    $client = Client::factory()->create(['company_id' => $this->company->id]);
+    ClientContact::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $client->id,
+        'main_contact' => true,
+        'email' => 'sam@acme.test',
+    ]);
+    $campaign = MarketingCampaign::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+
+    (new SendCustomTemplateEmail(
+        template: null,
+        recipient: $client,
+        campaign: $campaign,
+        adHocSubject: 'Hi there',
+        adHocBody: 'Just a note',
+    ))->handle();
+
+    $send = $campaign->sends()->first();
+    expect($send->email_template_id)->toBeNull();
+    expect($send->subject)->toBe('Hi there');
+});
+
+test('it does not record a campaign send for a candidate recipient, even if a campaign is passed', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id, 'email' => 'jane@example.com']);
+    $campaign = MarketingCampaign::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+
+    (new SendCustomTemplateEmail(
+        template: null,
+        recipient: $candidate,
+        campaign: $campaign,
+        adHocSubject: 'Hi',
+        adHocBody: 'Body',
+    ))->handle();
+
+    expect(CampaignSend::count())->toBe(0);
+});
+
+test('it does not record a campaign send when no campaign is passed', function () {
+    $client = Client::factory()->create(['company_id' => $this->company->id]);
+    ClientContact::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $client->id,
+        'main_contact' => true,
+        'email' => 'sam@acme.test',
+    ]);
+
+    (new SendCustomTemplateEmail(template: null, recipient: $client, adHocSubject: 'Hi', adHocBody: 'Body'))->handle();
+
+    expect(CampaignSend::count())->toBe(0);
 });

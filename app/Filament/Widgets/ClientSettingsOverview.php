@@ -2,8 +2,10 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Resources\ClientPools\ClientPoolResource;
 use App\Filament\Resources\ClientTypes\ClientTypeResource;
 use App\Filament\Resources\JobTitles\JobTitleResource;
+use App\Models\ClientPool;
 use App\Models\ClientType;
 use App\Models\JobTitle;
 use Filament\Widgets\StatsOverviewWidget;
@@ -28,6 +30,15 @@ class ClientSettingsOverview extends StatsOverviewWidget
             ->where('industry_id', active_industry_id())
             ->count();
 
+        $poolsCount = ClientPool::query()
+            ->where('company_id', Auth::user()->company_id)
+            ->where('industry_id', active_industry_id())
+            ->where(fn ($q) => $q
+                ->where('user_id', Auth::id())
+                ->orWhere(fn ($q) => $q->where('company_pool', true)->whereNull('user_id'))
+            )
+            ->count();
+
         return [
             Stat::make('Job Titles', $jobTitlesCount)
                 ->description('Job titles configured')
@@ -39,6 +50,11 @@ class ClientSettingsOverview extends StatsOverviewWidget
                 ->descriptionIcon('heroicon-m-rectangle-stack')
                 ->color('primary')
                 ->url(ClientTypeResource::getUrl('index')),
+            Stat::make('Client Pools', $poolsCount)
+                ->description('Your pools and company pools')
+                ->descriptionIcon('heroicon-m-user-group')
+                ->color('primary')
+                ->url(ClientPoolResource::getUrl('index')),
         ];
     }
 }
