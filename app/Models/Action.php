@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ActionAssigneeType;
+use App\Enums\ActionEmailRecipient;
 use App\Enums\TodoPriority;
 use App\Models\Traits\BelongsToCompany;
 use App\Models\Traits\EvaluatesConditions;
@@ -28,6 +29,7 @@ class Action extends Model
             'conditions' => 'array',
             'assignee_type' => ActionAssigneeType::class,
             'todo_priority' => TodoPriority::class,
+            'email_recipient' => ActionEmailRecipient::class,
             'is_active' => 'boolean',
         ];
     }
@@ -35,6 +37,11 @@ class Action extends Model
     public function industry(): BelongsTo
     {
         return $this->belongsTo(Industry::class);
+    }
+
+    public function emailTemplate(): BelongsTo
+    {
+        return $this->belongsTo(EmailTemplate::class);
     }
 
     public function isRoleBased(): bool

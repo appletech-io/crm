@@ -3,9 +3,14 @@
 namespace App\Actions\Automations;
 
 use App\Enums\ActionAssigneeType;
+use App\Enums\ActionEmailRecipient;
+use App\Jobs\SendCustomTemplateEmail;
 use App\Models\Action;
 use App\Models\ActionTrigger;
 use App\Models\Booking;
+use App\Models\Client;
+use App\Models\EducationCandidate;
+use App\Models\HealthcareCandidate;
 use App\Models\TodoItem;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -29,7 +34,7 @@ class CheckActions
                 $isSatisfied = $action->isSatisfiedBy($record);
 
                 if ($isSatisfied && ! $openTrigger) {
-                    $this->createTodos($action, $record);
+                    $this->fireAction($action, $record);
 
                     return;
                 }
@@ -73,14 +78,24 @@ class CheckActions
     }
 
     /**
-     * Nothing to notify means the action never fires — no trigger, no todos —
-     * so it's free to fire again once someone becomes assignable later.
+     * An action creates a to-do, sends an email, or both — whichever it's
+     * configured to do. If it's configured to create a to-do but nobody is
+     * assignable yet, and it has no email to send either, it never fires —
+     * no trigger, no todos — so it's free to fire again once someone becomes
+     * assignable later.
      */
-    private function createTodos(Action $action, Model $record): void
+    private function fireAction(Action $action, Model $record): void
     {
-        $assigneeIds = $this->resolveAssigneeIds($action, $record);
+        $wantsTodo = filled($action->todo_name);
+        $wantsEmail = (bool) $action->email_template_id;
 
-        if ($assigneeIds->isEmpty()) {
+        if (! $wantsTodo && ! $wantsEmail) {
+            return;
+        }
+
+        $assigneeIds = $wantsTodo ? $this->resolveAssigneeIds($action, $record) : collect();
+
+        if ($wantsTodo && $assigneeIds->isEmpty() && ! $wantsEmail) {
             return;
         }
 
@@ -99,6 +114,37 @@ class CheckActions
             'model_type' => $record->getMorphClass(),
             'model_id' => $record->getKey(),
         ]));
+
+        if ($wantsEmail) {
+            $this->sendActionEmail($action, $record);
+        }
+    }
+
+    /**
+     * Emails the candidate/client the record is about.
+     */
+    private function sendActionEmail(Action $action, Model $record): void
+    {
+        $recipient = $this->resolveEmailRecipient($action, $record);
+
+        if (! $recipient) {
+            return;
+        }
+
+        SendCustomTemplateEmail::dispatch($action->emailTemplate, $recipient);
+    }
+
+    private function resolveEmailRecipient(Action $action, Model $record): EducationCandidate|HealthcareCandidate|Client|null
+    {
+        if ($record instanceof Booking) {
+            return $action->email_recipient === ActionEmailRecipient::Client
+                ? $record->client
+                : $record->candidate;
+        }
+
+        return ($record instanceof Client || $record instanceof EducationCandidate || $record instanceof HealthcareCandidate)
+            ? $record
+            : null;
     }
 
     /**

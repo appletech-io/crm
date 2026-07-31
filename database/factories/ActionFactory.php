@@ -2,9 +2,11 @@
 
 namespace Database\Factories;
 
+use App\Enums\ActionEmailRecipient;
 use App\Models\Action;
 use App\Models\Client;
 use App\Models\Company;
+use App\Models\EmailTemplate;
 use App\Models\Industry;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -42,6 +44,14 @@ class ActionFactory extends Factory
         return $this->state([
             'assignee_type' => 'role',
             'assignee_role' => $role,
+        ]);
+    }
+
+    public function withEmailTemplate(EmailTemplate $template, ?ActionEmailRecipient $recipient = null): static
+    {
+        return $this->state([
+            'email_template_id' => $template->id,
+            'email_recipient' => $recipient?->value,
         ]);
     }
 }

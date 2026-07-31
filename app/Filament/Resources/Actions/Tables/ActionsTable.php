@@ -50,8 +50,13 @@ class ActionsTable
 
                 TextColumn::make('todo_name')
                     ->label('Creates To-Do')
+                    ->placeholder('—')
                     ->wrap()
                     ->limit(60),
+
+                TextColumn::make('emailTemplate.name')
+                    ->label('Also Emails')
+                    ->placeholder('—'),
 
                 IconColumn::make('is_active')
                     ->label('Active')
