@@ -166,3 +166,52 @@ test('the bulk action is also available on the search tab', function () {
 
     Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->recipient->is($candidate));
 });
+
+test('the row action can send an ad-hoc email with no saved template', function () {
+    Bus::fake();
+
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'email' => 'jane@example.com',
+    ]);
+
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'all')
+        ->callTableAction('sendEmail', $candidate, data: [
+            'mode' => 'adhoc',
+            'adhoc_subject' => 'Quick note',
+            'adhoc_body' => 'Just checking in.',
+        ])
+        ->assertNotified('Email queued for sending');
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->template === null
+        && $job->recipient->is($candidate)
+        && $job->adHocSubject === 'Quick note'
+        && $job->adHocBody === 'Just checking in.');
+});
+
+test('the bulk action can send an ad-hoc email to sendable candidates', function () {
+    Bus::fake();
+
+    $sendable = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'email' => 'jane@example.com',
+    ]);
+    $skipped = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'first_name' => 'No',
+        'last_name' => 'Email',
+        'email' => null,
+    ]);
+
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'all')
+        ->callTableBulkAction('sendEmail', [$sendable, $skipped], data: [
+            'mode' => 'adhoc',
+            'adhoc_subject' => 'Quick note',
+            'adhoc_body' => 'Just checking in.',
+        ])
+        ->assertNotified('Queued 1 email(s). Skipped 1 (no contact email on file): No Email');
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->template === null && $job->recipient->is($sendable));
+});
