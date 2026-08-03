@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             JobTitleSeeder::class,
             ClientTypeSeeder::class,
             CandidateStatusSeeder::class,
+            JobStatusSeeder::class,
             CandidatePoolSeeder::class,
             EducationQualificationsSeeder::class,
             EducationSkillSeeder::class,

@@ -139,10 +139,10 @@ class EducationCandidateForm
                                             ->unique(ignoreRecord: true),
                                         TextInput::make('phone')
                                             ->tel()
+                                            ->telRegex('/^[0-9+\-.\s()]+$/')
                                             ->maxLength(255)
-                                            ->rule('regex:/^(\+44\s?7\d{3}|\(?07\d{3}\)?)\s?\d{3}\s?\d{3}$/')
                                             ->validationMessages([
-                                                'regex' => 'Please enter a valid UK mobile number.',
+                                                'regex' => 'Please enter a valid phone number.',
                                             ]),
                                         TextInput::make('mobile')
                                             ->tel()

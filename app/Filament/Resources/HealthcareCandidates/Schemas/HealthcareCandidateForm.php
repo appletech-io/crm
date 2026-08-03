@@ -127,10 +127,18 @@ class HealthcareCandidateForm
                                             ->unique(ignoreRecord: true),
                                         TextInput::make('phone')
                                             ->tel()
-                                            ->maxLength(255),
+                                            ->telRegex('/^[0-9+\-.\s()]+$/')
+                                            ->maxLength(255)
+                                            ->validationMessages([
+                                                'regex' => 'Please enter a valid phone number.',
+                                            ]),
                                         TextInput::make('mobile')
                                             ->tel()
-                                            ->maxLength(255),
+                                            ->rule('regex:/^(\+44\s?7\d{3}|\(?07\d{3}\)?)\s?\d{3}\s?\d{3}$/')
+                                            ->maxLength(255)
+                                            ->validationMessages([
+                                                'regex' => 'Please enter a valid UK mobile number.',
+                                            ]),
                                     ]),
 
                                 Section::make('Address')

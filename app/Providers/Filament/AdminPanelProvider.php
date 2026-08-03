@@ -6,6 +6,7 @@ use App\Filament\Pages\Calendar;
 use App\Filament\Pages\CandidateSettings;
 use App\Filament\Pages\ClientSettings;
 use App\Filament\Pages\Dashboard;
+use App\Filament\Pages\JobSettings;
 use App\Filament\Pages\RunPayroll;
 use App\Filament\Resources\EducationCandidates\Pages\EditEducationCandidate;
 use App\Filament\Resources\HealthcareCandidates\Pages\EditHealthcareCandidate;
@@ -96,6 +97,7 @@ class AdminPanelProvider extends PanelProvider
                 Dashboard::class,
                 CandidateSettings::class,
                 ClientSettings::class,
+                JobSettings::class,
                 Calendar::class,
                 RunPayroll::class,
             ])

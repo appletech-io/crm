@@ -55,6 +55,19 @@ test('personal details can be saved on candidate', function () {
     expect($candidate->emergency_contact_name)->toBe('John Doe');
 });
 
+test('a UK landline number is accepted in the phone field', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm([
+            'phone' => '01234 567890',
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($candidate->refresh()->phone)->toBe('01234 567890');
+});
+
 test('email must be unique among candidates in the same company', function () {
     EducationCandidate::factory()->create(['company_id' => null, 'email' => 'jane@example.com']);
     $candidate = EducationCandidate::factory()->create(['company_id' => null, 'email' => 'other@example.com']);

@@ -82,6 +82,52 @@ test('it counts calls, meetings, and completed applications for the acting consu
         ->and($stats['completedApplications'])->toBe(1);
 });
 
+test('it counts completed applications from the previous month separately from this month', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id, 'consultant_id' => $consultant->id]);
+
+    $monthStart = Carbon::now()->startOfMonth();
+
+    EducationApplication::factory()->create([
+        'education_candidate_id' => $candidate->id,
+        'status' => 'completed',
+        'completed_at' => $monthStart->copy()->addDays(5),
+    ]);
+
+    $previousMonthCandidateA = EducationCandidate::factory()->create(['company_id' => $this->company->id, 'consultant_id' => $consultant->id]);
+    EducationApplication::factory()->create([
+        'education_candidate_id' => $previousMonthCandidateA->id,
+        'status' => 'completed',
+        'completed_at' => $monthStart->copy()->subMonth()->addDays(2),
+    ]);
+
+    $previousMonthCandidateB = EducationCandidate::factory()->create(['company_id' => $this->company->id, 'consultant_id' => $consultant->id]);
+    EducationApplication::factory()->create([
+        'education_candidate_id' => $previousMonthCandidateB->id,
+        'status' => 'completed',
+        'completed_at' => $monthStart->copy()->subMonth()->addDays(10),
+    ]);
+
+    // Two months ago, should not count as "previous month".
+    $twoMonthsAgoCandidate = EducationCandidate::factory()->create(['company_id' => $this->company->id, 'consultant_id' => $consultant->id]);
+    EducationApplication::factory()->create([
+        'education_candidate_id' => $twoMonthsAgoCandidate->id,
+        'status' => 'completed',
+        'completed_at' => $monthStart->copy()->subMonths(2)->addDays(2),
+    ]);
+
+    $this->actingAs($consultant);
+    Cache::put("user.{$consultant->id}.active_industry", 'education');
+    Cache::put("user.{$consultant->id}.active_industry_id", 1);
+
+    $stats = Livewire::test(EducationConsultantKpiOverview::class)->instance()->monthStats();
+
+    expect($stats['completedApplications'])->toBe(1)
+        ->and($stats['previousMonthCompletedApplications'])->toBe(2);
+});
+
 test('a non admin consultant only sees their own activity', function () {
     $consultantA = User::factory()->create(['company_id' => $this->user->company_id]);
     $consultantA->assignRole('consultant');
