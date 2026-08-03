@@ -132,4 +132,9 @@ class Client extends Model
     {
         return $this->belongsToMany(MarketingCampaign::class, 'marketing_campaign_clients');
     }
+
+    public function vacancies(): HasMany
+    {
+        return $this->hasMany(Vacancy::class);
+    }
 }

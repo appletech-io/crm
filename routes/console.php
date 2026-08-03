@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\Commands\CheckTimeBasedActions;
+use App\Console\Commands\CheckTimeBasedJobStatusAutomations;
 use App\Console\Commands\CheckTimeBasedStatusAutomations;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -12,3 +13,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command(CheckTimeBasedStatusAutomations::class)->daily();
 Schedule::command(CheckTimeBasedActions::class)->daily();
+Schedule::command(CheckTimeBasedJobStatusAutomations::class)->daily();

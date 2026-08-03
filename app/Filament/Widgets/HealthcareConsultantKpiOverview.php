@@ -43,7 +43,8 @@ class HealthcareConsultantKpiOverview extends StatsOverviewWidget
         return [
             Stat::make('Calls This Month', $stats['calls']),
             Stat::make('Meetings This Month', $stats['meetings']),
-            Stat::make('Applications Completed This Month', $stats['completedApplications']),
+            Stat::make('Applications Completed This Month', $stats['completedApplications'])
+                ->description("({$stats['previousMonthCompletedApplications']})"),
         ];
     }
 
@@ -53,11 +54,14 @@ class HealthcareConsultantKpiOverview extends StatsOverviewWidget
         return 3;
     }
 
-    /** @return array{calls: int, meetings: int, completedApplications: int} */
+    /** @return array{calls: int, meetings: int, completedApplications: int, previousMonthCompletedApplications: int} */
     public function monthStats(): array
     {
         $start = Carbon::now()->startOfMonth();
         $end = Carbon::now()->endOfMonth();
+
+        $previousStart = Carbon::now()->startOfMonth()->subMonth();
+        $previousEnd = $previousStart->copy()->endOfMonth();
 
         $consultantId = $this->activeConsultantId();
         $companyUserIds = User::query()->pluck('id');
@@ -65,19 +69,26 @@ class HealthcareConsultantKpiOverview extends StatsOverviewWidget
         $calls = $this->activityCount(ActivityType::Call, $start, $end, $consultantId, $companyUserIds);
         $meetings = $this->activityCount(ActivityType::Meeting, $start, $end, $consultantId, $companyUserIds);
 
-        $completedApplications = HealthcareCandidate::query()
+        $completedApplications = $this->completedApplicationsCount($start, $end, $consultantId);
+        $previousMonthCompletedApplications = $this->completedApplicationsCount($previousStart, $previousEnd, $consultantId);
+
+        return [
+            'calls' => $calls,
+            'meetings' => $meetings,
+            'completedApplications' => $completedApplications,
+            'previousMonthCompletedApplications' => $previousMonthCompletedApplications,
+        ];
+    }
+
+    private function completedApplicationsCount(Carbon $start, Carbon $end, ?int $consultantId): int
+    {
+        return HealthcareCandidate::query()
             ->when($consultantId, fn ($query) => $query->where('consultant_id', $consultantId))
             ->whereHas('application', function ($query) use ($start, $end): void {
                 $query->where('status', 'completed')
                     ->whereBetween('completed_at', [$start, $end]);
             })
             ->count();
-
-        return [
-            'calls' => $calls,
-            'meetings' => $meetings,
-            'completedApplications' => $completedApplications,
-        ];
     }
 
     private function activeConsultantId(): ?int

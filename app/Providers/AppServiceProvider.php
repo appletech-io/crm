@@ -7,11 +7,13 @@ use App\Models\Client;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use App\Models\User;
+use App\Models\Vacancy;
 use App\Observers\BookingObserver;
 use App\Observers\ClientObserver;
 use App\Observers\EducationCandidateObserver;
 use App\Observers\HealthcareCandidateObserver;
 use App\Observers\UserObserver;
+use App\Observers\VacancyObserver;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -43,6 +45,7 @@ class AppServiceProvider extends ServiceProvider
         Client::observe(ClientObserver::class);
         Booking::observe(BookingObserver::class);
         User::observe(UserObserver::class);
+        Vacancy::observe(VacancyObserver::class);
     }
 
     /**
