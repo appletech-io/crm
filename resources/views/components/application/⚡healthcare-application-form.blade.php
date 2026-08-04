@@ -67,7 +67,11 @@ new #[Layout('layouts.application')] class extends Component
 
     public ?string $right_to_work_type = null;
 
+    public ?string $right_to_work_expiry_date = null;
+
     public ?string $has_dbs = null;
+
+    public ?string $dbs_expiry_date = null;
 
     public ?string $employer_name = null;
 
@@ -114,7 +118,9 @@ new #[Layout('layouts.application')] class extends Component
         $this->availability = $candidate->availability ?? [];
         $this->care_settings = $candidate->care_settings ?? [];
         $this->right_to_work_type = $candidate->right_to_work_type;
+        $this->right_to_work_expiry_date = $candidate->right_to_work_expiry_date?->toDateString();
         $this->has_dbs = $candidate->has_dbs;
+        $this->dbs_expiry_date = $candidate->dbs_expiry_date?->toDateString();
     }
 
     /** @return \Illuminate\Support\Collection<int, Qualification> */
@@ -198,7 +204,9 @@ new #[Layout('layouts.application')] class extends Component
     {
         $this->validate([
             'right_to_work_type' => ['required', 'in:birth_certificate,passport,visa'],
+            'right_to_work_expiry_date' => ['nullable', 'date'],
             'has_dbs' => ['required', 'in:yes,no'],
+            'dbs_expiry_date' => ['nullable', 'date'],
         ]);
 
         $candidate = $this->application->candidate;
@@ -208,7 +216,9 @@ new #[Layout('layouts.application')] class extends Component
             'availability' => $this->availability,
             'care_settings' => $this->care_settings,
             'right_to_work_type' => $this->right_to_work_type,
+            'right_to_work_expiry_date' => $this->right_to_work_type === 'visa' ? $this->right_to_work_expiry_date : null,
             'has_dbs' => $this->has_dbs,
+            'dbs_expiry_date' => $this->has_dbs === 'yes' ? $this->dbs_expiry_date : null,
         ]);
 
         $candidate->skills()->sync($this->skill_ids);
@@ -358,12 +368,22 @@ new #[Layout('layouts.application')] class extends Component
             </flux:select>
             @error('right_to_work_type') <flux:error>{{ $message }}</flux:error> @enderror
 
+            <div x-show="$wire.right_to_work_type === 'visa'">
+                <flux:input type="date" wire:model="right_to_work_expiry_date" label="Right to Work Expiry Date (optional)" />
+                @error('right_to_work_expiry_date') <flux:error>{{ $message }}</flux:error> @enderror
+            </div>
+
             <flux:select wire:model="has_dbs" label="Do you currently have a DBS?" required>
                 <flux:select.option value="">Select an option</flux:select.option>
                 <flux:select.option value="yes">Yes</flux:select.option>
                 <flux:select.option value="no">No</flux:select.option>
             </flux:select>
             @error('has_dbs') <flux:error>{{ $message }}</flux:error> @enderror
+
+            <div x-show="$wire.has_dbs === 'yes'">
+                <flux:input type="date" wire:model="dbs_expiry_date" label="DBS Expiry Date (optional)" />
+                @error('dbs_expiry_date') <flux:error>{{ $message }}</flux:error> @enderror
+            </div>
 
             <flux:button type="submit" variant="primary" class="w-full">Continue</flux:button>
         </form>

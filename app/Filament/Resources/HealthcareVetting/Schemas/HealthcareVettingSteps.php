@@ -417,7 +417,7 @@ class HealthcareVettingSteps
     {
         return [
             'overseas_police_clearance_check', 'overseas_police_clearance_check_date',
-            'visa_issue_date', 'visa_expiry_date', 'visa_notes',
+            'visa_issue_date', 'visa_expiry_date', 'visa_notes', 'right_to_work_expiry_date',
         ];
     }
 
@@ -448,6 +448,9 @@ class HealthcareVettingSteps
                         DatePicker::make('visa_issue_date')
                             ->native(false),
                         DatePicker::make('visa_expiry_date')
+                            ->native(false),
+                        DatePicker::make('right_to_work_expiry_date')
+                            ->label('Right to Work Expiry Date')
                             ->native(false),
                         Textarea::make('visa_notes')
                             ->columnSpanFull(),
@@ -488,7 +491,7 @@ class HealthcareVettingSteps
     /** @return array<int, string> */
     protected static function dbsFields(): array
     {
-        return ['dbs_certificate_number', 'dbs_checked_date'];
+        return ['dbs_certificate_number', 'dbs_checked_date', 'dbs_expiry_date'];
     }
 
     protected static function dbs(): Step
@@ -500,6 +503,10 @@ class HealthcareVettingSteps
                         TextInput::make('dbs_certificate_number')
                             ->label('DBS Certificate Number')
                             ->disabled(),
+
+                        DatePicker::make('dbs_expiry_date')
+                            ->label('Expiry Date')
+                            ->native(false),
 
                         Actions::make([
                             Action::make('callUpdateService')
@@ -555,6 +562,9 @@ class HealthcareVettingSteps
                         TextInput::make('dbs_certificate_number')
                             ->label('DBS Certificate Number')
                             ->maxLength(255),
+                        DatePicker::make('dbs_expiry_date')
+                            ->label('Expiry Date')
+                            ->native(false),
                     ])
                     ->columns(2)
                     ->visible(fn (?HealthcareCandidate $record): bool => blank($record?->dbs_certificate_number)),

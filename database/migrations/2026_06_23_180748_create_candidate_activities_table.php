@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->morphs('model');
-            $table->enum('type', ['email', 'note', 'call', 'meeting', 'other', 'status_automation']);
+            $table->enum('type', ['email', 'note', 'call', 'meeting', 'other', 'status_automation', 'status_change']);
             $table->string('note');
             $table->text('body')->nullable();
             $table->boolean('contacted')->default(false);

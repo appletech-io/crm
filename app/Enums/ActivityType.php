@@ -13,6 +13,7 @@ enum ActivityType: string
 
     case Other = 'other';
     case StatusAutomation = 'status_automation';
+    case StatusChange = 'status_change';
 
     public function label(): string
     {
@@ -23,6 +24,7 @@ enum ActivityType: string
             self::Call => 'Call',
             self::Other => 'Other',
             self::StatusAutomation => 'Status Automation',
+            self::StatusChange => 'Status Change',
         };
     }
 
@@ -35,6 +37,7 @@ enum ActivityType: string
             self::Call => 'heroicon-o-phone',
             self::Other => 'heroicon-o-ellipsis-horizontal-circle',
             self::StatusAutomation => 'heroicon-o-bolt',
+            self::StatusChange => 'heroicon-o-flag',
         };
     }
 
@@ -46,6 +49,7 @@ enum ActivityType: string
             self::Call => 'success',
             self::Meeting => 'warning',
             self::StatusAutomation => 'danger',
+            self::StatusChange => 'warning',
             self::Other => 'gray',
         };
     }

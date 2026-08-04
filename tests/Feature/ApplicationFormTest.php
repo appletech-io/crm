@@ -1802,6 +1802,48 @@ test('saveDocumentRequirements clears the visa share code when right to work is 
     expect($candidate->refresh()->visa_share_code)->toBeNull();
 });
 
+test('saveDocumentRequirements persists the optional right to work, dbs and safeguarding expiry dates', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 10)
+        ->set('right_to_work_type', 'visa')
+        ->set('visa_share_code', 'ABC123XYZ')
+        ->set('right_to_work_expiry_date', '2027-01-01')
+        ->set('has_dbs', 'yes')
+        ->set('dbs_certificate_number', '001234567890')
+        ->set('dbs_expiry_date', '2029-03-01')
+        ->set('has_naric', 'yes')
+        ->set('safeguarding_expiry_date', '2028-06-01')
+        ->call('saveDocumentRequirements')
+        ->assertHasNoErrors()
+        ->assertSet('currentStep', 11);
+
+    $candidate->refresh();
+    expect($candidate->right_to_work_expiry_date->toDateString())->toBe('2027-01-01');
+    expect($candidate->dbs_expiry_date->toDateString())->toBe('2029-03-01');
+    expect($candidate->safeguarding_expiry_date->toDateString())->toBe('2028-06-01');
+});
+
+test('saveDocumentRequirements clears the right to work and dbs expiry dates when not applicable', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 10)
+        ->set('right_to_work_type', 'passport')
+        ->set('right_to_work_expiry_date', '2027-01-01')
+        ->set('has_dbs', 'no')
+        ->set('dbs_expiry_date', '2029-03-01')
+        ->call('saveDocumentRequirements')
+        ->assertHasNoErrors();
+
+    $candidate->refresh();
+    expect($candidate->right_to_work_expiry_date)->toBeNull();
+    expect($candidate->dbs_expiry_date)->toBeNull();
+});
+
 test('completeApplication requires a password with a matching confirmation', function () {
     $application = makePendingApplication();
 

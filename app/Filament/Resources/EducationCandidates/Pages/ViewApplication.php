@@ -220,11 +220,17 @@ class ViewApplication extends ViewRecord
                     ->schema([
                         TextEntry::make('right_to_work_type')->label('Right to Work'),
                         TextEntry::make('visa_share_code')->label('Visa Share Code')->placeholder('—'),
+                        TextEntry::make('right_to_work_expiry_date')->label('Right to Work Expiry Date')
+                            ->date('d/m/Y')->placeholder('—'),
                         TextEntry::make('has_dbs')->label('Has DBS')
                             ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state)),
                         TextEntry::make('dbs_certificate_number')->label('DBS Certificate Number')->placeholder('—'),
+                        TextEntry::make('dbs_expiry_date')->label('DBS Expiry Date')
+                            ->date('d/m/Y')->placeholder('—'),
                         TextEntry::make('has_naric')->label('Has NARIC')
                             ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state)),
+                        TextEntry::make('safeguarding_expiry_date')->label('Safeguarding Certificate Expiry Date')
+                            ->date('d/m/Y')->placeholder('—'),
                     ]),
 
                 Section::make('Employment History')

@@ -5,6 +5,7 @@ namespace App\Filament\Resources\HealthcareCandidates\Pages;
 use App\Enums\EmailTemplateAudience;
 use App\Filament\Resources\HealthcareCandidates\HealthcareCandidateResource;
 use App\Filament\Resources\HealthcareCandidates\Pages\Concerns\HasCandidateStatusSubheading;
+use App\Filament\Support\ChangeCandidateStatusAction;
 use App\Filament\Support\SendCustomEmailAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
@@ -21,6 +22,7 @@ class EditHealthcareCandidate extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            ChangeCandidateStatusAction::header(),
             SendCustomEmailAction::header(EmailTemplateAudience::Candidate),
             DeleteAction::make()
                 ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false),

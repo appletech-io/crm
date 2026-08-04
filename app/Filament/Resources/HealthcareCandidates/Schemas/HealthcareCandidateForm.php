@@ -402,6 +402,11 @@ class HealthcareCandidateForm
                 TextEntry::make('right_to_work_type')
                     ->label('Right to Work Type')
                     ->placeholder('Not set'),
+
+                TextEntry::make('right_to_work_expiry_date')
+                    ->label('Right to Work Expiry Date')
+                    ->date('d/m/Y')
+                    ->placeholder('Not set'),
             ])
             ->columns(2);
     }
@@ -424,6 +429,11 @@ class HealthcareCandidateForm
                     ->placeholder('Not yet checked')
                     ->badge()
                     ->color(fn (?string $state): string => filled($state) ? 'success' : 'gray'),
+
+                TextEntry::make('dbs_expiry_date')
+                    ->label('Expiry Date')
+                    ->date('d/m/Y')
+                    ->placeholder('Not set'),
             ])
             ->columns(2);
     }

@@ -198,11 +198,17 @@ new #[Layout('layouts.application')] class extends Component
 
     public string $visa_share_code = '';
 
+    public ?string $right_to_work_expiry_date = null;
+
     public ?string $has_dbs = null;
 
     public string $dbs_certificate_number = '';
 
+    public ?string $dbs_expiry_date = null;
+
     public ?string $has_naric = null;
+
+    public ?string $safeguarding_expiry_date = null;
 
     // Account
     public string $password = '';
@@ -895,17 +901,23 @@ new #[Layout('layouts.application')] class extends Component
         $this->validate([
             'right_to_work_type' => ['required', 'in:birth_certificate,passport,visa'],
             'visa_share_code' => ['required_if:right_to_work_type,visa', 'nullable', 'string', 'max:255'],
+            'right_to_work_expiry_date' => ['nullable', 'date'],
             'has_dbs' => ['required', 'in:yes,no'],
             'dbs_certificate_number' => ['required_if:has_dbs,yes', 'nullable', 'string', 'regex:/^\d+$/', 'max:20'],
+            'dbs_expiry_date' => ['nullable', 'date'],
             'has_naric' => ['nullable', 'in:yes,no'],
+            'safeguarding_expiry_date' => ['nullable', 'date'],
         ]);
 
         $this->application->educationCandidate->update([
             'right_to_work_type' => $this->right_to_work_type,
             'visa_share_code' => $this->right_to_work_type === 'visa' ? $this->visa_share_code : null,
+            'right_to_work_expiry_date' => $this->right_to_work_type === 'visa' ? $this->right_to_work_expiry_date : null,
             'has_dbs' => $this->has_dbs,
             'dbs_certificate_number' => $this->has_dbs === 'yes' ? $this->dbs_certificate_number : null,
+            'dbs_expiry_date' => $this->has_dbs === 'yes' ? $this->dbs_expiry_date : null,
             'has_naric' => $this->has_naric,
+            'safeguarding_expiry_date' => $this->safeguarding_expiry_date,
         ]);
 
         $this->goToStep(11);
@@ -1352,9 +1364,12 @@ new #[Layout('layouts.application')] class extends Component
         $this->spent_convictions_not_protected = $candidate->spent_convictions_not_protected;
         $this->right_to_work_type = $candidate->right_to_work_type;
         $this->visa_share_code = $candidate->visa_share_code ?? '';
+        $this->right_to_work_expiry_date = $candidate->right_to_work_expiry_date?->toDateString();
         $this->has_dbs = $candidate->has_dbs;
         $this->dbs_certificate_number = $candidate->dbs_certificate_number ?? '';
+        $this->dbs_expiry_date = $candidate->dbs_expiry_date?->toDateString();
         $this->has_naric = $candidate->has_naric;
+        $this->safeguarding_expiry_date = $candidate->safeguarding_expiry_date?->toDateString();
 
         $this->qualification_id = $candidate->qualification_id;
         $this->availability = $candidate->availability ?? [];

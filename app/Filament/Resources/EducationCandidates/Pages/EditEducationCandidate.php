@@ -5,6 +5,7 @@ namespace App\Filament\Resources\EducationCandidates\Pages;
 use App\Enums\EmailTemplateAudience;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Filament\Resources\EducationCandidates\Pages\Concerns\HasCandidateStatusSubheading;
+use App\Filament\Support\ChangeCandidateStatusAction;
 use App\Filament\Support\SendCustomEmailAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
@@ -21,6 +22,7 @@ class EditEducationCandidate extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            ChangeCandidateStatusAction::header(),
             SendCustomEmailAction::header(EmailTemplateAudience::Candidate),
             DeleteAction::make()
                 ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false),

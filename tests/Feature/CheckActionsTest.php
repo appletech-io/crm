@@ -15,6 +15,7 @@ use App\Models\HealthcareCandidate;
 use App\Models\Industry;
 use App\Models\TodoItem;
 use App\Models\User;
+use App\Models\Vacancy;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Bus;
 
@@ -392,6 +393,68 @@ test('does not fire a booking action configured for a different sector', functio
     expect(TodoItem::count())->toBe(0);
 });
 
+test('fires for a vacancy', function () {
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $client->id,
+        'consultant_id' => $this->consultant->id,
+        'title' => 'Year 3 Class Teacher',
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Vacancy::class,
+        'conditions' => [
+            ['field' => 'title', 'operator' => 'filled'],
+        ],
+        'todo_name' => 'Chase vacancy details',
+    ]);
+
+    CheckActions::run($vacancy);
+
+    $todo = TodoItem::where('user_id', $this->consultant->id)->first();
+
+    expect($todo)->not->toBeNull()
+        ->and($todo->name)->toBe('Chase vacancy details')
+        ->and($todo->model_type)->toBe(Vacancy::class)
+        ->and($todo->model_id)->toBe($vacancy->id);
+});
+
+test('does not fire a vacancy action configured for a different industry than its client', function () {
+    $healthcareIndustry = Industry::factory()->create(['slug' => 'healthcare']);
+
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $client->id,
+        'consultant_id' => $this->consultant->id,
+        'title' => 'Year 3 Class Teacher',
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $healthcareIndustry->id,
+        'model_type' => Vacancy::class,
+        'conditions' => [
+            ['field' => 'title', 'operator' => 'filled'],
+        ],
+    ]);
+
+    CheckActions::run($vacancy);
+
+    expect(TodoItem::count())->toBe(0);
+});
+
 test('saving a client through the observer triggers matching actions', function () {
     Action::factory()->create([
         'company_id' => $this->company->id,
@@ -415,6 +478,32 @@ test('saving a client through the observer triggers matching actions', function 
     $client->update(['notes' => 'Needs a follow up call']);
 
     expect(TodoItem::where('user_id', $this->consultant->id)->where('name', 'Follow up with client')->exists())->toBeTrue();
+});
+
+test('saving a vacancy through the observer triggers matching actions', function () {
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Vacancy::class,
+        'conditions' => [
+            ['field' => 'title', 'operator' => 'filled'],
+        ],
+        'todo_name' => 'Chase vacancy details',
+    ]);
+
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $client->id,
+        'consultant_id' => $this->consultant->id,
+        'title' => 'Year 3 Class Teacher',
+    ]);
+
+    expect(TodoItem::where('user_id', $this->consultant->id)->where('name', 'Chase vacancy details')->exists())->toBeTrue();
 });
 
 test('a role-based action creates a todo for every user with that role in the same company and industry', function () {
@@ -647,6 +736,37 @@ test('a booking action configured to email the candidate dispatches it to the bo
     CheckActions::run($booking);
 
     Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->recipient->is($booking->candidate));
+});
+
+test('a vacancy action with an email template dispatches it to the vacancys client', function () {
+    Bus::fake();
+
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $client->id,
+        'consultant_id' => $this->consultant->id,
+        'title' => 'Year 3 Class Teacher',
+    ]);
+
+    $template = makeActionEmailTemplate($this->company->id, $this->industry->id, 'client');
+
+    Action::factory()->withEmailTemplate($template)->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Vacancy::class,
+        'conditions' => [
+            ['field' => 'title', 'operator' => 'filled'],
+        ],
+    ]);
+
+    CheckActions::run($vacancy);
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->template->is($template) && $job->recipient->is($client));
 });
 
 test('an action with no email template configured does not dispatch an email', function () {

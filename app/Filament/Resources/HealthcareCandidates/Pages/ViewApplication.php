@@ -64,8 +64,12 @@ class ViewApplication extends ViewRecord
                     ->columns(2)
                     ->schema([
                         TextEntry::make('right_to_work_type')->label('Right to Work'),
+                        TextEntry::make('right_to_work_expiry_date')->label('Right to Work Expiry Date')
+                            ->date('d/m/Y')->placeholder('—'),
                         TextEntry::make('has_dbs')->label('Has DBS')
                             ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state)),
+                        TextEntry::make('dbs_expiry_date')->label('DBS Expiry Date')
+                            ->date('d/m/Y')->placeholder('—'),
                     ]),
 
                 Section::make('Employment History')
