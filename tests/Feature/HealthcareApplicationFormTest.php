@@ -68,3 +68,37 @@ test('savePersonalDetails allows title to be left blank', function () {
         ->call('savePersonalDetails')
         ->assertHasNoErrors();
 });
+
+test('saveSkillsAndRightToWork persists the optional right to work and dbs expiry dates', function () {
+    $application = makePendingHealthcareApplication();
+
+    Livewire::test('application.healthcare-application-form', ['token' => $application->token])
+        ->set('step', 3)
+        ->set('right_to_work_type', 'visa')
+        ->set('right_to_work_expiry_date', '2027-01-01')
+        ->set('has_dbs', 'yes')
+        ->set('dbs_expiry_date', '2029-03-01')
+        ->call('saveSkillsAndRightToWork')
+        ->assertHasNoErrors();
+
+    $candidate = $application->candidate->fresh();
+    expect($candidate->right_to_work_expiry_date->toDateString())->toBe('2027-01-01');
+    expect($candidate->dbs_expiry_date->toDateString())->toBe('2029-03-01');
+});
+
+test('saveSkillsAndRightToWork clears the right to work and dbs expiry dates when not applicable', function () {
+    $application = makePendingHealthcareApplication();
+
+    Livewire::test('application.healthcare-application-form', ['token' => $application->token])
+        ->set('step', 3)
+        ->set('right_to_work_type', 'passport')
+        ->set('right_to_work_expiry_date', '2027-01-01')
+        ->set('has_dbs', 'no')
+        ->set('dbs_expiry_date', '2029-03-01')
+        ->call('saveSkillsAndRightToWork')
+        ->assertHasNoErrors();
+
+    $candidate = $application->candidate->fresh();
+    expect($candidate->right_to_work_expiry_date)->toBeNull();
+    expect($candidate->dbs_expiry_date)->toBeNull();
+});

@@ -13,6 +13,7 @@ use App\Models\Booking;
 use App\Models\Client;
 use App\Models\EmailTemplate;
 use App\Models\Industry;
+use App\Models\Vacancy;
 use Closure;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -167,6 +168,7 @@ class ActionForm
         $options = [
             Client::class => 'Client',
             Booking::class => 'Booking',
+            Vacancy::class => 'Vacancy',
         ];
 
         $candidateModelClass = Industry::candidateModelForSlug(active_industry() ?? '');
@@ -208,7 +210,7 @@ class ActionForm
 
     private static function audienceFor(?string $modelType, ?string $emailRecipient): ?EmailTemplateAudience
     {
-        if ($modelType === Client::class) {
+        if ($modelType === Client::class || $modelType === Vacancy::class) {
             return EmailTemplateAudience::Client;
         }
 

@@ -13,6 +13,7 @@ use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use App\Models\TodoItem;
 use App\Models\User;
+use App\Models\Vacancy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Lorisleiva\Actions\Concerns\AsAction;
@@ -63,11 +64,17 @@ class CheckActions
      * Client rows carry their own industry_id; candidate models are already
      * pinned to an industry by model_type alone. Bookings carry neither, so
      * their industry is inferred from the candidate model they're booked for.
+     * Vacancies carry neither either, so their industry is inferred from the
+     * client they belong to.
      */
     private function matchesIndustry(Action $action, Model $record): bool
     {
         if ($record instanceof Booking) {
             return $action->industry?->candidateModel() === $record->candidate_type;
+        }
+
+        if ($record instanceof Vacancy) {
+            return $action->industry_id === $record->client?->industry_id;
         }
 
         if ($record->industry_id) {
@@ -121,7 +128,7 @@ class CheckActions
     }
 
     /**
-     * Emails the candidate/client the record is about.
+     * Emails the candidate/client this record is about.
      */
     private function sendActionEmail(Action $action, Model $record): void
     {
@@ -140,6 +147,10 @@ class CheckActions
             return $action->email_recipient === ActionEmailRecipient::Client
                 ? $record->client
                 : $record->candidate;
+        }
+
+        if ($record instanceof Vacancy) {
+            return $record->client;
         }
 
         return ($record instanceof Client || $record instanceof EducationCandidate || $record instanceof HealthcareCandidate)

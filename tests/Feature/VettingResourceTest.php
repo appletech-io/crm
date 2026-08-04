@@ -459,6 +459,7 @@ test('vetting wizard can save security checks', function () {
             'overseas_police_clearance_check_date' => '2026-01-06',
             'visa_issue_date' => '2025-01-01',
             'visa_expiry_date' => '2027-01-01',
+            'right_to_work_expiry_date' => '2027-01-01',
             'visa_notes' => 'Skilled worker visa, sponsor confirmed.',
         ])
         ->call('save')
@@ -472,6 +473,7 @@ test('vetting wizard can save security checks', function () {
     expect($candidate->overseas_police_clearance_check_date->toDateString())->toBe('2026-01-06');
     expect($candidate->visa_issue_date->toDateString())->toBe('2025-01-01');
     expect($candidate->visa_expiry_date->toDateString())->toBe('2027-01-01');
+    expect($candidate->right_to_work_expiry_date->toDateString())->toBe('2027-01-01');
     expect($candidate->visa_notes)->toBe('Skilled worker visa, sponsor confirmed.');
 });
 
@@ -629,6 +631,7 @@ test('vetting wizard can save safeguarding and prevent training checks', functio
         ->fillForm([
             'barred_list_check' => 'yes',
             'safeguarding_certified_date' => '2026-02-01',
+            'safeguarding_expiry_date' => '2029-02-01',
             'prevent_training_completed' => 'yes',
         ])
         ->call('save')
@@ -637,6 +640,7 @@ test('vetting wizard can save safeguarding and prevent training checks', functio
     $candidate->refresh();
 
     expect($candidate->safeguarding_certified_date->toDateString())->toBe('2026-02-01');
+    expect($candidate->safeguarding_expiry_date->toDateString())->toBe('2029-02-01');
     expect($candidate->prevent_training_completed)->toBe('yes');
 });
 
@@ -799,6 +803,7 @@ test('vetting wizard can save a new dbs certificate number and checked date', fu
             'barred_list_check' => 'yes',
             'dbs_certificate_number' => '001234567890',
             'dbs_checked_date' => '2026-03-01',
+            'dbs_expiry_date' => '2029-03-01',
         ])
         ->call('save')
         ->assertHasNoFormErrors();
@@ -807,6 +812,7 @@ test('vetting wizard can save a new dbs certificate number and checked date', fu
 
     expect($candidate->dbs_certificate_number)->toBe('001234567890');
     expect($candidate->dbs_checked_date->toDateString())->toBe('2026-03-01');
+    expect($candidate->dbs_expiry_date->toDateString())->toBe('2029-03-01');
 });
 
 test('calling the update service action stores the result on the candidate', function () {

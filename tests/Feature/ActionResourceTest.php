@@ -13,6 +13,7 @@ use App\Models\EmailTemplate;
 use App\Models\HealthcareCandidate;
 use App\Models\Industry;
 use App\Models\User;
+use App\Models\Vacancy;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
@@ -151,15 +152,85 @@ test('a condition field valid for the selected model type is accepted', function
     expect($action->conditions)->toBe([['field' => 'status', 'operator' => 'filled']]);
 });
 
-test('model type options include client, booking and the active industrys candidate model only', function () {
+test('model type options include client, booking, vacancy and the active industrys candidate model only', function () {
     Livewire::test(CreateAction::class)
         ->assertFormFieldExists('model_type', function ($field): bool {
             $options = $field->getOptions();
 
             return array_key_exists(Client::class, $options)
                 && array_key_exists(Booking::class, $options)
+                && array_key_exists(Vacancy::class, $options)
                 && array_key_exists(EducationCandidate::class, $options)
                 && ! array_key_exists(HealthcareCandidate::class, $options);
+        });
+});
+
+test('a condition field valid for vacancy is accepted', function () {
+    // "title" is a real Vacancy field.
+    Livewire::test(CreateAction::class)
+        ->fillForm([
+            'name' => 'Valid vacancy condition',
+            'model_type' => Vacancy::class,
+            'conditions' => [
+                'item-1' => ['field' => 'title', 'operator' => 'filled'],
+            ],
+            'wants_todo' => true,
+            'todo_name' => 'x',
+            'todo_priority' => 'medium',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $action = Action::where('name', 'Valid vacancy condition')->first();
+
+    expect($action->conditions)->toBe([['field' => 'title', 'operator' => 'filled']]);
+});
+
+test('a condition field valid for client is rejected for vacancy', function () {
+    // "name" is a real Client field, but not a valid field for Vacancy.
+    Livewire::test(CreateAction::class)
+        ->fillForm([
+            'name' => 'Invalid vacancy condition',
+            'model_type' => Vacancy::class,
+            'conditions' => [
+                'item-1' => ['field' => 'name', 'operator' => 'filled'],
+            ],
+            'wants_todo' => true,
+            'todo_name' => 'x',
+            'todo_priority' => 'medium',
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['conditions.item-1.field']);
+});
+
+test('a vacancy action only offers client-audience email templates', function () {
+    $clientTemplate = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Client template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => 'client',
+        'subject' => 'Hi',
+        'body' => 'Body',
+    ]);
+
+    $candidateTemplate = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Candidate template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => 'candidate',
+        'subject' => 'Hi',
+        'body' => 'Body',
+    ]);
+
+    Livewire::test(CreateAction::class)
+        ->set('data.model_type', Vacancy::class)
+        ->assertFormFieldExists('email_template_id', function ($field) use ($clientTemplate, $candidateTemplate): bool {
+            $options = $field->getOptions();
+
+            return array_key_exists($clientTemplate->id, $options)
+                && ! array_key_exists($candidateTemplate->id, $options);
         });
 });
 

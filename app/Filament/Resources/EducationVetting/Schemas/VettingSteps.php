@@ -439,7 +439,7 @@ class VettingSteps
         return [
             'barred_list_check', 'barred_list_check_date',
             'overseas_police_clearance_check', 'overseas_police_clearance_check_date',
-            'visa_issue_date', 'visa_expiry_date', 'visa_notes',
+            'visa_issue_date', 'visa_expiry_date', 'visa_notes', 'right_to_work_expiry_date',
         ];
     }
 
@@ -494,6 +494,9 @@ class VettingSteps
                             ->native(false),
                         DatePicker::make('visa_expiry_date')
                             ->native(false),
+                        DatePicker::make('right_to_work_expiry_date')
+                            ->label('Right to Work Expiry Date')
+                            ->native(false),
                         Textarea::make('visa_notes')
                             ->columnSpanFull(),
                     ])
@@ -507,7 +510,7 @@ class VettingSteps
     {
         return [
             'trn_issue_date', 'sanctions', 'restrictions', 'sanction_restrictions_details',
-            'safeguarding_certified_date', 'prevent_training_completed',
+            'safeguarding_certified_date', 'safeguarding_expiry_date', 'prevent_training_completed',
         ];
     }
 
@@ -566,6 +569,10 @@ class VettingSteps
                             ->label('Certified On')
                             ->native(false),
 
+                        DatePicker::make('safeguarding_expiry_date')
+                            ->label('Expiry Date')
+                            ->native(false),
+
                         Text::make(fn (?EducationCandidate $record): string => static::safeguardingDocument($record)
                             ? 'Safeguarding certificate uploaded'
                             : 'Safeguarding certificate not uploaded'
@@ -614,7 +621,7 @@ class VettingSteps
     /** @return array<int, string> */
     protected static function dbsFields(): array
     {
-        return ['dbs_certificate_number', 'dbs_checked_date'];
+        return ['dbs_certificate_number', 'dbs_checked_date', 'dbs_expiry_date'];
     }
 
     protected static function dbs(): Step
@@ -626,6 +633,10 @@ class VettingSteps
                         TextInput::make('dbs_certificate_number')
                             ->label('DBS Certificate Number')
                             ->disabled(),
+
+                        DatePicker::make('dbs_expiry_date')
+                            ->label('Expiry Date')
+                            ->native(false),
 
                         Actions::make([
                             Action::make('callUpdateService')
@@ -687,6 +698,9 @@ class VettingSteps
                         TextInput::make('dbs_certificate_number')
                             ->label('DBS Certificate Number')
                             ->maxLength(255),
+                        DatePicker::make('dbs_expiry_date')
+                            ->label('Expiry Date')
+                            ->native(false),
                     ])
                     ->columns(2)
                     ->visible(fn (?EducationCandidate $record): bool => blank($record?->dbs_certificate_number)),

@@ -21,7 +21,7 @@
         @enderror
     </div>
 
-    <div x-show="$wire.right_to_work_type === 'visa'">
+    <div x-show="$wire.right_to_work_type === 'visa'" class="flex flex-col gap-6">
         <flux:input
             wire:model="visa_share_code"
             :label="__('Visa Share Code')"
@@ -29,6 +29,16 @@
         />
 
         @error('visa_share_code')
+            <flux:error>{{ $message }}</flux:error>
+        @enderror
+
+        <flux:input
+            type="date"
+            wire:model="right_to_work_expiry_date"
+            :label="__('Right to Work Expiry Date (optional)')"
+        />
+
+        @error('right_to_work_expiry_date')
             <flux:error>{{ $message }}</flux:error>
         @enderror
     </div>
@@ -48,7 +58,7 @@
         @enderror
     </div>
 
-    <div x-show="$wire.has_dbs === 'yes'">
+    <div x-show="$wire.has_dbs === 'yes'" class="flex flex-col gap-6">
         <flux:input
             wire:model="dbs_certificate_number"
             :label="__('DBS Certificate Number')"
@@ -56,6 +66,16 @@
         />
 
         @error('dbs_certificate_number')
+            <flux:error>{{ $message }}</flux:error>
+        @enderror
+
+        <flux:input
+            type="date"
+            wire:model="dbs_expiry_date"
+            :label="__('DBS Expiry Date (optional)')"
+        />
+
+        @error('dbs_expiry_date')
             <flux:error>{{ $message }}</flux:error>
         @enderror
     </div>
@@ -71,6 +91,18 @@
         </flux:radio.group>
 
         @error('has_naric')
+            <flux:error>{{ $message }}</flux:error>
+        @enderror
+    </div>
+
+    <div class="flex flex-col gap-2">
+        <flux:input
+            type="date"
+            wire:model="safeguarding_expiry_date"
+            :label="__('Safeguarding Training Certificate Expiry Date (optional, if known)')"
+        />
+
+        @error('safeguarding_expiry_date')
             <flux:error>{{ $message }}</flux:error>
         @enderror
     </div>
