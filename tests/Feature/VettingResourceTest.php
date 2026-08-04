@@ -443,6 +443,55 @@ test('overseas police clearance section only shows when the candidate lived over
     expect($html)->toContain('Visa expiry date');
 });
 
+test('the right to work document expiry date section shows for visa and passport but not birth certificate', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'right_to_work_type' => 'birth_certificate',
+    ]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    $html = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->not->toContain('Right to Work Document');
+
+    $candidate->update(['right_to_work_type' => 'passport']);
+
+    $html = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->toContain('Right to Work Document');
+
+    $candidate->update(['right_to_work_type' => 'visa']);
+
+    $html = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->toContain('Right to Work Document');
+});
+
+test('vetting wizard can save the right to work expiry date for a passport candidate', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'right_to_work_type' => 'passport',
+        'phone' => '07123456789',
+    ]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm([
+            'barred_list_check' => 'yes',
+            'right_to_work_expiry_date' => '2030-05-01',
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($candidate->refresh()->right_to_work_expiry_date->toDateString())->toBe('2030-05-01');
+});
+
 test('vetting wizard can save security checks', function () {
     $candidate = EducationCandidate::factory()->create([
         'company_id' => $this->user->company_id,

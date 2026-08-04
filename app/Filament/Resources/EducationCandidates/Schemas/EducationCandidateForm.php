@@ -706,10 +706,9 @@ class EducationCandidateForm
                     ->badge()
                     ->color(fn (?string $state): string => filled($state) ? 'success' : 'gray'),
 
-                TextEntry::make('dbs_expiry_date')
+                DatePicker::make('dbs_expiry_date')
                     ->label('Expiry Date')
-                    ->date('d/m/Y')
-                    ->placeholder('Not set'),
+                    ->native(false),
 
                 Actions::make([
                     Action::make('callUpdateService')
@@ -776,10 +775,10 @@ class EducationCandidateForm
                     ->placeholder('None recorded')
                     ->visible(fn (?EducationCandidate $record): bool => $record?->right_to_work_type === 'visa'),
 
-                TextEntry::make('right_to_work_expiry_date')
-                    ->label('Right to Work Expiry Date')
-                    ->date('d/m/Y')
-                    ->placeholder('Not set'),
+                DatePicker::make('right_to_work_expiry_date')
+                    ->label('Right to Work Document Expiry Date')
+                    ->native(false)
+                    ->visible(fn (?EducationCandidate $record): bool => in_array($record?->right_to_work_type, ['visa', 'passport'], true)),
 
                 static::documentEntry(
                     'Right to Work Document',
@@ -804,10 +803,9 @@ class EducationCandidateForm
                     ->date('d/m/Y')
                     ->placeholder('Not set'),
 
-                TextEntry::make('safeguarding_expiry_date')
+                DatePicker::make('safeguarding_expiry_date')
                     ->label('Expiry Date')
-                    ->date('d/m/Y')
-                    ->placeholder('Not set'),
+                    ->native(false),
 
                 static::documentEntry('Certificate', DocumentType::SafeguardingTraining),
 

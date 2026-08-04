@@ -403,10 +403,10 @@ class HealthcareCandidateForm
                     ->label('Right to Work Type')
                     ->placeholder('Not set'),
 
-                TextEntry::make('right_to_work_expiry_date')
-                    ->label('Right to Work Expiry Date')
-                    ->date('d/m/Y')
-                    ->placeholder('Not set'),
+                DatePicker::make('right_to_work_expiry_date')
+                    ->label('Right to Work Document Expiry Date')
+                    ->native(false)
+                    ->visible(fn (?HealthcareCandidate $record): bool => in_array($record?->right_to_work_type, ['visa', 'passport'], true)),
             ])
             ->columns(2);
     }
@@ -430,10 +430,9 @@ class HealthcareCandidateForm
                     ->badge()
                     ->color(fn (?string $state): string => filled($state) ? 'success' : 'gray'),
 
-                TextEntry::make('dbs_expiry_date')
+                DatePicker::make('dbs_expiry_date')
                     ->label('Expiry Date')
-                    ->date('d/m/Y')
-                    ->placeholder('Not set'),
+                    ->native(false),
             ])
             ->columns(2);
     }

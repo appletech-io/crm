@@ -51,3 +51,38 @@ test('a UK mobile number is accepted in the mobile field', function () {
 
     expect($candidate->refresh()->mobile)->toBe('07700900000');
 });
+
+test('compliance expiry dates can be edited inline from the candidate edit page', function () {
+    $candidate = HealthcareCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'right_to_work_type' => 'passport',
+        'dbs_certificate_number' => '001234567890',
+    ]);
+
+    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm([
+            'dbs_expiry_date' => '2029-03-01',
+            'right_to_work_expiry_date' => '2027-01-01',
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $candidate->refresh();
+    expect($candidate->dbs_expiry_date->toDateString())->toBe('2029-03-01');
+    expect($candidate->right_to_work_expiry_date->toDateString())->toBe('2027-01-01');
+});
+
+test('the right to work expiry date field is hidden and not saved when right to work type is birth certificate', function () {
+    $candidate = HealthcareCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'right_to_work_type' => 'birth_certificate',
+    ]);
+
+    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertFormFieldDoesNotExist('right_to_work_expiry_date')
+        ->fillForm(['dbs_expiry_date' => '2029-03-01'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($candidate->refresh()->right_to_work_expiry_date)->toBeNull();
+});

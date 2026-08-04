@@ -912,7 +912,7 @@ new #[Layout('layouts.application')] class extends Component
         $this->application->educationCandidate->update([
             'right_to_work_type' => $this->right_to_work_type,
             'visa_share_code' => $this->right_to_work_type === 'visa' ? $this->visa_share_code : null,
-            'right_to_work_expiry_date' => $this->right_to_work_type === 'visa' ? $this->right_to_work_expiry_date : null,
+            'right_to_work_expiry_date' => in_array($this->right_to_work_type, ['visa', 'passport'], true) ? $this->right_to_work_expiry_date : null,
             'has_dbs' => $this->has_dbs,
             'dbs_certificate_number' => $this->has_dbs === 'yes' ? $this->dbs_certificate_number : null,
             'dbs_expiry_date' => $this->has_dbs === 'yes' ? $this->dbs_expiry_date : null,

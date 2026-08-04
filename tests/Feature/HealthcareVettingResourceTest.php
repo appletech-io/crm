@@ -61,6 +61,44 @@ test('healthcare vetting wizard can save security checks including right to work
     expect($candidate->visa_notes)->toBe('Skilled worker visa, sponsor confirmed.');
 });
 
+test('the right to work document expiry date section shows for visa and passport but not birth certificate', function () {
+    $candidate = HealthcareCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'right_to_work_type' => 'birth_certificate',
+    ]);
+    assignHealthcareVettingStatus($candidate, $this->industry, $this->user->company_id);
+
+    $html = Livewire::test(HealthcareVettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->not->toContain('Right to Work Document');
+
+    $candidate->update(['right_to_work_type' => 'passport']);
+
+    $html = Livewire::test(HealthcareVettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->toContain('Right to Work Document');
+});
+
+test('healthcare vetting wizard can save the right to work expiry date for a passport candidate', function () {
+    $candidate = HealthcareCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'right_to_work_type' => 'passport',
+        'phone' => '07123456789',
+    ]);
+    assignHealthcareVettingStatus($candidate, $this->industry, $this->user->company_id);
+
+    Livewire::test(HealthcareVettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm(['right_to_work_expiry_date' => '2030-05-01'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($candidate->refresh()->right_to_work_expiry_date->toDateString())->toBe('2030-05-01');
+});
+
 test('healthcare vetting wizard can save a new dbs certificate number, checked date and expiry date', function () {
     $candidate = HealthcareCandidate::factory()->create([
         'company_id' => $this->user->company_id,

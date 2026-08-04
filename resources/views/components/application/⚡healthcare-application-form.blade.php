@@ -216,7 +216,7 @@ new #[Layout('layouts.application')] class extends Component
             'availability' => $this->availability,
             'care_settings' => $this->care_settings,
             'right_to_work_type' => $this->right_to_work_type,
-            'right_to_work_expiry_date' => $this->right_to_work_type === 'visa' ? $this->right_to_work_expiry_date : null,
+            'right_to_work_expiry_date' => in_array($this->right_to_work_type, ['visa', 'passport'], true) ? $this->right_to_work_expiry_date : null,
             'has_dbs' => $this->has_dbs,
             'dbs_expiry_date' => $this->has_dbs === 'yes' ? $this->dbs_expiry_date : null,
         ]);
@@ -368,8 +368,8 @@ new #[Layout('layouts.application')] class extends Component
             </flux:select>
             @error('right_to_work_type') <flux:error>{{ $message }}</flux:error> @enderror
 
-            <div x-show="$wire.right_to_work_type === 'visa'">
-                <flux:input type="date" wire:model="right_to_work_expiry_date" label="Right to Work Expiry Date (optional)" />
+            <div x-show="$wire.right_to_work_type === 'visa' || $wire.right_to_work_type === 'passport'">
+                <flux:input type="date" wire:model="right_to_work_expiry_date" label="Right to Work Document Expiry Date (optional)" />
                 @error('right_to_work_expiry_date') <flux:error>{{ $message }}</flux:error> @enderror
             </div>
 

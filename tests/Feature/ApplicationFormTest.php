@@ -1826,13 +1826,28 @@ test('saveDocumentRequirements persists the optional right to work, dbs and safe
     expect($candidate->safeguarding_expiry_date->toDateString())->toBe('2028-06-01');
 });
 
-test('saveDocumentRequirements clears the right to work and dbs expiry dates when not applicable', function () {
+test('saveDocumentRequirements persists the right to work expiry date for a passport too', function () {
     $application = makePendingApplication();
     $candidate = $application->educationCandidate;
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 10)
         ->set('right_to_work_type', 'passport')
+        ->set('right_to_work_expiry_date', '2030-05-01')
+        ->set('has_dbs', 'no')
+        ->call('saveDocumentRequirements')
+        ->assertHasNoErrors();
+
+    expect($candidate->refresh()->right_to_work_expiry_date->toDateString())->toBe('2030-05-01');
+});
+
+test('saveDocumentRequirements clears the right to work and dbs expiry dates when not applicable', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 10)
+        ->set('right_to_work_type', 'birth_certificate')
         ->set('right_to_work_expiry_date', '2027-01-01')
         ->set('has_dbs', 'no')
         ->set('dbs_expiry_date', '2029-03-01')

@@ -322,3 +322,40 @@ test('collapsed employment history item label shows the company and year range',
         ->assertSee('Oakwood Primary (2020 - 2022)')
         ->assertSee('Elm Secondary (2018 - Present)');
 });
+
+test('compliance expiry dates can be edited inline from the candidate edit page', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => null,
+        'right_to_work_type' => 'visa',
+        'dbs_certificate_number' => '001234567890',
+    ]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm([
+            'dbs_expiry_date' => '2029-03-01',
+            'right_to_work_expiry_date' => '2027-01-01',
+            'safeguarding_expiry_date' => '2028-06-01',
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $candidate->refresh();
+    expect($candidate->dbs_expiry_date->toDateString())->toBe('2029-03-01');
+    expect($candidate->right_to_work_expiry_date->toDateString())->toBe('2027-01-01');
+    expect($candidate->safeguarding_expiry_date->toDateString())->toBe('2028-06-01');
+});
+
+test('the right to work expiry date field is hidden and not saved when right to work type is birth certificate', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => null,
+        'right_to_work_type' => 'birth_certificate',
+    ]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertFormFieldDoesNotExist('right_to_work_expiry_date')
+        ->fillForm(['dbs_expiry_date' => '2029-03-01'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($candidate->refresh()->right_to_work_expiry_date)->toBeNull();
+});
