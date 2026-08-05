@@ -7,7 +7,6 @@ use App\DTOs\ProofOfAddressExtraction;
 use App\Enums\DocumentType;
 use App\Services\Concerns\ResolvesAiAttachment;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use RuntimeException;
@@ -29,7 +28,7 @@ class ProofOfAddressVerificationService
             throw new RuntimeException('Candidate has no proof of address document to verify.');
         }
 
-        $extraction = $this->parse(Storage::disk('local')->path($document->path));
+        $extraction = $this->parse($document->path);
 
         $matches = $this->matches($candidate, $extraction);
 
@@ -44,13 +43,13 @@ class ProofOfAddressVerificationService
         return $matches;
     }
 
-    private function parse(string $filePath): ProofOfAddressExtraction
+    private function parse(string $path): ProofOfAddressExtraction
     {
         /** @var StructuredAgentResponse $response */
         $response = (new ProofOfAddressParser)->prompt(
             'Please extract the address from this proof of address document.',
             attachments: [
-                $this->attachmentFor($filePath),
+                $this->attachmentFor($path),
             ],
         );
 
