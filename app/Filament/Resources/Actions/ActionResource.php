@@ -39,28 +39,24 @@ class ActionResource extends Resource
             && auth()->user()?->hasAnyRole(['admin', 'site_admin', 'consultant', 'compliance']);
     }
 
-    /**
-     * Only admins configure automations — consultants and compliance can see
-     * this list to understand what's notifying them, but not change it.
-     */
     public static function canCreate(): bool
     {
-        return auth()->user()?->hasAnyRole(['admin', 'site_admin']) ?? false;
+        return static::canViewAny();
     }
 
     public static function canEdit(Model $record): bool
     {
-        return auth()->user()?->hasAnyRole(['admin', 'site_admin']) ?? false;
+        return static::canViewAny();
     }
 
     public static function canDelete(Model $record): bool
     {
-        return auth()->user()?->hasAnyRole(['admin', 'site_admin']) ?? false;
+        return static::canViewAny();
     }
 
     public static function canDeleteAny(): bool
     {
-        return auth()->user()?->hasAnyRole(['admin', 'site_admin']) ?? false;
+        return static::canViewAny();
     }
 
     public static function form(Schema $schema): Schema

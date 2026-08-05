@@ -496,47 +496,75 @@ class EducationCandidateForm
                                                     ])
                                                     ->toArray()
                                             )
-                                            ->required(),
-                                        TextInput::make('title')
-                                            ->maxLength(10),
-                                        TextInput::make('first_name')
                                             ->required()
+                                            ->live()
+                                            ->afterStateUpdated(function (Get $get, Set $set): void {
+                                                if ($get('type') === ReferenceType::GapStatement->value) {
+                                                    $set('consent_to_contact', false);
+                                                    $set('contact_now', false);
+                                                }
+                                            }),
+                                        Textarea::make('statement')
+                                            ->label('Statement')
+                                            ->helperText('Briefly explain this period, e.g. "Travelling in the USA" or "Between roles, actively job seeking".')
+                                            ->visible(fn (Get $get): bool => $get('type') === ReferenceType::GapStatement->value)
+                                            ->required(fn (Get $get): bool => $get('type') === ReferenceType::GapStatement->value)
+                                            ->columnSpanFull(),
+                                        TextInput::make('title')
+                                            ->maxLength(10)
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
+                                        TextInput::make('first_name')
+                                            ->required(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value)
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value)
                                             ->maxLength(255),
                                         TextInput::make('last_name')
-                                            ->required()
+                                            ->required(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value)
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value)
                                             ->maxLength(255),
                                         TextInput::make('job_title')
-                                            ->maxLength(255),
+                                            ->maxLength(255)
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
                                         DatePicker::make('worked_from')
+                                            ->label('From')
                                             ->native(false),
                                         DatePicker::make('worked_to')
+                                            ->label('To')
                                             ->native(false),
                                         TextInput::make('email')
                                             ->email()
-                                            ->maxLength(255),
+                                            ->maxLength(255)
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
                                         TextInput::make('mobile')
                                             ->tel()
-                                            ->maxLength(255),
+                                            ->maxLength(255)
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
                                         TextInput::make('address')
                                             ->maxLength(500)
-                                            ->columnSpanFull(),
+                                            ->columnSpanFull()
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
                                         TextInput::make('city')
                                             ->label('City / Town')
-                                            ->maxLength(255),
+                                            ->maxLength(255)
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
                                         TextInput::make('postcode')
-                                            ->maxLength(10),
+                                            ->maxLength(10)
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
                                         TextInput::make('county')
-                                            ->maxLength(255),
+                                            ->maxLength(255)
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
                                         TextInput::make('country')
-                                            ->maxLength(255),
+                                            ->maxLength(255)
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
                                         Checkbox::make('consent_to_contact')
                                             ->label('Candidate consents to us contacting this referee')
-                                            ->columnSpanFull(),
+                                            ->columnSpanFull()
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
                                         Checkbox::make('contact_now')
                                             ->label('Contact this referee now')
                                             ->helperText('Switch off if the candidate isn\'t ready for this referee to be contacted yet.')
                                             ->default(true)
-                                            ->columnSpanFull(),
+                                            ->columnSpanFull()
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
                                         Select::make('status')
                                             ->options(
                                                 collect(ReferenceStatus::cases())
@@ -706,10 +734,9 @@ class EducationCandidateForm
                     ->badge()
                     ->color(fn (?string $state): string => filled($state) ? 'success' : 'gray'),
 
-                TextEntry::make('dbs_expiry_date')
+                DatePicker::make('dbs_expiry_date')
                     ->label('Expiry Date')
-                    ->date('d/m/Y')
-                    ->placeholder('Not set'),
+                    ->native(false),
 
                 Actions::make([
                     Action::make('callUpdateService')
@@ -776,10 +803,10 @@ class EducationCandidateForm
                     ->placeholder('None recorded')
                     ->visible(fn (?EducationCandidate $record): bool => $record?->right_to_work_type === 'visa'),
 
-                TextEntry::make('right_to_work_expiry_date')
-                    ->label('Right to Work Expiry Date')
-                    ->date('d/m/Y')
-                    ->placeholder('Not set'),
+                DatePicker::make('right_to_work_expiry_date')
+                    ->label('Right to Work Document Expiry Date')
+                    ->native(false)
+                    ->visible(fn (?EducationCandidate $record): bool => in_array($record?->right_to_work_type, ['visa', 'passport'], true)),
 
                 static::documentEntry(
                     'Right to Work Document',
@@ -804,17 +831,11 @@ class EducationCandidateForm
                     ->date('d/m/Y')
                     ->placeholder('Not set'),
 
-                TextEntry::make('safeguarding_expiry_date')
+                DatePicker::make('safeguarding_expiry_date')
                     ->label('Expiry Date')
-                    ->date('d/m/Y')
-                    ->placeholder('Not set'),
+                    ->native(false),
 
                 static::documentEntry('Certificate', DocumentType::SafeguardingTraining),
-
-                TextEntry::make('prevent_training_completed')
-                    ->label('Prevent Training')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set'),
 
                 TextEntry::make('application.terms_accepted_at')
                     ->label('Keeping Children Safe in Education (Read on Application)')

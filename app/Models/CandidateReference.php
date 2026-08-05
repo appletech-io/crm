@@ -4,11 +4,15 @@ namespace App\Models;
 
 use App\Enums\ReferenceStatus;
 use App\Enums\ReferenceType;
+use App\Models\Traits\HasFieldSuggestions;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class CandidateReference extends Model
 {
+    use HasFieldSuggestions;
+
     protected $guarded = [];
 
     protected $casts = [
@@ -27,5 +31,27 @@ class CandidateReference extends Model
     public function candidate(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    /**
+     * A reference carries no company_id of its own — it's inferred from the
+     * candidate it belongs to, the same way Booking/Vacancy infer theirs.
+     * Queried directly rather than through the `candidate` relation so this
+     * never leaves a stale cached relation on the reference instance — this
+     * accessor runs unconditionally on every save (CheckActions reads it
+     * up front), so caching here would poison any later read of ->candidate
+     * on the same instance if the candidate changed in the meantime.
+     */
+    protected function companyId(): Attribute
+    {
+        return Attribute::make(
+            get: function (): ?int {
+                if (! $this->candidate_type || ! $this->candidate_id) {
+                    return null;
+                }
+
+                return $this->candidate_type::query()->whereKey($this->candidate_id)->value('company_id');
+            },
+        );
     }
 }

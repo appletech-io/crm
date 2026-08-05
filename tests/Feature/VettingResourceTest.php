@@ -443,6 +443,55 @@ test('overseas police clearance section only shows when the candidate lived over
     expect($html)->toContain('Visa expiry date');
 });
 
+test('the right to work document expiry date section shows for visa and passport but not birth certificate', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'right_to_work_type' => 'birth_certificate',
+    ]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    $html = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->not->toContain('Right to Work Document');
+
+    $candidate->update(['right_to_work_type' => 'passport']);
+
+    $html = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->toContain('Right to Work Document');
+
+    $candidate->update(['right_to_work_type' => 'visa']);
+
+    $html = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->toContain('Right to Work Document');
+});
+
+test('vetting wizard can save the right to work expiry date for a passport candidate', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'right_to_work_type' => 'passport',
+        'phone' => '07123456789',
+    ]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm([
+            'barred_list_check' => 'yes',
+            'right_to_work_expiry_date' => '2030-05-01',
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($candidate->refresh()->right_to_work_expiry_date->toDateString())->toBe('2030-05-01');
+});
+
 test('vetting wizard can save security checks', function () {
     $candidate = EducationCandidate::factory()->create([
         'company_id' => $this->user->company_id,
@@ -620,7 +669,7 @@ test('tra checks step does not require trn issue date when the candidate has no 
     expect($candidate->refresh()->compliance_step)->toBe(7);
 });
 
-test('vetting wizard can save safeguarding and prevent training checks', function () {
+test('vetting wizard can save safeguarding checks', function () {
     $candidate = EducationCandidate::factory()->create([
         'company_id' => $this->user->company_id,
         'trn_number' => null,
@@ -632,7 +681,6 @@ test('vetting wizard can save safeguarding and prevent training checks', functio
             'barred_list_check' => 'yes',
             'safeguarding_certified_date' => '2026-02-01',
             'safeguarding_expiry_date' => '2029-02-01',
-            'prevent_training_completed' => 'yes',
         ])
         ->call('save')
         ->assertHasNoFormErrors();
@@ -641,7 +689,6 @@ test('vetting wizard can save safeguarding and prevent training checks', functio
 
     expect($candidate->safeguarding_certified_date->toDateString())->toBe('2026-02-01');
     expect($candidate->safeguarding_expiry_date->toDateString())->toBe('2029-02-01');
-    expect($candidate->prevent_training_completed)->toBe('yes');
 });
 
 test('safeguarding section shows the certificate is not uploaded when missing', function () {
@@ -667,30 +714,7 @@ test('safeguarding section shows the certificate is uploaded when present', func
         ->assertSee('Safeguarding certificate uploaded');
 });
 
-test('prevent training section shows the certificate is not uploaded when missing', function () {
-    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
-    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
-
-    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
-        ->assertSee('Prevent training certificate not uploaded');
-});
-
-test('prevent training section shows the certificate is uploaded when present', function () {
-    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
-    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
-
-    CandidateDocument::create([
-        'candidate_type' => EducationCandidate::class,
-        'candidate_id' => $candidate->id,
-        'document_type' => DocumentType::PreventTraining,
-        'path' => 'fake/prevent-training.pdf',
-    ]);
-
-    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
-        ->assertSee('Prevent training certificate uploaded');
-});
-
-test('view certificate action is hidden for safeguarding and prevent training without documents', function () {
+test('view certificate action is hidden for safeguarding without a document', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
     assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
 
@@ -698,7 +722,7 @@ test('view certificate action is hidden for safeguarding and prevent training wi
         ->assertDontSee('View Certificate');
 });
 
-test('view certificate action is shown for safeguarding and prevent training once documents are uploaded', function () {
+test('view certificate action is shown for safeguarding once a document is uploaded', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
     assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
 
@@ -708,16 +732,10 @@ test('view certificate action is shown for safeguarding and prevent training onc
         'document_type' => DocumentType::SafeguardingTraining,
         'path' => 'fake/safeguarding-training.pdf',
     ]);
-    CandidateDocument::create([
-        'candidate_type' => EducationCandidate::class,
-        'candidate_id' => $candidate->id,
-        'document_type' => DocumentType::PreventTraining,
-        'path' => 'fake/prevent-training.pdf',
-    ]);
 
     $html = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])->html();
 
-    expect(substr_count($html, 'View Certificate'))->toBe(2);
+    expect(substr_count($html, 'View Certificate'))->toBe(1);
 });
 
 test('vetting wizard can save sanctions and restrictions with details', function () {
@@ -1019,7 +1037,6 @@ test('the Complete button is enabled when the vetting checklist is fully met', f
         'ni_number_match' => 'yes',
         'trn_number' => null,
         'safeguarding_certified_date' => now(),
-        'prevent_training_completed' => 'yes',
         'right_to_work_type' => 'birth_certificate',
         'ni_number' => 'QQ123456C',
     ]);

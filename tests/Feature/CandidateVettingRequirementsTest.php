@@ -30,7 +30,6 @@ function fullyCompliantCandidate(array $attributes = []): EducationCandidate
         'trn_number' => null,
         'trn_issue_date' => null,
         'safeguarding_certified_date' => now(),
-        'prevent_training_completed' => 'yes',
         'right_to_work_type' => 'birth_certificate',
         'ni_number' => 'QQ123456C',
     ], $attributes));
@@ -299,12 +298,6 @@ test('safeguarding check fails without the certificate document, even with a cer
     expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
 });
 
-test('prevent training check fails unless completed is yes', function () {
-    $candidate = fullyCompliantCandidate(['prevent_training_completed' => 'no']);
-
-    expect(CandidateVettingRequirements::for($candidate)['prevent_training']['complete'])->toBeFalse();
-});
-
 test('right to work check fails without a type set', function () {
     $candidate = fullyCompliantCandidate(['right_to_work_type' => null]);
 
@@ -404,6 +397,20 @@ test('reference check fails when a reference exists but is not confirmed', funct
     $candidate = fullyCompliantCandidate();
     $candidate->documents()->where('document_type', DocumentType::Reference)->delete();
     $candidate->references()->create(['type' => 'professional', 'first_name' => 'Jane', 'last_name' => 'Doe', 'status' => 'pending']);
+
+    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('reference check fails when the only confirmed reference is a gap/statement entry', function () {
+    $candidate = fullyCompliantCandidate();
+    $candidate->documents()->where('document_type', DocumentType::Reference)->delete();
+    $candidate->references()->create([
+        'type' => 'gap_statement',
+        'statement' => 'Travelling',
+        'worked_from' => now()->subMonths(6),
+        'status' => 'confirmed',
+    ]);
 
     expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeFalse();
     expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Vacancies\Pages;
 
 use App\Filament\Resources\Vacancies\VacancyResource;
+use App\Models\Vacancy;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateVacancy extends CreateRecord
@@ -36,6 +37,7 @@ class CreateVacancy extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['consultant_id'] = auth()->id();
+        $data['slug'] = Vacancy::generateUniqueSlug($data['title']);
 
         return $data;
     }

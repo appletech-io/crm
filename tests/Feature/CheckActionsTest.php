@@ -7,6 +7,7 @@ use App\Jobs\SendCustomTemplateEmail;
 use App\Models\Action;
 use App\Models\ActionTrigger;
 use App\Models\Booking;
+use App\Models\CandidateReference;
 use App\Models\Client;
 use App\Models\Company;
 use App\Models\EducationCandidate;
@@ -455,6 +456,69 @@ test('does not fire a vacancy action configured for a different industry than it
     expect(TodoItem::count())->toBe(0);
 });
 
+test('fires for a candidate reference, assigning the todo to the candidates consultant', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+    ]);
+
+    $reference = $candidate->references()->create([
+        'type' => 'professional',
+        'first_name' => 'Ref',
+        'last_name' => 'Eree',
+        'status' => 'rejected',
+        'consent_to_contact' => true,
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => CandidateReference::class,
+        'conditions' => [
+            ['field' => 'status', 'operator' => 'equals', 'value' => 'rejected'],
+        ],
+        'todo_name' => 'Chase an alternative reference',
+    ]);
+
+    CheckActions::run($reference);
+
+    $todo = TodoItem::where('user_id', $this->consultant->id)->first();
+
+    expect($todo)->not->toBeNull()
+        ->and($todo->name)->toBe('Chase an alternative reference')
+        ->and($todo->model_type)->toBe(CandidateReference::class)
+        ->and($todo->model_id)->toBe($reference->id);
+});
+
+test('does not fire a candidate reference action configured for a different industry than its candidate', function () {
+    $healthcareIndustry = Industry::factory()->create(['slug' => 'healthcare']);
+
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+    ]);
+
+    $reference = $candidate->references()->create([
+        'type' => 'professional',
+        'first_name' => 'Ref',
+        'last_name' => 'Eree',
+        'status' => 'rejected',
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $healthcareIndustry->id,
+        'model_type' => CandidateReference::class,
+        'conditions' => [
+            ['field' => 'status', 'operator' => 'equals', 'value' => 'rejected'],
+        ],
+    ]);
+
+    CheckActions::run($reference);
+
+    expect(TodoItem::count())->toBe(0);
+});
+
 test('saving a client through the observer triggers matching actions', function () {
     Action::factory()->create([
         'company_id' => $this->company->id,
@@ -506,6 +570,36 @@ test('saving a vacancy through the observer triggers matching actions', function
     expect(TodoItem::where('user_id', $this->consultant->id)->where('name', 'Chase vacancy details')->exists())->toBeTrue();
 });
 
+test('saving a candidate reference through the observer triggers matching actions', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => CandidateReference::class,
+        'conditions' => [
+            ['field' => 'status', 'operator' => 'equals', 'value' => 'rejected'],
+        ],
+        'todo_name' => 'Chase an alternative reference',
+    ]);
+
+    $reference = $candidate->references()->create([
+        'type' => 'professional',
+        'first_name' => 'Ref',
+        'last_name' => 'Eree',
+        'status' => 'pending',
+    ]);
+
+    expect(TodoItem::count())->toBe(0);
+
+    $reference->update(['status' => 'rejected']);
+
+    expect(TodoItem::where('user_id', $this->consultant->id)->where('name', 'Chase an alternative reference')->exists())->toBeTrue();
+});
+
 test('a role-based action creates a todo for every user with that role in the same company and industry', function () {
     $this->seed(RoleSeeder::class);
 
@@ -549,6 +643,48 @@ test('a role-based action creates a todo for every user with that role in the sa
     CheckActions::run($client);
 
     expect(TodoItem::where('name', 'Review client compliance')->pluck('user_id')->sort()->values()->all())
+        ->toBe([$compliance1->id, $compliance2->id]);
+});
+
+test('a role-based action creates a todo for every user with that role for a candidate reference too', function () {
+    $this->seed(RoleSeeder::class);
+
+    $compliance1 = User::factory()->create(['company_id' => $this->company->id]);
+    $compliance1->industries()->attach($this->industry);
+    $compliance1->assignRole('compliance');
+
+    $compliance2 = User::factory()->create(['company_id' => $this->company->id]);
+    $compliance2->industries()->attach($this->industry);
+    $compliance2->assignRole('compliance');
+
+    // The reference's own candidate has no consultant at all — proving this
+    // doesn't matter for role-based assignment, unlike the consultant-based
+    // path which falls back to the candidate's consultant.
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => null,
+    ]);
+
+    $reference = $candidate->references()->create([
+        'type' => 'professional',
+        'first_name' => 'Ref',
+        'last_name' => 'Eree',
+        'status' => 'rejected',
+    ]);
+
+    Action::factory()->roleBased('compliance')->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => CandidateReference::class,
+        'conditions' => [
+            ['field' => 'status', 'operator' => 'equals', 'value' => 'rejected'],
+        ],
+        'todo_name' => 'Review rejected reference',
+    ]);
+
+    CheckActions::run($reference);
+
+    expect(TodoItem::where('name', 'Review rejected reference')->pluck('user_id')->sort()->values()->all())
         ->toBe([$compliance1->id, $compliance2->id]);
 });
 
@@ -767,6 +903,37 @@ test('a vacancy action with an email template dispatches it to the vacancys clie
     CheckActions::run($vacancy);
 
     Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->template->is($template) && $job->recipient->is($client));
+});
+
+test('a candidate reference action with an email template dispatches it to the references candidate', function () {
+    Bus::fake();
+
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+    ]);
+
+    $reference = $candidate->references()->create([
+        'type' => 'professional',
+        'first_name' => 'Ref',
+        'last_name' => 'Eree',
+        'status' => 'rejected',
+    ]);
+
+    $template = makeActionEmailTemplate($this->company->id, $this->industry->id, 'candidate');
+
+    Action::factory()->withEmailTemplate($template)->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => CandidateReference::class,
+        'conditions' => [
+            ['field' => 'status', 'operator' => 'equals', 'value' => 'rejected'],
+        ],
+    ]);
+
+    CheckActions::run($reference);
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->template->is($template) && $job->recipient->is($candidate));
 });
 
 test('an action with no email template configured does not dispatch an email', function () {

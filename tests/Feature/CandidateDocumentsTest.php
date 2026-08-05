@@ -94,7 +94,6 @@ test('the documents page always lists the base document types', function () {
     expect(array_keys($types))->toEqual([
         'cv',
         'photo',
-        'prevent_training',
         'safeguarding_training',
         'proof_of_address',
         'proof_of_ni',
@@ -293,16 +292,6 @@ test('rows reflect existing candidate_documents records', function () {
     expect($types['cv']['path'])->toBe('company/education/1/cv.pdf');
     expect($types['photo']['uploaded'])->toBeTrue();
     expect($types['photo']['path'])->toBe('company/education/1/photo.jpg');
-});
-
-test('the prevent training info action is only visible on the prevent training row', function () {
-    $user = makeCandidateUser('Onboarding');
-
-    $this->actingAs($user);
-
-    Livewire::test(Documents::class)
-        ->assertActionVisible(TestAction::make('preventTrainingInfo')->table(record: 'prevent_training'))
-        ->assertActionHidden(TestAction::make('preventTrainingInfo')->table(record: 'cv'));
 });
 
 test('uploading a document creates a candidate_documents record and stores the file', function () {

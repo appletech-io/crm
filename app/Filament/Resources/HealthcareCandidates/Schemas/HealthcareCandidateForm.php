@@ -33,6 +33,8 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Text;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
@@ -334,30 +336,51 @@ class HealthcareCandidateForm
                                                     ->mapWithKeys(fn (ReferenceType $case) => [$case->value => $case->label()])
                                                     ->toArray()
                                             )
-                                            ->required(),
-                                        TextInput::make('title')
-                                            ->maxLength(10),
-                                        TextInput::make('first_name')
                                             ->required()
+                                            ->live()
+                                            ->afterStateUpdated(function (Get $get, Set $set): void {
+                                                if ($get('type') === ReferenceType::GapStatement->value) {
+                                                    $set('consent_to_contact', false);
+                                                }
+                                            }),
+                                        Textarea::make('statement')
+                                            ->label('Statement')
+                                            ->helperText('Briefly explain this period, e.g. "Travelling in the USA" or "Between roles, actively job seeking".')
+                                            ->visible(fn (Get $get): bool => $get('type') === ReferenceType::GapStatement->value)
+                                            ->required(fn (Get $get): bool => $get('type') === ReferenceType::GapStatement->value)
+                                            ->columnSpanFull(),
+                                        TextInput::make('title')
+                                            ->maxLength(10)
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
+                                        TextInput::make('first_name')
+                                            ->required(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value)
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value)
                                             ->maxLength(255),
                                         TextInput::make('last_name')
-                                            ->required()
+                                            ->required(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value)
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value)
                                             ->maxLength(255),
                                         TextInput::make('job_title')
-                                            ->maxLength(255),
+                                            ->maxLength(255)
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
                                         DatePicker::make('worked_from')
+                                            ->label('From')
                                             ->native(false),
                                         DatePicker::make('worked_to')
+                                            ->label('To')
                                             ->native(false),
                                         TextInput::make('email')
                                             ->email()
-                                            ->maxLength(255),
+                                            ->maxLength(255)
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
                                         TextInput::make('mobile')
                                             ->tel()
-                                            ->maxLength(255),
+                                            ->maxLength(255)
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
                                         Checkbox::make('consent_to_contact')
                                             ->label('Candidate consents to us contacting this referee')
-                                            ->columnSpanFull(),
+                                            ->columnSpanFull()
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
                                         Select::make('status')
                                             ->options(
                                                 collect(ReferenceStatus::cases())
@@ -403,10 +426,10 @@ class HealthcareCandidateForm
                     ->label('Right to Work Type')
                     ->placeholder('Not set'),
 
-                TextEntry::make('right_to_work_expiry_date')
-                    ->label('Right to Work Expiry Date')
-                    ->date('d/m/Y')
-                    ->placeholder('Not set'),
+                DatePicker::make('right_to_work_expiry_date')
+                    ->label('Right to Work Document Expiry Date')
+                    ->native(false)
+                    ->visible(fn (?HealthcareCandidate $record): bool => in_array($record?->right_to_work_type, ['visa', 'passport'], true)),
             ])
             ->columns(2);
     }
@@ -430,10 +453,9 @@ class HealthcareCandidateForm
                     ->badge()
                     ->color(fn (?string $state): string => filled($state) ? 'success' : 'gray'),
 
-                TextEntry::make('dbs_expiry_date')
+                DatePicker::make('dbs_expiry_date')
                     ->label('Expiry Date')
-                    ->date('d/m/Y')
-                    ->placeholder('Not set'),
+                    ->native(false),
             ])
             ->columns(2);
     }

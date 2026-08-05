@@ -110,6 +110,45 @@ test('references can be viewed and saved via the repeater on the candidate edit 
     expect($candidate->references()->count())->toBe(1);
 });
 
+test('a gap/statement reference does not require a name when saving via the repeater', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null, 'phone' => '07700900000']);
+
+    $reference = $candidate->references()->create([
+        'type' => 'gap_statement',
+        'statement' => 'Travelling',
+        'worked_from' => '2024-01-01',
+        'worked_to' => '2024-06-01',
+        'status' => 'confirmed',
+    ])->fresh();
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->set("data.references.record-{$reference->id}.statement", 'Travelling around Europe')
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $reference->refresh();
+    expect($reference->statement)->toBe('Travelling around Europe');
+    expect($reference->first_name)->toBeNull();
+    expect($reference->last_name)->toBeNull();
+});
+
+test('switching an existing reference to gap/statement requires a statement instead of a name', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null, 'phone' => '07700900000']);
+
+    $reference = $candidate->references()->create([
+        'type' => 'character',
+        'first_name' => 'Jane',
+        'last_name' => 'Smith',
+        'worked_from' => '2019-01-01',
+        'consent_to_contact' => true,
+    ])->fresh();
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->set("data.references.record-{$reference->id}.type", 'gap_statement')
+        ->call('save')
+        ->assertHasFormErrors(["references.record-{$reference->id}.statement"]);
+});
+
 test('collapsed reference item label shows a status emoji alongside the text', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => null]);
 
@@ -321,4 +360,41 @@ test('collapsed employment history item label shows the company and year range',
     Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
         ->assertSee('Oakwood Primary (2020 - 2022)')
         ->assertSee('Elm Secondary (2018 - Present)');
+});
+
+test('compliance expiry dates can be edited inline from the candidate edit page', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => null,
+        'right_to_work_type' => 'visa',
+        'dbs_certificate_number' => '001234567890',
+    ]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm([
+            'dbs_expiry_date' => '2029-03-01',
+            'right_to_work_expiry_date' => '2027-01-01',
+            'safeguarding_expiry_date' => '2028-06-01',
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $candidate->refresh();
+    expect($candidate->dbs_expiry_date->toDateString())->toBe('2029-03-01');
+    expect($candidate->right_to_work_expiry_date->toDateString())->toBe('2027-01-01');
+    expect($candidate->safeguarding_expiry_date->toDateString())->toBe('2028-06-01');
+});
+
+test('the right to work expiry date field is hidden and not saved when right to work type is birth certificate', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => null,
+        'right_to_work_type' => 'birth_certificate',
+    ]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertFormFieldDoesNotExist('right_to_work_expiry_date')
+        ->fillForm(['dbs_expiry_date' => '2029-03-01'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($candidate->refresh()->right_to_work_expiry_date)->toBeNull();
 });

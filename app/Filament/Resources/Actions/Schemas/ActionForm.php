@@ -10,6 +10,7 @@ use App\Filament\Resources\TodoItems\Schemas\TodoItemForm;
 use App\Filament\Support\ConditionsRepeaterField;
 use App\Models\Action;
 use App\Models\Booking;
+use App\Models\CandidateReference;
 use App\Models\Client;
 use App\Models\EmailTemplate;
 use App\Models\Industry;
@@ -169,6 +170,7 @@ class ActionForm
             Client::class => 'Client',
             Booking::class => 'Booking',
             Vacancy::class => 'Vacancy',
+            CandidateReference::class => 'Candidate Reference',
         ];
 
         $candidateModelClass = Industry::candidateModelForSlug(active_industry() ?? '');

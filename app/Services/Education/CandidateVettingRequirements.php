@@ -4,6 +4,7 @@ namespace App\Services\Education;
 
 use App\Enums\DocumentType;
 use App\Enums\ReferenceStatus;
+use App\Enums\ReferenceType;
 use App\Models\EducationCandidate;
 
 class CandidateVettingRequirements
@@ -37,7 +38,10 @@ class CandidateVettingRequirements
             'reference' => [
                 'label' => 'Reference',
                 'description' => 'At least one reference has been confirmed, or a reference document has been uploaded.',
-                'complete' => $candidate->references()->where('status', ReferenceStatus::Confirmed)->exists()
+                'complete' => $candidate->references()
+                    ->where('status', ReferenceStatus::Confirmed)
+                    ->where('type', '!=', ReferenceType::GapStatement)
+                    ->exists()
                     || $candidate->documents()->where('document_type', DocumentType::Reference)->exists(),
             ],
             'skills' => [
@@ -80,11 +84,6 @@ class CandidateVettingRequirements
                 'description' => 'Safeguarding training has been checked and certified, with the certificate uploaded.',
                 'complete' => filled($candidate->safeguarding_certified_date)
                     && $candidate->documents()->where('document_type', DocumentType::SafeguardingTraining)->exists(),
-            ],
-            'prevent_training' => [
-                'label' => 'Prevent Training',
-                'description' => 'Prevent training has been checked and completed.',
-                'complete' => $candidate->prevent_training_completed === 'yes',
             ],
             'right_to_work' => [
                 'label' => static::rightToWorkLabel($candidate),

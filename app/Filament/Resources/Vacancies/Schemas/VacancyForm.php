@@ -3,12 +3,15 @@
 namespace App\Filament\Resources\Vacancies\Schemas;
 
 use App\Filament\Widgets\VacancyActivityTimeline;
+use App\Filament\Widgets\VacancyApplicantsTable;
 use App\Models\Client;
 use App\Models\JobStatus;
 use App\Models\JobTitle;
+use App\Models\Vacancy;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Livewire as LivewireComponent;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
@@ -109,7 +112,28 @@ class VacancyForm
                                             )
                                             ->required()
                                             ->searchable(),
+
+                                        Toggle::make('open_for_applications')
+                                            ->label('Accepts Applications')
+                                            ->helperText('Whether the public application link below is currently open. Independent of the Status field above.')
+                                            ->default(true),
+
+                                        TextInput::make('apply_url')
+                                            ->label('Application Link')
+                                            ->disabled()
+                                            ->dehydrated(false)
+                                            ->copyable()
+                                            ->formatStateUsing(fn (?Vacancy $record): ?string => $record ? route('vacancy.apply', $record->slug) : null)
+                                            ->visible(fn (?Vacancy $record): bool => $record !== null)
+                                            ->columnSpanFull(),
                                     ]),
+                            ]),
+
+                        Tab::make('Applicants')
+                            ->schema([
+                                LivewireComponent::make(VacancyApplicantsTable::class)
+                                    ->key('vacancy-applicants-table')
+                                    ->hidden(fn (?Model $record): bool => $record === null),
                             ]),
 
                         Tab::make('Activity')

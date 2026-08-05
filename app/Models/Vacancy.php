@@ -11,9 +11,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Vacancy extends Model
 {
@@ -33,8 +35,28 @@ class Vacancy extends Model
             'salary_min' => Money::class,
             'salary_max' => Money::class,
             'positions_available' => 'integer',
+            'open_for_applications' => 'boolean',
             'filled_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Slugs are global (the public apply URL has no other tenant segment),
+     * generated once at creation, and never regenerated on update so
+     * previously shared links keep working even if the title changes.
+     */
+    public static function generateUniqueSlug(string $title): string
+    {
+        $base = Str::slug($title) ?: 'vacancy';
+        $slug = $base;
+        $suffix = 1;
+
+        while (static::withTrashed()->where('slug', $slug)->exists()) {
+            $suffix++;
+            $slug = "{$base}-{$suffix}";
+        }
+
+        return $slug;
     }
 
     /** @return array<string, array{0: class-string<Model>, 1: array<int, string>}> */
@@ -85,6 +107,11 @@ class Vacancy extends Model
     public function activities(): MorphMany
     {
         return $this->morphMany(VacancyActivity::class, 'model')->latest();
+    }
+
+    public function applications(): HasMany
+    {
+        return $this->hasMany(VacancyApplication::class)->latest();
     }
 
     public function scopeVisibleToCurrentUser(Builder $query): Builder

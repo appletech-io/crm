@@ -4,6 +4,7 @@ namespace App\Services\Healthcare;
 
 use App\Enums\DocumentType;
 use App\Enums\ReferenceStatus;
+use App\Enums\ReferenceType;
 use App\Models\HealthcareCandidate;
 
 class CandidateVettingRequirements
@@ -37,7 +38,10 @@ class CandidateVettingRequirements
             'reference' => [
                 'label' => 'Reference',
                 'description' => 'At least one reference has been confirmed, or a reference document has been uploaded.',
-                'complete' => $candidate->references()->where('status', ReferenceStatus::Confirmed)->exists()
+                'complete' => $candidate->references()
+                    ->where('status', ReferenceStatus::Confirmed)
+                    ->where('type', '!=', ReferenceType::GapStatement)
+                    ->exists()
                     || $candidate->documents()->where('document_type', DocumentType::Reference)->exists(),
             ],
             'skills' => [

@@ -449,14 +449,20 @@ class HealthcareVettingSteps
                             ->native(false),
                         DatePicker::make('visa_expiry_date')
                             ->native(false),
-                        DatePicker::make('right_to_work_expiry_date')
-                            ->label('Right to Work Expiry Date')
-                            ->native(false),
                         Textarea::make('visa_notes')
                             ->columnSpanFull(),
                     ])
                     ->columns(2)
                     ->visible(fn (?HealthcareCandidate $record): bool => $record?->right_to_work_type === 'visa'),
+
+                Section::make('Right to Work Document')
+                    ->schema([
+                        DatePicker::make('right_to_work_expiry_date')
+                            ->label('Expiry Date')
+                            ->native(false),
+                    ])
+                    ->columns(2)
+                    ->visible(fn (?HealthcareCandidate $record): bool => in_array($record?->right_to_work_type, ['visa', 'passport'], true)),
             ]);
     }
 

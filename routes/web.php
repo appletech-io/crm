@@ -29,4 +29,7 @@ Route::livewire('/reference/{token}/form', 'reference.reference-form')->name('re
 
 Route::get('/booking-confirmation', [BookingConfirmationController::class, 'show'])->name('booking-confirmation.show');
 
+// Exposed to public routes for candidates applying directly to a vacancy
+Route::livewire('/vacancy/{vacancy:slug}', 'vacancy.apply-form')->name('vacancy.apply');
+
 require __DIR__.'/settings.php';

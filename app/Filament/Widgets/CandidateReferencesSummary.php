@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Enums\ReferenceType;
 use App\Models\CandidateReference;
 use Filament\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
@@ -35,7 +36,9 @@ class CandidateReferencesSummary extends TableWidget
             ->columns([
                 TextColumn::make('name')
                     ->label('Name')
-                    ->state(fn (CandidateReference $record): string => trim("{$record->first_name} {$record->last_name}")),
+                    ->state(fn (CandidateReference $record): string => $record->type === ReferenceType::GapStatement
+                        ? 'Gap / Statement'
+                        : trim("{$record->first_name} {$record->last_name}")),
 
                 TextColumn::make('type')
                     ->label('Type')

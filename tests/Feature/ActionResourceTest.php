@@ -6,6 +6,7 @@ use App\Filament\Resources\Actions\Pages\EditAction;
 use App\Filament\Resources\Actions\Pages\ListActions;
 use App\Models\Action;
 use App\Models\Booking;
+use App\Models\CandidateReference;
 use App\Models\Client;
 use App\Models\Company;
 use App\Models\EducationCandidate;
@@ -38,7 +39,13 @@ test('list page renders for admins', function () {
     Livewire::test(ListActions::class)->assertSuccessful();
 });
 
-test('consultants and compliance can view the actions list but not create, edit or delete', function () {
+test('consultants and compliance can view, create and edit actions', function () {
+    $action = Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+    ]);
+
     foreach (['consultant', 'compliance'] as $role) {
         $user = User::factory()->create(['company_id' => $this->company->id]);
         $user->industries()->attach($this->industry);
@@ -50,28 +57,23 @@ test('consultants and compliance can view the actions list but not create, edit 
 
         Livewire::test(ListActions::class)->assertSuccessful();
 
-        // Resource-level 403s (canCreate/canEdit) are caught by the app's global
-        // exception handler and redirected to /crm, same as a canViewAny failure.
-        $this->get('/crm/actions/create')->assertRedirect('/crm');
+        $this->get('/crm/actions/create')->assertOk();
+        $this->get("/crm/actions/{$action->getRouteKey()}/edit")->assertOk();
     }
 });
 
-test('consultants cannot edit an existing action', function () {
-    $action = Action::factory()->create([
-        'company_id' => $this->company->id,
-        'industry_id' => $this->industry->id,
-        'model_type' => Client::class,
-    ]);
+test('a resourcer cannot access the actions resource at all', function () {
+    $resourcer = User::factory()->create(['company_id' => $this->company->id]);
+    $resourcer->industries()->attach($this->industry);
+    $resourcer->assignRole('resourcer');
+    $this->actingAs($resourcer);
 
-    $consultant = User::factory()->create(['company_id' => $this->company->id]);
-    $consultant->industries()->attach($this->industry);
-    $consultant->assignRole('consultant');
-    $this->actingAs($consultant);
+    Cache::put("user.{$resourcer->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$resourcer->id}.active_industry_id", $this->industry->id);
 
-    Cache::put("user.{$consultant->id}.active_industry", $this->industry->slug);
-    Cache::put("user.{$consultant->id}.active_industry_id", $this->industry->id);
-
-    $this->get("/crm/actions/{$action->getRouteKey()}/edit")->assertRedirect('/crm');
+    // Resource-level 403s (canViewAny) are caught by the app's global
+    // exception handler and redirected to /crm.
+    $this->get('/crm/actions')->assertRedirect('/crm');
 });
 
 test('site_admin can access the actions resource', function () {
@@ -152,7 +154,7 @@ test('a condition field valid for the selected model type is accepted', function
     expect($action->conditions)->toBe([['field' => 'status', 'operator' => 'filled']]);
 });
 
-test('model type options include client, booking, vacancy and the active industrys candidate model only', function () {
+test('model type options include client, booking, vacancy, candidate reference and the active industrys candidate model only', function () {
     Livewire::test(CreateAction::class)
         ->assertFormFieldExists('model_type', function ($field): bool {
             $options = $field->getOptions();
@@ -160,6 +162,7 @@ test('model type options include client, booking, vacancy and the active industr
             return array_key_exists(Client::class, $options)
                 && array_key_exists(Booking::class, $options)
                 && array_key_exists(Vacancy::class, $options)
+                && array_key_exists(CandidateReference::class, $options)
                 && array_key_exists(EducationCandidate::class, $options)
                 && ! array_key_exists(HealthcareCandidate::class, $options);
         });
@@ -231,6 +234,75 @@ test('a vacancy action only offers client-audience email templates', function ()
 
             return array_key_exists($clientTemplate->id, $options)
                 && ! array_key_exists($candidateTemplate->id, $options);
+        });
+});
+
+test('a condition field valid for candidate reference is accepted', function () {
+    // "status" is a real CandidateReference field.
+    Livewire::test(CreateAction::class)
+        ->fillForm([
+            'name' => 'Valid reference condition',
+            'model_type' => CandidateReference::class,
+            'conditions' => [
+                'item-1' => ['field' => 'status', 'operator' => 'filled'],
+            ],
+            'wants_todo' => true,
+            'todo_name' => 'x',
+            'todo_priority' => 'medium',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $action = Action::where('name', 'Valid reference condition')->first();
+
+    expect($action->conditions)->toBe([['field' => 'status', 'operator' => 'filled']]);
+});
+
+test('a condition field valid for client is rejected for candidate reference', function () {
+    // "name" is a real Client field, but not a valid field for CandidateReference.
+    Livewire::test(CreateAction::class)
+        ->fillForm([
+            'name' => 'Invalid reference condition',
+            'model_type' => CandidateReference::class,
+            'conditions' => [
+                'item-1' => ['field' => 'name', 'operator' => 'filled'],
+            ],
+            'wants_todo' => true,
+            'todo_name' => 'x',
+            'todo_priority' => 'medium',
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['conditions.item-1.field']);
+});
+
+test('a candidate reference action only offers candidate-audience email templates', function () {
+    $clientTemplate = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Client template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => 'client',
+        'subject' => 'Hi',
+        'body' => 'Body',
+    ]);
+
+    $candidateTemplate = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Candidate template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => 'candidate',
+        'subject' => 'Hi',
+        'body' => 'Body',
+    ]);
+
+    Livewire::test(CreateAction::class)
+        ->set('data.model_type', CandidateReference::class)
+        ->assertFormFieldExists('email_template_id', function ($field) use ($clientTemplate, $candidateTemplate): bool {
+            $options = $field->getOptions();
+
+            return array_key_exists($candidateTemplate->id, $options)
+                && ! array_key_exists($clientTemplate->id, $options);
         });
 });
 

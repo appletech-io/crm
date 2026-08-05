@@ -494,14 +494,20 @@ class VettingSteps
                             ->native(false),
                         DatePicker::make('visa_expiry_date')
                             ->native(false),
-                        DatePicker::make('right_to_work_expiry_date')
-                            ->label('Right to Work Expiry Date')
-                            ->native(false),
                         Textarea::make('visa_notes')
                             ->columnSpanFull(),
                     ])
                     ->columns(2)
                     ->visible(fn (?EducationCandidate $record): bool => $record?->right_to_work_type === 'visa'),
+
+                Section::make('Right to Work Document')
+                    ->schema([
+                        DatePicker::make('right_to_work_expiry_date')
+                            ->label('Expiry Date')
+                            ->native(false),
+                    ])
+                    ->columns(2)
+                    ->visible(fn (?EducationCandidate $record): bool => in_array($record?->right_to_work_type, ['visa', 'passport'], true)),
             ]);
     }
 
@@ -510,7 +516,7 @@ class VettingSteps
     {
         return [
             'trn_issue_date', 'sanctions', 'restrictions', 'sanction_restrictions_details',
-            'safeguarding_certified_date', 'safeguarding_expiry_date', 'prevent_training_completed',
+            'safeguarding_certified_date', 'safeguarding_expiry_date',
         ];
     }
 
@@ -588,31 +594,6 @@ class VettingSteps
                                 ->url(fn (?EducationCandidate $record): ?string => static::safeguardingDocumentUrl($record))
                                 ->openUrlInNewTab()
                                 ->visible(fn (?EducationCandidate $record): bool => (bool) static::safeguardingDocument($record)),
-                        ])->columnSpanFull(),
-                    ]),
-
-                Section::make('Prevent Training')
-                    ->schema([
-                        Select::make('prevent_training_completed')
-                            ->label('Completed')
-                            ->options(['yes' => 'Yes', 'no' => 'No'])
-                            ->native(false),
-
-                        Text::make(fn (?EducationCandidate $record): string => static::preventTrainingDocument($record)
-                            ? 'Prevent training certificate uploaded'
-                            : 'Prevent training certificate not uploaded'
-                        )
-                            ->color(fn (?EducationCandidate $record): string => static::preventTrainingDocument($record) ? 'success' : 'danger')
-                            ->columnSpanFull(),
-
-                        Actions::make([
-                            Action::make('viewPreventTrainingCertificate')
-                                ->label('View Certificate')
-                                ->icon('heroicon-o-eye')
-                                ->color('gray')
-                                ->url(fn (?EducationCandidate $record): ?string => static::preventTrainingDocumentUrl($record))
-                                ->openUrlInNewTab()
-                                ->visible(fn (?EducationCandidate $record): bool => (bool) static::preventTrainingDocument($record)),
                         ])->columnSpanFull(),
                     ]),
             ]);
@@ -829,26 +810,9 @@ class VettingSteps
         return $document;
     }
 
-    protected static function preventTrainingDocument(?EducationCandidate $record): ?CandidateDocument
-    {
-        /** @var CandidateDocument|null $document */
-        $document = $record?->documents->firstWhere('document_type', DocumentType::PreventTraining);
-
-        return $document;
-    }
-
     protected static function safeguardingDocumentUrl(?EducationCandidate $record): ?string
     {
         $document = static::safeguardingDocument($record);
-
-        return $document
-            ? Storage::disk('local')->temporaryUrl($document->path, now()->addMinutes(10))
-            : null;
-    }
-
-    protected static function preventTrainingDocumentUrl(?EducationCandidate $record): ?string
-    {
-        $document = static::preventTrainingDocument($record);
 
         return $document
             ? Storage::disk('local')->temporaryUrl($document->path, now()->addMinutes(10))

@@ -31,11 +31,13 @@
         @error('visa_share_code')
             <flux:error>{{ $message }}</flux:error>
         @enderror
+    </div>
 
+    <div x-show="$wire.right_to_work_type === 'visa' || $wire.right_to_work_type === 'passport'" class="flex flex-col gap-6">
         <flux:input
             type="date"
             wire:model="right_to_work_expiry_date"
-            :label="__('Right to Work Expiry Date (optional)')"
+            :label="__('Right to Work Document Expiry Date (optional)')"
         />
 
         @error('right_to_work_expiry_date')
