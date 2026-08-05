@@ -3,12 +3,12 @@
 namespace App\Filament\Widgets;
 
 use App\Services\Candidates\CandidateDocumentRequirements;
+use App\Services\Candidates\Document;
 use Filament\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
 
 class CandidateDocumentStatus extends TableWidget
 {
@@ -56,7 +56,7 @@ class CandidateDocumentStatus extends TableWidget
                     ->icon('heroicon-o-eye')
                     ->color('gray')
                     ->url(fn (array $record): ?string => $record['path']
-                        ? Storage::disk(config('filesystems.default'))->temporaryUrl($record['path'], now()->addMinutes(10))
+                        ? Document::viewUrl($record['path'])
                         : null
                     )
                     ->openUrlInNewTab()

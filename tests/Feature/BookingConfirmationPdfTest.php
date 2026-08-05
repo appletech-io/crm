@@ -96,6 +96,36 @@ test('the pdf merges in the dbs front, back, and safeguarding certificate when p
     expect($pageCount)->toBe(3);
 });
 
+test('the pdf merges in stored documents that live on a non-local default filesystem disk', function () {
+    // Regression test: appendStoredDocument() used to hardcode
+    // Storage::disk('local'), so it silently skipped every DBS/safeguarding
+    // document whenever FILESYSTEM_DISK wasn't 'local' (e.g. 's3' in
+    // production) — Document::upload() stores files on
+    // config('filesystems.default'), not always 'local'.
+    config(['filesystems.default' => 's3']);
+    Storage::fake('s3');
+
+    $this->candidate->documents()->create([
+        'document_type' => DocumentType::DbsFront,
+        'path' => 'placeholder/dbs-front.png',
+    ]);
+    $this->candidate->documents()->create([
+        'document_type' => DocumentType::DbsBack,
+        'path' => 'placeholder/dbs-back.png',
+    ]);
+
+    Storage::disk('s3')->put('placeholder/dbs-front.png', file_get_contents(base_path('public/images/applebough.png')));
+    Storage::disk('s3')->put('placeholder/dbs-back.png', file_get_contents(base_path('public/images/applebough.png')));
+
+    $path = app(BookingConfirmationPdfService::class)->generate($this->booking);
+
+    $absolute = Storage::disk('local')->path($path);
+    $pdf = new Fpdi;
+    $pageCount = $pdf->setSourceFile($absolute);
+
+    expect($pageCount)->toBe(3);
+});
+
 test('the pdf has just the summary page when no dbs or safeguarding documents exist', function () {
     $path = app(BookingConfirmationPdfService::class)->generate($this->booking);
 
@@ -121,6 +151,28 @@ test('the candidate photo is embedded on the summary page rather than appended a
     $pageCount = $pdf->setSourceFile($absolute);
 
     expect($pageCount)->toBe(1);
+});
+
+test('the candidate photo is embedded when it lives on a non-local default filesystem disk', function () {
+    // Regression test: photoDataUri() used to hardcode Storage::disk('local')
+    // too, so the photo silently never appeared whenever FILESYSTEM_DISK
+    // wasn't 'local'.
+    config(['filesystems.default' => 's3']);
+    Storage::fake('s3');
+
+    $this->candidate->documents()->create([
+        'document_type' => DocumentType::Photo,
+        'path' => 'placeholder/photo.png',
+    ]);
+
+    Storage::disk('s3')->put('placeholder/photo.png', file_get_contents(base_path('public/images/applebough.png')));
+
+    $method = new ReflectionMethod(BookingConfirmationPdfService::class, 'photoDataUri');
+    $method->setAccessible(true);
+
+    $dataUri = $method->invoke(app(BookingConfirmationPdfService::class), $this->candidate);
+
+    expect($dataUri)->toStartWith('data:image/png;base64,');
 });
 
 test('the booking confirmation view renders the candidate photo when present and omits it when absent', function () {

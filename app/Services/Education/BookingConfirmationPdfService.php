@@ -42,12 +42,14 @@ class BookingConfirmationPdfService
         /** @var CandidateDocument|null $photo */
         $photo = $candidate->documents->firstWhere('document_type', DocumentType::Photo);
 
-        if (! $photo || ! Storage::disk('local')->exists($photo->path)) {
+        $disk = Storage::disk(config('filesystems.default'));
+
+        if (! $photo || ! $disk->exists($photo->path)) {
             return null;
         }
 
-        $contents = Storage::disk('local')->get($photo->path);
-        $mimeType = Storage::disk('local')->mimeType($photo->path) ?: 'image/jpeg';
+        $contents = $disk->get($photo->path);
+        $mimeType = $disk->mimeType($photo->path) ?: 'image/jpeg';
 
         return "data:{$mimeType};base64,".base64_encode($contents);
     }
@@ -155,30 +157,42 @@ class BookingConfirmationPdfService
         }
     }
 
+    /**
+     * Fpdi/getimagesize need a real local file path — stored documents live
+     * on whichever disk is configured (S3 in production), so the file is
+     * downloaded to a temp local path for the duration of this call.
+     */
     protected function appendStoredDocument(Fpdi $pdf, string $storagePath): void
     {
-        if (! Storage::disk('local')->exists($storagePath)) {
+        $disk = Storage::disk(config('filesystems.default'));
+
+        if (! $disk->exists($storagePath)) {
             return;
         }
 
-        $absolutePath = Storage::disk('local')->path($storagePath);
-        $extension = strtolower(pathinfo($absolutePath, PATHINFO_EXTENSION));
+        $extension = strtolower(pathinfo($storagePath, PATHINFO_EXTENSION));
+        $tempPath = tempnam(sys_get_temp_dir(), 'booking-doc-').'.'.$extension;
+        file_put_contents($tempPath, $disk->get($storagePath));
 
-        if ($extension === 'pdf') {
-            $this->importPdfFile($pdf, $absolutePath);
+        try {
+            if ($extension === 'pdf') {
+                $this->importPdfFile($pdf, $tempPath);
 
-            return;
+                return;
+            }
+
+            $dimensions = @getimagesize($tempPath);
+
+            if (! $dimensions) {
+                return;
+            }
+
+            [$width, $height] = $dimensions;
+
+            $pdf->AddPage($width >= $height ? 'L' : 'P');
+            $pdf->Image($tempPath, 0, 0, $pdf->GetPageWidth());
+        } finally {
+            unlink($tempPath);
         }
-
-        $dimensions = @getimagesize($absolutePath);
-
-        if (! $dimensions) {
-            return;
-        }
-
-        [$width, $height] = $dimensions;
-
-        $pdf->AddPage($width >= $height ? 'L' : 'P');
-        $pdf->Image($absolutePath, 0, 0, $pdf->GetPageWidth());
     }
 }

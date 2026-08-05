@@ -1408,7 +1408,7 @@ new #[Layout('layouts.application')] class extends Component
             return null;
         }
 
-        return Storage::disk('local')->temporaryUrl($photoPath, now()->addMinutes(30));
+        return Storage::disk(config('filesystems.default'))->temporaryUrl($photoPath, now()->addMinutes(30));
     }
 
     #[Computed]

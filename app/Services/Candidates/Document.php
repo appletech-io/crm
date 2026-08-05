@@ -2,14 +2,26 @@
 
 namespace App\Services\Candidates;
 
+use App\Http\Controllers\CandidateDocumentController;
 use App\Models\Industry;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
 class Document
 {
+    /**
+     * Builds a "view" link that resolves the actual signed storage URL at click-time via
+     * {@see CandidateDocumentController}, rather than baking a temporary URL into the
+     * page's HTML where it can expire before it's clicked.
+     */
+    public static function viewUrl(string $path): string
+    {
+        return route('documents.view', ['path' => Crypt::encryptString($path)]);
+    }
+
     /**
      * Streams the file's contents into place with a plain write rather than
      * using Storage::move()/copy(), which for the S3 driver issues a

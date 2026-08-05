@@ -130,7 +130,7 @@ class Documents extends Page implements HasTable
                     ->label('View')
                     ->icon('heroicon-o-eye')
                     ->color('gray')
-                    ->url(fn (array $record): ?string => Storage::disk(config('filesystems.default'))->temporaryUrl($record['path'], now()->addMinutes(10)))
+                    ->url(fn (array $record): ?string => Document::viewUrl($record['path']))
                     ->openUrlInNewTab()
                     ->visible(fn (array $record): bool => $this->isAdditionalDocumentRecord($record)),
 

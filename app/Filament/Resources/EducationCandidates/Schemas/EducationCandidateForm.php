@@ -20,6 +20,7 @@ use App\Models\EducationCandidate;
 use App\Models\JobTitle;
 use App\Models\Qualification;
 use App\Models\User;
+use App\Services\Candidates\Document;
 use App\Services\Education\DbsUpdateService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
@@ -48,7 +49,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
 
 class EducationCandidateForm
 {
@@ -965,7 +965,7 @@ class EducationCandidateForm
         $document = static::document($record, $documentType);
 
         return $document
-            ? Storage::disk(config('filesystems.default'))->temporaryUrl($document->path, now()->addMinutes(10))
+            ? Document::viewUrl($document->path)
             : null;
     }
 
