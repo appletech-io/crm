@@ -21,6 +21,7 @@ use Carbon\CarbonInterface;
 use Database\Seeders\RoleSeeder;
 use Filament\Actions\Testing\TestAction;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -736,6 +737,35 @@ test('view certificate action is shown for safeguarding once a document is uploa
     $html = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])->html();
 
     expect(substr_count($html, 'View Certificate'))->toBe(1);
+});
+
+test('the safeguarding certificate view link resolves the document at click-time rather than baking in a temporary url', function () {
+    // Regression test: the "View Certificate" link used to embed a
+    // Storage::temporaryUrl() directly in the page HTML (and used to hardcode
+    // Storage::disk('local') too), so it silently pointed at the wrong disk
+    // and/or went stale if the page sat open longer than the signed URL's TTL.
+    // It now routes through Document::viewUrl(), which defers URL generation
+    // to CandidateDocumentController at the moment the link is actually clicked.
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $path = 'candidates/'.$candidate->id.'/safeguarding-training.pdf';
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::SafeguardingTraining,
+        'path' => $path,
+    ]);
+    $candidate->load('documents');
+
+    $method = new ReflectionMethod(VettingSteps::class, 'safeguardingDocumentUrl');
+    $method->setAccessible(true);
+
+    $url = $method->invoke(null, $candidate);
+
+    expect($url)->toStartWith(route('documents.view'));
+
+    parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+
+    expect(Crypt::decryptString($query['path']))->toBe($path);
 });
 
 test('vetting wizard can save sanctions and restrictions with details', function () {

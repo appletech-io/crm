@@ -15,6 +15,7 @@ use App\Models\Industry;
 use App\Models\Qualification;
 use App\Models\User;
 use App\Services\ApplicationAccessSession;
+use Carbon\CarbonInterface;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -1046,6 +1047,35 @@ test('form displays the existing photo when the candidate already has one', func
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 6)
         ->assertSee('Replace photo');
+});
+
+test('the existing photo url is resolved from the configured default filesystem disk, not a hardcoded one', function () {
+    // Regression test: this used to hardcode Storage::disk('local'), so it
+    // silently pointed at the wrong disk whenever FILESYSTEM_DISK wasn't
+    // 'local' (e.g. 's3' in production), even though Document::upload()
+    // actually stores the file on config('filesystems.default').
+    config(['filesystems.default' => 's3']);
+
+    $application = makePendingApplication();
+    $path = 'candidates/'.$application->educationCandidate->id.'/photo.jpg';
+    $application->educationCandidate->documents()->create([
+        'document_type' => DocumentType::Photo,
+        'path' => $path,
+    ]);
+
+    Storage::shouldReceive('disk')
+        ->once()
+        ->with('s3')
+        ->andReturnSelf();
+    Storage::shouldReceive('temporaryUrl')
+        ->once()
+        ->with($path, Mockery::type(CarbonInterface::class))
+        ->andReturn('https://example-bucket.s3.amazonaws.com/signed-photo-url');
+
+    $component = Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 6);
+
+    expect($component->get('existingPhotoUrl'))->toBe('https://example-bucket.s3.amazonaws.com/signed-photo-url');
 });
 
 test('savePhoto validates photo is an image', function () {

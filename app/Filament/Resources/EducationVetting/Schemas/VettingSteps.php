@@ -15,6 +15,7 @@ use App\Models\JobTitle;
 use App\Models\Qualification;
 use App\Services\Ai\NiNumberVerificationService;
 use App\Services\Ai\ProofOfAddressVerificationService;
+use App\Services\Candidates\Document;
 use App\Services\Education\CandidateVettingRequirements;
 use App\Services\Education\DbsUpdateService;
 use Filament\Actions\Action;
@@ -815,7 +816,7 @@ class VettingSteps
         $document = static::safeguardingDocument($record);
 
         return $document
-            ? Storage::disk('local')->temporaryUrl($document->path, now()->addMinutes(10))
+            ? Document::viewUrl($document->path)
             : null;
     }
 }

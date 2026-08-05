@@ -3,12 +3,12 @@
 namespace App\Filament\Widgets;
 
 use App\Filament\Concerns\HasAdditionalDocuments;
+use App\Services\Candidates\Document;
 use Filament\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Powers the "References" step of the compliance wizard, letting staff add reference
@@ -53,7 +53,7 @@ class CandidateAdditionalDocuments extends TableWidget
                     ->label('View')
                     ->icon('heroicon-o-eye')
                     ->color('gray')
-                    ->url(fn (array $record): ?string => Storage::disk(config('filesystems.default'))->temporaryUrl($record['path'], now()->addMinutes(10)))
+                    ->url(fn (array $record): ?string => Document::viewUrl($record['path']))
                     ->openUrlInNewTab(),
 
                 Action::make('removeAdditionalDocument')

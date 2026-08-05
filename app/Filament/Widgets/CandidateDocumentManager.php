@@ -67,7 +67,7 @@ class CandidateDocumentManager extends TableWidget
                     ->icon('heroicon-o-eye')
                     ->color('gray')
                     ->url(fn (array $record): ?string => $record['path']
-                        ? Storage::disk(config('filesystems.default'))->temporaryUrl($record['path'], now()->addMinutes(10))
+                        ? Document::viewUrl($record['path'])
                         : null
                     )
                     ->openUrlInNewTab()

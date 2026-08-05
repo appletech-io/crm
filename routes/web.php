@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\BookingConfirmationController;
+use App\Http\Controllers\CandidateDocumentController;
 use App\Http\Controllers\ImpersonationController;
 use Illuminate\Support\Facades\Route;
 
@@ -10,6 +11,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::redirect('dashboard', '/crm')->name('dashboard');
 
     Route::livewire('/select-sector', 'sector-selector')->name('sector.select');
+
+    Route::get('/documents/view', [CandidateDocumentController::class, 'show'])->name('documents.view');
 });
 
 Route::post('/impersonate/stop', [ImpersonationController::class, 'stop'])
