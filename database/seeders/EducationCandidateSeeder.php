@@ -133,7 +133,6 @@ class EducationCandidateSeeder extends Seeder
             'update_service_response' => 'Clear',
             'update_service_checked_at' => now()->subDays(random_int(20, 90)),
             'safeguarding_certified_date' => now()->subDays(random_int(30, 200)),
-            'prevent_training_completed' => 'yes',
             'trn_number' => fake()->numerify('#######'),
             'trn_issue_date' => now()->subYears(random_int(1, 8)),
             'compliance_completed_at' => now()->subDays(random_int(5, 60)),

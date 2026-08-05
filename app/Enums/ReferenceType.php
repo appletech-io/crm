@@ -8,6 +8,7 @@ enum ReferenceType: string
     case Character = 'character';
     case Academic = 'academic';
     case Agency = 'agency';
+    case GapStatement = 'gap_statement';
 
     public function label(): string
     {
@@ -16,6 +17,7 @@ enum ReferenceType: string
             self::Character => 'Character',
             self::Academic => 'Academic',
             self::Agency => 'Agency',
+            self::GapStatement => 'Gap / Statement',
         };
     }
 }

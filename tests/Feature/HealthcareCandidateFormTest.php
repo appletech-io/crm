@@ -86,3 +86,41 @@ test('the right to work expiry date field is hidden and not saved when right to 
 
     expect($candidate->refresh()->right_to_work_expiry_date)->toBeNull();
 });
+
+test('a gap/statement reference does not require a name when saving via the repeater', function () {
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id, 'phone' => '07700900000']);
+
+    $reference = $candidate->references()->create([
+        'type' => 'gap_statement',
+        'statement' => 'Travelling',
+        'worked_from' => '2024-01-01',
+        'worked_to' => '2024-06-01',
+        'status' => 'confirmed',
+    ])->fresh();
+
+    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->set("data.references.record-{$reference->id}.statement", 'Travelling around Europe')
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $reference->refresh();
+    expect($reference->statement)->toBe('Travelling around Europe');
+    expect($reference->first_name)->toBeNull();
+});
+
+test('switching an existing reference to gap/statement requires a statement instead of a name', function () {
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id, 'phone' => '07700900000']);
+
+    $reference = $candidate->references()->create([
+        'type' => 'character',
+        'first_name' => 'Jane',
+        'last_name' => 'Smith',
+        'worked_from' => '2019-01-01',
+        'consent_to_contact' => true,
+    ])->fresh();
+
+    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->set("data.references.record-{$reference->id}.type", 'gap_statement')
+        ->call('save')
+        ->assertHasFormErrors(["references.record-{$reference->id}.statement"]);
+});

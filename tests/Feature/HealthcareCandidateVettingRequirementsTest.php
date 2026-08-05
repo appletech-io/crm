@@ -146,3 +146,17 @@ test('reference check fails when a reference exists but is not confirmed', funct
     expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeFalse();
     expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
 });
+
+test('reference check fails when the only confirmed reference is a gap/statement entry', function () {
+    $candidate = fullyCompliantHealthcareCandidate();
+    $candidate->documents()->where('document_type', DocumentType::Reference)->delete();
+    $candidate->references()->create([
+        'type' => 'gap_statement',
+        'statement' => 'Travelling',
+        'worked_from' => now()->subMonths(6),
+        'status' => 'confirmed',
+    ]);
+
+    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});

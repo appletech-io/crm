@@ -102,17 +102,6 @@ class Documents extends Page implements HasTable
                     }),
             ])
             ->recordActions([
-                Action::make('preventTrainingInfo')
-                    ->label('')
-                    ->icon('heroicon-o-information-circle')
-                    ->color('gray')
-                    ->tooltip('More information')
-                    ->visible(fn (array $record): bool => $record['document_type'] === 'prevent_training')
-                    ->modalHeading('Prevent Training')
-                    ->modalContent(view('filament.candidate.pages.documents.prevent-training-info'))
-                    ->modalSubmitAction(false)
-                    ->modalCancelActionLabel('Close'),
-
                 Action::make('getDbs')
                     ->label('Get your DBS')
                     ->icon('heroicon-o-arrow-top-right-on-square')

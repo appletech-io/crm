@@ -4,6 +4,7 @@ use App\Actions\Applications\ApplicationCompleted;
 use App\Enums\DocumentType;
 use App\Enums\Education\Availability;
 use App\Enums\Education\KeyStage;
+use App\Enums\ReferenceStatus;
 use App\Enums\ReferenceType;
 use App\Models\CandidateSkill;
 use App\Models\EducationApplication;
@@ -15,6 +16,7 @@ use App\Services\Ai\CvParserService;
 use App\Services\ApplicationAccessSession;
 use App\Services\Candidates\Document;
 use Filament\Notifications\Notification;
+use Illuminate\Contracts\Validation\ImplicitRule;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -973,8 +975,8 @@ new #[Layout('layouts.application')] class extends Component
         return [
             "references.{$index}.type" => ['required', 'string', Rule::enum(ReferenceType::class)],
             "references.{$index}.title" => ['nullable', 'string', 'in:Mr,Mrs,Miss,Ms,Dr,Prof'],
-            "references.{$index}.first_name" => ['required', 'string', 'max:255'],
-            "references.{$index}.last_name" => ['required', 'string', 'max:255'],
+            "references.{$index}.first_name" => ['string', 'max:255', $this->requiredUnlessGapStatement('first name')],
+            "references.{$index}.last_name" => ['string', 'max:255', $this->requiredUnlessGapStatement('last name')],
             "references.{$index}.job_title" => ['nullable', 'string', 'max:255'],
             "references.{$index}.worked_from" => ['required', 'date'],
             "references.{$index}.worked_to" => ['nullable', 'date', "after_or_equal:references.{$index}.worked_from"],
@@ -985,9 +987,105 @@ new #[Layout('layouts.application')] class extends Component
             "references.{$index}.county" => ['nullable', 'string', 'max:255'],
             "references.{$index}.country" => ['nullable', 'string', 'max:255'],
             "references.{$index}.postcode" => ['nullable', 'string', 'max:10'],
-            "references.{$index}.consent_to_contact" => ['accepted'],
+            "references.{$index}.consent_to_contact" => [$this->acceptedUnlessGapStatement()],
             "references.{$index}.contact_now" => ['boolean'],
+            "references.{$index}.statement" => ['string', 'max:2000', $this->requiredIfGapStatement('statement')],
         ];
+    }
+
+    /**
+     * A gap/statement entry has no referee — it's a self-declared explanation
+     * (job seeking, illness, travel, etc.) covering a period with no
+     * employer or character reference, so name/contact fields don't apply.
+     *
+     * These need to be real ImplicitRule objects rather than plain Closures:
+     * Laravel skips non-implicit rules entirely for an attribute whose value
+     * is empty (that's exactly the "required" case we need to catch), so a
+     * plain closure would never even run for a blank first_name/last_name.
+     */
+    private function requiredUnlessGapStatement(string $label): ImplicitRule
+    {
+        $references = $this->references;
+
+        return new class($label, $references) implements ImplicitRule
+        {
+            private string $failMessage = '';
+
+            public function __construct(private string $label, private array $references) {}
+
+            public function passes($attribute, $value)
+            {
+                $itemIndex = explode('.', $attribute)[1] ?? null;
+                $type = $itemIndex === null ? null : data_get($this->references, "{$itemIndex}.type");
+
+                if ($type !== ReferenceType::GapStatement->value && blank($value)) {
+                    $this->failMessage = "The {$this->label} field is required.";
+
+                    return false;
+                }
+
+                return true;
+            }
+
+            public function message()
+            {
+                return $this->failMessage;
+            }
+        };
+    }
+
+    private function requiredIfGapStatement(string $label): ImplicitRule
+    {
+        $references = $this->references;
+
+        return new class($label, $references) implements ImplicitRule
+        {
+            private string $failMessage = '';
+
+            public function __construct(private string $label, private array $references) {}
+
+            public function passes($attribute, $value)
+            {
+                $itemIndex = explode('.', $attribute)[1] ?? null;
+                $type = $itemIndex === null ? null : data_get($this->references, "{$itemIndex}.type");
+
+                if ($type === ReferenceType::GapStatement->value && blank($value)) {
+                    $this->failMessage = "The {$this->label} field is required.";
+
+                    return false;
+                }
+
+                return true;
+            }
+
+            public function message()
+            {
+                return $this->failMessage;
+            }
+        };
+    }
+
+    private function acceptedUnlessGapStatement(): ImplicitRule
+    {
+        $references = $this->references;
+
+        return new class($references) implements ImplicitRule
+        {
+            public function __construct(private array $references) {}
+
+            public function passes($attribute, $value)
+            {
+                $itemIndex = explode('.', $attribute)[1] ?? null;
+                $type = $itemIndex === null ? null : data_get($this->references, "{$itemIndex}.type");
+
+                return $type === ReferenceType::GapStatement->value || (bool) $value;
+            }
+
+            public function message()
+            {
+                return 'The consent to contact must be accepted.';
+            }
+        };
     }
 
     /**
@@ -1016,18 +1114,20 @@ new #[Layout('layouts.application')] class extends Component
             'postcode' => 'postcode',
             'consent_to_contact' => 'consent to contact',
             'contact_now' => 'contact now',
+            'statement' => 'statement',
         ])->mapWithKeys(fn (string $label, string $field): array => ["references.*.{$field}" => $label])->all();
     }
 
     private function persistReference(int $index): void
     {
         $reference = $this->references[$index];
+        $isGapStatement = ($reference['type'] ?? null) === ReferenceType::GapStatement->value;
 
         $data = [
             'type' => $reference['type'],
             'title' => $reference['title'] ?: null,
-            'first_name' => $reference['first_name'],
-            'last_name' => $reference['last_name'],
+            'first_name' => $reference['first_name'] ?: null,
+            'last_name' => $reference['last_name'] ?: null,
             'job_title' => $reference['job_title'] ?: null,
             'worked_from' => $reference['worked_from'],
             'worked_to' => $reference['worked_to'] ?: null,
@@ -1038,9 +1138,22 @@ new #[Layout('layouts.application')] class extends Component
             'county' => data_get($reference, 'county') ?: null,
             'country' => data_get($reference, 'country') ?: null,
             'postcode' => data_get($reference, 'postcode') ?: null,
-            'consent_to_contact' => (bool) $reference['consent_to_contact'],
-            'contact_now' => (bool) ($reference['contact_now'] ?? false),
+            'statement' => data_get($reference, 'statement') ?: null,
+            // A gap/statement entry has no referee to contact — it's
+            // self-declared and complete the moment it's submitted, so it
+            // never enters the pending/contacted flow the way a real
+            // reference does.
+            'consent_to_contact' => $isGapStatement ? false : (bool) $reference['consent_to_contact'],
+            'contact_now' => $isGapStatement ? false : (bool) ($reference['contact_now'] ?? false),
         ];
+
+        // A gap/statement entry is confirmed immediately — there's no
+        // referee to progress it through pending/contacted/submitted like a
+        // real reference. Only forced here, never reset back to pending on
+        // an existing non-gap reference someone's already progressed.
+        if ($isGapStatement) {
+            $data['status'] = ReferenceStatus::Confirmed->value;
+        }
 
         $candidate = $this->application->educationCandidate;
 
@@ -1170,6 +1283,7 @@ new #[Layout('layouts.application')] class extends Component
             'postcode' => '',
             'consent_to_contact' => false,
             'contact_now' => false,
+            'statement' => '',
             'collapsed' => false,
         ];
     }
@@ -1406,6 +1520,7 @@ new #[Layout('layouts.application')] class extends Component
             'postcode' => $reference->postcode,
             'consent_to_contact' => $reference->consent_to_contact,
             'contact_now' => $reference->contact_now,
+            'statement' => $reference->statement,
             'collapsed' => true,
         ])->all();
 

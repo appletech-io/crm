@@ -1549,6 +1549,110 @@ test('saveReference does not persist or collapse when validation fails', functio
     expect($candidate->references()->count())->toBe(0);
 });
 
+test('saveReference persists a gap/statement entry with just dates and a statement, requiring no name or consent', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 9)
+        ->set('references.0', [
+            'id' => null,
+            'type' => 'gap_statement',
+            'title' => null,
+            'first_name' => '',
+            'last_name' => '',
+            'job_title' => '',
+            'worked_from' => now()->subMonths(6)->format('Y-m-d'),
+            'worked_to' => now()->format('Y-m-d'),
+            'email' => '',
+            'mobile' => '',
+            'address' => '',
+            'city' => '',
+            'county' => '',
+            'country' => '',
+            'postcode' => '',
+            'consent_to_contact' => false,
+            'contact_now' => false,
+            'statement' => 'Travelling in the USA',
+            'collapsed' => false,
+        ])
+        ->call('saveReference', 0)
+        ->assertHasNoErrors();
+
+    expect($candidate->references()->count())->toBe(1);
+
+    $reference = $candidate->references()->first();
+    expect($reference->type)->toBe(ReferenceType::GapStatement);
+    expect($reference->statement)->toBe('Travelling in the USA');
+    expect($reference->first_name)->toBeNull();
+    expect($reference->last_name)->toBeNull();
+    expect($reference->consent_to_contact)->toBeFalse();
+    expect($reference->contact_now)->toBeFalse();
+    expect($reference->status)->toBe(ReferenceStatus::Confirmed);
+});
+
+test('saveReference requires a statement when the reference type is gap/statement', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 9)
+        ->set('references.0', [
+            'id' => null,
+            'type' => 'gap_statement',
+            'title' => null,
+            'first_name' => '',
+            'last_name' => '',
+            'job_title' => '',
+            'worked_from' => now()->subMonths(6)->format('Y-m-d'),
+            'worked_to' => now()->format('Y-m-d'),
+            'email' => '',
+            'mobile' => '',
+            'address' => '',
+            'city' => '',
+            'county' => '',
+            'country' => '',
+            'postcode' => '',
+            'consent_to_contact' => false,
+            'contact_now' => false,
+            'statement' => '',
+            'collapsed' => false,
+        ])
+        ->call('saveReference', 0)
+        ->assertHasErrors(['references.0.statement'])
+        ->assertHasNoErrors(['references.0.first_name', 'references.0.last_name', 'references.0.consent_to_contact']);
+});
+
+test('a gap/statement entry counts toward the 3-year reference coverage like a real reference', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    // A professional reference covering years 2-3, and a gap/statement entry
+    // filling the most recent year — together they should fully cover the
+    // last 3 years with no gap, even though only one has an actual referee.
+    $candidate->references()->create([
+        'type' => 'professional',
+        'first_name' => 'Jane',
+        'last_name' => 'Smith',
+        'worked_from' => now()->subYears(3),
+        'worked_to' => now()->subYear(),
+        'consent_to_contact' => true,
+    ]);
+    $candidate->references()->create([
+        'type' => 'gap_statement',
+        'statement' => 'Travelling',
+        'worked_from' => now()->subYear()->addDay(),
+        'worked_to' => now(),
+    ]);
+
+    // current_step must be >= 2 for mount() to hydrate $this->references
+    // from the candidate's already-saved reference rows.
+    $application->update(['current_step' => 9]);
+
+    $component = Livewire::test('application.application-form', ['token' => $application->token]);
+
+    expect($component->get('referenceCoverage')['is_complete'])->toBeTrue();
+});
+
 test('toggleReferenceCollapsed expands and collapses a reference', function () {
     $application = makePendingApplication();
 

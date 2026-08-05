@@ -8,6 +8,7 @@ use App\Jobs\SendCustomTemplateEmail;
 use App\Models\Action;
 use App\Models\ActionTrigger;
 use App\Models\Booking;
+use App\Models\CandidateReference;
 use App\Models\Client;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
@@ -65,11 +66,12 @@ class CheckActions
      * pinned to an industry by model_type alone. Bookings carry neither, so
      * their industry is inferred from the candidate model they're booked for.
      * Vacancies carry neither either, so their industry is inferred from the
-     * client they belong to.
+     * client they belong to. References carry neither either, so their
+     * industry is inferred from the candidate they're a reference for.
      */
     private function matchesIndustry(Action $action, Model $record): bool
     {
-        if ($record instanceof Booking) {
+        if ($record instanceof Booking || $record instanceof CandidateReference) {
             return $action->industry?->candidateModel() === $record->candidate_type;
         }
 
@@ -153,6 +155,13 @@ class CheckActions
             return $record->client;
         }
 
+        // A reference itself isn't emailable (no company/consultant of its
+        // own) — the candidate it belongs to is who gets notified, e.g. to
+        // chase them for an alternative referee.
+        if ($record instanceof CandidateReference) {
+            return $record->candidate;
+        }
+
         return ($record instanceof Client || $record instanceof EducationCandidate || $record instanceof HealthcareCandidate)
             ? $record
             : null;
@@ -174,6 +183,11 @@ class CheckActions
                 ->pluck('id');
         }
 
-        return $record->consultant_id ? collect([$record->consultant_id]) : collect();
+        // A reference has no consultant of its own — fall back to the
+        // consultant of the candidate it belongs to.
+        $consultantId = $record->consultant_id
+            ?? ($record instanceof CandidateReference ? $record->candidate?->consultant_id : null);
+
+        return $consultantId ? collect([$consultantId]) : collect();
     }
 }

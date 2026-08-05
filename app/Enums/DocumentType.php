@@ -6,7 +6,6 @@ enum DocumentType: string
 {
     case Cv = 'cv';
     case Photo = 'photo';
-    case PreventTraining = 'prevent_training';
     case SafeguardingTraining = 'safeguarding_training';
     case ProofOfAddress = 'proof_of_address';
     case ProofOfAddressTwo = 'proof_of_address_2';
@@ -26,7 +25,6 @@ enum DocumentType: string
         return match ($this) {
             self::Cv => 'CV',
             self::Photo => 'Photo',
-            self::PreventTraining => 'Prevent Training',
             self::SafeguardingTraining => 'Safeguarding Training',
             self::ProofOfAddress => 'Proof of Address',
             self::ProofOfAddressTwo => 'Proof of Address 2',

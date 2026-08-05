@@ -1,6 +1,6 @@
 <x-auth-header
     :title="__('References')"
-    :description="__('Add references covering the last 3 years of your work or education history, with no gaps.')"
+    :description="__('Add references covering the last 3 years of your work or education history, with no gaps. If you weren\'t working during any period (e.g. job seeking, illness, travelling), add a Gap / Statement entry to explain it instead.')"
 />
 
 <form wire:submit="submitApplication" class="mt-3 flex flex-col gap-6">
@@ -36,7 +36,11 @@
                     class="flex flex-col items-start gap-0.5 text-left"
                 >
                     <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                        {{ trim($reference['first_name'].' '.$reference['last_name']) ?: __('Untitled reference') }}
+                        @if ($reference['type'] === \App\Enums\ReferenceType::GapStatement->value)
+                            {{ __('Gap / Statement') }}
+                        @else
+                            {{ trim($reference['first_name'].' '.$reference['last_name']) ?: __('Untitled reference') }}
+                        @endif
                     </span>
 
                     @if ($period = $this->workPeriodLabel($reference))
@@ -44,90 +48,99 @@
                     @endif
                 </button>
             @else
-                <flux:select wire:model="references.{{ $index }}.type" :label="__('Reference Type')" placeholder="{{ __('Select…') }}">
+                <flux:select wire:model.live="references.{{ $index }}.type" :label="__('Reference Type')" placeholder="{{ __('Select…') }}">
                     @foreach (\App\Enums\ReferenceType::cases() as $type)
                         <flux:select.option value="{{ $type->value }}">{{ $type->label() }}</flux:select.option>
                     @endforeach
                 </flux:select>
 
-                <div class="grid grid-cols-3 gap-4">
-                    <flux:select wire:model="references.{{ $index }}.title" :label="__('Title')" placeholder="{{ __('Select…') }}">
-                        @foreach (['Mr', 'Mrs', 'Miss', 'Ms', 'Dr', 'Prof'] as $t)
-                            <flux:select.option value="{{ $t }}">{{ $t }}</flux:select.option>
-                        @endforeach
-                    </flux:select>
-                    <flux:input wire:model="references.{{ $index }}.first_name" :label="__('First Name')" />
-                    <flux:input wire:model="references.{{ $index }}.last_name" :label="__('Last Name')" />
-                </div>
-
-                <flux:input wire:model="references.{{ $index }}.job_title" :label="__('Job Title')" placeholder="{{ __('Head Teacher') }}" />
-
                 <div class="grid grid-cols-2 gap-4">
                     <flux:input
                         type="date"
                         wire:model.live="references.{{ $index }}.worked_from"
-                        :label="__('Worked From')"
+                        :label="__('From')"
                         max="{{ now()->format('Y-m-d') }}"
                     />
 
                     <flux:input
                         type="date"
                         wire:model.live="references.{{ $index }}.worked_to"
-                        :label="__('Worked To')"
+                        :label="__('To')"
                         max="{{ now()->format('Y-m-d') }}"
                     />
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
-                    <flux:input type="email" wire:model="references.{{ $index }}.email" :label="__('Email')" />
-                    <flux:input wire:model="references.{{ $index }}.mobile" :label="__('Mobile')" />
-                </div>
-
-                <flux:input
-                    wire:model="references.{{ $index }}.address"
-                    :label="__('Address')"
-                    placeholder="123 Example Street"
-                />
-
-                <div class="grid grid-cols-2 gap-4">
-                    <flux:input
-                        wire:model="references.{{ $index }}.city"
-                        :label="__('City / Town')"
-                        placeholder="London"
+                @if ($reference['type'] === \App\Enums\ReferenceType::GapStatement->value)
+                    <flux:textarea
+                        wire:model="references.{{ $index }}.statement"
+                        :label="__('Statement')"
+                        :description="__('Briefly explain this period — e.g. travelling in the USA, or between roles and actively job seeking.')"
+                        rows="3"
                     />
+                @else
+                    <div class="grid grid-cols-3 gap-4">
+                        <flux:select wire:model="references.{{ $index }}.title" :label="__('Title')" placeholder="{{ __('Select…') }}">
+                            @foreach (['Mr', 'Mrs', 'Miss', 'Ms', 'Dr', 'Prof'] as $t)
+                                <flux:select.option value="{{ $t }}">{{ $t }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                        <flux:input wire:model="references.{{ $index }}.first_name" :label="__('First Name')" />
+                        <flux:input wire:model="references.{{ $index }}.last_name" :label="__('Last Name')" />
+                    </div>
 
-                    <flux:input
-                        wire:model="references.{{ $index }}.postcode"
-                        :label="__('Postcode')"
-                        placeholder="SW1A 1AA"
-                    />
-                </div>
+                    <flux:input wire:model="references.{{ $index }}.job_title" :label="__('Job Title')" placeholder="{{ __('Head Teacher') }}" />
 
-                <div class="grid grid-cols-2 gap-4">
-                    <flux:input
-                        wire:model="references.{{ $index }}.county"
-                        :label="__('County')"
-                        placeholder="Greater London"
-                    />
+                    <div class="grid grid-cols-2 gap-4">
+                        <flux:input type="email" wire:model="references.{{ $index }}.email" :label="__('Email')" />
+                        <flux:input wire:model="references.{{ $index }}.mobile" :label="__('Mobile')" />
+                    </div>
 
                     <flux:input
-                        wire:model="references.{{ $index }}.country"
-                        :label="__('Country')"
-                        placeholder="United Kingdom"
+                        wire:model="references.{{ $index }}.address"
+                        :label="__('Address')"
+                        placeholder="123 Example Street"
                     />
-                </div>
 
-                <flux:checkbox
-                    wire:model="references.{{ $index }}.consent_to_contact"
-                    :label="__('I hereby authorise Applebough Education to contact the referees named in my application and to disclose relevant information about my employment, experience, and suitability for work in education for the purpose of obtaining references and completing safeguarding and compliance checks.')"
-                    :description="__('I acknowledge that this consent is required to progress my application and understand that my information will be processed securely and in accordance with applicable data protection laws. (*)')"
-                />
+                    <div class="grid grid-cols-2 gap-4">
+                        <flux:input
+                            wire:model="references.{{ $index }}.city"
+                            :label="__('City / Town')"
+                            placeholder="London"
+                        />
 
-                <flux:checkbox
-                    wire:model="references.{{ $index }}.contact_now"
-                    :label="__('OK to contact this referee now')"
-                    :description="__('Leave unchecked if you haven\'t yet told this referee you\'re applying — we\'ll hold off contacting them until you switch this on.')"
-                />
+                        <flux:input
+                            wire:model="references.{{ $index }}.postcode"
+                            :label="__('Postcode')"
+                            placeholder="SW1A 1AA"
+                        />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <flux:input
+                            wire:model="references.{{ $index }}.county"
+                            :label="__('County')"
+                            placeholder="Greater London"
+                        />
+
+                        <flux:input
+                            wire:model="references.{{ $index }}.country"
+                            :label="__('Country')"
+                            placeholder="United Kingdom"
+                        />
+                    </div>
+
+                    <flux:checkbox
+                        wire:model="references.{{ $index }}.consent_to_contact"
+                        :label="__('I hereby authorise Applebough Education to contact the referees named in my application and to disclose relevant information about my employment, experience, and suitability for work in education for the purpose of obtaining references and completing safeguarding and compliance checks.')"
+                        :description="__('I acknowledge that this consent is required to progress my application and understand that my information will be processed securely and in accordance with applicable data protection laws. (*)')"
+                    />
+
+                    <flux:checkbox
+                        wire:model="references.{{ $index }}.contact_now"
+                        :label="__('OK to contact this referee now')"
+                        :description="__('Leave unchecked if you haven\'t yet told this referee you\'re applying — we\'ll hold off contacting them until you switch this on.')"
+                    />
+                @endif
 
                 <flux:button type="button" variant="primary" wire:click="saveReference({{ $index }})" class="self-start">
                     {{ __('Add reference') }}

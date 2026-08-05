@@ -27,11 +27,6 @@ class CandidateDocumentRequirements
         ];
 
         if ($candidate instanceof EducationCandidate) {
-            $definitions['prevent_training'] = [
-                'label' => 'Prevent Training',
-                'description' => 'Certificate confirming completion of Prevent duty training.',
-            ];
-
             $definitions['safeguarding_training'] = [
                 'label' => 'Safeguarding Training',
                 'description' => 'Certificate confirming completion of safeguarding training.',

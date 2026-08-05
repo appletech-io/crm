@@ -162,11 +162,10 @@ test('right to work shows visa expiry date and notes only for visa type', functi
     expect($html)->toContain('Visa sponsorship confirmed.');
 });
 
-test('the compliance tab shows safeguarding, prevent training and kcsie fields', function () {
+test('the compliance tab shows safeguarding and kcsie fields', function () {
     $candidate = EducationCandidate::factory()->create([
         'company_id' => $this->user->company_id,
         'safeguarding_certified_date' => '2025-06-24',
-        'prevent_training_completed' => 'yes',
     ]);
 
     EducationApplication::factory()->create([

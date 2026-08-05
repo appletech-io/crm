@@ -110,6 +110,45 @@ test('references can be viewed and saved via the repeater on the candidate edit 
     expect($candidate->references()->count())->toBe(1);
 });
 
+test('a gap/statement reference does not require a name when saving via the repeater', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null, 'phone' => '07700900000']);
+
+    $reference = $candidate->references()->create([
+        'type' => 'gap_statement',
+        'statement' => 'Travelling',
+        'worked_from' => '2024-01-01',
+        'worked_to' => '2024-06-01',
+        'status' => 'confirmed',
+    ])->fresh();
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->set("data.references.record-{$reference->id}.statement", 'Travelling around Europe')
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $reference->refresh();
+    expect($reference->statement)->toBe('Travelling around Europe');
+    expect($reference->first_name)->toBeNull();
+    expect($reference->last_name)->toBeNull();
+});
+
+test('switching an existing reference to gap/statement requires a statement instead of a name', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null, 'phone' => '07700900000']);
+
+    $reference = $candidate->references()->create([
+        'type' => 'character',
+        'first_name' => 'Jane',
+        'last_name' => 'Smith',
+        'worked_from' => '2019-01-01',
+        'consent_to_contact' => true,
+    ])->fresh();
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->set("data.references.record-{$reference->id}.type", 'gap_statement')
+        ->call('save')
+        ->assertHasFormErrors(["references.record-{$reference->id}.statement"]);
+});
+
 test('collapsed reference item label shows a status emoji alongside the text', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => null]);
 
