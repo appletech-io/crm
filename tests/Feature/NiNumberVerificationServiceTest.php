@@ -6,7 +6,7 @@ use App\Models\CandidateDocument;
 use App\Models\EducationCandidate;
 use App\Services\Ai\NiNumberVerificationService;
 use Illuminate\Support\Facades\Storage;
-use Laravel\Ai\Files\LocalImage;
+use Laravel\Ai\Files\StoredImage;
 
 beforeEach(function () {
     Storage::fake('local');
@@ -71,6 +71,32 @@ test('verify marks the candidate as not matching when nothing was extracted', fu
     expect($candidate->refresh()->ni_number_match)->toBe('no');
 });
 
+test('verify resolves the document from the configured default disk, not a hardcoded local path', function () {
+    // Regression test: verify() used to build a raw Storage::disk('local')->path()
+    // string and hand it to a local mime-type lookup, which failed with "Failed to
+    // open stream: No such file or directory" once documents lived on a non-local
+    // disk (e.g. S3 in production).
+    config(['filesystems.default' => 's3']);
+    Storage::fake('s3');
+
+    $candidate = EducationCandidate::factory()->create(['ni_number' => 'QQ123456C']);
+    $path = 'candidates/'.$candidate->id.'/proof-of-ni.pdf';
+    Storage::disk('s3')->put($path, 'fake pdf contents');
+
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::ProofOfNi,
+        'path' => $path,
+    ]);
+
+    ProofOfNiParser::fake([['niNumber' => 'QQ123456C']]);
+
+    $matches = (new NiNumberVerificationService)->verify($candidate);
+
+    expect($matches)->toBeTrue();
+});
+
 test('verify sends an image attachment as input_image, not input_file, when the document is a photo', function () {
     $candidate = EducationCandidate::factory()->create(['ni_number' => 'QQ123456C']);
 
@@ -90,6 +116,6 @@ test('verify sends an image attachment as input_image, not input_file, when the 
     (new NiNumberVerificationService)->verify($candidate);
 
     ProofOfNiParser::assertPrompted(
-        fn ($prompt) => $prompt->attachments->first() instanceof LocalImage
+        fn ($prompt) => $prompt->attachments->first() instanceof StoredImage
     );
 });

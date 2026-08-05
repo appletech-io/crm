@@ -7,7 +7,6 @@ use App\DTOs\ProofOfNiExtraction;
 use App\Enums\DocumentType;
 use App\Services\Concerns\ResolvesAiAttachment;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use RuntimeException;
 
@@ -28,7 +27,7 @@ class NiNumberVerificationService
             throw new RuntimeException('Candidate has no proof of NI document to verify.');
         }
 
-        $extraction = $this->parse(Storage::disk('local')->path($document->path));
+        $extraction = $this->parse($document->path);
 
         $matches = $this->matches($candidate, $extraction);
 
@@ -41,13 +40,13 @@ class NiNumberVerificationService
         return $matches;
     }
 
-    private function parse(string $filePath): ProofOfNiExtraction
+    private function parse(string $path): ProofOfNiExtraction
     {
         /** @var StructuredAgentResponse $response */
         $response = (new ProofOfNiParser)->prompt(
             'Please extract the National Insurance number from this document.',
             attachments: [
-                $this->attachmentFor($filePath),
+                $this->attachmentFor($path),
             ],
         );
 

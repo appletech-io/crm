@@ -2,7 +2,7 @@
 
 namespace App\Services\Concerns;
 
-use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Ai\Files\Document;
 use Laravel\Ai\Files\File;
 use Laravel\Ai\Files\Image;
@@ -11,14 +11,17 @@ trait ResolvesAiAttachment
 {
     /**
      * Build the correct attachment type for the given file, since OpenAI
-     * expects images to be sent as input_image, not input_file.
+     * expects images to be sent as input_image, not input_file. Reads
+     * straight off the configured storage disk (S3 in production) rather
+     * than a local path, since candidate documents don't live on local disk.
      */
-    protected function attachmentFor(string $filePath): File
+    protected function attachmentFor(string $path): File
     {
-        $mimeType = (new Filesystem)->mimeType($filePath);
+        $disk = config('filesystems.default');
+        $mimeType = Storage::disk($disk)->mimeType($path);
 
         return in_array($mimeType, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)
-            ? Image::fromPath($filePath)
-            : Document::fromPath($filePath);
+            ? Image::fromStorage($path, $disk)
+            : Document::fromStorage($path, $disk);
     }
 }
