@@ -1,16 +1,21 @@
 <?php
 
 use App\Filament\Resources\Vacancies\Pages\CreateVacancy;
+use App\Filament\Resources\Vacancies\Pages\EditVacancy;
 use App\Filament\Resources\Vacancies\Pages\ListVacancies;
+use App\Filament\Widgets\VacancyApplicantsTable;
 use App\Models\CandidateSkill;
 use App\Models\Client;
 use App\Models\Company;
+use App\Models\EducationCandidate;
 use App\Models\Industry;
 use App\Models\JobStatus;
 use App\Models\JobTitle;
 use App\Models\User;
 use App\Models\Vacancy;
+use App\Models\VacancyApplication;
 use Database\Seeders\RoleSeeder;
+use Filament\Forms\Components\TextInput;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
 
@@ -88,6 +93,97 @@ test('creating a vacancy stamps the consultant_id to the creating user', functio
     $vacancy = Vacancy::where('title', 'SEN Teaching Assistant')->first();
 
     expect($vacancy->consultant_id)->toBe($this->user->id);
+});
+
+test('creating a vacancy generates a unique slug from the title, and it never changes on later edits', function () {
+    Livewire::test(CreateVacancy::class)
+        ->fillForm([
+            'client_id' => $this->client->id,
+            'job_title_id' => $this->jobTitle->id,
+            'job_status_id' => $this->jobStatus->id,
+            'title' => 'Year 3 Class Teacher',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $vacancy = Vacancy::where('title', 'Year 3 Class Teacher')->first();
+
+    expect($vacancy->slug)->toBe('year-3-class-teacher');
+
+    Livewire::test(EditVacancy::class, ['record' => $vacancy->getRouteKey()])
+        ->fillForm(['title' => 'Year 4 Class Teacher'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($vacancy->refresh()->slug)->toBe('year-3-class-teacher');
+});
+
+test('the edit page shows a copyable public application link built from the slug', function () {
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+        'slug' => 'year-3-class-teacher',
+    ]);
+
+    Livewire::test(EditVacancy::class, ['record' => $vacancy->getRouteKey()])
+        ->assertFormFieldExists('apply_url', function (TextInput $field) use ($vacancy): bool {
+            return $field->getState() === route('vacancy.apply', $vacancy->slug);
+        });
+});
+
+test('the applicants widget lists candidates who applied to the vacancy, with a link to their profile', function () {
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+    ]);
+
+    $applicant = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Jane',
+        'last_name' => 'Doe',
+        'email' => 'jane.doe@example.com',
+    ]);
+
+    VacancyApplication::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $applicant->id,
+    ]);
+
+    $otherVacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+    ]);
+    $otherApplicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $otherApplication = VacancyApplication::create([
+        'vacancy_id' => $otherVacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $otherApplicant->id,
+    ]);
+
+    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
+        ->assertCanSeeTableRecords([VacancyApplication::where('candidate_id', $applicant->id)->first()])
+        ->assertCanNotSeeTableRecords([$otherApplication])
+        ->assertSee('Jane Doe')
+        ->assertSee('jane.doe@example.com');
+});
+
+test('the applicants widget shows an empty state when nobody has applied yet', function () {
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+    ]);
+
+    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
+        ->assertSee('No applicants yet');
 });
 
 test('client, job title, status and title are required', function () {

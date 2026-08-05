@@ -18,7 +18,7 @@
         </flux:button>
 
         <div class="bg-background flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
-            <div class="flex w-4/5 max-w-2xl flex-col gap-2">
+            <div class="flex w-4/5 {{ $maxWidth ?? 'max-w-2xl' }} flex-col gap-2">
                 <a href="{{ route('home') }}" class="flex flex-col items-center gap-2 font-medium" wire:navigate>
                     <span class="flex mb-1 items-center justify-center rounded-md">
                         <img src="{{ asset('images/applebough.png') }}" class="h-16 w-auto">

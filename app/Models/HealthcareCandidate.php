@@ -134,6 +134,11 @@ class HealthcareCandidate extends Model
         return $this->morphMany(CandidateActivity::class, 'model');
     }
 
+    public function vacancyApplications(): MorphMany
+    {
+        return $this->morphMany(VacancyApplication::class, 'candidate')->latest();
+    }
+
     public function payRates(): MorphMany
     {
         return $this->morphMany(PayRate::class, 'model');

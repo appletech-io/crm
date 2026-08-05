@@ -26,10 +26,12 @@ class VacancyFactory extends Factory
             'client_id' => Client::factory(),
             'job_title_id' => JobTitle::factory(),
             'title' => fake()->jobTitle(),
+            'slug' => fake()->unique()->slug(),
             'description' => fake()->optional()->paragraph(),
             'salary_min' => fake()->numberBetween(20000, 30000),
             'salary_max' => fake()->numberBetween(30000, 45000),
             'positions_available' => 1,
+            'open_for_applications' => true,
             'job_status_id' => JobStatus::factory(),
         ];
     }
