@@ -1840,6 +1840,152 @@ test('submitApplication persists references and advances to the document require
     expect($application->fresh()->current_step)->toBe(10);
 });
 
+test('submitApplication does not fail validation when a previously-saved reference has null fields that no longer apply to its type', function () {
+    // persistReference() stores first_name/last_name as NULL for a
+    // gap/statement entry, and statement as NULL for a real referee.
+    // Re-hydrating those rows from the database (as happens every time the
+    // form reloads) surfaces those NULLs — a bare 'string' rule without
+    // 'nullable' used to reject them outright, permanently blocking the
+    // step for anyone who had ever saved a reference and come back.
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    $candidate->references()->create([
+        'type' => 'professional',
+        'first_name' => 'Jane',
+        'last_name' => 'Smith',
+        'worked_from' => now()->subYears(3),
+        'worked_to' => now()->subYear(),
+        'consent_to_contact' => true,
+        'statement' => null,
+    ]);
+
+    $candidate->references()->create([
+        'type' => 'gap_statement',
+        'statement' => 'Travelling',
+        'worked_from' => now()->subYear()->addDay(),
+        'worked_to' => now(),
+        'first_name' => null,
+        'last_name' => null,
+    ]);
+
+    $application->update(['current_step' => 9]);
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->call('submitApplication')
+        ->assertHasNoErrors()
+        ->assertSet('currentStep', 10);
+
+    expect($candidate->references()->count())->toBe(2);
+});
+
+test('submitApplication accepts references covering at least 80% of the last 3 years even with a gap', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 9)
+        ->set('references.0', [
+            'type' => 'professional',
+            'title' => 'Mr',
+            'first_name' => 'Jane',
+            'last_name' => 'Smith',
+            'job_title' => 'Head Teacher',
+            // Covers the most recent 30 of the last 36 months (~83%),
+            // leaving a 6-month gap at the start of the window — below
+            // 100% but above the 80% threshold.
+            'worked_from' => now()->subMonths(30)->toDateString(),
+            'worked_to' => null,
+            'email' => 'jane@example.com',
+            'mobile' => '07700900000',
+            'address' => '1 School Lane',
+            'city' => 'London',
+            'county' => 'Greater London',
+            'country' => 'United Kingdom',
+            'postcode' => 'SW1A 1AA',
+            'consent_to_contact' => true,
+        ])
+        ->call('submitApplication')
+        ->assertHasNoErrors()
+        ->assertSet('currentStep', 10);
+});
+
+test('submitApplication reports the largest gap, not just any gap, when coverage falls below 80%', function () {
+    $application = makePendingApplication();
+
+    $smallGapFrom = now()->subYears(3)->addMonths(3)->addDay();
+    $smallGapTo = now()->subYears(3)->addMonths(4)->subDay();
+    $largeGapFrom = now()->subYear()->addDay();
+    $largeGapTo = today();
+
+    $component = Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 9)
+        ->set('references.0', [
+            'type' => 'professional',
+            'title' => 'Mr',
+            'first_name' => 'Jane',
+            'last_name' => 'Smith',
+            'job_title' => 'Head Teacher',
+            // A 3-month reference, then a 1-month gap, then a longer
+            // reference, then a 1-year gap up to today — the 1-year gap
+            // is the larger of the two and should be the one reported.
+            'worked_from' => now()->subYears(3)->toDateString(),
+            'worked_to' => now()->subYears(3)->addMonths(3)->toDateString(),
+            'email' => 'jane@example.com',
+            'mobile' => '07700900000',
+            'address' => '1 School Lane',
+            'city' => 'London',
+            'county' => 'Greater London',
+            'country' => 'United Kingdom',
+            'postcode' => 'SW1A 1AA',
+            'consent_to_contact' => true,
+        ])
+        ->call('addReference')
+        ->set('references.1', [
+            'type' => 'character',
+            'title' => 'Mrs',
+            'first_name' => 'Alex',
+            'last_name' => 'Jones',
+            'job_title' => 'Deputy Head',
+            'worked_from' => now()->subYears(3)->addMonths(4)->toDateString(),
+            'worked_to' => now()->subYear()->toDateString(),
+            'email' => 'alex@example.com',
+            'mobile' => '07700900001',
+            'address' => '2 School Lane',
+            'city' => 'Manchester',
+            'county' => 'Greater Manchester',
+            'country' => 'United Kingdom',
+            'postcode' => 'M1 1AA',
+            'consent_to_contact' => true,
+        ])
+        ->call('submitApplication')
+        ->assertHasErrors(['references']);
+
+    $message = collect($component->instance()->getErrorBag()->get('references'))->implode(' ');
+
+    expect($message)
+        ->toContain($largeGapFrom->format('M j, Y'))
+        ->toContain($largeGapTo->format('M j, Y'))
+        ->not->toContain($smallGapFrom->format('M j, Y'));
+});
+
+test('references step floats every validation error to the top of the page and expands any collapsed reference that has one', function () {
+    $application = makePendingApplication();
+
+    $component = Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 9)
+        ->set('references.0.collapsed', true)
+        ->call('submitApplication');
+
+    $component->assertSet('references.0.collapsed', false);
+
+    $summary = $component->instance()->referenceErrorSummary();
+
+    expect($summary)->not->toBeEmpty()
+        ->and(collect($summary)->implode(' '))->toContain('Reference 1 needs');
+
+    $component->assertSee('Reference 1 needs');
+});
+
 test('saveDocumentRequirements requires right to work and dbs answers', function () {
     $application = makePendingApplication();
 
@@ -2090,37 +2236,46 @@ test('references step does not expose status or last contacted fields to the can
         ->assertDontSeeHtml('wire:model="references.0.last_contacted"');
 });
 
-test('references step displays how much of the last 3 years is currently covered', function () {
+test('references step displays the largest gap, without a percentage, when coverage is incomplete', function () {
     $application = makePendingApplication();
 
-    Livewire::test('application.application-form', ['token' => $application->token])
+    $component = Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 9)
-        ->assertSee('0 years, 0 months')
-        ->set('references.0', [
-            'type' => 'professional',
-            'title' => 'Mr',
-            'first_name' => 'Jane',
-            'last_name' => 'Smith',
-            'job_title' => 'Head Teacher',
-            'worked_from' => now()->subYears(3)->format('M j, Y'),
-            'worked_to' => now()->subYears(1)->format('M j, Y'),
-            'email' => 'jane@example.com',
-            'mobile' => '07700900000',
-            'address' => '1 School Lane',
-            'city' => 'London',
-            'county' => 'Greater London',
-            'country' => 'United Kingdom',
-            'postcode' => 'SW1A 1AA',
-            'consent_to_contact' => true,
-        ])
-        ->assertSee('2 years')
         ->assertSee('gap');
+
+    $component->set('references.0', [
+        'type' => 'professional',
+        'title' => 'Mr',
+        'first_name' => 'Jane',
+        'last_name' => 'Smith',
+        'job_title' => 'Head Teacher',
+        'worked_from' => now()->subYears(3)->format('M j, Y'),
+        'worked_to' => now()->subYears(1)->format('M j, Y'),
+        'email' => 'jane@example.com',
+        'mobile' => '07700900000',
+        'address' => '1 School Lane',
+        'city' => 'London',
+        'county' => 'Greater London',
+        'country' => 'United Kingdom',
+        'postcode' => 'SW1A 1AA',
+        'consent_to_contact' => true,
+    ]);
+
+    // Only 2 of the last 3 years are covered — below the 80% threshold.
+    $coverage = $component->get('referenceCoverage');
+
+    expect($coverage['is_complete'])->toBeFalse()
+        ->and($coverage['percentage'])->toBeGreaterThan(60)
+        ->and($coverage['percentage'])->toBeLessThan(70)
+        ->and($coverage['summary'])->not->toContain('%');
+
+    $component->assertSee('gap');
 });
 
-test('references step reports real covered duration when the earliest reference starts after the 3 year cutoff', function () {
+test('references step reports the covered gap when the earliest reference starts after the 3 year cutoff', function () {
     $application = makePendingApplication();
 
-    Livewire::test('application.application-form', ['token' => $application->token])
+    $component = Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 9)
         ->set('references.0', [
             'type' => 'professional',
@@ -2138,10 +2293,15 @@ test('references step reports real covered duration when the earliest reference 
             'country' => 'United Kingdom',
             'postcode' => 'SW1A 1AA',
             'consent_to_contact' => true,
-        ])
-        ->assertSee('2 years 2 days')
-        ->assertDontSee('0 years, 0 months')
-        ->assertSee('gap');
+        ]);
+
+    $coverage = $component->get('referenceCoverage');
+
+    expect($coverage['is_complete'])->toBeFalse()
+        ->and($coverage['percentage'])->toBeGreaterThan(0)
+        ->and($coverage['summary'])->not->toContain('%');
+
+    $component->assertSee('gap');
 });
 
 test('mount resumes at the persisted step and hydrates saved candidate data', function () {

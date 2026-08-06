@@ -17,6 +17,7 @@ use App\Services\ApplicationAccessSession;
 use App\Services\Candidates\Document;
 use Filament\Notifications\Notification;
 use Illuminate\Contracts\Validation\ImplicitRule;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -24,6 +25,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -58,6 +60,8 @@ new #[Layout('layouts.application')] class extends Component
     ];
 
     private const REFERENCE_HISTORY_YEARS = 3;
+
+    private const REFERENCE_HISTORY_COVERAGE_THRESHOLD = 0.8;
 
     private const DATE_DISPLAY_FORMAT = 'M j, Y';
 
@@ -879,11 +883,20 @@ new #[Layout('layouts.application')] class extends Component
 
     public function submitApplication(): void
     {
-        $this->validate($this->referenceValidationRules('*') + [
-            'references' => ['required', 'array', 'min:1'],
-        ], attributes: $this->referenceAttributeNames() + [
-            'references' => 'references',
-        ]);
+        try {
+            $this->validate($this->referenceValidationRules('*') + [
+                'references' => ['required', 'array', 'min:1'],
+            ], attributes: $this->referenceAttributeNames() + [
+                'references' => 'references',
+            ]);
+        } catch (ValidationException $e) {
+            // Errors on a collapsed reference are otherwise invisible — its
+            // fields aren't even rendered — so expand any row an error
+            // belongs to alongside the top-of-page summary.
+            $this->expandReferencesWithErrors($e->validator->errors()->keys());
+
+            throw $e;
+        }
 
         $this->validateReferenceHistoryCoverage();
 
@@ -896,6 +909,20 @@ new #[Layout('layouts.application')] class extends Component
         }
 
         $this->goToStep(10);
+    }
+
+    /** @param array<int, string> $errorKeys */
+    private function expandReferencesWithErrors(array $errorKeys): void
+    {
+        collect($errorKeys)
+            ->map(fn (string $key): ?int => preg_match('/^references\.(\d+)\./', $key, $matches) ? (int) $matches[1] : null)
+            ->filter(fn (?int $index): bool => $index !== null)
+            ->unique()
+            ->each(function (int $index): void {
+                if (isset($this->references[$index])) {
+                    $this->references[$index]['collapsed'] = false;
+                }
+            });
     }
 
     public function saveDocumentRequirements(): void
@@ -975,8 +1002,8 @@ new #[Layout('layouts.application')] class extends Component
         return [
             "references.{$index}.type" => ['required', 'string', Rule::enum(ReferenceType::class)],
             "references.{$index}.title" => ['nullable', 'string', 'in:Mr,Mrs,Miss,Ms,Dr,Prof'],
-            "references.{$index}.first_name" => ['string', 'max:255', $this->requiredUnlessGapStatement('first name')],
-            "references.{$index}.last_name" => ['string', 'max:255', $this->requiredUnlessGapStatement('last name')],
+            "references.{$index}.first_name" => ['nullable', 'string', 'max:255', $this->requiredUnlessGapStatement('first name')],
+            "references.{$index}.last_name" => ['nullable', 'string', 'max:255', $this->requiredUnlessGapStatement('last name')],
             "references.{$index}.job_title" => ['nullable', 'string', 'max:255'],
             "references.{$index}.worked_from" => ['required', 'date'],
             "references.{$index}.worked_to" => ['nullable', 'date', "after_or_equal:references.{$index}.worked_from"],
@@ -989,7 +1016,7 @@ new #[Layout('layouts.application')] class extends Component
             "references.{$index}.postcode" => ['nullable', 'string', 'max:10'],
             "references.{$index}.consent_to_contact" => [$this->acceptedUnlessGapStatement()],
             "references.{$index}.contact_now" => ['boolean'],
-            "references.{$index}.statement" => ['string', 'max:2000', $this->requiredIfGapStatement('statement')],
+            "references.{$index}.statement" => ['nullable', 'string', 'max:2000', $this->requiredIfGapStatement('statement')],
         ];
     }
 
@@ -1088,16 +1115,10 @@ new #[Layout('layouts.application')] class extends Component
         };
     }
 
-    /**
-     * Friendly field names for reference validation errors — without these,
-     * Laravel falls back to the raw array path (e.g. "references.0.title")
-     * since it has no attribute name to prettify for an indexed array field.
-     *
-     * @return array<string, string>
-     */
-    private function referenceAttributeNames(): array
+    /** @return array<string, string> */
+    private function referenceFieldLabels(): array
     {
-        return collect([
+        return [
             'type' => 'reference type',
             'title' => 'title',
             'first_name' => 'first name',
@@ -1115,7 +1136,63 @@ new #[Layout('layouts.application')] class extends Component
             'consent_to_contact' => 'consent to contact',
             'contact_now' => 'contact now',
             'statement' => 'statement',
-        ])->mapWithKeys(fn (string $label, string $field): array => ["references.*.{$field}" => $label])->all();
+        ];
+    }
+
+    /**
+     * Friendly field names for reference validation errors — without these,
+     * Laravel falls back to the raw array path (e.g. "references.0.title")
+     * since it has no attribute name to prettify for an indexed array field.
+     *
+     * @return array<string, string>
+     */
+    private function referenceAttributeNames(): array
+    {
+        return collect($this->referenceFieldLabels())
+            ->mapWithKeys(fn (string $label, string $field): array => ["references.*.{$field}" => $label])
+            ->all();
+    }
+
+    /**
+     * Every reference error in one place, above the (possibly collapsed)
+     * reference list, so nothing is left hidden inside a collapsed row —
+     * e.g. "references.2.first_name" becomes "Reference 3 needs: first
+     * name, last name."
+     *
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function referenceErrorSummary(): array
+    {
+        $errors = $this->getErrorBag();
+
+        if ($errors->isEmpty()) {
+            return [];
+        }
+
+        $summary = $errors->get('references');
+
+        $labels = $this->referenceFieldLabels();
+        $fieldsByIndex = [];
+
+        foreach ($errors->keys() as $key) {
+            if (! preg_match('/^references\.(\d+)\.(\w+)$/', $key, $matches)) {
+                continue;
+            }
+
+            $fieldsByIndex[(int) $matches[1]][] = $labels[$matches[2]] ?? $matches[2];
+        }
+
+        ksort($fieldsByIndex);
+
+        foreach ($fieldsByIndex as $index => $fields) {
+            $summary[] = __('Reference :number needs: :fields.', [
+                'number' => $index + 1,
+                'fields' => collect($fields)->unique()->implode(', '),
+            ]);
+        }
+
+        return $summary;
     }
 
     private function persistReference(int $index): void
@@ -1193,74 +1270,105 @@ new #[Layout('layouts.application')] class extends Component
         $coverage = $this->referenceCoverage();
 
         if (! $coverage['is_complete']) {
-            $this->addError(
-                'references',
-                'Your references must account for your last '.self::REFERENCE_HISTORY_YEARS.' years of work or education history, with no gaps.'
-            );
+            $this->addError('references', $coverage['summary']);
         }
     }
 
-    /** @return array{covered_until: ?Carbon, is_complete: bool, summary: string} */
+    /**
+     * Coverage no longer has to be a single unbroken 3-year block — it
+     * passes once at least REFERENCE_HISTORY_COVERAGE_THRESHOLD of the
+     * window is accounted for. When it isn't met, the summary calls out the
+     * single largest uncovered span so the candidate knows exactly which
+     * reference to add next; resubmitting re-runs this and surfaces
+     * whatever the next-largest gap is, so it naturally iterates down to
+     * nothing left once enough of the window is covered.
+     *
+     * @return array{percentage: int, is_complete: bool, summary: string}
+     */
     #[Computed]
     public function referenceCoverage(): array
     {
         $cutoff = now()->subYears(self::REFERENCE_HISTORY_YEARS)->startOfDay();
         $today = today();
+        $windowDays = $cutoff->diffInDays($today) + 1;
 
         $periods = collect($this->references)
             ->filter(fn (array $reference) => ! empty($reference['worked_from']))
-            ->map(fn (array $reference) => [
-                'from' => Carbon::parse($reference['worked_from'])->startOfDay(),
-                'to' => $reference['worked_to'] ? Carbon::parse($reference['worked_to'])->startOfDay() : $today,
-            ])
+            ->map(function (array $reference) use ($cutoff, $today): array {
+                $from = Carbon::parse($reference['worked_from'])->startOfDay();
+                $to = $reference['worked_to'] ? Carbon::parse($reference['worked_to'])->startOfDay() : $today;
+
+                return [
+                    'from' => $from->lt($cutoff) ? $cutoff->copy() : $from,
+                    'to' => $to->gt($today) ? $today->copy() : $to,
+                ];
+            })
+            ->filter(fn (array $period) => $period['from']->lte($period['to']))
             ->sortBy('from')
             ->values();
 
-        $coveredFrom = null;
-        $coveredUntil = null;
+        // Merge overlapping/touching periods — back-to-back employment (one
+        // job ending the day before the next starts) counts as continuous,
+        // not a gap — into the smallest set of covered intervals.
+        $covered = [];
 
         foreach ($periods as $period) {
-            if ($coveredUntil === null) {
-                $coveredFrom = $period['from'];
-                $coveredUntil = $period['to'];
+            $lastIndex = count($covered) - 1;
+
+            if ($lastIndex >= 0 && $period['from']->lte($covered[$lastIndex]['to']->copy()->addDay())) {
+                if ($period['to']->gt($covered[$lastIndex]['to'])) {
+                    $covered[$lastIndex]['to'] = $period['to'];
+                }
 
                 continue;
             }
 
-            if ($period['from']->gt($coveredUntil->copy()->addDay())) {
-                break;
-            }
-
-            if ($period['to']->gt($coveredUntil)) {
-                $coveredUntil = $period['to'];
-            }
+            $covered[] = $period;
         }
 
-        $isComplete = $coveredFrom !== null
-            && $coveredFrom->lte($cutoff)
-            && $coveredUntil->gte($today);
+        $coveredDays = collect($covered)->sum(fn (array $period) => $period['from']->diffInDays($period['to']) + 1);
+        $percentage = $windowDays > 0 ? $coveredDays / $windowDays : 0;
+        $isComplete = $percentage >= self::REFERENCE_HISTORY_COVERAGE_THRESHOLD;
+        $percentageLabel = (int) round($percentage * 100);
 
-        if ($coveredUntil === null) {
-            $summary = 'Your references currently account for 0 years, 0 months of the last '.self::REFERENCE_HISTORY_YEARS.' years.';
-        } elseif ($isComplete) {
-            $summary = 'Your references fully account for the last '.self::REFERENCE_HISTORY_YEARS.' years.';
-        } else {
-            $effectiveFrom = $coveredFrom->gt($cutoff) ? $coveredFrom : $cutoff;
-            $effectiveTo = $coveredUntil->lt($today) ? $coveredUntil : $today;
-            $coveredLabel = $effectiveFrom->diffForHumans($effectiveTo, syntax: Carbon::DIFF_ABSOLUTE, parts: 2);
-
-            $gapDescription = $coveredFrom->gt($cutoff)
-                ? 'There is a gap before '.$coveredFrom->copy()->subDay()->format(self::DATE_DISPLAY_FORMAT).'.'
-                : 'There is a gap starting '.$coveredUntil->copy()->addDay()->format(self::DATE_DISPLAY_FORMAT).'.';
-
-            $summary = 'Your references currently account for '.$coveredLabel.' of the last '.self::REFERENCE_HISTORY_YEARS.' years. '.$gapDescription;
-        }
+        $summary = $isComplete
+            ? 'Your references cover the last '.self::REFERENCE_HISTORY_YEARS.' years.'
+            : $this->referenceCoverageGapSummary($covered, $cutoff, $today);
 
         return [
-            'covered_until' => $coveredUntil,
+            'percentage' => $percentageLabel,
             'is_complete' => $isComplete,
             'summary' => $summary,
         ];
+    }
+
+    /** @param array<int, array{from: CarbonInterface, to: CarbonInterface}> $covered */
+    private function referenceCoverageGapSummary(array $covered, CarbonInterface $cutoff, CarbonInterface $today): string
+    {
+        $gaps = [];
+        $cursor = $cutoff->copy();
+
+        foreach ($covered as $period) {
+            if ($period['from']->gt($cursor)) {
+                $gaps[] = ['from' => $cursor->copy(), 'to' => $period['from']->copy()->subDay()];
+            }
+
+            $cursor = $period['to']->copy()->addDay();
+        }
+
+        if ($cursor->lte($today)) {
+            $gaps[] = ['from' => $cursor->copy(), 'to' => $today->copy()];
+        }
+
+        $largestGap = collect($gaps)->sortByDesc(fn (array $gap) => $gap['from']->diffInDays($gap['to']))->first();
+
+        if (! $largestGap) {
+            return 'Your references don\'t yet cover enough of the last '.self::REFERENCE_HISTORY_YEARS.' years.';
+        }
+
+        return 'There is a gap between '.$largestGap['from']->format(self::DATE_DISPLAY_FORMAT)
+            .' and '.$largestGap['to']->format(self::DATE_DISPLAY_FORMAT)
+            .' — please add a reference to cover this period.';
     }
 
     private function blankReference(): array

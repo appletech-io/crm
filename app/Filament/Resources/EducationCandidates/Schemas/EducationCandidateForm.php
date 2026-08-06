@@ -97,7 +97,8 @@ class EducationCandidateForm
                                                         'Ms' => 'Ms',
                                                         'Dr' => 'Dr',
                                                         'Prof' => 'Prof',
-                                                    ]),
+                                                    ])
+                                                    ->placeholder('Please select…'),
                                                 TextInput::make('first_name')
                                                     ->maxLength(255),
                                                 TextInput::make('middle_name')
@@ -676,39 +677,35 @@ class EducationCandidateForm
     {
         return Section::make('TRN, Sanctions and Restrictions')
             ->schema([
-                TextEntry::make('trn_number')
+                TextInput::make('trn_number')
                     ->label('TRN Number')
-                    ->placeholder('Not set'),
+                    ->maxLength(255),
 
-                TextEntry::make('trn_issue_date')
+                DatePicker::make('trn_issue_date')
                     ->label('TRA Date')
-                    ->date('d/m/Y')
-                    ->placeholder('Not set'),
+                    ->native(false),
 
-                TextEntry::make('sanctions')
+                Select::make('sanctions')
                     ->label('Sanctions')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set')
-                    ->badge()
-                    ->color(fn (?string $state): string => $state === 'yes' ? 'danger' : 'success'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->live(),
 
-                TextEntry::make('restrictions')
+                Select::make('restrictions')
                     ->label('Restrictions')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set')
-                    ->badge()
-                    ->color(fn (?string $state): string => $state === 'yes' ? 'danger' : 'success'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->live(),
 
-                TextEntry::make('sanction_restrictions_details')
+                Textarea::make('sanction_restrictions_details')
                     ->label('Sanctions / Restrictions Details')
-                    ->placeholder('None recorded')
-                    ->visible(fn (?EducationCandidate $record): bool => $record?->sanctions === 'yes' || $record?->restrictions === 'yes')
+                    ->visible(fn (Get $get): bool => $get('sanctions') === 'yes' || $get('restrictions') === 'yes')
                     ->columnSpanFull(),
 
-                TextEntry::make('has_naric')
+                Select::make('has_naric')
                     ->label('UK Naric')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false),
 
                 static::documentEntry('UK Naric Document', DocumentType::UkNaric),
             ])
@@ -719,9 +716,9 @@ class EducationCandidateForm
     {
         return Section::make('DBS Checks')
             ->schema([
-                TextEntry::make('dbs_certificate_number')
+                TextInput::make('dbs_certificate_number')
                     ->label('DBS No')
-                    ->placeholder('Not set'),
+                    ->maxLength(255),
 
                 TextEntry::make('update_service_checked_at')
                     ->label('Update Service Issue Date')
@@ -737,6 +734,12 @@ class EducationCandidateForm
                 DatePicker::make('dbs_expiry_date')
                     ->label('Expiry Date')
                     ->native(false),
+
+                Select::make('overseas_police_clearance_check')
+                    ->label('Has Overseas Police Check')
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->visible(fn (Get $get): bool => $get('lived_overseas_six_months') === 'yes'),
 
                 Actions::make([
                     Action::make('callUpdateService')
@@ -775,10 +778,6 @@ class EducationCandidateForm
 
                 static::documentEntry('DBS File (Front)', DocumentType::DbsFront),
                 static::documentEntry('DBS File (Back)', DocumentType::DbsBack),
-
-                TextEntry::make('overseas_police_clearance_check')
-                    ->label('Has Overseas Police Check')
-                    ->getStateUsing(fn (?EducationCandidate $record): string => static::overseasPoliceCheckDisplay($record)),
             ])
             ->columns(2);
     }
@@ -787,26 +786,35 @@ class EducationCandidateForm
     {
         return Section::make('Right to Work')
             ->schema([
-                TextEntry::make('right_to_work_type')
+                Select::make('right_to_work_type')
                     ->label('Right to Work Type')
-                    ->formatStateUsing(fn (?EducationCandidate $record): string => static::rightToWorkTypeLabel($record))
-                    ->placeholder('Not set'),
+                    ->options([
+                        'passport' => 'UK Passport',
+                        'visa' => 'Visa',
+                        'birth_certificate' => 'UK Birth Certificate',
+                    ])
+                    ->native(false)
+                    ->live(),
 
-                TextEntry::make('visa_expiry_date')
+                TextInput::make('visa_share_code')
+                    ->label('Visa Share Code')
+                    ->maxLength(255)
+                    ->visible(fn (Get $get): bool => $get('right_to_work_type') === 'visa'),
+
+                DatePicker::make('visa_expiry_date')
                     ->label('Expiry Date')
-                    ->date('d/m/Y')
-                    ->placeholder('Not set')
-                    ->visible(fn (?EducationCandidate $record): bool => $record?->right_to_work_type === 'visa'),
+                    ->native(false)
+                    ->visible(fn (Get $get): bool => $get('right_to_work_type') === 'visa'),
 
-                TextEntry::make('visa_notes')
+                Textarea::make('visa_notes')
                     ->label('Notes')
-                    ->placeholder('None recorded')
-                    ->visible(fn (?EducationCandidate $record): bool => $record?->right_to_work_type === 'visa'),
+                    ->visible(fn (Get $get): bool => $get('right_to_work_type') === 'visa')
+                    ->columnSpanFull(),
 
                 DatePicker::make('right_to_work_expiry_date')
                     ->label('Right to Work Document Expiry Date')
                     ->native(false)
-                    ->visible(fn (?EducationCandidate $record): bool => in_array($record?->right_to_work_type, ['visa', 'passport'], true)),
+                    ->visible(fn (Get $get): bool => in_array($get('right_to_work_type'), ['visa', 'passport'], true)),
 
                 static::documentEntry(
                     'Right to Work Document',
@@ -826,10 +834,9 @@ class EducationCandidateForm
     {
         return Section::make('Safeguarding')
             ->schema([
-                TextEntry::make('safeguarding_certified_date')
+                DatePicker::make('safeguarding_certified_date')
                     ->label('Certified On')
-                    ->date('d/m/Y')
-                    ->placeholder('Not set'),
+                    ->native(false),
 
                 DatePicker::make('safeguarding_expiry_date')
                     ->label('Expiry Date')
@@ -849,21 +856,19 @@ class EducationCandidateForm
     {
         return Section::make('Medical Information')
             ->schema([
-                TextEntry::make('has_health_condition_or_disability')
+                Select::make('has_health_condition_or_disability')
                     ->label('Health Condition or Disability')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set')
-                    ->badge()
-                    ->color(fn (?string $state): string => $state === 'yes' ? 'warning' : 'success'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->live(),
 
-                TextEntry::make('health_condition_details')
+                Textarea::make('health_condition_details')
                     ->label('Details')
-                    ->placeholder('None recorded')
+                    ->visible(fn (Get $get): bool => $get('has_health_condition_or_disability') === 'yes')
                     ->columnSpanFull(),
 
-                TextEntry::make('reasonable_accommodations')
+                Textarea::make('reasonable_accommodations')
                     ->label('Reasonable Accommodations Needed')
-                    ->placeholder('None recorded')
                     ->columnSpanFull(),
             ])
             ->columns(2);
@@ -873,34 +878,38 @@ class EducationCandidateForm
     {
         return Section::make('Employment & Conduct')
             ->schema([
-                TextEntry::make('retired_early')
+                Select::make('retired_early')
                     ->label('Retired Early')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->live(),
 
-                TextEntry::make('retired_early_medical_grounds')
+                Select::make('retired_early_medical_grounds')
                     ->label('On Medical Grounds')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->visible(fn (Get $get): bool => $get('retired_early') === 'yes'),
 
-                TextEntry::make('dismissed_from_relevant_position')
+                Select::make('dismissed_from_relevant_position')
                     ->label('Dismissed from a Relevant Position')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->live(),
 
-                TextEntry::make('dismissal_details')
+                Textarea::make('dismissal_details')
                     ->label('Dismissal Details')
-                    ->placeholder('None recorded')
+                    ->visible(fn (Get $get): bool => $get('dismissed_from_relevant_position') === 'yes')
                     ->columnSpanFull(),
 
-                TextEntry::make('subject_to_disciplinary_action')
+                Select::make('subject_to_disciplinary_action')
                     ->label('Subject to Disciplinary Action')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->live(),
 
-                TextEntry::make('disciplinary_action_details')
+                Textarea::make('disciplinary_action_details')
                     ->label('Disciplinary Action Details')
-                    ->placeholder('None recorded')
+                    ->visible(fn (Get $get): bool => $get('subject_to_disciplinary_action') === 'yes')
                     ->columnSpanFull(),
             ])
             ->columns(2);
@@ -910,30 +919,32 @@ class EducationCandidateForm
     {
         return Section::make('Disclosure & Rehabilitation of Offenders')
             ->schema([
-                TextEntry::make('lived_overseas_six_months')
+                Select::make('lived_overseas_six_months')
                     ->label('Lived Overseas 6+ Months')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->live(),
 
-                TextEntry::make('overseas_details')
+                Textarea::make('overseas_details')
                     ->label('Overseas Details')
-                    ->placeholder('None recorded')
+                    ->visible(fn (Get $get): bool => $get('lived_overseas_six_months') === 'yes')
                     ->columnSpanFull(),
 
-                TextEntry::make('unspent_convictions')
+                Select::make('unspent_convictions')
                     ->label('Unspent Convictions')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->live(),
 
-                TextEntry::make('unspent_convictions_details')
+                Textarea::make('unspent_convictions_details')
                     ->label('Conviction Details')
-                    ->placeholder('None recorded')
+                    ->visible(fn (Get $get): bool => $get('unspent_convictions') === 'yes')
                     ->columnSpanFull(),
 
-                TextEntry::make('spent_convictions_not_protected')
+                Select::make('spent_convictions_not_protected')
                     ->label('Spent Convictions Not Protected')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false),
             ])
             ->columns(2);
     }
@@ -967,41 +978,5 @@ class EducationCandidateForm
         return $document
             ? Document::viewUrl($document->path)
             : null;
-    }
-
-    protected static function formatYesNo(?string $value): string
-    {
-        return match ($value) {
-            'yes' => 'Yes',
-            'no' => 'No',
-            default => 'Not set',
-        };
-    }
-
-    protected static function overseasPoliceCheckDisplay(?EducationCandidate $record): string
-    {
-        if (! $record) {
-            return 'Not set';
-        }
-
-        if ($record->lived_overseas_six_months !== 'yes') {
-            return 'Not applicable';
-        }
-
-        return match ($record->overseas_police_clearance_check) {
-            'yes' => 'Yes',
-            'no' => 'No',
-            default => 'Not yet checked',
-        };
-    }
-
-    protected static function rightToWorkTypeLabel(?EducationCandidate $record): string
-    {
-        return match ($record?->right_to_work_type) {
-            'passport' => 'UK Passport',
-            'visa' => 'Visa',
-            'birth_certificate' => 'UK Birth Certificate',
-            default => 'Not set',
-        };
     }
 }

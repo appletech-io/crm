@@ -624,7 +624,8 @@ class HealthcareVettingSteps
                                 'Ms' => 'Ms',
                                 'Dr' => 'Dr',
                                 'Prof' => 'Prof',
-                            ]),
+                            ])
+                            ->placeholder('Please select…'),
                         TextInput::make('first_name')
                             ->label('Name')
                             ->maxLength(255),
