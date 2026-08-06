@@ -507,6 +507,7 @@ test('vetting wizard can save security checks', function () {
             'barred_list_check_date' => '2026-01-05',
             'overseas_police_clearance_check' => 'yes',
             'overseas_police_clearance_check_date' => '2026-01-06',
+            'visa_share_code' => 'ABC123XYZ',
             'visa_issue_date' => '2025-01-01',
             'visa_expiry_date' => '2027-01-01',
             'right_to_work_expiry_date' => '2027-01-01',
@@ -521,6 +522,7 @@ test('vetting wizard can save security checks', function () {
     expect($candidate->barred_list_check_date->toDateString())->toBe('2026-01-05');
     expect($candidate->overseas_police_clearance_check)->toBe('yes');
     expect($candidate->overseas_police_clearance_check_date->toDateString())->toBe('2026-01-06');
+    expect($candidate->visa_share_code)->toBe('ABC123XYZ');
     expect($candidate->visa_issue_date->toDateString())->toBe('2025-01-01');
     expect($candidate->visa_expiry_date->toDateString())->toBe('2027-01-01');
     expect($candidate->right_to_work_expiry_date->toDateString())->toBe('2027-01-01');

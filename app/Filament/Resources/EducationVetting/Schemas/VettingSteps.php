@@ -440,7 +440,7 @@ class VettingSteps
         return [
             'barred_list_check', 'barred_list_check_date',
             'overseas_police_clearance_check', 'overseas_police_clearance_check_date',
-            'visa_issue_date', 'visa_expiry_date', 'visa_notes', 'right_to_work_expiry_date',
+            'visa_share_code', 'visa_issue_date', 'visa_expiry_date', 'visa_notes', 'right_to_work_expiry_date',
         ];
     }
 
@@ -491,6 +491,9 @@ class VettingSteps
 
                 Section::make('Visa')
                     ->schema([
+                        TextInput::make('visa_share_code')
+                            ->label('Share Code')
+                            ->maxLength(255),
                         DatePicker::make('visa_issue_date')
                             ->native(false),
                         DatePicker::make('visa_expiry_date')
@@ -744,7 +747,8 @@ class VettingSteps
                                 'Ms' => 'Ms',
                                 'Dr' => 'Dr',
                                 'Prof' => 'Prof',
-                            ]),
+                            ])
+                            ->placeholder('Please select…'),
                         TextInput::make('first_name')
                             ->label('Name')
                             ->maxLength(255),

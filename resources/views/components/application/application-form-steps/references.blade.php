@@ -5,11 +5,20 @@
 
 <form wire:submit="submitApplication" class="mt-3 flex flex-col gap-6">
 
-    @unless ($this->referenceCoverage['is_complete'])
+    @if (! empty($this->referenceErrorSummary))
+        <div class="rounded-lg bg-red-50 p-4 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+            <p class="font-semibold">{{ __('Please fix the following before continuing:') }}</p>
+            <ul class="mt-2 list-disc space-y-1 pl-5">
+                @foreach ($this->referenceErrorSummary as $message)
+                    <li>{{ $message }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @elseif (! $this->referenceCoverage['is_complete'])
         <div class="rounded-lg bg-amber-50 p-4 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
             {{ $this->referenceCoverage['summary'] }}
         </div>
-    @endunless
+    @endif
 
     @foreach ($references as $index => $reference)
         <div wire:key="reference-{{ $index }}" class="flex flex-col gap-4 rounded-lg border border-zinc-200 p-4 dark:border-white/10">

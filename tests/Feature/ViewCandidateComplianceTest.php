@@ -47,13 +47,16 @@ test('the compliance tab renders TRN, sanctions and restrictions', function () {
         'has_health_condition_or_disability' => 'no',
     ]);
 
-    $html = Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
         ->assertSuccessful()
-        ->html();
-
-    expect($html)->toContain('1073430');
-    expect($html)->toContain('15/01/2020');
-    expect($html)->toContain('Some sanction details here.');
+        ->assertFormSet([
+            'trn_number' => '1073430',
+            'trn_issue_date' => '2020-01-15',
+            'sanctions' => 'yes',
+            'restrictions' => 'no',
+            'sanction_restrictions_details' => 'Some sanction details here.',
+            'has_naric' => 'yes',
+        ]);
 });
 
 test('sanctions/restrictions details are hidden when both are no', function () {
@@ -154,12 +157,32 @@ test('right to work shows visa expiry date and notes only for visa type', functi
         'visa_notes' => 'Visa sponsorship confirmed.',
     ]);
 
-    $html = Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
-        ->html();
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertFormSet([
+            'right_to_work_type' => 'visa',
+            'visa_expiry_date' => '2027-06-01',
+            'visa_notes' => 'Visa sponsorship confirmed.',
+        ]);
+});
 
-    expect($html)->toContain('Visa');
-    expect($html)->toContain('01/06/2027');
-    expect($html)->toContain('Visa sponsorship confirmed.');
+test('right to work shows the visa share code when set, and hides it for non-visa types', function () {
+    $visaCandidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'right_to_work_type' => 'visa',
+        'visa_share_code' => 'ABC123XYZ',
+    ]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $visaCandidate->getRouteKey()])
+        ->assertFormFieldExists('visa_share_code')
+        ->assertFormSet(['visa_share_code' => 'ABC123XYZ']);
+
+    $passportCandidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'right_to_work_type' => 'passport',
+    ]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $passportCandidate->getRouteKey()])
+        ->assertFormFieldDoesNotExist('visa_share_code');
 });
 
 test('the compliance tab shows safeguarding and kcsie fields', function () {
@@ -173,11 +196,12 @@ test('the compliance tab shows safeguarding and kcsie fields', function () {
         'terms_accepted_at' => '2025-02-04 10:00:00',
     ]);
 
-    $html = Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
-        ->html();
+    $test = Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertFormSet(['safeguarding_certified_date' => '2025-06-24']);
 
-    expect($html)->toContain('24/06/2025');
-    expect($html)->toContain('04/02/2025');
+    // KCSIE acceptance is a historical record from the submitted
+    // application, so it stays a read-only display, not an editable field.
+    expect($test->html())->toContain('04/02/2025');
 });
 
 test('the compliance tab shows a document view link when a safeguarding certificate is uploaded', function () {
@@ -244,4 +268,61 @@ test('the compliance tab shows the candidates disclosure and rehabilitation of o
 
     expect($html)->toContain('Disclosure &amp; Rehabilitation of Offenders');
     expect($html)->toContain('Spain, 2019-2020.');
+});
+
+test('compliance fields can be edited and saved from the candidate edit page', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm([
+            'trn_number' => '9988776',
+            'trn_issue_date' => '2024-03-10',
+            'sanctions' => 'no',
+            'restrictions' => 'no',
+            'has_naric' => 'no',
+            'dbs_certificate_number' => '001122334455',
+            'right_to_work_type' => 'visa',
+            'visa_share_code' => 'ABC123XYZ',
+            'visa_expiry_date' => '2028-01-01',
+            'visa_notes' => 'Skilled worker visa.',
+            'safeguarding_certified_date' => '2025-01-01',
+            'has_health_condition_or_disability' => 'no',
+            'retired_early' => 'no',
+            'dismissed_from_relevant_position' => 'no',
+            'subject_to_disciplinary_action' => 'no',
+            'lived_overseas_six_months' => 'no',
+            'unspent_convictions' => 'no',
+            'spent_convictions_not_protected' => 'no',
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $candidate->refresh();
+
+    expect($candidate->trn_number)->toBe('9988776');
+    expect($candidate->trn_issue_date->toDateString())->toBe('2024-03-10');
+    expect($candidate->dbs_certificate_number)->toBe('001122334455');
+    expect($candidate->right_to_work_type)->toBe('visa');
+    expect($candidate->visa_share_code)->toBe('ABC123XYZ');
+    expect($candidate->visa_expiry_date->toDateString())->toBe('2028-01-01');
+    expect($candidate->visa_notes)->toBe('Skilled worker visa.');
+    expect($candidate->safeguarding_certified_date->toDateString())->toBe('2025-01-01');
+});
+
+test('compliance detail fields stay hidden until their yes/no trigger is switched to yes', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'has_health_condition_or_disability' => 'no',
+        'dismissed_from_relevant_position' => 'no',
+        'subject_to_disciplinary_action' => 'no',
+        'lived_overseas_six_months' => 'no',
+        'unspent_convictions' => 'no',
+    ]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertFormFieldDoesNotExist('health_condition_details')
+        ->assertFormFieldDoesNotExist('dismissal_details')
+        ->assertFormFieldDoesNotExist('disciplinary_action_details')
+        ->assertFormFieldDoesNotExist('overseas_details')
+        ->assertFormFieldDoesNotExist('unspent_convictions_details');
 });
