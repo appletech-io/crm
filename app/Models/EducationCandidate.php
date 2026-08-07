@@ -6,6 +6,7 @@ use App\Models\Traits\BelongsToCompany;
 use App\Models\Traits\HasFieldSuggestions;
 use Database\Factories\EducationCandidateFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Auth;
 
 class EducationCandidate extends Model
 {
@@ -129,6 +131,35 @@ class EducationCandidate extends Model
     public function currentStatusName(): ?string
     {
         return $this->statuses()->first()?->status?->name;
+    }
+
+    /**
+     * Exposes the current status as a virtual "current_status" attribute so
+     * it can be used as an automation condition field — e.g. excluding
+     * candidates in a given status from an expiry reminder.
+     */
+    protected function currentStatus(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->currentStatusName(),
+        );
+    }
+
+    /** @return array<string, array{label: string, type: string, options?: array<string, string>}> */
+    protected static function computedFieldSuggestions(): array
+    {
+        return [
+            'current_status' => [
+                'label' => 'Current Status',
+                'type' => 'select',
+                'options' => CandidateStatus::query()
+                    ->where('company_id', Auth::user()?->company_id)
+                    ->where('industry_id', active_industry_id())
+                    ->orderBy('name')
+                    ->pluck('name', 'name')
+                    ->all(),
+            ],
+        ];
     }
 
     public function dnuCandidate(): bool

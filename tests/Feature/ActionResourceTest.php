@@ -7,6 +7,7 @@ use App\Filament\Resources\Actions\Pages\ListActions;
 use App\Models\Action;
 use App\Models\Booking;
 use App\Models\CandidateReference;
+use App\Models\CandidateStatus;
 use App\Models\Client;
 use App\Models\Company;
 use App\Models\EducationCandidate;
@@ -192,6 +193,36 @@ test('a condition using the days_until_at_most operator with a value is accepted
     $action = Action::where('name', 'DBS expiring soon')->first();
 
     expect($action->conditions)->toBe([['field' => 'dbs_expiry_date', 'operator' => 'days_until_at_most', 'value' => 30]]);
+});
+
+test('a condition using the current_status field is accepted so an action can be scoped to a candidate status', function () {
+    CandidateStatus::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'DNU',
+    ]);
+
+    Livewire::test(CreateAction::class)
+        ->fillForm([
+            'name' => 'DBS expiring, excluding DNU candidates',
+            'model_type' => EducationCandidate::class,
+            'conditions' => [
+                'item-1' => ['field' => 'dbs_expiry_date', 'operator' => 'days_until_at_most', 'value' => '30'],
+                'item-2' => ['field' => 'current_status', 'operator' => 'not_equals', 'value' => 'DNU'],
+            ],
+            'wants_todo' => true,
+            'todo_name' => 'x',
+            'todo_priority' => 'medium',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $action = Action::where('name', 'DBS expiring, excluding DNU candidates')->first();
+
+    expect($action->conditions)->toBe([
+        ['field' => 'dbs_expiry_date', 'operator' => 'days_until_at_most', 'value' => 30],
+        ['field' => 'current_status', 'operator' => 'not_equals', 'value' => 'DNU'],
+    ]);
 });
 
 test('model type options include client, booking, vacancy, candidate reference and the active industrys candidate model only', function () {

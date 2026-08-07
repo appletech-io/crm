@@ -32,10 +32,22 @@ trait HasFieldSuggestions
     }
 
     /**
+     * Suggestions for values that aren't real columns, e.g. a virtual
+     * attribute derived from a relation (a candidate's current status, read
+     * from their status history rather than a column on their own table).
+     *
+     * @return array<string, array{label: string, type: string, options?: array<string, string>}>
+     */
+    protected static function computedFieldSuggestions(): array
+    {
+        return [];
+    }
+
+    /**
      * Fields available for automation conditions, keyed by dot-notation path,
      * with a human-readable label and an inferred value type.
      *
-     * @return array<string, array{label: string, type: string}>
+     * @return array<string, array{label: string, type: string, options?: array<string, string>}>
      */
     public static function candidateFieldSuggestions(): array
     {
@@ -64,6 +76,7 @@ trait HasFieldSuggestions
         return $columns
             ->merge($relationColumns)
             ->merge($toManyRelations)
+            ->merge(static::computedFieldSuggestions())
             ->all();
     }
 
