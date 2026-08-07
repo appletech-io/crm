@@ -17,4 +17,10 @@ class VacancyObserver
     {
         CheckJobStatusAutomations::run($vacancy);
     }
+
+    public function deleted(Vacancy $vacancy): void
+    {
+        CheckActions::run($vacancy);
+        CheckJobStatusAutomations::run($vacancy);
+    }
 }

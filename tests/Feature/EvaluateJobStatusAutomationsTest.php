@@ -244,6 +244,56 @@ test('a days_since_at_least condition never matches when the date field is empty
     expect($vacancy->refresh()->job_status_id)->toBe($this->fromStatus->id);
 });
 
+test('moves vacancy when a days_until_at_most condition is satisfied', function () {
+    $vacancy = makeJobVacancy($this->client, $this->jobTitle, $this->fromStatus, ['filled_at' => now()->addDays(10)]);
+
+    JobStatusAutomation::factory()->create([
+        'job_status_id' => $this->fromStatus->id,
+        'to_job_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'filled_at', 'operator' => 'days_until_at_most', 'value' => '30'],
+        ],
+    ]);
+
+    CheckJobStatusAutomations::run($vacancy);
+
+    expect($vacancy->refresh()->job_status_id)->toBe($this->toStatus->id);
+});
+
+test('does not move vacancy when a days_until_at_most condition is not yet satisfied', function () {
+    $vacancy = makeJobVacancy($this->client, $this->jobTitle, $this->fromStatus, ['filled_at' => now()->addDays(90)]);
+
+    JobStatusAutomation::factory()->create([
+        'job_status_id' => $this->fromStatus->id,
+        'to_job_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'filled_at', 'operator' => 'days_until_at_most', 'value' => '30'],
+        ],
+    ]);
+
+    CheckJobStatusAutomations::run($vacancy);
+
+    expect($vacancy->refresh()->job_status_id)->toBe($this->fromStatus->id);
+});
+
+test('soft-deleting a vacancy triggers the job status automation check via the deleted_at field', function () {
+    $vacancy = makeJobVacancy($this->client, $this->jobTitle, $this->fromStatus, ['title' => 'Year 3 Teacher']);
+
+    JobStatusAutomation::factory()->create([
+        'job_status_id' => $this->fromStatus->id,
+        'to_job_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'deleted_at', 'operator' => 'filled'],
+        ],
+    ]);
+
+    expect($vacancy->refresh()->job_status_id)->toBe($this->fromStatus->id);
+
+    $vacancy->delete();
+
+    expect($vacancy->refresh()->job_status_id)->toBe($this->toStatus->id);
+});
+
 test('an equals condition on a wildcard relation path never matches', function () {
     $vacancy = makeJobVacancy($this->client, $this->jobTitle, $this->fromStatus, ['title' => 'Year 3 Teacher']);
 
@@ -329,6 +379,22 @@ test('the time-based command moves vacancies whose days_since_at_least condition
         'to_job_status_id' => $this->toStatus->id,
         'conditions' => [
             ['field' => 'filled_at', 'operator' => 'days_since_at_least', 'value' => '30'],
+        ],
+    ]);
+
+    Artisan::call(CheckTimeBasedJobStatusAutomations::class);
+
+    expect($vacancy->refresh()->job_status_id)->toBe($this->toStatus->id);
+});
+
+test('the time-based command moves vacancies whose days_until_at_most condition has since become satisfied', function () {
+    $vacancy = makeJobVacancy($this->client, $this->jobTitle, $this->fromStatus, ['filled_at' => now()->addDays(10)]);
+
+    JobStatusAutomation::factory()->create([
+        'job_status_id' => $this->fromStatus->id,
+        'to_job_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'filled_at', 'operator' => 'days_until_at_most', 'value' => '30'],
         ],
     ]);
 

@@ -18,9 +18,7 @@ class CheckTimeBasedActions extends Command
         $modelTypes = Action::query()
             ->where('is_active', true)
             ->get()
-            ->filter(fn (Action $action): bool => collect($action->conditions)
-                ->contains(fn (array $condition): bool => ($condition['operator'] ?? null) === 'days_since_at_least')
-            )
+            ->filter(fn (Action $action): bool => $action->hasTimeBasedCondition())
             ->pluck('model_type')
             ->unique();
 

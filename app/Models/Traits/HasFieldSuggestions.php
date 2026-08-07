@@ -39,7 +39,7 @@ trait HasFieldSuggestions
      */
     public static function candidateFieldSuggestions(): array
     {
-        $excluded = ['id', 'company_id', 'industry_id', 'created_at', 'updated_at', 'deleted_at'];
+        $excluded = ['id', 'company_id', 'industry_id', 'created_at', 'updated_at'];
 
         $columns = collect(static::columnMetaFor((new static)->getTable()))
             ->reject(fn (array $meta, string $col): bool => in_array($col, $excluded))

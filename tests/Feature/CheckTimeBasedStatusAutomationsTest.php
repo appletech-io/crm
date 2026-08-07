@@ -48,6 +48,25 @@ test('does not move a candidate whose time-based condition has not yet elapsed',
     expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
 });
 
+test('moves a candidate whose days_until_at_most condition has now come into range', function () {
+    CandidateStatusAutomation::query()->delete();
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'available_from', 'operator' => 'days_until_at_most', 'value' => '30'],
+        ],
+    ]);
+
+    $candidate = EducationCandidate::factory()->create(['available_from' => now()->addDays(10)->toDateString()]);
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    $this->artisan('automations:check-time-based')->assertSuccessful();
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeTrue();
+});
+
 test('sweeps candidates across both education and healthcare models', function () {
     $healthcareFromStatus = CandidateStatus::factory()->create([
         'industry_id' => $this->industry->id,

@@ -22,4 +22,10 @@ class EducationCandidateObserver
     {
         CheckCandidateStatusAutomations::run($candidate);
     }
+
+    public function deleted(EducationCandidate $candidate): void
+    {
+        CheckActions::run($candidate);
+        CheckCandidateStatusAutomations::run($candidate);
+    }
 }

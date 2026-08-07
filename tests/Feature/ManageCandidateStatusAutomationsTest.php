@@ -136,6 +136,44 @@ test('healthcare candidate field suggestions include own columns, application fi
     expect($suggestions['skills.*'])->toBe(['label' => 'Skills', 'type' => 'relation_exists']);
 });
 
+test('candidate field suggestions include deleted_at so a status automation can react to deletion', function () {
+    $suggestions = HealthcareCandidate::candidateFieldSuggestions();
+
+    expect($suggestions)->toHaveKey('deleted_at');
+    expect($suggestions['deleted_at']['type'])->toBe('datetime');
+});
+
+test('can create an automation with a deleted_at condition from the suggestion list', function () {
+    $onboarding = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Onboarding',
+    ]);
+
+    $archived = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Archived',
+    ]);
+
+    Livewire::test(ManageCandidateStatusAutomations::class)
+        ->callAction('create', data: [
+            'candidate_status_id' => $onboarding->id,
+            'to_candidate_status_id' => $archived->id,
+            'conditions' => [
+                'item-1' => ['field' => 'deleted_at', 'operator' => 'filled'],
+            ],
+        ])
+        ->assertHasNoActionErrors();
+
+    $automation = CandidateStatusAutomation::where('candidate_status_id', $onboarding->id)->first();
+
+    expect($automation)->not->toBeNull();
+    expect($automation->conditions)->toBe([
+        ['field' => 'deleted_at', 'operator' => 'filled'],
+    ]);
+});
+
 test('cannot create an automation with a field that is not in the suggestion list', function () {
     $onboarding = CandidateStatus::factory()->create([
         'company_id' => $this->user->company_id,

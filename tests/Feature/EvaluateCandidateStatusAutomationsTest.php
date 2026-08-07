@@ -350,6 +350,76 @@ test('a days_since_at_least condition never matches when the date field is empty
     expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
 });
 
+test('moves candidate when a days_until_at_most condition is satisfied', function () {
+    $candidate = EducationCandidate::factory()->create(['available_from' => now()->addDays(10)->toDateString()]);
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'available_from', 'operator' => 'days_until_at_most', 'value' => '30'],
+        ],
+    ]);
+
+    CheckCandidateStatusAutomations::run($candidate);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeTrue();
+});
+
+test('does not move candidate when a days_until_at_most condition is not yet satisfied', function () {
+    $candidate = EducationCandidate::factory()->create(['available_from' => now()->addDays(90)->toDateString()]);
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'available_from', 'operator' => 'days_until_at_most', 'value' => '30'],
+        ],
+    ]);
+
+    CheckCandidateStatusAutomations::run($candidate);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
+});
+
+test('a days_until_at_most condition never matches when the date field is empty', function () {
+    $candidate = EducationCandidate::factory()->create(['available_from' => null]);
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'available_from', 'operator' => 'days_until_at_most', 'value' => '30'],
+        ],
+    ]);
+
+    CheckCandidateStatusAutomations::run($candidate);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
+});
+
+test('soft-deleting a candidate triggers the automation check via the deleted_at field', function () {
+    $candidate = EducationCandidate::factory()->create(['first_name' => 'Jane']);
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'deleted_at', 'operator' => 'filled'],
+        ],
+    ]);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
+
+    $candidate->delete();
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeTrue();
+});
+
 test('an equals condition on a wildcard relation path never matches', function () {
     $candidate = EducationCandidate::factory()->create(['first_name' => 'Jane']);
 

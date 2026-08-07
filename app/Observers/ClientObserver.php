@@ -22,4 +22,9 @@ class ClientObserver
 
         CheckActions::run($client);
     }
+
+    public function deleted(Client $client): void
+    {
+        CheckActions::run($client);
+    }
 }

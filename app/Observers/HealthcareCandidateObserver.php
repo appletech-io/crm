@@ -11,4 +11,9 @@ class HealthcareCandidateObserver
     {
         CheckActions::run($candidate);
     }
+
+    public function deleted(HealthcareCandidate $candidate): void
+    {
+        CheckActions::run($candidate);
+    }
 }
