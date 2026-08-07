@@ -15,6 +15,15 @@ use Illuminate\Support\Carbon;
 trait EvaluatesConditions
 {
     /**
+     * Operators whose truth value can change purely from time elapsing, with
+     * no record being saved — used by the scheduled `*-based` commands to
+     * know which records need periodic re-checking.
+     *
+     * @var array<int, string>
+     */
+    private const TIME_BASED_OPERATORS = ['days_since_at_least', 'days_until_at_most'];
+
+    /**
      * Check whether the given record satisfies all of this model's conditions.
      */
     public function isSatisfiedBy(Model $record): bool
@@ -26,6 +35,12 @@ trait EvaluatesConditions
         }
 
         return true;
+    }
+
+    public function hasTimeBasedCondition(): bool
+    {
+        return collect($this->conditions)
+            ->contains(fn (array $condition): bool => in_array($condition['operator'] ?? null, self::TIME_BASED_OPERATORS, true));
     }
 
     /** @param  array{field: string, operator?: string, value?: string|null}  $condition */
@@ -41,6 +56,7 @@ trait EvaluatesConditions
             'before' => $this->evaluateDateComparison($record, $field, $value, fn (CarbonInterface $a, CarbonInterface $b): bool => $a->lt($b)),
             'after' => $this->evaluateDateComparison($record, $field, $value, fn (CarbonInterface $a, CarbonInterface $b): bool => $a->gt($b)),
             'days_since_at_least' => $this->evaluateDaysSinceAtLeast($record, $field, $value),
+            'days_until_at_most' => $this->evaluateDaysUntilAtMost($record, $field, $value),
             default => $this->evaluateFilled($record, $field),
         };
     }
@@ -124,6 +140,23 @@ trait EvaluatesConditions
         }
 
         return $fieldDate->lte(now()->subDays((int) $value));
+    }
+
+    /**
+     * True once the date held in $field is at most the given number of days
+     * away — including once it's already passed. Used for "X days before"
+     * reminders (e.g. notify 30 days before a DBS expires); see the scheduled
+     * `*-based` commands that re-evaluate these.
+     */
+    private function evaluateDaysUntilAtMost(Model $record, string $field, ?string $value): bool
+    {
+        $fieldDate = $this->resolveDate(data_get($record, $field));
+
+        if (! $fieldDate || ! is_numeric($value)) {
+            return false;
+        }
+
+        return $fieldDate->lte(now()->addDays((int) $value));
     }
 
     private function resolveDate(mixed $value): ?CarbonInterface

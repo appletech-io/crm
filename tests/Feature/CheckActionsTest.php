@@ -1099,6 +1099,174 @@ test('an action with neither a todo name nor an email template configured never 
     Bus::assertNotDispatched(SendCustomTemplateEmail::class);
 });
 
+test('fires a condition using the days_until_at_most operator once the date comes into range', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+        'dbs_expiry_date' => now()->addDays(10)->toDateString(),
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => EducationCandidate::class,
+        'conditions' => [
+            ['field' => 'dbs_expiry_date', 'operator' => 'days_until_at_most', 'value' => '30'],
+        ],
+        'todo_name' => 'DBS expiring soon',
+    ]);
+
+    CheckActions::run($candidate);
+
+    expect(TodoItem::where('model_type', EducationCandidate::class)->where('model_id', $candidate->id)->where('name', 'DBS expiring soon')->exists())->toBeTrue();
+});
+
+test('does not fire a days_until_at_most condition while the date is still far away', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+        'dbs_expiry_date' => now()->addDays(90)->toDateString(),
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => EducationCandidate::class,
+        'conditions' => [
+            ['field' => 'dbs_expiry_date', 'operator' => 'days_until_at_most', 'value' => '30'],
+        ],
+    ]);
+
+    CheckActions::run($candidate);
+
+    expect(TodoItem::count())->toBe(0);
+});
+
+test('soft-deleting a booking triggers a matching action via the deleted_at field', function () {
+    $booking = Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+        'candidate_type' => EducationCandidate::class,
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Booking::class,
+        'conditions' => [
+            ['field' => 'deleted_at', 'operator' => 'filled'],
+        ],
+        'todo_name' => 'Booking cancelled',
+    ]);
+
+    expect(TodoItem::count())->toBe(0);
+
+    $booking->delete();
+
+    expect(TodoItem::where('model_type', Booking::class)->where('model_id', $booking->id)->where('name', 'Booking cancelled')->exists())->toBeTrue();
+});
+
+test('soft-deleting a client triggers a matching action via the deleted_at field', function () {
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $this->consultant->id,
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'conditions' => [
+            ['field' => 'deleted_at', 'operator' => 'filled'],
+        ],
+        'todo_name' => 'Client deleted',
+    ]);
+
+    expect(TodoItem::count())->toBe(0);
+
+    $client->delete();
+
+    expect(TodoItem::where('model_type', Client::class)->where('model_id', $client->id)->where('name', 'Client deleted')->exists())->toBeTrue();
+});
+
+test('soft-deleting an education candidate triggers a matching action via the deleted_at field', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => EducationCandidate::class,
+        'conditions' => [
+            ['field' => 'deleted_at', 'operator' => 'filled'],
+        ],
+        'todo_name' => 'Candidate deleted',
+    ]);
+
+    expect(TodoItem::count())->toBe(0);
+
+    $candidate->delete();
+
+    expect(TodoItem::where('model_type', EducationCandidate::class)->where('model_id', $candidate->id)->where('name', 'Candidate deleted')->exists())->toBeTrue();
+});
+
+test('soft-deleting a healthcare candidate triggers a matching action via the deleted_at field', function () {
+    $healthcareIndustry = Industry::factory()->create(['slug' => 'healthcare']);
+
+    $candidate = HealthcareCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $healthcareIndustry->id,
+        'model_type' => HealthcareCandidate::class,
+        'conditions' => [
+            ['field' => 'deleted_at', 'operator' => 'filled'],
+        ],
+        'todo_name' => 'Candidate deleted',
+    ]);
+
+    expect(TodoItem::count())->toBe(0);
+
+    $candidate->delete();
+
+    expect(TodoItem::where('model_type', HealthcareCandidate::class)->where('model_id', $candidate->id)->where('name', 'Candidate deleted')->exists())->toBeTrue();
+});
+
+test('soft-deleting a vacancy triggers a matching action via the deleted_at field', function () {
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $client->id,
+        'consultant_id' => $this->consultant->id,
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Vacancy::class,
+        'conditions' => [
+            ['field' => 'deleted_at', 'operator' => 'filled'],
+        ],
+        'todo_name' => 'Vacancy deleted',
+    ]);
+
+    expect(TodoItem::count())->toBe(0);
+
+    $vacancy->delete();
+
+    expect(TodoItem::where('model_type', Vacancy::class)->where('model_id', $vacancy->id)->where('name', 'Vacancy deleted')->exists())->toBeTrue();
+});
+
 test('the user observer re-checks actions for a candidate when their user account is created', function () {
     // A candidate's own record is never re-saved when their application
     // completes — the User account created at that point (see

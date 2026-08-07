@@ -107,6 +107,7 @@ class ConditionsRepeaterField
                 'before' => 'Before',
                 'after' => 'After',
                 'days_since_at_least' => 'At least X days ago',
+                'days_until_at_most' => 'At most X days before (or overdue)',
             ],
             'relation_exists' => [
                 'filled' => 'Is filled',
@@ -133,7 +134,7 @@ class ConditionsRepeaterField
             return null;
         }
 
-        if ($operator === 'days_since_at_least') {
+        if (in_array($operator, ['days_since_at_least', 'days_until_at_most'], true)) {
             return 'days';
         }
 
@@ -172,6 +173,7 @@ class ConditionsRepeaterField
             'before' => "{$label} before {$value}",
             'after' => "{$label} after {$value}",
             'days_since_at_least' => "{$label} at least {$value} days ago",
+            'days_until_at_most' => "{$label} at most {$value} days away",
             default => "{$label} is filled",
         };
     }

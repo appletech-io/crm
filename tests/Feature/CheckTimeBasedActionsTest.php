@@ -3,6 +3,7 @@
 use App\Models\Action;
 use App\Models\Client;
 use App\Models\Company;
+use App\Models\EducationCandidate;
 use App\Models\Industry;
 use App\Models\TodoItem;
 use App\Models\User;
@@ -64,6 +65,49 @@ test('skips clients with no consultant', function () {
         'industry_id' => $this->industry->id,
         'consultant_id' => null,
         'created_at' => now()->subDays(40),
+    ]);
+
+    $this->artisan('actions:check-time-based')->assertSuccessful();
+
+    expect(TodoItem::count())->toBe(0);
+});
+
+test('creates a todo for a candidate whose days_until_at_most condition has now come into range', function () {
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => EducationCandidate::class,
+        'conditions' => [
+            ['field' => 'dbs_expiry_date', 'operator' => 'days_until_at_most', 'value' => '30'],
+        ],
+        'todo_name' => 'DBS expiring soon',
+    ]);
+
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+        'dbs_expiry_date' => now()->addDays(10)->toDateString(),
+    ]);
+
+    $this->artisan('actions:check-time-based')->assertSuccessful();
+
+    expect(TodoItem::where('model_type', EducationCandidate::class)->where('model_id', $candidate->id)->exists())->toBeTrue();
+});
+
+test('does not create a todo when the days_until_at_most condition is not yet in range', function () {
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => EducationCandidate::class,
+        'conditions' => [
+            ['field' => 'dbs_expiry_date', 'operator' => 'days_until_at_most', 'value' => '30'],
+        ],
+    ]);
+
+    EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+        'dbs_expiry_date' => now()->addDays(90)->toDateString(),
     ]);
 
     $this->artisan('actions:check-time-based')->assertSuccessful();

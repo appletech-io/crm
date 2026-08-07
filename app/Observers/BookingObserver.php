@@ -11,4 +11,9 @@ class BookingObserver
     {
         CheckActions::run($booking);
     }
+
+    public function deleted(Booking $booking): void
+    {
+        CheckActions::run($booking);
+    }
 }

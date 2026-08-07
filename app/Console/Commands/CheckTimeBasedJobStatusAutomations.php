@@ -17,9 +17,7 @@ class CheckTimeBasedJobStatusAutomations extends Command
     {
         $statusIds = JobStatusAutomation::query()
             ->get()
-            ->filter(fn (JobStatusAutomation $automation): bool => collect($automation->conditions)
-                ->contains(fn (array $condition): bool => ($condition['operator'] ?? null) === 'days_since_at_least')
-            )
+            ->filter(fn (JobStatusAutomation $automation): bool => $automation->hasTimeBasedCondition())
             ->pluck('job_status_id')
             ->unique();
 

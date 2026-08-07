@@ -154,6 +154,46 @@ test('a condition field valid for the selected model type is accepted', function
     expect($action->conditions)->toBe([['field' => 'status', 'operator' => 'filled']]);
 });
 
+test('a condition using the deleted_at field is accepted so an action can react to a booking cancellation', function () {
+    Livewire::test(CreateAction::class)
+        ->fillForm([
+            'name' => 'Booking cancelled',
+            'model_type' => Booking::class,
+            'conditions' => [
+                'item-1' => ['field' => 'deleted_at', 'operator' => 'filled'],
+            ],
+            'wants_todo' => true,
+            'todo_name' => 'x',
+            'todo_priority' => 'medium',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $action = Action::where('name', 'Booking cancelled')->first();
+
+    expect($action->conditions)->toBe([['field' => 'deleted_at', 'operator' => 'filled']]);
+});
+
+test('a condition using the days_until_at_most operator with a value is accepted', function () {
+    Livewire::test(CreateAction::class)
+        ->fillForm([
+            'name' => 'DBS expiring soon',
+            'model_type' => EducationCandidate::class,
+            'conditions' => [
+                'item-1' => ['field' => 'dbs_expiry_date', 'operator' => 'days_until_at_most', 'value' => '30'],
+            ],
+            'wants_todo' => true,
+            'todo_name' => 'x',
+            'todo_priority' => 'medium',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $action = Action::where('name', 'DBS expiring soon')->first();
+
+    expect($action->conditions)->toBe([['field' => 'dbs_expiry_date', 'operator' => 'days_until_at_most', 'value' => 30]]);
+});
+
 test('model type options include client, booking, vacancy, candidate reference and the active industrys candidate model only', function () {
     Livewire::test(CreateAction::class)
         ->assertFormFieldExists('model_type', function ($field): bool {
