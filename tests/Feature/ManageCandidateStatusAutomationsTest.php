@@ -143,6 +143,25 @@ test('candidate field suggestions include deleted_at so a status automation can 
     expect($suggestions['deleted_at']['type'])->toBe('datetime');
 });
 
+test('candidate field suggestions include the current status as a dropdown of the industrys statuses', function () {
+    $healthcareIndustry = Industry::factory()->create(['slug' => 'healthcare']);
+    Cache::put("user.{$this->user->id}.active_industry", $healthcareIndustry->slug);
+    Cache::put("user.{$this->user->id}.active_industry_id", $healthcareIndustry->id);
+
+    $status = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $healthcareIndustry->id,
+        'name' => 'Onboarding',
+    ]);
+
+    $suggestions = HealthcareCandidate::candidateFieldSuggestions();
+
+    expect($suggestions)->toHaveKey('current_status');
+    expect($suggestions['current_status']['label'])->toBe('Current Status');
+    expect($suggestions['current_status']['type'])->toBe('select');
+    expect($suggestions['current_status']['options'])->toBe([$status->name => $status->name]);
+});
+
 test('can create an automation with a deleted_at condition from the suggestion list', function () {
     $onboarding = CandidateStatus::factory()->create([
         'company_id' => $this->user->company_id,

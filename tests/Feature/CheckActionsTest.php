@@ -8,6 +8,7 @@ use App\Models\Action;
 use App\Models\ActionTrigger;
 use App\Models\Booking;
 use App\Models\CandidateReference;
+use App\Models\CandidateStatus;
 use App\Models\Client;
 use App\Models\Company;
 use App\Models\EducationCandidate;
@@ -1265,6 +1266,81 @@ test('soft-deleting a vacancy triggers a matching action via the deleted_at fiel
     $vacancy->delete();
 
     expect(TodoItem::where('model_type', Vacancy::class)->where('model_id', $vacancy->id)->where('name', 'Vacancy deleted')->exists())->toBeTrue();
+});
+
+test('an action can exclude candidates in a given status via the current_status field', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+        'dbs_expiry_date' => now()->addDays(10)->toDateString(),
+    ]);
+
+    $status = CandidateStatus::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'DNU',
+    ]);
+    $candidate->statuses()->create(['candidate_status_id' => $status->id]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => EducationCandidate::class,
+        'conditions' => [
+            ['field' => 'dbs_expiry_date', 'operator' => 'days_until_at_most', 'value' => '30'],
+            ['field' => 'current_status', 'operator' => 'not_equals', 'value' => 'DNU'],
+        ],
+        'todo_name' => 'DBS expiring soon',
+    ]);
+
+    CheckActions::run($candidate);
+
+    expect(TodoItem::count())->toBe(0);
+});
+
+test('an action can be scoped to only fire for candidates in a given status via the current_status field', function () {
+    $onboarding = CandidateStatus::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Onboarding',
+    ]);
+
+    $candidateInStatus = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+        'dbs_expiry_date' => now()->addDays(10)->toDateString(),
+    ]);
+    $candidateInStatus->statuses()->create(['candidate_status_id' => $onboarding->id]);
+
+    $otherStatus = CandidateStatus::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Vetting',
+    ]);
+
+    $candidateInOtherStatus = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+        'dbs_expiry_date' => now()->addDays(10)->toDateString(),
+    ]);
+    $candidateInOtherStatus->statuses()->create(['candidate_status_id' => $otherStatus->id]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => EducationCandidate::class,
+        'conditions' => [
+            ['field' => 'dbs_expiry_date', 'operator' => 'days_until_at_most', 'value' => '30'],
+            ['field' => 'current_status', 'operator' => 'equals', 'value' => 'Onboarding'],
+        ],
+        'todo_name' => 'DBS expiring soon',
+    ]);
+
+    CheckActions::run($candidateInStatus);
+    CheckActions::run($candidateInOtherStatus);
+
+    expect(TodoItem::where('model_id', $candidateInStatus->id)->exists())->toBeTrue();
+    expect(TodoItem::where('model_id', $candidateInOtherStatus->id)->exists())->toBeFalse();
 });
 
 test('the user observer re-checks actions for a candidate when their user account is created', function () {

@@ -20,7 +20,7 @@ use Filament\Schemas\Components\Utilities\Set;
 class ConditionsRepeaterField
 {
     /**
-     * @param  Closure(Get $get): array<string, array{label: string, type: string}>  $suggestionsResolver
+     * @param  Closure(Get $get): array<string, array{label: string, type: string, options?: array<string, string>}>  $suggestionsResolver
      */
     public static function make(string $name, Closure $suggestionsResolver): Repeater
     {
@@ -58,6 +58,13 @@ class ConditionsRepeaterField
                     ->options(['1' => 'True', '0' => 'False'])
                     ->visible(fn (Get $get): bool => static::valueKind($suggestionsResolver($get), $get('field'), $get('operator')) === 'boolean')
                     ->required(fn (Get $get): bool => static::valueKind($suggestionsResolver($get), $get('field'), $get('operator')) === 'boolean')
+                    ->columnSpan(2),
+
+                Select::make('value')
+                    ->label('Value')
+                    ->options(fn (Get $get): array => $suggestionsResolver($get)[$get('field')]['options'] ?? [])
+                    ->visible(fn (Get $get): bool => static::valueKind($suggestionsResolver($get), $get('field'), $get('operator')) === 'select')
+                    ->required(fn (Get $get): bool => static::valueKind($suggestionsResolver($get), $get('field'), $get('operator')) === 'select')
                     ->columnSpan(2),
 
                 DatePicker::make('value')
@@ -112,6 +119,11 @@ class ConditionsRepeaterField
             'relation_exists' => [
                 'filled' => 'Is filled',
             ],
+            'select' => [
+                'filled' => 'Is filled',
+                'equals' => 'Equals',
+                'not_equals' => 'Does not equal',
+            ],
             default => [
                 'filled' => 'Is filled',
                 'equals' => 'Equals',
@@ -126,7 +138,7 @@ class ConditionsRepeaterField
      * the right one of the repeater's conditionally-visible "value" fields
      * is shown.
      *
-     * @param  array<string, array{label: string, type: string}>  $suggestions
+     * @param  array<string, array{label: string, type: string, options?: array<string, string>}>  $suggestions
      */
     public static function valueKind(array $suggestions, ?string $field, ?string $operator): ?string
     {
@@ -144,6 +156,10 @@ class ConditionsRepeaterField
             return 'boolean';
         }
 
+        if ($type === 'select' && in_array($operator, ['equals', 'not_equals'], true)) {
+            return 'select';
+        }
+
         if (in_array($type, ['date', 'datetime'], true) && in_array($operator, ['equals', 'not_equals', 'before', 'after'], true)) {
             return 'date';
         }
@@ -157,7 +173,7 @@ class ConditionsRepeaterField
 
     /**
      * @param  array{field?: string, operator?: string, value?: string|null}  $condition
-     * @param  array<string, array{label: string, type: string}>  $suggestions
+     * @param  array<string, array{label: string, type: string, options?: array<string, string>}>  $suggestions
      */
     public static function conditionLabel(array $condition, array $suggestions): string
     {
