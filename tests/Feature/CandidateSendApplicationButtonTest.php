@@ -2,6 +2,8 @@
 
 use App\Filament\Resources\EducationCandidates\Pages\EditEducationCandidate;
 use App\Filament\Resources\HealthcareCandidates\Pages\EditHealthcareCandidate;
+use App\Models\CandidateCandidateStatus;
+use App\Models\CandidateStatus;
 use App\Models\EducationCandidate;
 use App\Models\EmailTemplate;
 use App\Models\HealthcareCandidate;
@@ -12,6 +14,21 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
+
+function assignCandidateStatusFor(EducationCandidate|HealthcareCandidate $candidate, Industry $industry, string $statusName): void
+{
+    $status = CandidateStatus::factory()->create([
+        'company_id' => $candidate->company_id,
+        'industry_id' => $industry->id,
+        'name' => $statusName,
+    ]);
+
+    CandidateCandidateStatus::create([
+        'model_type' => $candidate::class,
+        'model_id' => $candidate->id,
+        'candidate_status_id' => $status->id,
+    ]);
+}
 
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
@@ -52,9 +69,10 @@ function makeApplicationTemplate(Industry $industry): void
     ]);
 }
 
-test('a send application button shows on an education candidate with no application', function () {
-    actingAsIndustryUserFor('education');
+test('a send application button shows on an education candidate with no application who is onboarding', function () {
+    $industry = actingAsIndustryUserFor('education');
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignCandidateStatusFor($candidate, $industry, 'Onboarding');
 
     Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
         ->assertSee('Send Application')
@@ -62,10 +80,30 @@ test('a send application button shows on an education candidate with no applicat
         ->assertDontSee('Application Complete');
 });
 
+test('the send application button is hidden on an education candidate who is not onboarding', function () {
+    $industry = actingAsIndustryUserFor('education');
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignCandidateStatusFor($candidate, $industry, 'Live');
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertDontSee('Send Application')
+        ->assertDontSee('Application Pending')
+        ->assertDontSee('Application Complete');
+});
+
+test('the send application button is hidden on an education candidate with no status at all', function () {
+    actingAsIndustryUserFor('education');
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertDontSee('Send Application');
+});
+
 test('clicking send application on an education candidate creates an application and sends the email immediately', function () {
     $industry = actingAsIndustryUserFor('education');
     makeApplicationTemplate($industry);
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignCandidateStatusFor($candidate, $industry, 'Onboarding');
 
     Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
         ->call('sendApplicationEmail')
@@ -92,12 +130,24 @@ test('the send application button does not show once an application already exis
         ->assertSee('Application Pending');
 });
 
-test('a send application button shows on a healthcare candidate with no application', function () {
-    actingAsIndustryUserFor('healthcare');
+test('a send application button shows on a healthcare candidate with no application who is onboarding', function () {
+    $industry = actingAsIndustryUserFor('healthcare');
     $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignCandidateStatusFor($candidate, $industry, 'Onboarding');
 
     Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
         ->assertSee('Send Application')
+        ->assertDontSee('Application Pending')
+        ->assertDontSee('Application Complete');
+});
+
+test('the send application button is hidden on a healthcare candidate who is not onboarding', function () {
+    $industry = actingAsIndustryUserFor('healthcare');
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignCandidateStatusFor($candidate, $industry, 'Live');
+
+    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertDontSee('Send Application')
         ->assertDontSee('Application Pending')
         ->assertDontSee('Application Complete');
 });
@@ -106,6 +156,7 @@ test('clicking send application on a healthcare candidate creates an application
     $industry = actingAsIndustryUserFor('healthcare');
     makeApplicationTemplate($industry);
     $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignCandidateStatusFor($candidate, $industry, 'Onboarding');
 
     Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
         ->call('sendApplicationEmail')

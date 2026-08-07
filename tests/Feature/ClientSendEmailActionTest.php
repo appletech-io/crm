@@ -38,7 +38,7 @@ beforeEach(function () {
 test('the row action dispatches the job using the client booking contact', function () {
     Bus::fake();
 
-    $client = Client::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id]);
+    $client = Client::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id, 'consultant_id' => $this->user->id]);
     ClientContact::factory()->create([
         'company_id' => $this->user->company_id,
         'client_id' => $client->id,
@@ -56,7 +56,7 @@ test('the row action dispatches the job using the client booking contact', funct
 test('the row action reports failure for a client with no bookable contact instead of dispatching', function () {
     Bus::fake();
 
-    $client = Client::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id]);
+    $client = Client::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id, 'consultant_id' => $this->user->id]);
 
     Livewire::test(ListClients::class)
         ->callTableAction('sendEmail', $client, data: ['email_template_id' => $this->template->id])
@@ -68,14 +68,14 @@ test('the row action reports failure for a client with no bookable contact inste
 test('the bulk action dispatches for sendable clients and reports skipped ones by name', function () {
     Bus::fake();
 
-    $sendable = Client::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id, 'name' => 'Acme Ltd']);
+    $sendable = Client::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id, 'consultant_id' => $this->user->id, 'name' => 'Acme Ltd']);
     ClientContact::factory()->create([
         'company_id' => $this->user->company_id,
         'client_id' => $sendable->id,
         'main_contact' => true,
         'email' => 'contact@acme.test',
     ]);
-    $skipped = Client::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id, 'name' => 'No Contact Ltd']);
+    $skipped = Client::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id, 'consultant_id' => $this->user->id, 'name' => 'No Contact Ltd']);
 
     Livewire::test(ListClients::class)
         ->callTableBulkAction('sendEmail', [$sendable, $skipped], data: ['email_template_id' => $this->template->id])
@@ -87,7 +87,7 @@ test('the bulk action dispatches for sendable clients and reports skipped ones b
 test('the edit page header action sends to the client being edited', function () {
     Bus::fake();
 
-    $client = Client::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id]);
+    $client = Client::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id, 'consultant_id' => $this->user->id]);
     ClientContact::factory()->create([
         'company_id' => $this->user->company_id,
         'client_id' => $client->id,

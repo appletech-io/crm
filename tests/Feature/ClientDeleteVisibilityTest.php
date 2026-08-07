@@ -37,7 +37,7 @@ test('consultants cannot see the delete action on a client', function () {
 
 test('admins can see the delete action on a client', function () {
     [$user, $industry] = actingAsClientIndustryUser('admin');
-    $client = Client::factory()->create(['company_id' => $user->company_id, 'industry_id' => $industry->id]);
+    $client = Client::factory()->create(['company_id' => $user->company_id, 'industry_id' => $industry->id, 'consultant_id' => $user->id]);
 
     Livewire::test(EditClient::class, ['record' => $client->getRouteKey()])
         ->assertActionVisible('delete');
@@ -55,4 +55,38 @@ test('admins can see the delete bulk action on the clients table', function () {
 
     Livewire::test(ListClients::class)
         ->assertTableBulkActionVisible('delete');
+});
+
+test('consultants cannot see the force delete action on a trashed client', function () {
+    [$user, $industry] = actingAsClientIndustryUser('consultant');
+    $client = Client::factory()->create(['company_id' => $user->company_id, 'industry_id' => $industry->id, 'consultant_id' => $user->id]);
+    $client->delete();
+
+    Livewire::test(EditClient::class, ['record' => $client->getRouteKey()])
+        ->assertActionHidden('forceDelete');
+});
+
+test('admins can see the force delete action on a trashed client', function () {
+    [$user, $industry] = actingAsClientIndustryUser('admin');
+    $client = Client::factory()->create(['company_id' => $user->company_id, 'industry_id' => $industry->id, 'consultant_id' => $user->id]);
+    $client->delete();
+
+    Livewire::test(EditClient::class, ['record' => $client->getRouteKey()])
+        ->assertActionVisible('forceDelete');
+});
+
+test('consultants cannot see the force delete bulk action on the clients table', function () {
+    actingAsClientIndustryUser('consultant');
+
+    Livewire::test(ListClients::class)
+        ->filterTable('trashed', true)
+        ->assertTableBulkActionHidden('forceDelete');
+});
+
+test('admins can see the force delete bulk action on the clients table', function () {
+    actingAsClientIndustryUser('admin');
+
+    Livewire::test(ListClients::class)
+        ->filterTable('trashed', true)
+        ->assertTableBulkActionVisible('forceDelete');
 });

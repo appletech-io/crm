@@ -22,6 +22,11 @@ class ClientFactory extends Factory
         return [
             'company_id' => Company::factory(),
             'industry_id' => Industry::factory(),
+            // Mirrors ListClients' create action, which always assigns the
+            // acting user as consultant — every real client has one, and
+            // defaulting it here keeps factory-made clients visible to the
+            // acting test user under Client::scopeVisibleToCurrentUser().
+            'consultant_id' => fn () => auth()->id(),
             'name' => $this->faker->company(),
             'address' => $this->faker->streetAddress(),
             'city' => $this->faker->city(),

@@ -5,6 +5,7 @@ namespace App\Providers\Filament;
 use App\Filament\Pages\Calendar;
 use App\Filament\Pages\CandidateSettings;
 use App\Filament\Pages\ClientSettings;
+use App\Filament\Pages\ComplianceDashboard;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\JobSettings;
 use App\Filament\Pages\RunPayroll;
@@ -17,6 +18,7 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Navigation\NavigationGroup;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -85,9 +87,10 @@ class AdminPanelProvider extends PanelProvider
                 scopes: [EditEducationCandidate::class, EditHealthcareCandidate::class],
             )
             ->navigationGroups([
-                'Settings',
-                'Admin',
-                'Site Settings',
+                NavigationGroup::make('Settings')->collapsed(),
+                NavigationGroup::make('Admin')->collapsed(),
+                NavigationGroup::make('Marketing')->collapsed(),
+                NavigationGroup::make('Site Settings'),
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->plugins([
@@ -95,6 +98,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->pages([
                 Dashboard::class,
+                ComplianceDashboard::class,
                 CandidateSettings::class,
                 ClientSettings::class,
                 JobSettings::class,

@@ -234,6 +234,45 @@ test('the pdf includes a booking dates table with the charge rate and, for hours
         ->and($html)->toContain('£25.00');
 });
 
+test('a full day booking with no recorded start time defaults to 08:30 on the pdf', function () {
+    $this->booking->update(['day_charge_rate' => 270]);
+
+    $this->booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => '2026-06-29',
+        'period' => BookingDayPeriod::FullDay,
+        'time_from' => null,
+    ]);
+
+    $rows = BookingDayPeriods::rows($this->booking->fresh(), 'charge');
+
+    expect($rows[0]['start'])->toBe('08:30');
+
+    $html = view('pdfs.booking-confirmation', [
+        'booking' => $this->booking,
+        'candidate' => $this->candidate,
+        'checks' => collect(),
+        'bookingDates' => $rows,
+        'photoDataUri' => null,
+    ])->render();
+
+    expect($html)->toContain('08:30');
+});
+
+test('an hours-based day with no recorded start time is not defaulted', function () {
+    $this->booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => '2026-06-29',
+        'period' => BookingDayPeriod::Hours,
+        'time_from' => null,
+        'time_to' => null,
+    ]);
+
+    $rows = BookingDayPeriods::rows($this->booking->fresh(), 'charge');
+
+    expect($rows[0]['start'])->toBe('');
+});
+
 test('a cancelled day shows as cancelled with no rate in the breakdown and pdf', function () {
     $this->booking->update(['day_charge_rate' => 270]);
 

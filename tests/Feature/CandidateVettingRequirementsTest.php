@@ -321,6 +321,30 @@ test('right to work is complete for visa only once share code and dates are set'
     expect(CandidateVettingRequirements::for($candidate)['right_to_work']['complete'])->toBeTrue();
 });
 
+test('visa restrictions checked is only relevant for visa candidates and requires a manual confirmation', function () {
+    $candidate = fullyCompliantCandidate(['right_to_work_type' => 'passport']);
+
+    // Not a visa candidate — vacuously complete, nothing to check.
+    expect(CandidateVettingRequirements::for($candidate)['visa_restrictions_checked']['complete'])->toBeTrue();
+
+    $candidate->update([
+        'right_to_work_type' => 'visa',
+        'visa_share_code' => 'ABC123',
+        'visa_issue_date' => now(),
+        'visa_expiry_date' => now()->addYear(),
+    ]);
+
+    // Visa details being set doesn't imply restrictions have been checked —
+    // this is a distinct, manual-only confirmation.
+    expect(CandidateVettingRequirements::for($candidate)['visa_restrictions_checked']['complete'])->toBeFalse();
+
+    $candidate->update(['right_to_work_checked' => 'no']);
+    expect(CandidateVettingRequirements::for($candidate)['visa_restrictions_checked']['complete'])->toBeFalse();
+
+    $candidate->update(['right_to_work_checked' => 'yes']);
+    expect(CandidateVettingRequirements::for($candidate)['visa_restrictions_checked']['complete'])->toBeTrue();
+});
+
 test('right to work is complete for passport only once the document is uploaded', function () {
     $candidate = fullyCompliantCandidate(['right_to_work_type' => 'passport']);
 

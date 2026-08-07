@@ -21,7 +21,8 @@ class EditClient extends EditRecord
             SendCustomEmailAction::header(EmailTemplateAudience::Client),
             DeleteAction::make()
                 ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false),
-            ForceDeleteAction::make(),
+            ForceDeleteAction::make()
+                ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false),
             RestoreAction::make(),
         ];
     }

@@ -4,6 +4,8 @@ use App\Enums\EmailTemplateType;
 use App\Filament\Resources\EducationCandidates\Pages\EditEducationCandidate;
 use App\Filament\Resources\EducationCandidates\Pages\ListEducationCandidates;
 use App\Jobs\SendCustomTemplateEmail;
+use App\Models\CandidateCandidateStatus;
+use App\Models\CandidateStatus;
 use App\Models\Company;
 use App\Models\EducationCandidate;
 use App\Models\EmailTemplate;
@@ -157,6 +159,17 @@ test('the bulk action is also available on the search tab', function () {
         'company_id' => $this->user->company_id,
         'consultant_id' => $this->user->id,
         'email' => 'jane@example.com',
+    ]);
+
+    $status = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Live',
+    ]);
+    CandidateCandidateStatus::create([
+        'model_type' => EducationCandidate::class,
+        'model_id' => $candidate->id,
+        'candidate_status_id' => $status->id,
     ]);
 
     // activeSection defaults to 'search', so this exercises configureSearchTable().

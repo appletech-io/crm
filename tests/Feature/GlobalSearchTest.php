@@ -34,6 +34,7 @@ test('a client can be found in global search by phone number', function () {
         'company_id' => $this->company->id,
         'name' => 'Ashlawn School',
         'phone' => '01926123456',
+        'consultant_id' => $this->user->id,
     ]);
 
     $results = Livewire::test(GlobalSearch::class)
@@ -50,6 +51,7 @@ test('a client can be found in global search by a contacts email', function () {
     $client = Client::factory()->create([
         'company_id' => $this->company->id,
         'name' => 'Ashlawn School',
+        'consultant_id' => $this->user->id,
     ]);
 
     $client->contacts()->create([

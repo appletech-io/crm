@@ -51,17 +51,63 @@ test('a non-admin consultant only sees clients assigned to them', function () {
         ->assertCanNotSeeTableRecords([$otherConsultantClient, $unassignedClient]);
 });
 
-test('an admin sees all clients regardless of consultant_id', function () {
-    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+test('an admin only sees their own clients by default, same as a consultant', function () {
+    $otherConsultant = User::factory()->create(['company_id' => $this->user->company_id]);
 
-    $client = Client::factory()->create([
+    $ownClient = Client::factory()->create([
         'company_id' => $this->user->company_id,
         'industry_id' => $this->industry->id,
-        'consultant_id' => $consultant->id,
+        'consultant_id' => $this->user->id,
+    ]);
+
+    $otherClient = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $otherConsultant->id,
     ]);
 
     Livewire::test(ListClients::class)
-        ->assertCanSeeTableRecords([$client]);
+        ->assertCanSeeTableRecords([$ownClient])
+        ->assertCanNotSeeTableRecords([$otherClient]);
+});
+
+test('an admin can toggle to see all clients, and toggle back to just their own', function () {
+    $otherConsultant = User::factory()->create(['company_id' => $this->user->company_id]);
+
+    $ownClient = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $this->user->id,
+    ]);
+
+    $otherClient = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $otherConsultant->id,
+    ]);
+
+    $test = Livewire::test(ListClients::class)
+        ->assertActionHasLabel('toggleAllClients', 'Show All Clients')
+        ->callAction('toggleAllClients')
+        ->assertCanSeeTableRecords([$ownClient, $otherClient])
+        ->assertActionHasLabel('toggleAllClients', 'Show My Clients Only');
+
+    $test->callAction('toggleAllClients')
+        ->assertCanSeeTableRecords([$ownClient])
+        ->assertCanNotSeeTableRecords([$otherClient])
+        ->assertActionHasLabel('toggleAllClients', 'Show All Clients');
+});
+
+test('consultants do not see the show all clients toggle', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+
+    $this->actingAs($consultant);
+    Cache::put("user.{$consultant->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$consultant->id}.active_industry_id", $this->industry->id);
+
+    Livewire::test(ListClients::class)
+        ->assertActionHidden('toggleAllClients');
 });
 
 test('a non-admin cannot directly open another consultants client edit page', function () {
@@ -80,6 +126,24 @@ test('a non-admin cannot directly open another consultants client edit page', fu
 
     expect(fn () => Livewire::test(EditClient::class, ['record' => $otherConsultantClient->getRouteKey()]))
         ->toThrow(ModelNotFoundException::class);
+});
+
+test('an admin cannot directly open another consultants client edit page unless viewing all clients', function () {
+    $otherConsultant = User::factory()->create(['company_id' => $this->user->company_id]);
+
+    $otherConsultantClient = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $otherConsultant->id,
+    ]);
+
+    expect(fn () => Livewire::test(EditClient::class, ['record' => $otherConsultantClient->getRouteKey()]))
+        ->toThrow(ModelNotFoundException::class);
+
+    session([Client::ADMIN_VIEWING_ALL_CLIENTS_SESSION_KEY => true]);
+
+    Livewire::test(EditClient::class, ['record' => $otherConsultantClient->getRouteKey()])
+        ->assertSuccessful();
 });
 
 test('creating a client assigns the logged in consultant', function () {

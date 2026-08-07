@@ -124,6 +124,11 @@ test('the clients list can be filtered by consultant', function () {
         'industry_id' => Cache::get("user.{$this->user->id}.active_industry_id"),
     ]);
 
+    // Filtering to another consultant's clients only makes sense once the
+    // admin has switched on "show all clients" — by default they're scoped
+    // to their own, same as anyone else.
+    session([Client::ADMIN_VIEWING_ALL_CLIENTS_SESSION_KEY => true]);
+
     Livewire::test(ListClients::class)
         ->filterTable('consultant_id', $consultant->id)
         ->assertCanSeeTableRecords([$matchingClient])

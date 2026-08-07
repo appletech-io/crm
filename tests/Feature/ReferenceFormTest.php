@@ -181,6 +181,37 @@ test('a submitted reference stores all of the answers and the submitted_at times
     ]);
 });
 
+test('submitting a reference logs a candidate activity noting it was completed', function () {
+    $reference = makeVerifiedReference(['type' => 'academic']);
+    $candidate = $reference->candidate;
+
+    Livewire::test('reference.reference-form', ['token' => $reference->token])
+        ->set('answers.worked_from', '2018-09-01')
+        ->set('answers.worked_to', '2020-07-01')
+        ->set('answers.confirm_name', 'Ref Eree')
+        ->set('answers.confirm_position', 'Head of Department')
+        ->set('answers.confirm_organisation', 'Example University')
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    $activity = $candidate->activities()->latest()->first();
+
+    expect($activity)->not->toBeNull();
+    expect($activity->note)->toBe('Reference completed');
+    expect($activity->body)->toContain('Ref Eree');
+});
+
+test('saving a reference again without changing its status does not log a duplicate completed activity', function () {
+    $reference = makeVerifiedReference(['type' => 'academic']);
+    $candidate = $reference->candidate;
+
+    $reference->update(['status' => ReferenceStatus::Submitted, 'submitted_at' => now()]);
+    expect($candidate->activities()->count())->toBe(1);
+
+    $reference->update(['last_contacted' => now()->toDateString()]);
+    expect($candidate->activities()->count())->toBe(1);
+});
+
 test('submitting the professional form validates every question in the ratings grid', function () {
     $reference = makeVerifiedReference(['type' => 'professional']);
 

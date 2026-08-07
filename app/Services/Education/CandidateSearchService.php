@@ -24,7 +24,9 @@ class CandidateSearchService
      */
     public function search(array $filters): Builder
     {
-        $query = EducationCandidate::query()->where('consultant_id', auth()->id());
+        $query = EducationCandidate::query()
+            ->where('consultant_id', auth()->id())
+            ->whereHas('statuses.status', fn (Builder $q) => $q->where('name', 'Live'));
 
         $this->applyName($query, $filters['name'] ?? null);
         $this->applyEmail($query, $filters['email'] ?? null);

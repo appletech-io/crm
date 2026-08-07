@@ -116,6 +116,8 @@ class ListEducationCandidates extends ListRecords implements HasForms
             ->components([
                 Section::make('Search Candidates')
                     ->columns(3)
+                    ->collapsible()
+                    ->collapsed()
                     ->schema([
                         TextInput::make('name')
                             ->label('Name'),

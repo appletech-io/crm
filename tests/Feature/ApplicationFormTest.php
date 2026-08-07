@@ -506,6 +506,64 @@ test('saveMedicalInformation requires an emergency contact name and number', fun
         ->assertHasErrors(['emergency_contact_name', 'emergency_contact_number']);
 });
 
+test('saveMedicalInformation rejects an emergency contact that is the candidate themselves', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 1)
+        ->set('first_name', 'Priya')
+        ->set('last_name', 'Shah')
+        ->set('phone', '01132009000')
+        ->set('mobile', '07700900123')
+        ->set('currentStep', 3)
+        ->set('has_health_condition_or_disability', 'no')
+        // Same name, different casing/spacing — should still be caught.
+        ->set('emergency_contact_name', '  priya SHAH  ')
+        ->set('emergency_contact_number', '07700900456')
+        ->call('saveMedicalInformation')
+        ->assertHasErrors(['emergency_contact_name'])
+        ->assertHasNoErrors(['emergency_contact_number']);
+});
+
+test('saveMedicalInformation rejects an emergency contact number matching the candidates own phone or mobile', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 1)
+        ->set('first_name', 'Priya')
+        ->set('last_name', 'Shah')
+        ->set('phone', '0113 200 9000')
+        ->set('mobile', '07700 900123')
+        ->set('currentStep', 3)
+        ->set('has_health_condition_or_disability', 'no')
+        ->set('emergency_contact_name', 'Jane Smith')
+        // Same mobile number, just formatted differently — should still be caught.
+        ->set('emergency_contact_number', '+44 7700 900123')
+        ->call('saveMedicalInformation')
+        ->assertHasErrors(['emergency_contact_number'])
+        ->assertHasNoErrors(['emergency_contact_name']);
+});
+
+test('saveMedicalInformation accepts an emergency contact that genuinely differs from the candidate', function () {
+    $application = makePendingApplication();
+    $candidate = $application->educationCandidate;
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 1)
+        ->set('first_name', 'Priya')
+        ->set('last_name', 'Shah')
+        ->set('phone', '0113 200 9000')
+        ->set('mobile', '07700 900123')
+        ->set('currentStep', 3)
+        ->set('has_health_condition_or_disability', 'no')
+        ->set('emergency_contact_name', 'Jane Smith')
+        ->set('emergency_contact_number', '07700 900999')
+        ->call('saveMedicalInformation')
+        ->assertHasNoErrors();
+
+    expect($candidate->refresh()->emergency_contact_name)->toBe('Jane Smith');
+});
+
 test('acceptTermsOfEngagement requires the consent checkbox to be checked', function () {
     $application = makePendingApplication();
 
