@@ -80,7 +80,7 @@ class EducationCandidate extends Model
 
     public function scopeVisibleToCurrentUser(Builder $query): Builder
     {
-        if (auth()->user()?->isAdmin()) {
+        if (auth()->user()?->isAdmin() || auth()->user()?->hasRole('compliance')) {
             return $query;
         }
 

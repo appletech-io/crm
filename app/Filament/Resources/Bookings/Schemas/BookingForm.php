@@ -84,15 +84,26 @@ class BookingForm
                                     return [];
                                 }
 
-                                return $candidateModelClass::query()
-                                    ->when(
-                                        ! $record,
-                                        fn ($query) => $query->whereHas(
-                                            'statuses.status',
-                                            fn ($statusQuery) => $statusQuery->where('name', 'Live')
-                                        )
+                                $candidates = $candidateModelClass::query()
+                                    ->whereHas(
+                                        'statuses.status',
+                                        fn ($statusQuery) => $statusQuery->where('name', 'Live')
                                     )
-                                    ->get()
+                                    ->get();
+
+                                // Editing a booking must keep offering its already-assigned
+                                // candidate even if their status has since moved off Live —
+                                // otherwise saving the form with no other changes would
+                                // silently blank the candidate out.
+                                if ($record?->candidate_id && ! $candidates->contains('id', $record->candidate_id)) {
+                                    $existing = $candidateModelClass::withTrashed()->find($record->candidate_id);
+
+                                    if ($existing) {
+                                        $candidates->push($existing);
+                                    }
+                                }
+
+                                return $candidates
                                     ->mapWithKeys(fn (Model $candidate): array => [
                                         $candidate->id => trim("{$candidate->first_name} {$candidate->last_name}"),
                                     ])
