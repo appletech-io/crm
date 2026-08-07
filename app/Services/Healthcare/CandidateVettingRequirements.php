@@ -73,8 +73,13 @@ class CandidateVettingRequirements
             ],
             'right_to_work' => [
                 'label' => static::rightToWorkLabel($candidate),
-                'description' => 'Right to work has been established: passport with document uploaded, birth certificate with document uploaded and NI number set, or visa set and confirmed.',
+                'description' => 'Right to work has been established: passport with document uploaded, birth certificate with document uploaded, or visa details set.',
                 'complete' => static::rightToWorkComplete($candidate),
+            ],
+            'visa_restrictions_checked' => [
+                'label' => 'Visa Restrictions',
+                'description' => 'For a visa candidate, manually confirm their visa conditions and restrictions have been checked.',
+                'complete' => $candidate->right_to_work_type !== 'visa' || $candidate->right_to_work_checked === 'yes',
             ],
         ];
     }

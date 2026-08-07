@@ -74,13 +74,28 @@ class Client extends Model
         return $this->belongsTo(User::class, 'consultant_id');
     }
 
+    /**
+     * Session key an admin's "show all clients" preference is stored under.
+     * Consultants are always scoped to their own clients; admins default to
+     * the same "my clients" scope but can flip this on to see every client —
+     * the toggle is shared everywhere this scope is applied (clients list,
+     * booking creation, etc), not just wherever it was switched on.
+     */
+    public const string ADMIN_VIEWING_ALL_CLIENTS_SESSION_KEY = 'admin_viewing_all_clients';
+
     public function scopeVisibleToCurrentUser(Builder $query): Builder
     {
-        if (auth()->user()?->isAdmin()) {
+        $user = auth()->user();
+
+        if (! $user) {
             return $query;
         }
 
-        return $query->where('consultant_id', auth()->id());
+        if ($user->isAdmin() && session(self::ADMIN_VIEWING_ALL_CLIENTS_SESSION_KEY, false)) {
+            return $query;
+        }
+
+        return $query->where('consultant_id', $user->id);
     }
 
     public function clientType(): BelongsTo

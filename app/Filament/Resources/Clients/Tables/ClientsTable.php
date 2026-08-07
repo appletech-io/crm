@@ -63,7 +63,8 @@ class ClientsTable
                     SendCustomEmailAction::bulk(EmailTemplateAudience::Client),
                     DeleteBulkAction::make()
                         ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false),
-                    ForceDeleteBulkAction::make(),
+                    ForceDeleteBulkAction::make()
+                        ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false),
                     RestoreBulkAction::make(),
                 ]),
             ]);

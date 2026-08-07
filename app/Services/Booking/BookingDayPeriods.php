@@ -10,6 +10,8 @@ use Illuminate\Support\Collection;
 
 class BookingDayPeriods
 {
+    private const DEFAULT_FULL_DAY_START = '08:30';
+
     /** @return Collection<int, array{date: Carbon, period: BookingDayPeriod, start: string, rate: ?float, hours: ?float, cancelled: bool}> */
     public static function rows(Booking $booking, string $rateType = 'pay'): Collection
     {
@@ -37,7 +39,12 @@ class BookingDayPeriods
     private static function formatTimes(BookingDay $dayPeriod): string
     {
         if (! $dayPeriod->time_from) {
-            return '';
+            // A full day booking has no specific start time recorded, but the
+            // confirmation PDF should still show a sensible default rather
+            // than a blank cell.
+            return $dayPeriod->period === BookingDayPeriod::FullDay
+                ? self::DEFAULT_FULL_DAY_START
+                : '';
         }
 
         $from = Carbon::parse($dayPeriod->time_from)->format('H:i');

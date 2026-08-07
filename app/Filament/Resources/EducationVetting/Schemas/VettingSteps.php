@@ -364,6 +364,19 @@ class VettingSteps
                 ->action(fn (?EducationCandidate $record) => static::runManualConfirm(
                     $record, 'ni_number_match', 'ni_number_checked_at', 'Proof of NI'
                 )),
+            'visa_restrictions_checked' => Action::make('confirm_visa_restrictions')
+                ->iconButton()
+                ->icon('heroicon-o-check-badge')
+                ->color('gray')
+                ->tooltip('Manually confirm visa restrictions have been checked')
+                ->visible(fn (?EducationCandidate $record): bool => $record?->right_to_work_type === 'visa')
+                ->requiresConfirmation()
+                ->modalHeading('Confirm visa restrictions have been checked')
+                ->modalDescription('Use this once you\'ve manually checked this candidate\'s visa conditions and restrictions.')
+                ->modalSubmitActionLabel('Confirm checked')
+                ->action(fn (?EducationCandidate $record) => static::runManualConfirm(
+                    $record, 'right_to_work_checked', 'right_to_work_checked_date', 'Visa restrictions'
+                )),
             default => null,
         };
     }

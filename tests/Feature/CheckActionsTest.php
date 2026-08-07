@@ -1098,3 +1098,39 @@ test('an action with neither a todo name nor an email template configured never 
         ->and($action->openTriggerFor($client))->toBeNull();
     Bus::assertNotDispatched(SendCustomTemplateEmail::class);
 });
+
+test('the user observer re-checks actions for a candidate when their user account is created', function () {
+    // A candidate's own record is never re-saved when their application
+    // completes — the User account created at that point (see
+    // completeApplication()) is the only signal UserObserver gets, so it
+    // has to re-run CheckActions itself rather than relying on
+    // EducationCandidateObserver's own saved() hook.
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+        'first_name' => 'Jane',
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => EducationCandidate::class,
+        'conditions' => [
+            ['field' => 'first_name', 'operator' => 'filled'],
+        ],
+        'todo_name' => 'Chase candidate documents',
+    ]);
+
+    expect(TodoItem::where('model_type', EducationCandidate::class)->where('model_id', $candidate->id)->exists())->toBeFalse();
+
+    User::factory()->create([
+        'candidate_id' => $candidate->id,
+        'candidate_type' => EducationCandidate::class,
+    ]);
+
+    $todo = TodoItem::where('model_type', EducationCandidate::class)->where('model_id', $candidate->id)->first();
+
+    expect($todo)->not->toBeNull()
+        ->and($todo->name)->toBe('Chase candidate documents')
+        ->and($todo->user_id)->toBe($this->consultant->id);
+});

@@ -529,6 +529,34 @@ test('vetting wizard can save security checks', function () {
     expect($candidate->visa_notes)->toBe('Skilled worker visa, sponsor confirmed.');
 });
 
+test('manually confirming visa restrictions sets the check for a visa candidate', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'right_to_work_type' => 'visa',
+    ]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->callAction(TestAction::make('confirm_visa_restrictions')->schemaComponent())
+        ->assertNotified('Visa restrictions manually confirmed');
+
+    $candidate->refresh();
+
+    expect($candidate->right_to_work_checked)->toBe('yes');
+    expect($candidate->right_to_work_checked_date)->not->toBeNull();
+});
+
+test('the confirm visa restrictions action is hidden for a non-visa candidate', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'right_to_work_type' => 'passport',
+    ]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertActionDoesNotExist(TestAction::make('confirm_visa_restrictions')->schemaComponent());
+});
+
 test('dnuCandidate is true when the current status is DNU', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
     assignStatus($candidate, $this->industry, $this->user->company_id, 'DNU');

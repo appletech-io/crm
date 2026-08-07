@@ -44,6 +44,7 @@ class BookingForm
                         Select::make('client_id')
                             ->label('Client')
                             ->options(fn (): array => Client::query()
+                                ->visibleToCurrentUser()
                                 ->pluck('name', 'id')
                                 ->toArray()
                             )
@@ -125,7 +126,14 @@ class BookingForm
                         Select::make('status')
                             ->options(BookingStatus::options())
                             ->required()
-                            ->default(BookingStatus::Upcoming->value),
+                            ->default(BookingStatus::Upcoming->value)
+                            // Status moves automatically when payroll runs (and the
+                            // booking can be deleted if it needs correcting), so it's
+                            // not something staff should set by hand on creation —
+                            // only ever visible as a read-only indicator afterwards.
+                            ->hidden(fn (?Booking $record): bool => $record === null)
+                            ->disabled(fn (?Booking $record): bool => $record !== null)
+                            ->dehydrated(),
                     ]),
 
                 Section::make('Daily Schedule')

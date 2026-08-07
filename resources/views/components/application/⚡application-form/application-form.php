@@ -472,8 +472,30 @@ new #[Layout('layouts.application')] class extends Component
             'has_health_condition_or_disability' => ['required', 'in:yes,no'],
             'health_condition_details' => ['required_if:has_health_condition_or_disability,yes', 'nullable', 'string', 'max:2000'],
             'reasonable_accommodations' => ['nullable', 'string', 'max:2000'],
-            'emergency_contact_name' => ['required', 'string', 'max:255'],
-            'emergency_contact_number' => ['required', 'string', 'max:20'],
+            'emergency_contact_name' => [
+                'required', 'string', 'max:255',
+                function (string $attribute, mixed $value, Closure $fail): void {
+                    $ownName = trim("{$this->first_name} {$this->last_name}");
+
+                    if ($ownName !== '' && strcasecmp(trim((string) $value), $ownName) === 0) {
+                        $fail('The emergency contact cannot be yourself — please provide someone else\'s details.');
+                    }
+                },
+            ],
+            'emergency_contact_number' => [
+                'required', 'string', 'max:20',
+                function (string $attribute, mixed $value, Closure $fail): void {
+                    $number = static::normalizePhoneNumber($value);
+                    $ownNumbers = array_filter([
+                        static::normalizePhoneNumber($this->phone),
+                        static::normalizePhoneNumber($this->mobile),
+                    ]);
+
+                    if ($number !== '' && in_array($number, $ownNumbers, true)) {
+                        $fail('The emergency contact number cannot be your own phone or mobile number.');
+                    }
+                },
+            ],
         ]);
 
         $this->application->educationCandidate->update([
@@ -1688,5 +1710,17 @@ new #[Layout('layouts.application')] class extends Component
         } catch (Throwable) {
             return null;
         }
+    }
+
+    /**
+     * Digits-only, with a leading UK "44" country code normalised back to a
+     * "0" trunk prefix — so "+44 7700 900123" and "07700 900123" compare
+     * equal for the emergency-contact-isn't-the-candidate check.
+     */
+    private static function normalizePhoneNumber(?string $number): string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $number);
+
+        return preg_match('/^44\d{10}$/', $digits) ? '0'.substr($digits, 2) : $digits;
     }
 };

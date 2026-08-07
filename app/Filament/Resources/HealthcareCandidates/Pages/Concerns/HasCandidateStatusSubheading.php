@@ -55,10 +55,12 @@ trait HasCandidateStatusSubheading
                 '<a href="{{ $url }}" target="_blank"><x-filament::badge color="warning">Application Pending</x-filament::badge></a>',
                 ['url' => $url]
             );
-        } else {
+        } elseif ($this->record->statuses->first()?->status?->name === 'Onboarding') {
             $applicationHtml = Blade::render(
                 '<x-filament::button size="sm" color="gray" wire:click="sendApplicationEmail" wire:confirm="Send the application email to this candidate?">Send Application</x-filament::button>'
             );
+        } else {
+            $applicationHtml = null;
         }
 
         return new HtmlString($applicationHtml ? $statusHtml.' '.$applicationHtml : $statusHtml);

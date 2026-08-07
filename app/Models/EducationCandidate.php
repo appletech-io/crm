@@ -45,6 +45,7 @@ class EducationCandidate extends Model
         'dbs_checked_date' => 'date',
         'dbs_expiry_date' => 'date',
         'right_to_work_expiry_date' => 'date',
+        'right_to_work_checked_date' => 'date',
         'proof_of_address_checked_at' => 'datetime',
         'ni_number_checked_at' => 'datetime',
         'update_service_checked_at' => 'datetime',

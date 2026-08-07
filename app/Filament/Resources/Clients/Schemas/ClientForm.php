@@ -46,7 +46,7 @@ class ClientForm
                                     ->hidden(fn (?Model $record): bool => $record === null),
                             ]),
 
-                        Tab::make('Timesheets')
+                        Tab::make('Bookings')
                             ->schema([
                                 LivewireComponent::make(ClientTimesheetOverview::class)
                                     ->key('client-timesheet-overview')
@@ -79,6 +79,11 @@ class ClientForm
                                                 ->pluck('name', 'id')
                                                 ->toArray()
                                             )
+                                            // A client can be owned by whoever created it (e.g. an
+                                            // admin), not only users with the consultant role — this
+                                            // keeps that value valid/displayed even when it falls
+                                            // outside the consultant-only options list above.
+                                            ->getOptionLabelUsing(fn (mixed $value): ?string => User::find($value)?->name)
                                             ->searchable(),
 
                                         Hidden::make('address_manual')

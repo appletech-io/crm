@@ -999,6 +999,70 @@ test('the create form only offers candidates with a Live status', function () {
         });
 });
 
+test('the create form only offers clients visible to the logged in user', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+    $consultant->industries()->attach($this->industry);
+
+    $ownClient = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $consultant->id,
+    ]);
+
+    $otherClient = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $this->user->id,
+    ]);
+
+    $this->actingAs($consultant);
+    Cache::put("user.{$consultant->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$consultant->id}.active_industry_id", $this->industry->id);
+
+    Livewire::test(CreateBooking::class)
+        ->assertFormFieldExists('client_id', function ($field) use ($ownClient, $otherClient) {
+            $options = $field->getOptions();
+
+            return array_key_exists($ownClient->id, $options)
+                && ! array_key_exists($otherClient->id, $options);
+        });
+});
+
+test('an admin only sees their own clients in the create form until they toggle to show all', function () {
+    $otherConsultant = User::factory()->create(['company_id' => $this->user->company_id]);
+
+    $ownClient = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $this->user->id,
+    ]);
+
+    $otherClient = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $otherConsultant->id,
+    ]);
+
+    Livewire::test(CreateBooking::class)
+        ->assertFormFieldExists('client_id', function ($field) use ($ownClient, $otherClient) {
+            $options = $field->getOptions();
+
+            return array_key_exists($ownClient->id, $options)
+                && ! array_key_exists($otherClient->id, $options);
+        });
+
+    session([Client::ADMIN_VIEWING_ALL_CLIENTS_SESSION_KEY => true]);
+
+    Livewire::test(CreateBooking::class)
+        ->assertFormFieldExists('client_id', function ($field) use ($ownClient, $otherClient) {
+            $options = $field->getOptions();
+
+            return array_key_exists($ownClient->id, $options)
+                && array_key_exists($otherClient->id, $options);
+        });
+});
+
 test('the edit form still shows the bookings existing candidate even if no longer Live', function () {
     assignCandidateStatus($this->candidate, $this->industry, $this->user->company_id, 'Live');
 
@@ -1046,7 +1110,7 @@ test('an upcoming booking can still be edited and shows the resend confirmation 
     ]);
 
     Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
-        ->assertFormFieldEnabled('status')
+        ->assertFormFieldDisabled('status')
         ->assertFormFieldEnabled('candidate_id')
         ->assertActionVisible('resendConfirmationEmails');
 });

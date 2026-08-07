@@ -4,7 +4,9 @@ use App\Enums\BookingDayPeriod;
 use App\Enums\BookingStatus;
 use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\EducationCandidates\Pages\ListEducationCandidates;
+use App\Models\CandidateCandidateStatus;
 use App\Models\CandidateSkill;
+use App\Models\CandidateStatus;
 use App\Models\Client;
 use App\Models\EducationCandidate;
 use App\Models\Industry;
@@ -28,13 +30,61 @@ beforeEach(function () {
     Cache::put("user.{$this->consultant->id}.active_industry_id", $this->industry->id);
 });
 
+function assignSearchCandidateStatus(EducationCandidate $candidate, string $statusName): void
+{
+    $status = CandidateStatus::factory()->create([
+        'company_id' => $candidate->company_id,
+        'industry_id' => test()->industry->id,
+        'name' => $statusName,
+    ]);
+
+    CandidateCandidateStatus::create([
+        'model_type' => EducationCandidate::class,
+        'model_id' => $candidate->id,
+        'candidate_status_id' => $status->id,
+    ]);
+}
+
 function makeSearchCandidate(array $attributes = []): EducationCandidate
 {
-    return EducationCandidate::factory()->create(array_merge([
+    // array_key_exists, not ??, because a caller passing 'status' => null
+    // (meaning "no status at all") must be distinguished from not passing
+    // the key (meaning "default to Live") — ?? treats both the same way.
+    $status = array_key_exists('status', $attributes) ? $attributes['status'] : 'Live';
+    unset($attributes['status']);
+
+    $candidate = EducationCandidate::factory()->create(array_merge([
         'company_id' => test()->consultant->company_id,
         'consultant_id' => test()->consultant->id,
     ], $attributes));
+
+    if ($status !== null) {
+        assignSearchCandidateStatus($candidate, $status);
+    }
+
+    return $candidate;
 }
+
+test('only candidates with a Live status are returned', function () {
+    $liveCandidate = makeSearchCandidate(['status' => 'Live']);
+    $onboardingCandidate = makeSearchCandidate(['status' => 'Onboarding']);
+    $dnuCandidate = makeSearchCandidate(['status' => 'DNU']);
+    $noStatusCandidate = makeSearchCandidate(['status' => null]);
+
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'search')
+        ->assertCanSeeTableRecords([$liveCandidate])
+        ->assertCanNotSeeTableRecords([$onboardingCandidate, $dnuCandidate, $noStatusCandidate]);
+});
+
+test('the search candidates section is collapsed by default', function () {
+    $html = Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'search')
+        ->html();
+
+    expect($html)->toContain('search-candidates::data::section')
+        ->toContain('isCollapsed:  true');
+});
 
 test('only the logged in consultants own candidates are returned, even for an admin', function () {
     $ownCandidate = makeSearchCandidate();
