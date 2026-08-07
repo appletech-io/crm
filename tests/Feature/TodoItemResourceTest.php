@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Resources\TodoItems\Pages\CreateTodoItem;
+use App\Filament\Resources\TodoItems\Pages\EditTodoItem;
 use App\Filament\Resources\TodoItems\Pages\ListTodoItems;
 use App\Filament\Resources\TodoItems\Schemas\TodoItemForm;
 use App\Models\Booking;
@@ -219,6 +220,60 @@ test('admin users see all candidates as link options regardless of consultant', 
 
     Livewire::test(CreateTodoItem::class)
         ->set('data.model_type', EducationCandidate::class)
+        ->assertFormFieldExists('model_id', function (Select $field) use ($theirCandidate): bool {
+            return array_key_exists($theirCandidate->id, $field->getOptions());
+        });
+});
+
+test('compliance users see all candidates as link options regardless of consultant', function () {
+    $compliance = User::factory()->create(['company_id' => $this->company->id]);
+    $compliance->industries()->attach($this->industry);
+    $compliance->assignRole('compliance');
+    $this->actingAs($compliance);
+
+    Cache::put("user.{$compliance->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$compliance->id}.active_industry_id", $this->industry->id);
+
+    $otherConsultant = User::factory()->create(['company_id' => $this->company->id]);
+    $otherConsultant->assignRole('consultant');
+    $theirCandidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $otherConsultant->id,
+    ]);
+
+    Livewire::test(CreateTodoItem::class)
+        ->set('data.model_type', EducationCandidate::class)
+        ->assertFormFieldExists('model_id', function (Select $field) use ($theirCandidate): bool {
+            return array_key_exists($theirCandidate->id, $field->getOptions());
+        });
+});
+
+test('compliance users can open a todo item linked to another consultants candidate without it falling back to a bare id', function () {
+    $compliance = User::factory()->create(['company_id' => $this->company->id]);
+    $compliance->industries()->attach($this->industry);
+    $compliance->assignRole('compliance');
+    $this->actingAs($compliance);
+
+    Cache::put("user.{$compliance->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$compliance->id}.active_industry_id", $this->industry->id);
+
+    $otherConsultant = User::factory()->create(['company_id' => $this->company->id]);
+    $otherConsultant->assignRole('consultant');
+    $theirCandidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $otherConsultant->id,
+        'first_name' => 'Jane',
+        'last_name' => 'Doe',
+    ]);
+
+    $todoItem = TodoItem::factory()->create([
+        'user_id' => $compliance->id,
+        'model_type' => EducationCandidate::class,
+        'model_id' => $theirCandidate->id,
+    ]);
+
+    Livewire::test(EditTodoItem::class, ['record' => $todoItem->getRouteKey()])
+        ->assertSuccessful()
         ->assertFormFieldExists('model_id', function (Select $field) use ($theirCandidate): bool {
             return array_key_exists($theirCandidate->id, $field->getOptions());
         });

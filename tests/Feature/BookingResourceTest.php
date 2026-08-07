@@ -1083,6 +1083,36 @@ test('the edit form still shows the bookings existing candidate even if no longe
         });
 });
 
+test('the edit form only offers Live candidates besides the bookings own existing candidate', function () {
+    assignCandidateStatus($this->candidate, $this->industry, $this->user->company_id, 'Live');
+
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+
+    $this->candidate->statuses()->delete();
+    assignCandidateStatus($this->candidate, $this->industry, $this->user->company_id, 'DNU');
+
+    $liveCandidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignCandidateStatus($liveCandidate, $this->industry, $this->user->company_id, 'Live');
+
+    $dnuCandidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignCandidateStatus($dnuCandidate, $this->industry, $this->user->company_id, 'DNU');
+
+    Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+        ->assertFormFieldExists('candidate_id', function ($field) use ($liveCandidate, $dnuCandidate) {
+            $options = $field->getOptions();
+
+            return array_key_exists($this->candidate->id, $options)
+                && array_key_exists($liveCandidate->id, $options)
+                && ! array_key_exists($dnuCandidate->id, $options);
+        });
+});
+
 test('an approved booking cannot be edited and hides the resend confirmation emails action', function () {
     $booking = Booking::factory()->create([
         'company_id' => $this->user->company_id,

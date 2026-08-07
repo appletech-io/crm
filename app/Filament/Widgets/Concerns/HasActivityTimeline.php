@@ -105,7 +105,8 @@ trait HasActivityTimeline
                             ->maxLength(1000),
                         Textarea::make('body')
                             ->label('Additional details')
-                            ->rows(3),
+                            ->rows(3)
+                            ->belowContent(static::dictationAction()),
                     ])
                     ->action(function (array $data): void {
                         $this->record->activities()->create([
@@ -116,5 +117,106 @@ trait HasActivityTimeline
                         ]);
                     }),
             ]);
+    }
+
+    /**
+     * A pure client-side mic button using the browser's Web Speech API to
+     * dictate into the "Additional details" field, toggled on/off by
+     * re-clicking it. Runs entirely in the browser via actionJs() — no
+     * server round trip, so it works from any schema this trait is used on.
+     */
+    protected static function dictationAction(): Action
+    {
+        return Action::make('dictateBody')
+            ->label('Dictate')
+            ->icon('heroicon-o-microphone')
+            ->color('gray')
+            ->actionJs(<<<'JS'
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+                if (! SpeechRecognition) {
+                    alert('Speech to text is not supported in this browser. Try Chrome or Edge.');
+                    return;
+                }
+
+                const button = $event.currentTarget;
+
+                // $set()/$get() resolve relative to whatever schema container this
+                // button happens to be nested in, which isn't reliable from a
+                // belowContent() slot — writing straight to the sibling textarea's
+                // DOM node and dispatching a native input event is what
+                // wire:model itself listens for, so it works regardless.
+                const textarea = button.closest('[data-field-wrapper]')?.querySelector('textarea');
+
+                if (! textarea) {
+                    alert('Could not find the field to dictate into.');
+                    return;
+                }
+
+                if (window.__activityDictationRecognition) {
+                    window.__activityDictationRecognition.stop();
+                    return;
+                }
+
+                const recognition = new SpeechRecognition();
+                recognition.lang = 'en-GB';
+                recognition.interimResults = true;
+                recognition.continuous = true;
+
+                // Base is whatever was already in the field before this
+                // session started, plus everything confirmed final so far.
+                // Interim (not-yet-final) words are re-rendered on top of
+                // that each time, so partial words update live as spoken
+                // instead of only appearing once a sentence is finalised.
+                let base = textarea.value ? textarea.value.trim() + ' ' : '';
+
+                recognition.onresult = (event) => {
+                    let interim = '';
+
+                    for (let i = event.resultIndex; i < event.results.length; i++) {
+                        const chunk = event.results[i][0].transcript;
+
+                        if (event.results[i].isFinal) {
+                            base += chunk.trim() + ' ';
+                        } else {
+                            interim += chunk;
+                        }
+                    }
+
+                    textarea.value = (base + interim).trim();
+                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                };
+
+                recognition.onend = () => {
+                    window.__activityDictationRecognition = null;
+                    button.classList.remove('animate-pulse', 'fi-color-danger');
+                };
+
+                recognition.onerror = (event) => {
+                    window.__activityDictationRecognition = null;
+                    button.classList.remove('animate-pulse', 'fi-color-danger');
+
+                    if (event.error === 'no-speech') {
+                        alert('No speech was detected. Check your microphone is working and try again.');
+                    } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                        alert('Microphone access was blocked. Check your browser is allowed to use the microphone on this site and try again.');
+                    } else if (event.error !== 'aborted') {
+                        alert('Speech recognition error: ' + event.error);
+                    }
+                };
+
+                window.__activityDictationRecognition = recognition;
+                button.classList.add('animate-pulse', 'fi-color-danger');
+
+                try {
+                    recognition.start();
+                } catch (e) {
+                    window.__activityDictationRecognition = null;
+                    button.classList.remove('animate-pulse', 'fi-color-danger');
+                    alert('Could not start speech recognition: ' + e.message);
+                }
+                JS
+            )
+            ->tooltip('Dictate using speech to text (click again to stop)');
     }
 }
