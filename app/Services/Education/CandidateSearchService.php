@@ -2,6 +2,7 @@
 
 namespace App\Services\Education;
 
+use App\Enums\CandidateAvailabilityStatus;
 use App\Models\EducationCandidate;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -69,7 +70,14 @@ class CandidateSearchService
             ->whereIn('candidate_skill_candidates.candidate_skill_id', $skillIds));
     }
 
-    /** @param  ?array<int, int|string>  $days ISO-8601 weekday numbers (1 = Monday .. 5 = Friday) */
+    /**
+     * A candidate is excluded for a searched day if they already have an
+     * active booking that day, or have explicitly marked themselves Not
+     * Available. A candidate with no availability recorded at all for that
+     * day is still included — no data isn't the same as unavailable.
+     *
+     * @param  ?array<int, int|string>  $days  ISO-8601 weekday numbers (1 = Monday .. 5 = Friday)
+     */
     private function applyDays(Builder $query, ?array $days): void
     {
         if (blank($days)) {
@@ -81,6 +89,10 @@ class CandidateSearchService
                 ->whereHas('dayPeriods', fn (Builder $q2) => $q2
                     ->whereDate('date', $date)
                     ->whereNull('cancelled_at')));
+
+            $query->whereDoesntHave('availabilities', fn (Builder $q) => $q
+                ->whereDate('date', $date)
+                ->where('status', CandidateAvailabilityStatus::NotAvailable->value));
         }
     }
 

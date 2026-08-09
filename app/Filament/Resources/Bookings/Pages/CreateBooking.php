@@ -31,6 +31,7 @@ class CreateBooking extends CreateRecord
         $jobTitleId = request()->query('job_title_id');
         $startDate = request()->query('start_date');
         $dates = request()->query('dates');
+        $periods = (array) request()->query('periods', []);
         $sourceBookingId = request()->query('source_booking_id');
 
         if (blank($candidateId) && blank($clientId) && blank($jobTitleId) && blank($startDate) && blank($dates)) {
@@ -45,7 +46,7 @@ class CreateBooking extends CreateRecord
             $sortedDates = collect((array) $dates)->filter()->unique()->sort()->values();
             $startDate = $sortedDates->first();
             $endDate = $sortedDates->last();
-            $dayPeriods = BookingForm::dayPeriodsForDates($sortedDates->all());
+            $dayPeriods = BookingForm::dayPeriodsForDates($sortedDates->all(), defaultPeriods: $periods);
         } else {
             $endDate = $startDate;
             $dayPeriods = BookingForm::dayPeriodsForRange($startDate, $startDate);

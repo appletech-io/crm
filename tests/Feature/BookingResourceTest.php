@@ -757,6 +757,7 @@ test('the list page does not crash and flags the candidate as deleted when the c
         'candidate_id' => $this->candidate->id,
         'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
+        'consultant_id' => $this->user->id,
     ]);
 
     $this->candidate->delete();
@@ -816,6 +817,7 @@ test('the all section table can be filtered by client and by candidate', functio
         'candidate_id' => $this->candidate->id,
         'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
+        'consultant_id' => $this->user->id,
     ]);
 
     $otherClientBooking = Booking::factory()->create([
@@ -824,6 +826,7 @@ test('the all section table can be filtered by client and by candidate', functio
         'candidate_id' => $this->candidate->id,
         'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
+        'consultant_id' => $this->user->id,
     ]);
 
     $otherCandidateBooking = Booking::factory()->create([
@@ -832,6 +835,7 @@ test('the all section table can be filtered by client and by candidate', functio
         'candidate_id' => $otherCandidate->id,
         'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
+        'consultant_id' => $this->user->id,
     ]);
 
     Livewire::test(ListBookings::class)
@@ -935,10 +939,19 @@ test('a non-admin user only sees bookings assigned to their own consultant_id', 
         ->assertCanNotSeeTableRecords([$otherConsultantBooking]);
 });
 
-test('an admin sees all bookings regardless of consultant_id', function () {
+test('an admin only sees their own bookings by default, like the clients list', function () {
     $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
 
-    $booking = Booking::factory()->create([
+    $ownBooking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'consultant_id' => $this->user->id,
+    ]);
+
+    $otherConsultantBooking = Booking::factory()->create([
         'company_id' => $this->user->company_id,
         'client_id' => $this->client->id,
         'candidate_id' => $this->candidate->id,
@@ -949,7 +962,63 @@ test('an admin sees all bookings regardless of consultant_id', function () {
 
     Livewire::test(ListBookings::class)
         ->set('activeSection', 'all')
-        ->assertCanSeeTableRecords([$booking]);
+        ->assertCanSeeTableRecords([$ownBooking])
+        ->assertCanNotSeeTableRecords([$otherConsultantBooking]);
+});
+
+test('an admin can clear the consultant filter to see bookings from every consultant', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+
+    $ownBooking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'consultant_id' => $this->user->id,
+    ]);
+
+    $otherConsultantBooking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'consultant_id' => $consultant->id,
+    ]);
+
+    Livewire::test(ListBookings::class)
+        ->set('activeSection', 'all')
+        ->filterTable('consultant_id', null)
+        ->assertCanSeeTableRecords([$ownBooking, $otherConsultantBooking]);
+});
+
+test('an admin can filter down to a specific other consultants bookings', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+
+    $ownBooking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'consultant_id' => $this->user->id,
+    ]);
+
+    $otherConsultantBooking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'consultant_id' => $consultant->id,
+    ]);
+
+    Livewire::test(ListBookings::class)
+        ->set('activeSection', 'all')
+        ->filterTable('consultant_id', $consultant->id)
+        ->assertCanSeeTableRecords([$otherConsultantBooking])
+        ->assertCanNotSeeTableRecords([$ownBooking]);
 });
 
 test('the consultant filter is only visible to admins', function () {
@@ -1226,6 +1295,40 @@ test('the create form is prefilled from a non-contiguous dates query array, skip
         ->toBe([
             ['date' => '2026-08-03', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'dispute_reason' => null],
             ['date' => '2026-08-05', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'dispute_reason' => null],
+        ]);
+});
+
+test('the create form pre-fills am/pm day periods carried over from the candidate search page', function () {
+    $test = Livewire::withQueryParams([
+        'candidate_id' => $this->candidate->id,
+        'client_id' => $this->client->id,
+        'dates' => ['2026-08-03', '2026-08-04'],
+        'periods' => [
+            '2026-08-03' => BookingDayPeriod::Am->value,
+            '2026-08-04' => BookingDayPeriod::Pm->value,
+        ],
+    ])->test(CreateBooking::class);
+
+    expect(collect($test->instance()->form->getRawState()['day_periods'] ?? [])->values()->all())
+        ->toBe([
+            ['date' => '2026-08-03', 'period' => 'am', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'dispute_reason' => null],
+            ['date' => '2026-08-04', 'period' => 'pm', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'dispute_reason' => null],
+        ]);
+});
+
+test('a date with no matching entry in the periods query array falls back to full day', function () {
+    $test = Livewire::withQueryParams([
+        'candidate_id' => $this->candidate->id,
+        'dates' => ['2026-08-03', '2026-08-04'],
+        'periods' => [
+            '2026-08-03' => BookingDayPeriod::Am->value,
+        ],
+    ])->test(CreateBooking::class);
+
+    expect(collect($test->instance()->form->getRawState()['day_periods'] ?? [])->values()->all())
+        ->toBe([
+            ['date' => '2026-08-03', 'period' => 'am', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'dispute_reason' => null],
+            ['date' => '2026-08-04', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'dispute_reason' => null],
         ]);
 });
 

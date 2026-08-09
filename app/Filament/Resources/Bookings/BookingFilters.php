@@ -61,16 +61,31 @@ class BookingFilters
             });
     }
 
+    /**
+     * Admin-only. Defaults to the logged-in admin's own bookings — matching
+     * how the Clients list defaults an admin to "my clients" — with the
+     * option to clear back to "All Consultants" or pick someone specific.
+     */
     public static function consultant(): SelectFilter
     {
         return SelectFilter::make('consultant_id')
             ->label('Consultant')
             ->searchable()
+            ->placeholder('All Consultants')
             ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false)
-            ->options(fn (): array => User::role('consultant')
-                ->orderBy('name')
-                ->pluck('name', 'id')
-                ->toArray()
-            );
+            ->default(fn (): ?int => Auth::id())
+            ->options(function (): array {
+                $consultants = User::role('consultant')
+                    ->orderBy('name')
+                    ->pluck('name', 'id');
+
+                $currentUser = Auth::user();
+
+                if ($currentUser && ! $consultants->has($currentUser->id)) {
+                    $consultants->put($currentUser->id, "{$currentUser->name} (Me)");
+                }
+
+                return $consultants->toArray();
+            });
     }
 }

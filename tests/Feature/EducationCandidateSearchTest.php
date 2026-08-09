@@ -2,6 +2,7 @@
 
 use App\Enums\BookingDayPeriod;
 use App\Enums\BookingStatus;
+use App\Enums\CandidateAvailabilityStatus;
 use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\EducationCandidates\Pages\ListEducationCandidates;
 use App\Models\CandidateCandidateStatus;
@@ -12,6 +13,7 @@ use App\Models\EducationCandidate;
 use App\Models\Industry;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -244,6 +246,80 @@ test('selecting two days requires availability on both', function () {
         ->assertCanNotSeeTableRecords([$bookedTuesday]);
 });
 
+test('the day filter excludes a candidate explicitly marked Not Available that day', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+
+    $notAvailableCandidate = makeSearchCandidate();
+    $notAvailableCandidate->availabilities()->create([
+        'date' => $monday->toDateString(),
+        'status' => CandidateAvailabilityStatus::NotAvailable->value,
+    ]);
+
+    $freeCandidate = makeSearchCandidate();
+
+    Livewire::test(ListEducationCandidates::class)
+        ->fillForm(['days' => [1]])
+        ->set('activeSection', 'search')
+        ->call('search')
+        ->assertCanSeeTableRecords([$freeCandidate])
+        ->assertCanNotSeeTableRecords([$notAvailableCandidate]);
+});
+
+test('the day filter includes a candidate explicitly marked Available, Available AM, or Available PM that day', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+
+    $available = makeSearchCandidate();
+    $available->availabilities()->create([
+        'date' => $monday->toDateString(),
+        'status' => CandidateAvailabilityStatus::Available->value,
+    ]);
+
+    $availableAm = makeSearchCandidate();
+    $availableAm->availabilities()->create([
+        'date' => $monday->toDateString(),
+        'status' => CandidateAvailabilityStatus::AvailableAm->value,
+    ]);
+
+    $availablePm = makeSearchCandidate();
+    $availablePm->availabilities()->create([
+        'date' => $monday->toDateString(),
+        'status' => CandidateAvailabilityStatus::AvailablePm->value,
+    ]);
+
+    Livewire::test(ListEducationCandidates::class)
+        ->fillForm(['days' => [1]])
+        ->set('activeSection', 'search')
+        ->call('search')
+        ->assertCanSeeTableRecords([$available, $availableAm, $availablePm]);
+});
+
+test('the day filter still includes a candidate with no availability recorded for that day at all', function () {
+    $noDataCandidate = makeSearchCandidate();
+
+    Livewire::test(ListEducationCandidates::class)
+        ->fillForm(['days' => [1]])
+        ->set('activeSection', 'search')
+        ->call('search')
+        ->assertCanSeeTableRecords([$noDataCandidate]);
+});
+
+test('a Not Available status on a different day does not exclude the candidate from the searched day', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+    $tuesday = $monday->copy()->addDay();
+
+    $candidate = makeSearchCandidate();
+    $candidate->availabilities()->create([
+        'date' => $tuesday->toDateString(),
+        'status' => CandidateAvailabilityStatus::NotAvailable->value,
+    ]);
+
+    Livewire::test(ListEducationCandidates::class)
+        ->fillForm(['days' => [1]])
+        ->set('activeSection', 'search')
+        ->call('search')
+        ->assertCanSeeTableRecords([$candidate]);
+});
+
 test('location filter using a client keeps candidates inside the radius and excludes those outside it', function () {
     // Birmingham city centre. Postcode is explicitly null so the
     // ClientObserver doesn't dispatch a real geocode job (which runs
@@ -321,6 +397,45 @@ test('clicking an available day column selects it and shows the book action with
             'candidate_id' => $candidate->id,
             'client_id' => null,
             'dates' => [$monday->toDateString()],
+            'periods' => [$monday->toDateString() => 'full_day'],
+        ]), record: $candidate);
+});
+
+test('selecting a day marked Available AM carries the am period through to the book action url', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+    $candidate = makeSearchCandidate();
+    $candidate->availabilities()->create([
+        'date' => $monday->toDateString(),
+        'status' => CandidateAvailabilityStatus::AvailableAm->value,
+    ]);
+
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'search')
+        ->callTableColumnAction('day_1', $candidate)
+        ->assertTableActionHasUrl('book', BookingResource::getUrl('create', [
+            'candidate_id' => $candidate->id,
+            'client_id' => null,
+            'dates' => [$monday->toDateString()],
+            'periods' => [$monday->toDateString() => BookingDayPeriod::Am->value],
+        ]), record: $candidate);
+});
+
+test('selecting a day marked Available PM carries the pm period through to the book action url', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+    $candidate = makeSearchCandidate();
+    $candidate->availabilities()->create([
+        'date' => $monday->toDateString(),
+        'status' => CandidateAvailabilityStatus::AvailablePm->value,
+    ]);
+
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'search')
+        ->callTableColumnAction('day_1', $candidate)
+        ->assertTableActionHasUrl('book', BookingResource::getUrl('create', [
+            'candidate_id' => $candidate->id,
+            'client_id' => null,
+            'dates' => [$monday->toDateString()],
+            'periods' => [$monday->toDateString() => BookingDayPeriod::Pm->value],
         ]), record: $candidate);
 });
 
@@ -367,6 +482,7 @@ test('selecting non-contiguous days for the book action includes only those date
             'candidate_id' => $candidate->id,
             'client_id' => $client->id,
             'dates' => [$monday->toDateString(), $wednesday->toDateString()],
+            'periods' => [$monday->toDateString() => 'full_day', $wednesday->toDateString() => 'full_day'],
         ]), record: $candidate);
 });
 
@@ -390,6 +506,259 @@ test('clicking a selected day again deselects it and hides the book action once 
         ->assertTableActionVisible('book', record: $candidate)
         ->callTableColumnAction('day_1', $candidate)
         ->assertTableActionHidden('book', record: $candidate);
+});
+
+test('a day with no availability set shows the unsure icon and is still selectable', function () {
+    $candidate = makeSearchCandidate();
+
+    $test = Livewire::test(ListEducationCandidates::class)->set('activeSection', 'search');
+    $column = $test->instance()->getTable()->getColumn('day_1');
+    $column->record($candidate);
+
+    expect($column->getIcon($column->getState()))->toBe('heroicon-o-question-mark-circle');
+    expect($column->getColor($column->getState()))->toBe('warning');
+});
+
+test('a day marked Available shows a green tick and is selectable', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+    $candidate = makeSearchCandidate();
+    $candidate->availabilities()->create([
+        'date' => $monday->toDateString(),
+        'status' => CandidateAvailabilityStatus::Available->value,
+    ]);
+
+    $test = Livewire::test(ListEducationCandidates::class)->set('activeSection', 'search');
+    $column = $test->instance()->getTable()->getColumn('day_1');
+    $column->record($candidate);
+
+    expect($column->getIcon($column->getState()))->toBe('heroicon-o-check-circle');
+    expect($column->getColor($column->getState()))->toBe('success');
+
+    $test->callTableColumnAction('day_1', $candidate)
+        ->assertTableActionVisible('book', record: $candidate);
+});
+
+test('a day marked Not Available shows a red cross and cannot be selected', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+    $candidate = makeSearchCandidate();
+    $candidate->availabilities()->create([
+        'date' => $monday->toDateString(),
+        'status' => CandidateAvailabilityStatus::NotAvailable->value,
+    ]);
+
+    $test = Livewire::test(ListEducationCandidates::class)->set('activeSection', 'search');
+    $column = $test->instance()->getTable()->getColumn('day_1');
+    $column->record($candidate);
+
+    expect($column->getIcon($column->getState()))->toBe('heroicon-o-x-circle');
+    expect($column->getColor($column->getState()))->toBe('danger');
+
+    $test->callTableColumnAction('day_1', $candidate)
+        ->assertTableActionHidden('book', record: $candidate);
+});
+
+test('an already-booked day shows a blue tick', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+    $candidate = makeSearchCandidate();
+
+    $booking = $candidate->bookings()->create([
+        'company_id' => $this->consultant->company_id,
+        'client_id' => Client::factory()->create(['company_id' => $this->consultant->company_id])->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => $monday->toDateString(),
+        'status' => BookingStatus::Upcoming,
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->consultant->company_id,
+        'date' => $monday->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+
+    $test = Livewire::test(ListEducationCandidates::class)->set('activeSection', 'search');
+    $column = $test->instance()->getTable()->getColumn('day_1');
+    $column->record($candidate);
+
+    expect($column->getIcon($column->getState()))->toBe('heroicon-o-check-circle');
+    expect($column->getColor($column->getState()))->toBe('info');
+});
+
+test('a morning-only booking shows a blue half-circle, top filled', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+    $candidate = makeSearchCandidate();
+
+    $booking = $candidate->bookings()->create([
+        'company_id' => $this->consultant->company_id,
+        'client_id' => Client::factory()->create(['company_id' => $this->consultant->company_id])->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => $monday->toDateString(),
+        'status' => BookingStatus::Upcoming,
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->consultant->company_id,
+        'date' => $monday->toDateString(),
+        'period' => BookingDayPeriod::Am,
+    ]);
+
+    $test = Livewire::test(ListEducationCandidates::class)->set('activeSection', 'search');
+    $column = $test->instance()->getTable()->getColumn('day_1');
+    $column->record($candidate);
+
+    expect($column->getColor($column->getState()))->toBe('info');
+
+    $icon = $column->getIcon($column->getState());
+    expect($icon)->toBeInstanceOf(Htmlable::class);
+    expect($icon->toHtml())->toContain('0 0 1');
+});
+
+test('an afternoon-only booking shows a blue half-circle, bottom filled', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+    $candidate = makeSearchCandidate();
+
+    $booking = $candidate->bookings()->create([
+        'company_id' => $this->consultant->company_id,
+        'client_id' => Client::factory()->create(['company_id' => $this->consultant->company_id])->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => $monday->toDateString(),
+        'status' => BookingStatus::Upcoming,
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->consultant->company_id,
+        'date' => $monday->toDateString(),
+        'period' => BookingDayPeriod::Pm,
+    ]);
+
+    $test = Livewire::test(ListEducationCandidates::class)->set('activeSection', 'search');
+    $column = $test->instance()->getTable()->getColumn('day_1');
+    $column->record($candidate);
+
+    expect($column->getColor($column->getState()))->toBe('info');
+
+    $icon = $column->getIcon($column->getState());
+    expect($icon)->toBeInstanceOf(Htmlable::class);
+    expect($icon->toHtml())->toContain('0 0 0');
+});
+
+test('separate morning and afternoon bookings on the same day together show a solid blue tick', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+    $candidate = makeSearchCandidate();
+
+    $booking = $candidate->bookings()->create([
+        'company_id' => $this->consultant->company_id,
+        'client_id' => Client::factory()->create(['company_id' => $this->consultant->company_id])->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => $monday->toDateString(),
+        'status' => BookingStatus::Upcoming,
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->consultant->company_id,
+        'date' => $monday->toDateString(),
+        'period' => BookingDayPeriod::Am,
+    ]);
+
+    $otherBooking = $candidate->bookings()->create([
+        'company_id' => $this->consultant->company_id,
+        'client_id' => Client::factory()->create(['company_id' => $this->consultant->company_id])->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => $monday->toDateString(),
+        'status' => BookingStatus::Upcoming,
+    ]);
+    $otherBooking->dayPeriods()->create([
+        'company_id' => $this->consultant->company_id,
+        'date' => $monday->toDateString(),
+        'period' => BookingDayPeriod::Pm,
+    ]);
+
+    $test = Livewire::test(ListEducationCandidates::class)->set('activeSection', 'search');
+    $column = $test->instance()->getTable()->getColumn('day_1');
+    $column->record($candidate);
+
+    expect($column->getIcon($column->getState()))->toBe('heroicon-o-check-circle');
+    expect($column->getColor($column->getState()))->toBe('info');
+});
+
+test('an "hours" period booking shows a solid blue tick, not a half-circle', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+    $candidate = makeSearchCandidate();
+
+    $booking = $candidate->bookings()->create([
+        'company_id' => $this->consultant->company_id,
+        'client_id' => Client::factory()->create(['company_id' => $this->consultant->company_id])->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => $monday->toDateString(),
+        'status' => BookingStatus::Upcoming,
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->consultant->company_id,
+        'date' => $monday->toDateString(),
+        'period' => BookingDayPeriod::Hours,
+        'time_from' => '09:00',
+        'time_to' => '11:00',
+    ]);
+
+    $test = Livewire::test(ListEducationCandidates::class)->set('activeSection', 'search');
+    $column = $test->instance()->getTable()->getColumn('day_1');
+    $column->record($candidate);
+
+    expect($column->getIcon($column->getState()))->toBe('heroicon-o-check-circle');
+    expect($column->getColor($column->getState()))->toBe('info');
+});
+
+test('a booking always takes precedence over a stored Available status for the same day', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+    $candidate = makeSearchCandidate();
+    $candidate->availabilities()->create([
+        'date' => $monday->toDateString(),
+        'status' => CandidateAvailabilityStatus::Available->value,
+    ]);
+
+    $booking = $candidate->bookings()->create([
+        'company_id' => $this->consultant->company_id,
+        'client_id' => Client::factory()->create(['company_id' => $this->consultant->company_id])->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => $monday->toDateString(),
+        'status' => BookingStatus::Upcoming,
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->consultant->company_id,
+        'date' => $monday->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+
+    $test = Livewire::test(ListEducationCandidates::class)->set('activeSection', 'search');
+    $column = $test->instance()->getTable()->getColumn('day_1');
+    $column->record($candidate);
+
+    expect($column->getColor($column->getState()))->toBe('info');
+});
+
+test('AM and PM availability render as distinct green half-circle icons', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+
+    $amCandidate = makeSearchCandidate();
+    $amCandidate->availabilities()->create([
+        'date' => $monday->toDateString(),
+        'status' => CandidateAvailabilityStatus::AvailableAm->value,
+    ]);
+
+    $pmCandidate = makeSearchCandidate();
+    $pmCandidate->availabilities()->create([
+        'date' => $monday->toDateString(),
+        'status' => CandidateAvailabilityStatus::AvailablePm->value,
+    ]);
+
+    $test = Livewire::test(ListEducationCandidates::class)->set('activeSection', 'search');
+    $column = $test->instance()->getTable()->getColumn('day_1');
+
+    $column->record($amCandidate);
+    expect($column->getColor($column->getState()))->toBe('success');
+    $amIcon = $column->getIcon($column->getState());
+    expect($amIcon)->toBeInstanceOf(Htmlable::class);
+
+    $column->record($pmCandidate);
+    $pmIcon = $column->getIcon($column->getState());
+    expect($pmIcon)->toBeInstanceOf(Htmlable::class);
+
+    expect($amIcon->toHtml())->not->toBe($pmIcon->toHtml());
 });
 
 test('the tab bar renders on both the search and all candidates pages with the correct tab active', function () {

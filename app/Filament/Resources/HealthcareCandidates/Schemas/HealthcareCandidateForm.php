@@ -10,6 +10,7 @@ use App\Enums\ReferenceStatus;
 use App\Enums\ReferenceType;
 use App\Filament\Resources\HealthcareVetting\HealthcareVettingResource;
 use App\Filament\Widgets\CandidateActivityTimeline;
+use App\Filament\Widgets\CandidateAvailabilityCalendar;
 use App\Models\CandidateDocument;
 use App\Models\HealthcareCandidate;
 use App\Models\JobTitle;
@@ -395,6 +396,13 @@ class HealthcareCandidateForm
                                     ->collapsible()
                                     ->collapsed()
                                     ->columnSpanFull(),
+                            ]),
+
+                        Tab::make('Weekly Availability')
+                            ->schema([
+                                LivewireComponent::make(CandidateAvailabilityCalendar::class)
+                                    ->key('candidate-availability-calendar')
+                                    ->hidden(fn (?Model $record): bool => $record === null),
                             ]),
 
                         Tab::make('Compliance')
