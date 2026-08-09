@@ -3,10 +3,15 @@
 namespace App\Filament\Resources\EducationCandidates\Pages;
 
 use App\Actions\Candidates\CandidateCreated;
+use App\Enums\BookingDayPeriod;
+use App\Enums\CandidateAvailabilityStatus;
 use App\Enums\EmailTemplateAudience;
 use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Filament\Support\SendCustomEmailAction;
+use App\Models\Booking;
+use App\Models\BookingDay;
+use App\Models\CandidateAvailability;
 use App\Models\CandidateSkill;
 use App\Models\Client;
 use App\Models\EducationCandidate;
@@ -29,9 +34,11 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\HtmlString;
 
 class ListEducationCandidates extends ListRecords implements HasForms
 {
@@ -263,11 +270,16 @@ class ListEducationCandidates extends ListRecords implements HasForms
                 ->with([
                     'bookings' => fn ($query) => $query
                         ->whereHas('dayPeriods', fn ($q) => $q
-                            ->whereBetween('date', [$weekStart->toDateString(), $weekStart->copy()->addDays(4)->toDateString()])
+                            ->whereDate('date', '>=', $weekStart->toDateString())
+                            ->whereDate('date', '<=', $weekStart->copy()->addDays(4)->toDateString())
                             ->whereNull('cancelled_at'))
                         ->with(['dayPeriods' => fn ($q) => $q
-                            ->whereBetween('date', [$weekStart->toDateString(), $weekStart->copy()->addDays(4)->toDateString()])
+                            ->whereDate('date', '>=', $weekStart->toDateString())
+                            ->whereDate('date', '<=', $weekStart->copy()->addDays(4)->toDateString())
                             ->whereNull('cancelled_at')]),
+                    'availabilities' => fn ($query) => $query
+                        ->whereDate('date', '>=', $weekStart->toDateString())
+                        ->whereDate('date', '<=', $weekStart->copy()->addDays(4)->toDateString()),
                 ]))
             ->recordUrl(fn (EducationCandidate $record): string => EducationCandidateResource::getUrl('edit', ['record' => $record]))
             ->filters([])
@@ -281,6 +293,7 @@ class ListEducationCandidates extends ListRecords implements HasForms
                         'candidate_id' => $record->id,
                         'client_id' => $this->data['client_id'] ?? null,
                         'dates' => $this->selectedDatesFor($record->id, $weekStart),
+                        'periods' => $this->selectedPeriodsFor($record, $weekStart),
                     ])),
             ])
             ->toolbarActions([
@@ -329,21 +342,20 @@ class ListEducationCandidates extends ListRecords implements HasForms
                 return IconColumn::make("day_{$isoWeekday}")
                     ->label($date->format('D'))
                     ->getStateUsing(fn (): bool => true)
-                    ->icon(fn (EducationCandidate $record): string => match (true) {
-                        ! $this->isAvailableOn($record, $date) => 'heroicon-o-x-circle',
-                        $this->isDaySelected($record->id, $isoWeekday) => 'heroicon-s-check-circle',
-                        default => 'heroicon-o-check-circle',
-                    })
-                    ->color(fn (EducationCandidate $record): string => match (true) {
-                        ! $this->isAvailableOn($record, $date) => 'danger',
-                        $this->isDaySelected($record->id, $isoWeekday) => 'success',
-                        default => 'gray',
-                    })
-                    ->tooltip(fn (EducationCandidate $record): string => $this->isAvailableOn($record, $date)
-                        ? 'Click to select this day for booking'
-                        : 'Already has a booking this day')
+                    ->icon(fn (EducationCandidate $record): string|Htmlable => $this->dayIcon(
+                        $this->availabilityStatusFor($record, $date),
+                        $this->isDaySelected($record->id, $isoWeekday),
+                        $this->bookedCoverageFor($record, $date),
+                    ))
+                    ->color(fn (EducationCandidate $record): string => $this->dayColor(
+                        $this->availabilityStatusFor($record, $date),
+                    ))
+                    ->tooltip(fn (EducationCandidate $record): string => $this->dayTooltip(
+                        $this->availabilityStatusFor($record, $date),
+                        $this->bookedCoverageFor($record, $date),
+                    ))
                     ->action(function (EducationCandidate $record) use ($date, $isoWeekday): void {
-                        if (! $this->isAvailableOn($record, $date)) {
+                        if (! $this->isSelectableStatus($this->availabilityStatusFor($record, $date))) {
                             return;
                         }
 
@@ -353,17 +365,134 @@ class ListEducationCandidates extends ListRecords implements HasForms
             ->all();
     }
 
-    private function isAvailableOn(EducationCandidate $record, CarbonImmutable $date): bool
+    /**
+     * The candidate's availability status for this date, from the
+     * "availabilities" and "bookings.dayPeriods" relations already eager
+     * loaded by configureSearchTable() — an active booking always wins over
+     * whatever's stored, mirroring CandidateWeeklyAvailability. A null
+     * result means no availability has been recorded for that day at all.
+     */
+    private function availabilityStatusFor(EducationCandidate $record, CarbonImmutable $date): ?string
     {
-        foreach ($record->bookings as $booking) {
-            foreach ($booking->dayPeriods as $dayPeriod) {
-                if ($dayPeriod->date->isSameDay($date)) {
-                    return false;
-                }
-            }
+        $isBooked = $record->bookings->contains(
+            fn (Booking $booking): bool => $booking->dayPeriods->contains(
+                fn (BookingDay $dayPeriod): bool => $dayPeriod->date->isSameDay($date)
+            )
+        );
+
+        if ($isBooked) {
+            return CandidateAvailabilityStatus::Booked->value;
         }
 
-        return true;
+        $stored = $record->availabilities->first(
+            fn (CandidateAvailability $availability): bool => $availability->date->isSameDay($date)
+        );
+
+        return $stored?->status?->value;
+    }
+
+    private function isSelectableStatus(?string $status): bool
+    {
+        return in_array($status, [
+            CandidateAvailabilityStatus::Available->value,
+            CandidateAvailabilityStatus::AvailableAm->value,
+            CandidateAvailabilityStatus::AvailablePm->value,
+            null,
+        ], true);
+    }
+
+    /**
+     * Whether an existing booking on this date covers the full day, just the
+     * morning, or just the afternoon — only meaningful when
+     * availabilityStatusFor() has returned Booked for the same date. A
+     * "full_day"/"hours" period, or an AM booking alongside a separate PM
+     * booking, both count as covering the whole day.
+     */
+    private function bookedCoverageFor(EducationCandidate $record, CarbonImmutable $date): string
+    {
+        $periods = $record->bookings
+            ->flatMap(fn (Booking $booking) => $booking->dayPeriods)
+            ->filter(fn (BookingDay $dayPeriod): bool => $dayPeriod->date->isSameDay($date))
+            ->map(fn (BookingDay $dayPeriod): BookingDayPeriod => $dayPeriod->period);
+
+        $hasAm = $periods->contains(BookingDayPeriod::Am);
+        $hasPm = $periods->contains(BookingDayPeriod::Pm);
+        $hasFullCoverage = $periods->contains(fn (BookingDayPeriod $period): bool => in_array($period, [BookingDayPeriod::FullDay, BookingDayPeriod::Hours], true));
+
+        return match (true) {
+            $hasFullCoverage || ($hasAm && $hasPm) => 'full',
+            $hasAm => 'am',
+            $hasPm => 'pm',
+            default => 'full',
+        };
+    }
+
+    private function dayIcon(?string $status, bool $isSelected, string $bookedCoverage): string|Htmlable
+    {
+        return match ($status) {
+            CandidateAvailabilityStatus::Available->value => $isSelected ? 'heroicon-s-check-circle' : 'heroicon-o-check-circle',
+            CandidateAvailabilityStatus::Booked->value => match ($bookedCoverage) {
+                'am' => $this->halfCircleIcon(topFilled: true, fullyFilled: false),
+                'pm' => $this->halfCircleIcon(topFilled: false, fullyFilled: false),
+                default => 'heroicon-o-check-circle',
+            },
+            CandidateAvailabilityStatus::AvailableAm->value => $this->halfCircleIcon(topFilled: true, fullyFilled: $isSelected),
+            CandidateAvailabilityStatus::AvailablePm->value => $this->halfCircleIcon(topFilled: false, fullyFilled: $isSelected),
+            CandidateAvailabilityStatus::NotAvailable->value => 'heroicon-o-x-circle',
+            default => $isSelected ? 'heroicon-s-question-mark-circle' : 'heroicon-o-question-mark-circle',
+        };
+    }
+
+    private function dayColor(?string $status): string
+    {
+        return match ($status) {
+            CandidateAvailabilityStatus::Available->value,
+            CandidateAvailabilityStatus::AvailableAm->value,
+            CandidateAvailabilityStatus::AvailablePm->value => 'success',
+            CandidateAvailabilityStatus::Booked->value => 'info',
+            CandidateAvailabilityStatus::NotAvailable->value => 'danger',
+            default => 'warning',
+        };
+    }
+
+    private function dayTooltip(?string $status, string $bookedCoverage): string
+    {
+        return match ($status) {
+            CandidateAvailabilityStatus::Available->value => 'Available — click to select this day for booking',
+            CandidateAvailabilityStatus::AvailableAm->value => 'Available AM — click to select this day for booking',
+            CandidateAvailabilityStatus::AvailablePm->value => 'Available PM — click to select this day for booking',
+            CandidateAvailabilityStatus::Booked->value => match ($bookedCoverage) {
+                'am' => 'Already has a morning booking this day',
+                'pm' => 'Already has an afternoon booking this day',
+                default => 'Already has a booking this day',
+            },
+            CandidateAvailabilityStatus::NotAvailable->value => 'Marked as not available this day',
+            default => 'Availability not set for this day — click to select for booking',
+        };
+    }
+
+    /**
+     * A circle outline with only the top (AM) or bottom (PM) half filled —
+     * Heroicons has nothing like this, so it's a small hand-rolled SVG
+     * matching the outline icon style used everywhere else in this column.
+     * When selected, the whole circle fills in as a clear "chosen" state.
+     */
+    private function halfCircleIcon(bool $topFilled, bool $fullyFilled): Htmlable
+    {
+        if ($fullyFilled) {
+            return new HtmlString(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9" /></svg>'
+            );
+        }
+
+        $sweepFlag = $topFilled ? 1 : 0;
+
+        return new HtmlString(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">'
+            .'<circle cx="12" cy="12" r="9" />'
+            ."<path d=\"M3 12a9 9 0 0 {$sweepFlag} 18 0z\" fill=\"currentColor\" stroke=\"none\" />"
+            .'</svg>'
+        );
     }
 
     private function toggleDay(int $candidateId, int $isoWeekday): void
@@ -392,5 +521,34 @@ class ListEducationCandidates extends ListRecords implements HasForms
             ->sort()
             ->values()
             ->all();
+    }
+
+    /**
+     * Carries the candidate's AM/PM availability through to the booking
+     * form for each selected date, so picking a day marked "Available AM"
+     * (say) doesn't silently default to a full-day booking.
+     *
+     * @return array<string, string>
+     */
+    private function selectedPeriodsFor(EducationCandidate $record, CarbonImmutable $weekStart): array
+    {
+        return collect($this->selectedDays[$record->id] ?? [])
+            ->filter()
+            ->keys()
+            ->mapWithKeys(function (int $isoWeekday) use ($record, $weekStart): array {
+                $date = $weekStart->copy()->addDays($isoWeekday - 1);
+
+                return [$date->toDateString() => $this->bookingPeriodFor($record, $date)];
+            })
+            ->all();
+    }
+
+    private function bookingPeriodFor(EducationCandidate $record, CarbonImmutable $date): string
+    {
+        return match ($this->availabilityStatusFor($record, $date)) {
+            CandidateAvailabilityStatus::AvailableAm->value => BookingDayPeriod::Am->value,
+            CandidateAvailabilityStatus::AvailablePm->value => BookingDayPeriod::Pm->value,
+            default => BookingDayPeriod::FullDay->value,
+        };
     }
 }

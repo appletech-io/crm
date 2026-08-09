@@ -410,9 +410,10 @@ class BookingForm
     /**
      * @param  array<int, string>  $dates
      * @param  array<int, array<string, mixed>>  $existing
+     * @param  array<string, string>  $defaultPeriods  Per-date fallback period (e.g. from the candidate's AM/PM availability), keyed by date. Falls back to Full Day where a date has no entry.
      * @return array<int, array{date: string, period: string, time_from: ?string, time_to: ?string, cancelled: bool}>
      */
-    public static function dayPeriodsForDates(array $dates, array $existing = []): array
+    public static function dayPeriodsForDates(array $dates, array $existing = [], array $defaultPeriods = []): array
     {
         if (empty($dates)) {
             return [];
@@ -426,12 +427,12 @@ class BookingForm
             ->unique()
             ->sort()
             ->values()
-            ->map(function (string $date) use ($existingPeriods): array {
+            ->map(function (string $date) use ($existingPeriods, $defaultPeriods): array {
                 $existing = $existingPeriods->get($date);
 
                 return [
                     'date' => $date,
-                    'period' => $existing['period'] ?? BookingDayPeriod::FullDay->value,
+                    'period' => $existing['period'] ?? $defaultPeriods[$date] ?? BookingDayPeriod::FullDay->value,
                     'time_from' => $existing['time_from'] ?? null,
                     'time_to' => $existing['time_to'] ?? null,
                     'cancelled' => $existing['cancelled'] ?? false,

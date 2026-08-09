@@ -12,6 +12,7 @@ use App\Enums\ReferenceType;
 use App\Exceptions\Dbs\DbsUpdateServiceException;
 use App\Filament\Resources\EducationVetting\VettingResource;
 use App\Filament\Widgets\CandidateActivityTimeline;
+use App\Filament\Widgets\CandidateAvailabilityCalendar;
 use App\Filament\Widgets\CandidateDocumentManager;
 use App\Models\CandidateDocument;
 use App\Models\CandidateReference;
@@ -647,6 +648,13 @@ class EducationCandidateForm
                             ->schema([
                                 LivewireComponent::make(CandidateDocumentManager::class)
                                     ->key('candidate-document-manager')
+                                    ->hidden(fn (?Model $record): bool => $record === null),
+                            ]),
+
+                        Tab::make('Weekly Availability')
+                            ->schema([
+                                LivewireComponent::make(CandidateAvailabilityCalendar::class)
+                                    ->key('candidate-availability-calendar')
                                     ->hidden(fn (?Model $record): bool => $record === null),
                             ]),
 
