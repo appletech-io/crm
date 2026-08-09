@@ -86,7 +86,7 @@ class BookingForm
 
                                 $candidates = $candidateModelClass::query()
                                     ->whereHas(
-                                        'statuses.status',
+                                        'latestStatus.status',
                                         fn ($statusQuery) => $statusQuery->where('name', 'Live')
                                     )
                                     ->get();

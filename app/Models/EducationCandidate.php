@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Auth;
@@ -126,6 +127,18 @@ class EducationCandidate extends Model
     public function statuses(): MorphMany
     {
         return $this->morphMany(CandidateCandidateStatus::class, 'model')->latest();
+    }
+
+    /**
+     * The candidate's single current status, as opposed to `statuses()` which
+     * is their full history — used wherever "is this candidate currently X"
+     * needs to be checked in a query (e.g. filtering for Live candidates),
+     * since a plain whereHas('statuses.status', ...) would match anyone who
+     * was ever in that status, not just their latest one.
+     */
+    public function latestStatus(): MorphOne
+    {
+        return $this->morphOne(CandidateCandidateStatus::class, 'model')->latestOfMany();
     }
 
     public function currentStatusName(): ?string

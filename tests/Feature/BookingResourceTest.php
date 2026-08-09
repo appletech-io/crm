@@ -999,6 +999,25 @@ test('the create form only offers candidates with a Live status', function () {
         });
 });
 
+test('the create form excludes a candidate who was Live in the past but has since moved to another status', function () {
+    assignCandidateStatus($this->candidate, $this->industry, $this->user->company_id, 'Live');
+
+    $formerlyLiveCandidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignCandidateStatus($formerlyLiveCandidate, $this->industry, $this->user->company_id, 'Live');
+    // No delete here — the candidate keeps their Live history row, only a
+    // newer DNU row is appended, exercising the "latest status" filter
+    // rather than "any status ever" matching.
+    assignCandidateStatus($formerlyLiveCandidate, $this->industry, $this->user->company_id, 'DNU');
+
+    Livewire::test(CreateBooking::class)
+        ->assertFormFieldExists('candidate_id', function ($field) use ($formerlyLiveCandidate) {
+            $options = $field->getOptions();
+
+            return array_key_exists($this->candidate->id, $options)
+                && ! array_key_exists($formerlyLiveCandidate->id, $options);
+        });
+});
+
 test('the create form only offers clients visible to the logged in user', function () {
     $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
     $consultant->assignRole('consultant');

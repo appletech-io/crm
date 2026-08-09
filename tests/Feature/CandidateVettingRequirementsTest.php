@@ -185,6 +185,36 @@ test('dbs check fails when the update service has not verified it and no documen
     expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
 });
 
+test('dbs check fails when the certificate has already expired', function () {
+    $candidate = fullyCompliantCandidate(['dbs_expiry_date' => now()->subDay()]);
+
+    expect(CandidateVettingRequirements::for($candidate)['dbs']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('dbs check fails when the certificate expires within the next 14 days', function () {
+    $candidate = fullyCompliantCandidate(['dbs_expiry_date' => now()->addDays(14)]);
+
+    expect(CandidateVettingRequirements::for($candidate)['dbs']['complete'])->toBeFalse();
+});
+
+test('dbs check passes when the certificate expires just beyond the 14 day window', function () {
+    $candidate = fullyCompliantCandidate(['dbs_expiry_date' => now()->addDays(15)]);
+
+    expect(CandidateVettingRequirements::for($candidate)['dbs']['complete'])->toBeTrue();
+});
+
+test('dbs check fails on expiry even when verified via a valid update service response', function () {
+    $candidate = fullyCompliantCandidate([
+        'update_service_response' => DbsUpdateService::VALID_STATUS,
+        'dbs_expiry_date' => now()->subDay(),
+    ]);
+    $candidate->documents()->where('document_type', DocumentType::DbsFront)->delete();
+    $candidate->documents()->where('document_type', DocumentType::DbsBack)->delete();
+
+    expect(CandidateVettingRequirements::for($candidate)['dbs']['complete'])->toBeFalse();
+});
+
 test('dbs check passes even when has_dbs is no, as long as the certificate number and both documents are present', function () {
     $candidate = fullyCompliantCandidate(['has_dbs' => 'no']);
 
@@ -298,6 +328,25 @@ test('safeguarding check fails without the certificate document, even with a cer
     expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
 });
 
+test('safeguarding check fails when the certificate has already expired', function () {
+    $candidate = fullyCompliantCandidate(['safeguarding_expiry_date' => now()->subDay()]);
+
+    expect(CandidateVettingRequirements::for($candidate)['safeguarding']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('safeguarding check fails when the certificate expires within the next 14 days', function () {
+    $candidate = fullyCompliantCandidate(['safeguarding_expiry_date' => now()->addDays(14)]);
+
+    expect(CandidateVettingRequirements::for($candidate)['safeguarding']['complete'])->toBeFalse();
+});
+
+test('safeguarding check passes when the certificate expires just beyond the 14 day window', function () {
+    $candidate = fullyCompliantCandidate(['safeguarding_expiry_date' => now()->addDays(15)]);
+
+    expect(CandidateVettingRequirements::for($candidate)['safeguarding']['complete'])->toBeTrue();
+});
+
 test('right to work check fails without a type set', function () {
     $candidate = fullyCompliantCandidate(['right_to_work_type' => null]);
 
@@ -355,6 +404,50 @@ test('right to work is complete for passport only once the document is uploaded'
         'candidate_id' => $candidate->id,
         'document_type' => DocumentType::Passport,
         'path' => 'fake/passport.pdf',
+    ]);
+
+    expect(CandidateVettingRequirements::for($candidate)['right_to_work']['complete'])->toBeTrue();
+});
+
+test('right to work fails for a passport once the right to work expiry date has passed or is within 14 days', function () {
+    $candidate = fullyCompliantCandidate(['right_to_work_type' => 'passport']);
+
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::Passport,
+        'path' => 'fake/passport.pdf',
+    ]);
+
+    $candidate->update(['right_to_work_expiry_date' => now()->addDays(15)]);
+    expect(CandidateVettingRequirements::for($candidate)['right_to_work']['complete'])->toBeTrue();
+
+    $candidate->update(['right_to_work_expiry_date' => now()->addDays(14)]);
+    expect(CandidateVettingRequirements::for($candidate)['right_to_work']['complete'])->toBeFalse();
+
+    $candidate->update(['right_to_work_expiry_date' => now()->subDay()]);
+    expect(CandidateVettingRequirements::for($candidate)['right_to_work']['complete'])->toBeFalse();
+});
+
+test('right to work fails for a visa once the right to work expiry date has passed or is within 14 days', function () {
+    $candidate = fullyCompliantCandidate([
+        'right_to_work_type' => 'visa',
+        'visa_share_code' => 'ABC123',
+        'visa_issue_date' => now(),
+        'visa_expiry_date' => now()->addYear(),
+    ]);
+
+    $candidate->update(['right_to_work_expiry_date' => now()->addDays(15)]);
+    expect(CandidateVettingRequirements::for($candidate)['right_to_work']['complete'])->toBeTrue();
+
+    $candidate->update(['right_to_work_expiry_date' => now()->subDay()]);
+    expect(CandidateVettingRequirements::for($candidate)['right_to_work']['complete'])->toBeFalse();
+});
+
+test('right to work for a birth certificate is unaffected by the right to work expiry date field', function () {
+    $candidate = fullyCompliantCandidate([
+        'right_to_work_type' => 'birth_certificate',
+        'right_to_work_expiry_date' => now()->subDay(),
     ]);
 
     expect(CandidateVettingRequirements::for($candidate)['right_to_work']['complete'])->toBeTrue();

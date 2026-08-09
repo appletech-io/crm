@@ -9,6 +9,7 @@ use App\Models\EmailTemplate;
 use App\Models\Industry;
 use App\Services\Mail\Concerns\ReplacesEmailPlaceholders;
 use App\Services\Mail\EmailFooter;
+use App\Services\Mail\EmailSenderResolver;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -69,12 +70,13 @@ class SendReferenceRequestEmail implements ShouldQueue
             };
 
             $replacements = $this->buildReplacements($candidate);
+            $sender = EmailSenderResolver::resolve($template, $candidate->consultant);
 
             $mailer->send(
                 to: $this->reference->email,
                 subject: $this->replacePlaceholders($template->subject ?? '', $replacements),
-                body: $this->replacePlaceholders($template->body ?? '', $replacements).EmailFooter::render($candidate->company, $candidate->consultant),
-                from: $candidate->consultant?->email ?? $candidate->company->defaultFromEmail(),
+                body: $this->replacePlaceholders($template->body ?? '', $replacements).EmailFooter::render($candidate->company, $sender),
+                from: $sender?->email ?? $candidate->company->defaultFromEmail(),
                 attachments: [EmailFooter::logoAttachment()],
             );
 

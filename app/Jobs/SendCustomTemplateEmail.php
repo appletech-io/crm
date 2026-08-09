@@ -11,6 +11,7 @@ use App\Models\MarketingCampaign;
 use App\Services\Mail\Concerns\ReplacesEmailPlaceholders;
 use App\Services\Mail\CustomTemplatePlaceholders;
 use App\Services\Mail\EmailFooter;
+use App\Services\Mail\EmailSenderResolver;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -52,6 +53,7 @@ class SendCustomTemplateEmail implements ShouldQueue
 
         $company = $this->recipient->company;
         $consultant = $this->recipient->consultant;
+        $sender = EmailSenderResolver::resolve($this->template, $consultant);
         $replacements = CustomTemplatePlaceholders::resolve($this->recipient, $contact);
 
         try {
@@ -63,8 +65,8 @@ class SendCustomTemplateEmail implements ShouldQueue
             $mailer->send(
                 to: $email,
                 subject: $subject,
-                body: $body.EmailFooter::render($company, $consultant),
-                from: $consultant?->email ?? $company->defaultFromEmail(),
+                body: $body.EmailFooter::render($company, $sender),
+                from: $sender?->email ?? $company->defaultFromEmail(),
                 attachments: [EmailFooter::logoAttachment()],
             );
 

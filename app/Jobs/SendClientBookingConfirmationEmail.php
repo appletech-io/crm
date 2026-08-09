@@ -12,6 +12,7 @@ use App\Services\Booking\BookingDayPeriods;
 use App\Services\Education\BookingConfirmationLink;
 use App\Services\Mail\Concerns\ReplacesEmailPlaceholders;
 use App\Services\Mail\EmailFooter;
+use App\Services\Mail\EmailSenderResolver;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -61,12 +62,13 @@ class SendClientBookingConfirmationEmail implements ShouldQueue
             };
 
             $replacements = $this->buildReplacements($contact);
+            $sender = EmailSenderResolver::resolve($template, $client->consultant);
 
             $mailer->send(
                 to: $contact->email,
                 subject: $this->replacePlaceholders($template->subject ?? '', $replacements),
-                body: $this->replacePlaceholders($template->body ?? '', $replacements).EmailFooter::render($client->company, $client->consultant),
-                from: $client->consultant?->email ?? $client->company->defaultFromEmail(),
+                body: $this->replacePlaceholders($template->body ?? '', $replacements).EmailFooter::render($client->company, $sender),
+                from: $sender?->email ?? $client->company->defaultFromEmail(),
                 attachments: [EmailFooter::logoAttachment()],
             );
 

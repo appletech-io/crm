@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\EmailTemplates\Tables;
 
+use App\Enums\EmailTemplateSender;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -23,6 +24,10 @@ class EmailTemplatesTable
                 TextColumn::make('subject')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('sender')
+                    ->label('Send As')
+                    ->badge()
+                    ->formatStateUsing(fn (EmailTemplateSender $state): string => $state->label()),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

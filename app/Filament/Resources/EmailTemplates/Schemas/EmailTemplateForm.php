@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\EmailTemplates\Schemas;
 
 use App\Enums\EmailTemplateAudience;
+use App\Enums\EmailTemplateSender;
 use App\Enums\EmailTemplateType;
 use App\Services\Mail\CustomTemplatePlaceholders;
 use Filament\Forms\Components\RichEditor;
@@ -39,6 +40,12 @@ class EmailTemplateForm
                             ->live()
                             ->visible(fn (Get $get): bool => $get('type') === EmailTemplateType::Custom->value)
                             ->required(fn (Get $get): bool => $get('type') === EmailTemplateType::Custom->value),
+                        Select::make('sender')
+                            ->label('Send As')
+                            ->options(EmailTemplateSender::options())
+                            ->default(EmailTemplateSender::Consultant->value)
+                            ->required()
+                            ->helperText('Who the email is sent from. "Compliance Officer" falls back to the consultant if none is assigned.'),
                         TextInput::make('subject')
                             ->required()
                             ->maxLength(255)

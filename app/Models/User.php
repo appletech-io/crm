@@ -28,6 +28,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string $email
  * @property string|null $mobile
  * @property string|null $job_title
+ * @property int|null $compliance_officer_id
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property Carbon|null $password_changed_at
@@ -39,7 +40,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'mobile', 'job_title', 'password', 'password_changed_at', 'requires_account_setup', 'company_id', 'candidate_id', 'candidate_type', 'client_contact_id'])]
+#[Fillable(['name', 'email', 'mobile', 'job_title', 'password', 'password_changed_at', 'requires_account_setup', 'company_id', 'candidate_id', 'candidate_type', 'client_contact_id', 'compliance_officer_id'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser, PasskeyUser
 {
@@ -103,6 +104,11 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
     public function clientContact(): BelongsTo
     {
         return $this->belongsTo(ClientContact::class);
+    }
+
+    public function complianceOfficer(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'compliance_officer_id');
     }
 
     public function client(): ?Client

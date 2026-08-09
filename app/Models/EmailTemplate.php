@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\EmailTemplateAudience;
+use App\Enums\EmailTemplateSender;
 use App\Enums\EmailTemplateType;
 use App\Models\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,6 +23,7 @@ class EmailTemplate extends Model
         return [
             'type' => EmailTemplateType::class,
             'audience' => EmailTemplateAudience::class,
+            'sender' => EmailTemplateSender::class,
         ];
     }
 

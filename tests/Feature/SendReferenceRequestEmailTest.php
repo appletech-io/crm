@@ -99,6 +99,22 @@ describe('education candidates', function () {
         Http::assertSent(fn ($request) => str_contains($request->url(), 'users/sender@example.com/sendMail'));
     });
 
+    test('it sends from the compliance officer when the template requests it', function () {
+        EmailTemplate::query()->update(['sender' => 'compliance_officer']);
+
+        $complianceOfficer = User::factory()->create(['company_id' => $this->company->id, 'email' => 'compliance@example.com']);
+        $consultant = User::factory()->create([
+            'company_id' => $this->company->id,
+            'email' => 'consultant@example.com',
+            'compliance_officer_id' => $complianceOfficer->id,
+        ]);
+        $this->candidate->update(['consultant_id' => $consultant->id]);
+
+        (new SendReferenceRequestEmail($this->reference))->handle();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), "users/{$complianceOfficer->email}/sendMail"));
+    });
+
     test('it replaces the referee name, candidate name, reference link, and expiry date placeholders', function () {
         (new SendReferenceRequestEmail($this->reference))->handle();
 

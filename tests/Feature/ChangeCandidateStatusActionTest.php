@@ -107,6 +107,45 @@ test('the status select only offers statuses for the active industry', function 
         });
 });
 
+test('a consultant cannot see or call the change status action', function () {
+    $industry = activateIndustry($this->user, 'education');
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+    $this->actingAs($consultant);
+    Cache::put("user.{$consultant->id}.active_industry", $industry->slug);
+    Cache::put("user.{$consultant->id}.active_industry_id", $industry->id);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertActionHidden('changeStatus');
+
+    expect($candidate->fresh()->statuses)->toHaveCount(0);
+});
+
+test('a compliance user can see and call the change status action', function () {
+    $industry = activateIndustry($this->user, 'education');
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $shortlisted = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $industry->id,
+        'name' => 'Shortlisted',
+    ]);
+
+    $compliance = User::factory()->create(['company_id' => $this->user->company_id]);
+    $compliance->assignRole('compliance');
+    $this->actingAs($compliance);
+    Cache::put("user.{$compliance->id}.active_industry", $industry->slug);
+    Cache::put("user.{$compliance->id}.active_industry_id", $industry->id);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertActionVisible('changeStatus')
+        ->callAction('changeStatus', data: ['candidate_status_id' => $shortlisted->id])
+        ->assertNotified('Status updated');
+
+    expect($candidate->fresh()->statuses)->toHaveCount(1);
+});
+
 test('changing status on a healthcare candidate replaces the existing status and logs an activity', function () {
     $industry = activateIndustry($this->user, 'healthcare');
     $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);

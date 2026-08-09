@@ -13,6 +13,7 @@ use App\Models\EmailTemplate;
 use App\Services\Booking\TimesheetPeriod;
 use App\Services\Mail\Concerns\ReplacesEmailPlaceholders;
 use App\Services\Mail\EmailFooter;
+use App\Services\Mail\EmailSenderResolver;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -70,12 +71,13 @@ class SendPayrollConfirmationEmail implements ShouldQueue
             };
 
             $replacements = $this->buildReplacements($contact, $dayPeriods);
+            $sender = EmailSenderResolver::resolve($template, $this->client->consultant);
 
             $mailer->send(
                 to: $contact->email,
                 subject: $this->replacePlaceholders($template->subject ?? '', $replacements),
-                body: $this->replacePlaceholders($template->body ?? '', $replacements).EmailFooter::render($this->client->company, $this->client->consultant),
-                from: $this->client->consultant?->email ?? $this->client->company->defaultFromEmail(),
+                body: $this->replacePlaceholders($template->body ?? '', $replacements).EmailFooter::render($this->client->company, $sender),
+                from: $sender?->email ?? $this->client->company->defaultFromEmail(),
                 attachments: [EmailFooter::logoAttachment()],
             );
 
