@@ -123,6 +123,18 @@ class HealthcareCandidate extends Model
         return $this->morphMany(CandidateCandidateStatus::class, 'model')->latest();
     }
 
+    /**
+     * The candidate's single current status, as opposed to `statuses()` which
+     * is their full history — used wherever "is this candidate currently X"
+     * needs to be checked in a query (e.g. filtering for Live candidates),
+     * since a plain whereHas('statuses.status', ...) would match anyone who
+     * was ever in that status, not just their latest one.
+     */
+    public function latestStatus(): MorphOne
+    {
+        return $this->morphOne(CandidateCandidateStatus::class, 'model')->latestOfMany();
+    }
+
     public function currentStatusName(): ?string
     {
         return $this->statuses()->first()?->status?->name;

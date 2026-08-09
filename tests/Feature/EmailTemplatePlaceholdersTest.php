@@ -1,8 +1,10 @@
 <?php
 
+use App\Enums\EmailTemplateSender;
 use App\Enums\EmailTemplateType;
 use App\Filament\Resources\EmailTemplates\Pages\CreateEmailTemplate;
 use App\Models\Company;
+use App\Models\EmailTemplate;
 use App\Models\Industry;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
@@ -53,6 +55,24 @@ test('every declared placeholder for every type is unique to that type or intent
     foreach (EmailTemplateType::cases() as $type) {
         expect($type->placeholders())->toBeArray();
     }
+});
+
+test('the sender field defaults to consultant and can be set to compliance officer', function () {
+    Livewire::test(CreateEmailTemplate::class)
+        ->assertFormFieldExists('sender', function ($field) {
+            return $field->getState() === 'consultant';
+        })
+        ->fillForm([
+            'name' => 'Template',
+            'subject' => 'Subject',
+            'body' => 'Body',
+            'sender' => 'compliance_officer',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    expect(EmailTemplate::where('name', 'Template')->first()->sender)
+        ->toBe(EmailTemplateSender::ComplianceOfficer);
 });
 
 test('the audience field is hidden and not required unless the type is Custom', function () {

@@ -24,6 +24,7 @@ class ChangeCandidateStatusAction
         return Action::make('changeStatus')
             ->label('Change Status')
             ->icon(Heroicon::OutlinedFlag)
+            ->visible(fn (): bool => (auth()->user()?->isAdmin() ?? false) || (auth()->user()?->hasRole('compliance') ?? false))
             ->modalSubmitActionLabel('Change Status')
             ->schema([
                 Select::make('candidate_status_id')

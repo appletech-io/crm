@@ -13,6 +13,7 @@ use App\Models\Industry;
 use App\Models\User;
 use App\Services\Mail\Concerns\ReplacesEmailPlaceholders;
 use App\Services\Mail\EmailFooter;
+use App\Services\Mail\EmailSenderResolver;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -64,6 +65,7 @@ class SendApplicationEmail implements ShouldQueue
 
         try {
             $creator = $this->createdByUserId ? User::find($this->createdByUserId) : null;
+            $sender = EmailSenderResolver::resolve($template, $this->candidate->consultant);
 
             $mailer = match ($this->candidate->company->email_provider) {
                 EmailProvider::Mailgun => new MailgunMailer,
@@ -75,8 +77,8 @@ class SendApplicationEmail implements ShouldQueue
             $mailer->send(
                 to: $this->candidate->email,
                 subject: $this->replacePlaceholders($template->subject ?? '', $replacements),
-                body: $this->replacePlaceholders($template->body ?? '', $replacements).EmailFooter::render($this->candidate->company, $this->candidate->consultant),
-                from: $this->candidate->consultant?->email ?? $creator?->email ?? $this->candidate->company->defaultFromEmail(),
+                body: $this->replacePlaceholders($template->body ?? '', $replacements).EmailFooter::render($this->candidate->company, $sender),
+                from: $sender?->email ?? $creator?->email ?? $this->candidate->company->defaultFromEmail(),
                 attachments: [EmailFooter::logoAttachment()],
             );
 

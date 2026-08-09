@@ -58,16 +58,17 @@ beforeEach(function () {
     ]);
 });
 
-function createPayrollTemplate(Company $company): void
+function createPayrollTemplate(Company $company, ?string $sender = null): void
 {
-    EmailTemplate::create([
+    EmailTemplate::create(array_filter([
         'company_id' => $company->id,
         'industry_id' => 1,
         'name' => 'Payroll Confirmation',
         'type' => EmailTemplateType::PayrollConfirmation,
         'subject' => 'Timesheet for {client_name}',
         'body' => 'Dear {client_contact_name}, please review: {day_breakdown} {payroll_confirmation_link}',
-    ]);
+        'sender' => $sender,
+    ]));
 }
 
 test('it sends to the timesheet contact, marks the days sent, and logs a client activity', function () {
@@ -313,6 +314,37 @@ test('it appends the consultants email footer to the sent body', function () {
             && $attachment['isInline'] === true
             && $attachment['contentId'] === 'applebough-logo';
     });
+});
+
+test('it sends from the compliance officer when the template requests it', function () {
+    $complianceOfficer = User::factory()->create(['company_id' => $this->company->id, 'email' => 'compliance@example.com']);
+    $consultant = User::factory()->create([
+        'company_id' => $this->company->id,
+        'email' => 'consultant@example.com',
+        'compliance_officer_id' => $complianceOfficer->id,
+    ]);
+
+    $this->client->update(['consultant_id' => $consultant->id]);
+
+    $this->client->contacts()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Main',
+        'last_name' => 'Contact',
+        'email' => 'main@example.com',
+        'main_contact' => true,
+    ]);
+
+    createPayrollTemplate($this->company, sender: 'compliance_officer');
+
+    $this->booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => $this->weekStart->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+
+    (new SendPayrollConfirmationEmail($this->client, $this->weekStart->toDateString()))->handle();
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), '/users/compliance@example.com/sendMail'));
 });
 
 test('it includes a working payroll confirmation link', function () {

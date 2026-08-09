@@ -124,6 +124,44 @@ test('right to work is complete for visa only once share code and dates are set'
     expect(CandidateVettingRequirements::for($candidate)['right_to_work']['complete'])->toBeTrue();
 });
 
+test('dbs check fails when the certificate has already expired or expires within 14 days', function () {
+    $candidate = fullyCompliantHealthcareCandidate(['dbs_expiry_date' => now()->addDays(15)]);
+    expect(CandidateVettingRequirements::for($candidate)['dbs']['complete'])->toBeTrue();
+
+    $candidate->update(['dbs_expiry_date' => now()->addDays(14)]);
+    expect(CandidateVettingRequirements::for($candidate)['dbs']['complete'])->toBeFalse();
+
+    $candidate->update(['dbs_expiry_date' => now()->subDay()]);
+    expect(CandidateVettingRequirements::for($candidate)['dbs']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('right to work fails for a passport once the right to work expiry date has passed or is within 14 days', function () {
+    $candidate = fullyCompliantHealthcareCandidate(['right_to_work_type' => 'passport']);
+
+    CandidateDocument::create([
+        'candidate_type' => HealthcareCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::Passport,
+        'path' => 'fake/passport.pdf',
+    ]);
+
+    $candidate->update(['right_to_work_expiry_date' => now()->addDays(15)]);
+    expect(CandidateVettingRequirements::for($candidate)['right_to_work']['complete'])->toBeTrue();
+
+    $candidate->update(['right_to_work_expiry_date' => now()->subDay()]);
+    expect(CandidateVettingRequirements::for($candidate)['right_to_work']['complete'])->toBeFalse();
+});
+
+test('right to work for a birth certificate is unaffected by the right to work expiry date field', function () {
+    $candidate = fullyCompliantHealthcareCandidate([
+        'right_to_work_type' => 'birth_certificate',
+        'right_to_work_expiry_date' => now()->subDay(),
+    ]);
+
+    expect(CandidateVettingRequirements::for($candidate)['right_to_work']['complete'])->toBeTrue();
+});
+
 test('visa restrictions checked is only relevant for visa candidates and requires a manual confirmation', function () {
     $candidate = fullyCompliantHealthcareCandidate(['right_to_work_type' => 'passport']);
 

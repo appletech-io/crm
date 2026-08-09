@@ -74,6 +74,23 @@ describe('education candidates', function () {
         Http::assertSent(fn ($request) => str_contains($request->url(), 'users/sender@example.com/sendMail'));
     });
 
+    test('it sends from the compliance officer when the application template requests it', function () {
+        EmailTemplate::query()->update(['sender' => 'compliance_officer']);
+
+        $complianceOfficer = User::factory()->create(['company_id' => $this->company->id, 'email' => 'compliance@example.com']);
+        $consultant = User::factory()->create([
+            'company_id' => $this->company->id,
+            'email' => 'consultant@example.com',
+            'compliance_officer_id' => $complianceOfficer->id,
+        ]);
+
+        $this->candidate->update(['consultant_id' => $consultant->id]);
+
+        (new SendApplicationEmail($this->candidate, $this->application, null))->handle();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), "users/{$complianceOfficer->email}/sendMail"));
+    });
+
     test('it logs the activity against the creator when the candidate has no consultant yet', function () {
         $creator = User::factory()->create(['company_id' => $this->company->id]);
 

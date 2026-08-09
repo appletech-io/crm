@@ -6,16 +6,24 @@ use App\Enums\DocumentType;
 use App\Enums\ReferenceStatus;
 use App\Enums\ReferenceType;
 use App\Models\EducationCandidate;
+use Carbon\CarbonInterface;
 
 class CandidateVettingRequirements
 {
+    /**
+     * A document that expires within this many days is treated the same as
+     * one that has already expired — a candidate shouldn't go Live on the
+     * strength of a check that will lapse almost immediately.
+     */
+    private const EXPIRY_WARNING_DAYS = 14;
+
     /** @return array<string, array{label: string, description: string, complete: bool}> */
     public static function for(EducationCandidate $candidate): array
     {
         return [
             'dbs' => [
                 'label' => 'DBS',
-                'description' => 'Candidate has a DBS on file with a certificate number, verified either via a valid Update Service response or by both the front and back of the certificate being uploaded.',
+                'description' => 'Candidate has a DBS on file with a certificate number, verified either via a valid Update Service response or by both the front and back of the certificate being uploaded, and not expired or expiring within 14 days.',
                 'complete' => filled($candidate->dbs_certificate_number)
                     && (
                         $candidate->update_service_response === DbsUpdateService::VALID_STATUS
@@ -23,7 +31,8 @@ class CandidateVettingRequirements
                             $candidate->documents()->where('document_type', DocumentType::DbsFront)->exists()
                             && $candidate->documents()->where('document_type', DocumentType::DbsBack)->exists()
                         )
-                    ),
+                    )
+                    && ! static::isExpiredOrExpiringSoon($candidate->dbs_expiry_date),
             ],
             'cv' => [
                 'label' => 'CV',
@@ -81,13 +90,14 @@ class CandidateVettingRequirements
             ],
             'safeguarding' => [
                 'label' => 'Safeguarding Training',
-                'description' => 'Safeguarding training has been checked and certified, with the certificate uploaded.',
+                'description' => 'Safeguarding training has been checked and certified, with the certificate uploaded, and not expired or expiring within 14 days.',
                 'complete' => filled($candidate->safeguarding_certified_date)
-                    && $candidate->documents()->where('document_type', DocumentType::SafeguardingTraining)->exists(),
+                    && $candidate->documents()->where('document_type', DocumentType::SafeguardingTraining)->exists()
+                    && ! static::isExpiredOrExpiringSoon($candidate->safeguarding_expiry_date),
             ],
             'right_to_work' => [
                 'label' => static::rightToWorkLabel($candidate),
-                'description' => 'Right to work has been established: passport with document uploaded, birth certificate with document uploaded, or visa details set.',
+                'description' => 'Right to work has been established: passport with document uploaded, birth certificate with document uploaded, or visa details set. For a passport or visa, the right to work expiry date must not be expired or expiring within 14 days.',
                 'complete' => static::rightToWorkComplete($candidate),
             ],
             'visa_restrictions_checked' => [
@@ -113,12 +123,14 @@ class CandidateVettingRequirements
     protected static function rightToWorkComplete(EducationCandidate $candidate): bool
     {
         return match ($candidate->right_to_work_type) {
-            'passport' => $candidate->documents()->where('document_type', DocumentType::Passport)->exists(),
+            'passport' => $candidate->documents()->where('document_type', DocumentType::Passport)->exists()
+                && ! static::isExpiredOrExpiringSoon($candidate->right_to_work_expiry_date),
             'birth_certificate' => filled($candidate->ni_number)
                 && $candidate->documents()->where('document_type', DocumentType::BirthCertificate)->exists(),
             'visa' => filled($candidate->visa_share_code)
                 && filled($candidate->visa_issue_date)
-                && filled($candidate->visa_expiry_date),
+                && filled($candidate->visa_expiry_date)
+                && ! static::isExpiredOrExpiringSoon($candidate->right_to_work_expiry_date),
             default => false,
         };
     }
@@ -126,5 +138,15 @@ class CandidateVettingRequirements
     public static function isComplete(EducationCandidate $candidate): bool
     {
         return collect(self::for($candidate))->every(fn (array $check): bool => $check['complete']);
+    }
+
+    /**
+     * A blank expiry date isn't this check's concern — presence is enforced
+     * elsewhere in each requirement. This only fails a requirement once a
+     * date has actually been recorded and it has lapsed (or is about to).
+     */
+    protected static function isExpiredOrExpiringSoon(?CarbonInterface $expiryDate): bool
+    {
+        return $expiryDate !== null && $expiryDate->lte(now()->addDays(self::EXPIRY_WARNING_DAYS));
     }
 }
