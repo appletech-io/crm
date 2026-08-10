@@ -17,6 +17,7 @@ use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Livewire\Livewire;
 
@@ -233,8 +234,12 @@ test('the bulk action can send an ad-hoc email to sendable candidates', function
 });
 
 test('the ad-hoc body field points a pasted image at a signed email-images url, not a raw storage url', function () {
+    Storage::fake('local');
+    config(['filesystems.default' => 'local']);
+
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
     $path = EmailImageController::DIRECTORY.'/abc123.png';
+    Storage::disk('local')->put($path, 'fake-image-bytes');
 
     Livewire::test(ListEducationCandidates::class)
         ->set('activeSection', 'all')
