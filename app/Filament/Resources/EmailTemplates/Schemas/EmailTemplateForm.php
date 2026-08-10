@@ -5,6 +5,7 @@ namespace App\Filament\Resources\EmailTemplates\Schemas;
 use App\Enums\EmailTemplateAudience;
 use App\Enums\EmailTemplateSender;
 use App\Enums\EmailTemplateType;
+use App\Filament\Support\EmailImageAttachments;
 use App\Services\Mail\CustomTemplatePlaceholders;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
@@ -59,10 +60,12 @@ class EmailTemplateForm
                             ->state(fn (Get $get): HtmlString => static::placeholdersList($get('type'), $get('audience')))
                             ->columnSpanFull(),
 
-                        RichEditor::make('body')
-                            ->required()
-                            ->columnSpanFull()
-                            ->helperText('Use any of the placeholders above — they\'ll be swapped for the real values when the email is sent.'),
+                        EmailImageAttachments::configure(
+                            RichEditor::make('body')
+                                ->required()
+                                ->columnSpanFull()
+                                ->helperText('Use any of the placeholders above — they\'ll be swapped for the real values when the email is sent.'),
+                        ),
                     ]),
             ]);
     }

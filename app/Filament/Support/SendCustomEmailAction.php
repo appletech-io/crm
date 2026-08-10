@@ -229,14 +229,16 @@ class SendCustomEmailAction
                 ->visible(fn (Get $get): bool => $get('mode') === 'adhoc')
                 ->required(fn (Get $get): bool => $get('mode') === 'adhoc'),
 
-            RichEditor::make('adhoc_body')
-                ->label('Body')
-                ->visible(fn (Get $get): bool => $get('mode') === 'adhoc')
-                ->required(fn (Get $get): bool => $get('mode') === 'adhoc')
-                ->helperText('You can use: '.collect(CustomTemplatePlaceholders::definitions($audience))
-                    ->keys()
-                    ->map(fn (string $key): string => "{{$key}}")
-                    ->implode(', ')),
+            EmailImageAttachments::configure(
+                RichEditor::make('adhoc_body')
+                    ->label('Body')
+                    ->visible(fn (Get $get): bool => $get('mode') === 'adhoc')
+                    ->required(fn (Get $get): bool => $get('mode') === 'adhoc')
+                    ->helperText('You can use: '.collect(CustomTemplatePlaceholders::definitions($audience))
+                        ->keys()
+                        ->map(fn (string $key): string => "{{$key}}")
+                        ->implode(', ')),
+            ),
         ];
     }
 

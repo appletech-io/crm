@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BookingConfirmationController;
 use App\Http\Controllers\CandidateDocumentController;
+use App\Http\Controllers\EmailImageController;
 use App\Http\Controllers\ImpersonationController;
 use Illuminate\Support\Facades\Route;
 
@@ -31,6 +32,13 @@ Route::livewire('/reference/{token}', 'reference.verify-reference')->name('refer
 Route::livewire('/reference/{token}/form', 'reference.reference-form')->name('reference.form');
 
 Route::get('/booking-confirmation', [BookingConfirmationController::class, 'show'])->name('booking-confirmation.show');
+
+// Deliberately unauthenticated so images embedded in outbound emails render
+// for external recipients — see EmailImageController for how this stays safe.
+Route::get('/email-images/{path}', [EmailImageController::class, 'show'])
+    ->where('path', '.*')
+    ->middleware('signed')
+    ->name('email-images.show');
 
 // Exposed to public routes for candidates applying directly to a vacancy
 Route::livewire('/vacancy/{vacancy:slug}', 'vacancy.apply-form')->name('vacancy.apply');
