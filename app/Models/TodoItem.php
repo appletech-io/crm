@@ -71,13 +71,32 @@ class TodoItem extends Model
         return $this->completed_at !== null;
     }
 
+    /**
+     * A reference or application has no name of its own worth showing — what
+     * matters is which candidate it belongs to, so those resolve through to
+     * the candidate's name instead of (wrongly) reading first_name/last_name
+     * off the reference/application record itself (e.g. a referee's name).
+     */
     public function linkedRecordLabel(): ?string
     {
         return match (true) {
             $this->model === null => null,
             $this->model instanceof Client => $this->model->name,
             $this->model instanceof Booking => "Booking #{$this->model->id}",
-            default => trim("{$this->model->first_name} {$this->model->last_name}"),
+            $this->model instanceof Vacancy => $this->model->title,
+            $this->model instanceof CandidateReference => 'Reference: '.self::candidateLabel($this->model->candidate),
+            $this->model instanceof EducationApplication => 'Application: '.self::candidateLabel($this->model->educationCandidate),
+            $this->model instanceof HealthcareApplication => 'Application: '.self::candidateLabel($this->model->candidate),
+            default => self::candidateLabel($this->model),
         };
+    }
+
+    private static function candidateLabel(?Model $candidate): string
+    {
+        if (! $candidate) {
+            return 'Unknown candidate';
+        }
+
+        return trim("{$candidate->first_name} {$candidate->last_name}");
     }
 }

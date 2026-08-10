@@ -1,17 +1,27 @@
 <?php
 
+use App\Filament\Resources\Bookings\BookingResource;
+use App\Filament\Resources\Clients\ClientResource;
+use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
+use App\Filament\Resources\HealthcareCandidates\HealthcareCandidateResource;
 use App\Filament\Resources\TodoItems\Pages\CreateTodoItem;
 use App\Filament\Resources\TodoItems\Pages\EditTodoItem;
 use App\Filament\Resources\TodoItems\Pages\ListTodoItems;
 use App\Filament\Resources\TodoItems\Schemas\TodoItemForm;
+use App\Filament\Resources\Vacancies\VacancyResource;
+use App\Filament\Support\TodoLinkedRecord;
 use App\Models\Booking;
+use App\Models\CandidateReference;
 use App\Models\Client;
 use App\Models\Company;
+use App\Models\EducationApplication;
 use App\Models\EducationCandidate;
+use App\Models\HealthcareApplication;
 use App\Models\HealthcareCandidate;
 use App\Models\Industry;
 use App\Models\TodoItem;
 use App\Models\User;
+use App\Models\Vacancy;
 use Database\Seeders\RoleSeeder;
 use Filament\Forms\Components\Select;
 use Illuminate\Support\Facades\Cache;
@@ -367,4 +377,208 @@ test('a todo item can be marked complete and reopened', function () {
         ->callTableAction('toggleComplete', $todoItem);
 
     expect($todoItem->refresh()->isComplete())->toBeFalse();
+});
+
+test('the link to field is editable on create but read-only on edit', function () {
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    Livewire::test(CreateTodoItem::class)
+        ->assertFormFieldIsEnabled('model_type');
+
+    $todoItem = TodoItem::factory()->create([
+        'user_id' => $this->user->id,
+        'model_type' => Client::class,
+        'model_id' => $client->id,
+    ]);
+
+    Livewire::test(EditTodoItem::class, ['record' => $todoItem->getRouteKey()])
+        ->assertFormFieldIsDisabled('model_type');
+});
+
+test('linked record label and link for a client and a candidate', function () {
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+
+    $clientTodo = TodoItem::factory()->create(['user_id' => $this->user->id, 'model_type' => Client::class, 'model_id' => $client->id]);
+    $candidateTodo = TodoItem::factory()->create(['user_id' => $this->user->id, 'model_type' => EducationCandidate::class, 'model_id' => $candidate->id]);
+
+    expect($clientTodo->linkedRecordLabel())->toBe($client->name)
+        ->and(TodoLinkedRecord::links($clientTodo->model))->toBe([
+            ['label' => $client->name, 'url' => ClientResource::getUrl('edit', ['record' => $client])],
+        ])
+        ->and($candidateTodo->linkedRecordLabel())->toBe(trim("{$candidate->first_name} {$candidate->last_name}"))
+        ->and(TodoLinkedRecord::links($candidateTodo->model))->toBe([
+            ['label' => trim("{$candidate->first_name} {$candidate->last_name}"), 'url' => EducationCandidateResource::getUrl('edit', ['record' => $candidate])],
+        ]);
+});
+
+test('a todo item linked to a booking links to the booking itself, its candidate and its client', function () {
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $booking = Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'consultant_id' => $this->user->id,
+    ]);
+
+    $todoItem = TodoItem::factory()->create(['user_id' => $this->user->id, 'model_type' => Booking::class, 'model_id' => $booking->id]);
+
+    expect($todoItem->linkedRecordLabel())->toBe("Booking #{$booking->id}")
+        ->and(TodoLinkedRecord::links($todoItem->model))->toBe([
+            ['label' => "Booking #{$booking->id}", 'url' => BookingResource::getUrl('edit', ['record' => $booking])],
+            ['label' => trim("{$candidate->first_name} {$candidate->last_name}"), 'url' => EducationCandidateResource::getUrl('edit', ['record' => $candidate])],
+            ['label' => $client->name, 'url' => ClientResource::getUrl('edit', ['record' => $client])],
+        ]);
+});
+
+test('a todo item linked to a vacancy links to its filled candidate, the vacancy itself and its client', function () {
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $client->id,
+        'filled_by_id' => $candidate->id,
+        'filled_by_type' => EducationCandidate::class,
+    ]);
+
+    $todoItem = TodoItem::factory()->create([
+        'user_id' => $this->user->id,
+        'model_type' => Vacancy::class,
+        'model_id' => $vacancy->id,
+    ]);
+
+    expect($todoItem->linkedRecordLabel())->toBe($vacancy->title)
+        ->and(TodoLinkedRecord::links($todoItem->model))->toBe([
+            ['label' => trim("{$candidate->first_name} {$candidate->last_name}"), 'url' => EducationCandidateResource::getUrl('edit', ['record' => $candidate])],
+            ['label' => $vacancy->title, 'url' => VacancyResource::getUrl('edit', ['record' => $vacancy])],
+            ['label' => $client->name, 'url' => ClientResource::getUrl('edit', ['record' => $client])],
+        ]);
+});
+
+test('an unfilled vacancy only links to the vacancy itself and its client', function () {
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $client->id,
+    ]);
+
+    $todoItem = TodoItem::factory()->create([
+        'user_id' => $this->user->id,
+        'model_type' => Vacancy::class,
+        'model_id' => $vacancy->id,
+    ]);
+
+    expect(TodoLinkedRecord::links($todoItem->model))->toBe([
+        ['label' => $vacancy->title, 'url' => VacancyResource::getUrl('edit', ['record' => $vacancy])],
+        ['label' => $client->name, 'url' => ClientResource::getUrl('edit', ['record' => $client])],
+    ]);
+});
+
+test('a todo item linked to a reference shows the candidate, not the referee, and links to the candidate', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Jane',
+        'last_name' => 'Doe',
+    ]);
+
+    $reference = CandidateReference::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'type' => 'professional',
+        'first_name' => 'Referee',
+        'last_name' => 'Smith',
+    ]);
+
+    $todoItem = TodoItem::factory()->create([
+        'user_id' => $this->user->id,
+        'model_type' => CandidateReference::class,
+        'model_id' => $reference->id,
+    ]);
+
+    expect($todoItem->linkedRecordLabel())->toBe('Reference: Jane Doe')
+        ->and(TodoLinkedRecord::links($todoItem->model))->toBe([
+            ['label' => 'Jane Doe', 'url' => EducationCandidateResource::getUrl('edit', ['record' => $candidate])],
+        ]);
+});
+
+test('a todo item linked to an education application links to the candidate', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Jane',
+        'last_name' => 'Doe',
+    ]);
+    $application = EducationApplication::factory()->create(['education_candidate_id' => $candidate->id]);
+
+    $todoItem = TodoItem::factory()->create([
+        'user_id' => $this->user->id,
+        'model_type' => EducationApplication::class,
+        'model_id' => $application->id,
+    ]);
+
+    expect($todoItem->linkedRecordLabel())->toBe('Application: Jane Doe')
+        ->and(TodoLinkedRecord::links($todoItem->model))->toBe([
+            ['label' => 'Jane Doe', 'url' => EducationCandidateResource::getUrl('edit', ['record' => $candidate])],
+        ]);
+});
+
+test('a todo item linked to a healthcare application links to the candidate', function () {
+    $candidate = HealthcareCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'John',
+        'last_name' => 'Smith',
+    ]);
+    $application = HealthcareApplication::create([
+        'candidate_type' => HealthcareCandidate::class,
+        'candidate_id' => $candidate->id,
+        'token' => 'test-token',
+    ]);
+
+    $todoItem = TodoItem::factory()->create([
+        'user_id' => $this->user->id,
+        'model_type' => HealthcareApplication::class,
+        'model_id' => $application->id,
+    ]);
+
+    expect($todoItem->linkedRecordLabel())->toBe('Application: John Smith')
+        ->and(TodoLinkedRecord::links($todoItem->model))->toBe([
+            ['label' => 'John Smith', 'url' => HealthcareCandidateResource::getUrl('edit', ['record' => $candidate])],
+        ]);
+});
+
+test('the link to field is hidden on edit when linked to a reference, but the record link is shown instead', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $reference = CandidateReference::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'type' => 'professional',
+        'first_name' => 'Referee',
+        'last_name' => 'Smith',
+    ]);
+
+    $todoItem = TodoItem::factory()->create([
+        'user_id' => $this->user->id,
+        'model_type' => CandidateReference::class,
+        'model_id' => $reference->id,
+    ]);
+
+    Livewire::test(EditTodoItem::class, ['record' => $todoItem->getRouteKey()])
+        ->assertFormFieldIsHidden('model_type')
+        ->assertSee(trim("{$candidate->first_name} {$candidate->last_name}"));
 });
