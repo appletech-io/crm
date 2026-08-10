@@ -76,3 +76,35 @@ test('it resolves to null when the template requests the compliance officer but 
 
     expect(EmailSenderResolver::resolve($template, null))->toBeNull();
 });
+
+test('the actively sending user takes priority over the consultant', function () {
+    $consultant = User::factory()->create(['company_id' => $this->company->id]);
+    $sendingUser = User::factory()->create(['company_id' => $this->company->id]);
+
+    expect(EmailSenderResolver::resolve(null, $consultant, $sendingUser)?->is($sendingUser))->toBeTrue();
+});
+
+test('the actively sending user takes priority even when the template requests the compliance officer', function () {
+    $complianceOfficer = User::factory()->create(['company_id' => $this->company->id]);
+    $consultant = User::factory()->create([
+        'company_id' => $this->company->id,
+        'compliance_officer_id' => $complianceOfficer->id,
+    ]);
+    $sendingUser = User::factory()->create(['company_id' => $this->company->id]);
+    $template = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Template',
+        'subject' => 'Subject',
+        'body' => 'Body',
+        'sender' => EmailTemplateSender::ComplianceOfficer->value,
+    ]);
+
+    expect(EmailSenderResolver::resolve($template, $consultant, $sendingUser)?->is($sendingUser))->toBeTrue();
+});
+
+test('with no sending user, resolution falls through to the template/consultant as before', function () {
+    $consultant = User::factory()->create(['company_id' => $this->company->id]);
+
+    expect(EmailSenderResolver::resolve(null, $consultant, null)?->is($consultant))->toBeTrue();
+});

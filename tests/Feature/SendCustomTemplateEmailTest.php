@@ -58,7 +58,7 @@ test('it sends a custom template to a candidate with resolved placeholders', fun
     expect($candidate->activities()->latest()->first()->user_id)->toBe($consultant->id);
 });
 
-test('it sends from the compliance officer when the template requests it', function () {
+test('it sends from the compliance officer when the template requests it and no one is actively sending it', function () {
     $complianceOfficer = User::factory()->create(['company_id' => $this->company->id, 'email' => 'compliance@example.com']);
     $consultant = User::factory()->create([
         'company_id' => $this->company->id,
@@ -82,12 +82,12 @@ test('it sends from the compliance officer when the template requests it', funct
         'body' => 'Hi',
     ]);
 
-    (new SendCustomTemplateEmail($template, $candidate, $consultant->id))->handle();
+    (new SendCustomTemplateEmail($template, $candidate, null))->handle();
 
     Http::assertSent(fn ($request) => str_contains($request->url(), "users/{$complianceOfficer->email}/sendMail"));
 });
 
-test('it falls back to the consultant when the template requests the compliance officer but none is assigned', function () {
+test('it falls back to the consultant when the template requests the compliance officer but none is assigned, and no one is actively sending it', function () {
     $consultant = User::factory()->create(['company_id' => $this->company->id, 'email' => 'consultant@example.com']);
     $candidate = EducationCandidate::factory()->create([
         'company_id' => $this->company->id,
@@ -106,9 +106,63 @@ test('it falls back to the consultant when the template requests the compliance 
         'body' => 'Hi',
     ]);
 
-    (new SendCustomTemplateEmail($template, $candidate, $consultant->id))->handle();
+    (new SendCustomTemplateEmail($template, $candidate, null))->handle();
 
     Http::assertSent(fn ($request) => str_contains($request->url(), "users/{$consultant->email}/sendMail"));
+});
+
+test('it sends from whoever is actively sending it, not the candidates assigned consultant', function () {
+    $consultant = User::factory()->create(['company_id' => $this->company->id, 'email' => 'consultant@example.com']);
+    $sendingUser = User::factory()->create(['company_id' => $this->company->id, 'email' => 'sending-admin@example.com']);
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'email' => 'jane@example.com',
+        'consultant_id' => $consultant->id,
+    ]);
+
+    $template = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Custom candidate template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => EmailTemplateAudience::Candidate->value,
+        'subject' => 'Hello',
+        'body' => 'Hi',
+    ]);
+
+    (new SendCustomTemplateEmail($template, $candidate, $sendingUser->id))->handle();
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), "users/{$sendingUser->email}/sendMail"));
+});
+
+test('it sends from whoever is actively sending it even when the template requests the compliance officer', function () {
+    $complianceOfficer = User::factory()->create(['company_id' => $this->company->id, 'email' => 'compliance@example.com']);
+    $consultant = User::factory()->create([
+        'company_id' => $this->company->id,
+        'email' => 'consultant@example.com',
+        'compliance_officer_id' => $complianceOfficer->id,
+    ]);
+    $sendingUser = User::factory()->create(['company_id' => $this->company->id, 'email' => 'sending-admin@example.com']);
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'email' => 'jane@example.com',
+        'consultant_id' => $consultant->id,
+    ]);
+
+    $template = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Custom candidate template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => EmailTemplateAudience::Candidate->value,
+        'sender' => 'compliance_officer',
+        'subject' => 'Hello',
+        'body' => 'Hi',
+    ]);
+
+    (new SendCustomTemplateEmail($template, $candidate, $sendingUser->id))->handle();
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), "users/{$sendingUser->email}/sendMail"));
 });
 
 test('it does not send when a candidate has no email', function () {

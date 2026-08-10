@@ -8,6 +8,7 @@ use App\Models\EducationCandidate;
 use App\Models\EmailTemplate;
 use App\Models\HealthcareCandidate;
 use App\Models\MarketingCampaign;
+use App\Models\User;
 use App\Services\Mail\Concerns\ReplacesEmailPlaceholders;
 use App\Services\Mail\CustomTemplatePlaceholders;
 use App\Services\Mail\EmailFooter;
@@ -53,7 +54,8 @@ class SendCustomTemplateEmail implements ShouldQueue
 
         $company = $this->recipient->company;
         $consultant = $this->recipient->consultant;
-        $sender = EmailSenderResolver::resolve($this->template, $consultant);
+        $sentBy = $this->sentByUserId ? User::find($this->sentByUserId) : null;
+        $sender = EmailSenderResolver::resolve($this->template, $consultant, $sentBy);
         $replacements = CustomTemplatePlaceholders::resolve($this->recipient, $contact);
 
         try {
