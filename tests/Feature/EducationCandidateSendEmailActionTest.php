@@ -3,6 +3,7 @@
 use App\Enums\EmailTemplateType;
 use App\Filament\Resources\EducationCandidates\Pages\EditEducationCandidate;
 use App\Filament\Resources\EducationCandidates\Pages\ListEducationCandidates;
+use App\Http\Controllers\EmailImageController;
 use App\Jobs\SendCustomTemplateEmail;
 use App\Models\CandidateCandidateStatus;
 use App\Models\CandidateStatus;
@@ -12,9 +13,11 @@ use App\Models\EmailTemplate;
 use App\Models\Industry;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
+use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\URL;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -227,4 +230,15 @@ test('the bulk action can send an ad-hoc email to sendable candidates', function
         ->assertNotified('Queued 1 email(s). Skipped 1 (no contact email on file): No Email');
 
     Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->template === null && $job->recipient->is($sendable));
+});
+
+test('the ad-hoc body field points a pasted image at a signed email-images url, not a raw storage url', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $path = EmailImageController::DIRECTORY.'/abc123.png';
+
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'all')
+        ->mountTableAction('sendEmail', $candidate)
+        ->assertFormFieldExists('adhoc_body', fn (RichEditor $field): bool => $field->getFileAttachmentUrl($path)
+            === URL::signedRoute('email-images.show', ['path' => $path]));
 });
