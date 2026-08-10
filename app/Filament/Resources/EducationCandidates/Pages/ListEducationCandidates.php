@@ -306,9 +306,25 @@ class ListEducationCandidates extends ListRecords implements HasForms
                     ->label('First Name'),
                 TextColumn::make('last_name')
                     ->label('Last Name'),
-                TextColumn::make('email'),
                 TextColumn::make('phone')
                     ->placeholder('—'),
+                TextColumn::make('average_rating')
+                    ->label('Rating')
+                    ->badge()
+                    ->formatStateUsing(fn (?float $state, EducationCandidate $record): string => $state !== null
+                        ? number_format($state, 1)." ★ ({$record->ratings_count})"
+                        : 'Not yet rated')
+                    ->color(fn (?float $state): string => match (true) {
+                        $state === null => 'gray',
+                        $state >= 4 => 'success',
+                        $state >= 3 => 'warning',
+                        default => 'danger',
+                    })
+                    ->sortable(),
+                TextColumn::make('availability_score')
+                    ->label('Availability')
+                    ->getStateUsing(fn (EducationCandidate $record): string => $this->availableDayCount($record, $weekStart).'/5 available')
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => $this->orderByAvailability($query, $direction, $weekStart)),
                 TextColumn::make('distance')
                     ->label('Distance')
                     ->getStateUsing(function (EducationCandidate $record): ?string {
@@ -399,6 +415,47 @@ class ListEducationCandidates extends ListRecords implements HasForms
             CandidateAvailabilityStatus::AvailablePm->value,
             null,
         ], true);
+    }
+
+    /**
+     * How many of the 5 displayed weekdays this candidate is free — reuses
+     * availabilityStatusFor()/isSelectableStatus() so the count always
+     * agrees with what the day-by-day icons on the same row are showing.
+     */
+    private function availableDayCount(EducationCandidate $record, CarbonImmutable $weekStart): int
+    {
+        return collect(CandidateSearchService::WEEKDAYS)
+            ->filter(fn (int $isoWeekday): bool => $this->isSelectableStatus(
+                $this->availabilityStatusFor($record, $weekStart->copy()->addDays($isoWeekday - 1))
+            ))
+            ->count();
+    }
+
+    /**
+     * Approximates availableDayCount() in SQL for sorting: 5 minus however
+     * many of the displayed weekdays are booked (via booking_days) or
+     * explicitly marked Not Available (via candidate_availabilities) — a
+     * day with neither counts as available, mirroring isSelectableStatus()
+     * treating "no data" as available rather than unknown.
+     */
+    private function orderByAvailability(Builder $query, string $direction, CarbonImmutable $weekStart): Builder
+    {
+        $weekEnd = $weekStart->copy()->addDays(4);
+
+        // date columns are cast as 'date' on their models but stored with a
+        // time component (e.g. '2026-08-10 00:00:00') — DATE() normalizes
+        // that before comparing, on both MySQL and SQLite, rather than
+        // relying on a raw string BETWEEN that's fragile at the boundaries.
+        return $query->orderByRaw(
+            '(5
+                - (SELECT COUNT(DISTINCT DATE(bd.date)) FROM booking_days bd INNER JOIN bookings b ON b.id = bd.booking_id WHERE b.candidate_type = ? AND b.candidate_id = education_candidates.id AND DATE(bd.date) BETWEEN ? AND ? AND bd.cancelled_at IS NULL)
+                - (SELECT COUNT(*) FROM candidate_availabilities ca WHERE ca.candidate_type = ? AND ca.candidate_id = education_candidates.id AND DATE(ca.date) BETWEEN ? AND ? AND ca.status = ?)
+            ) '.$direction,
+            [
+                EducationCandidate::class, $weekStart->toDateString(), $weekEnd->toDateString(),
+                EducationCandidate::class, $weekStart->toDateString(), $weekEnd->toDateString(), CandidateAvailabilityStatus::NotAvailable->value,
+            ],
+        );
     }
 
     /**

@@ -50,6 +50,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class EducationCandidateForm
 {
@@ -84,6 +85,20 @@ class EducationCandidateForm
                                                     ->imageWidth(160)
                                                     ->alignCenter()
                                                     ->visible(fn (?EducationCandidate $record): bool => (bool) static::document($record, DocumentType::Photo)),
+                                                TextEntry::make('average_rating')
+                                                    ->hiddenLabel()
+                                                    ->getStateUsing(fn (?EducationCandidate $record): string => $record?->average_rating !== null
+                                                        ? number_format($record->average_rating, 1)." ★ ({$record->ratings_count} ".Str::plural('rating', $record->ratings_count).')'
+                                                        : 'Not yet rated')
+                                                    ->badge()
+                                                    ->color(fn (?EducationCandidate $record): string => match (true) {
+                                                        $record?->average_rating === null => 'gray',
+                                                        $record->average_rating >= 4 => 'success',
+                                                        $record->average_rating >= 3 => 'warning',
+                                                        default => 'danger',
+                                                    })
+                                                    ->alignCenter()
+                                                    ->visible(fn (?EducationCandidate $record): bool => $record !== null),
                                             ]),
 
                                         Section::make('Personal Information')

@@ -152,6 +152,53 @@ test('a client can rate a candidate out of 5', function () {
         ->and($booking->isRated())->toBeTrue();
 });
 
+test('rating a booking recalculates the candidates stored average rating', function () {
+    $booking = Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'start_date' => now()->subDays(3)->toDateString(),
+    ]);
+
+    $this->actingAs($this->user);
+
+    Livewire::test(RateBookings::class)->call('rate', $booking->id, 4);
+
+    expect($this->candidate->fresh())
+        ->average_rating->toBe(4.0)
+        ->ratings_count->toBe(1);
+});
+
+test('rating a second booking updates the average across both ratings', function () {
+    Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'candidate_rating' => 2,
+        'candidate_rated_at' => now(),
+    ]);
+    $secondBooking = Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'start_date' => now()->subDays(3)->toDateString(),
+    ]);
+
+    $this->actingAs($this->user);
+
+    Livewire::test(RateBookings::class)->call('rate', $secondBooking->id, 4);
+
+    expect($this->candidate->fresh())
+        ->average_rating->toBe(3.0)
+        ->ratings_count->toBe(2);
+});
+
 test('a rated booking disappears from the list afterwards', function () {
     $booking = Booking::factory()->create([
         'company_id' => $this->company->id,

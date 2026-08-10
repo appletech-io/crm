@@ -33,6 +33,8 @@ class HealthcareCandidate extends Model
         'care_settings' => 'array',
         'latitude' => 'float',
         'longitude' => 'float',
+        'average_rating' => 'float',
+        'ratings_count' => 'integer',
         'available_from' => 'date',
         'compliance_completed_at' => 'datetime',
         'professional_registration_checked_at' => 'date',
@@ -193,5 +195,11 @@ class HealthcareCandidate extends Model
     public function payRates(): MorphMany
     {
         return $this->morphMany(PayRate::class, 'model');
+    }
+
+    /** @return MorphMany<Booking, $this> */
+    public function bookings(): MorphMany
+    {
+        return $this->morphMany(Booking::class, 'candidate');
     }
 }

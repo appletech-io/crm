@@ -40,6 +40,7 @@ use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class HealthcareCandidateForm
 {
@@ -74,6 +75,20 @@ class HealthcareCandidateForm
                                                     ->imageWidth(160)
                                                     ->alignCenter()
                                                     ->visible(fn (?HealthcareCandidate $record): bool => (bool) static::document($record, DocumentType::Photo)),
+                                                TextEntry::make('average_rating')
+                                                    ->hiddenLabel()
+                                                    ->getStateUsing(fn (?HealthcareCandidate $record): string => $record?->average_rating !== null
+                                                        ? number_format($record->average_rating, 1)." ★ ({$record->ratings_count} ".Str::plural('rating', $record->ratings_count).')'
+                                                        : 'Not yet rated')
+                                                    ->badge()
+                                                    ->color(fn (?HealthcareCandidate $record): string => match (true) {
+                                                        $record?->average_rating === null => 'gray',
+                                                        $record->average_rating >= 4 => 'success',
+                                                        $record->average_rating >= 3 => 'warning',
+                                                        default => 'danger',
+                                                    })
+                                                    ->alignCenter()
+                                                    ->visible(fn (?HealthcareCandidate $record): bool => $record !== null),
                                             ]),
 
                                         Section::make('Personal Information')
