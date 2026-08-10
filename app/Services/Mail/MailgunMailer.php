@@ -7,7 +7,7 @@ use RuntimeException;
 
 class MailgunMailer
 {
-    /** @param  array<int, array{name: string, path: string, mimeType?: string, inline?: bool}>  $attachments */
+    /** @param  array<int, array{name: string, path?: string, content?: string, mimeType?: string, inline?: bool}>  $attachments */
     public function send(string $to, string $subject, string $body, ?string $from = null, array $attachments = []): void
     {
         $domain = config('services.mailgun.domain');
@@ -24,7 +24,8 @@ class MailgunMailer
 
         foreach ($attachments as $attachment) {
             $field = ($attachment['inline'] ?? false) ? 'inline' : 'attachment';
-            $request = $request->attach($field, file_get_contents($attachment['path']), $attachment['name']);
+            $content = $attachment['content'] ?? file_get_contents($attachment['path']);
+            $request = $request->attach($field, $content, $attachment['name']);
         }
 
         $request

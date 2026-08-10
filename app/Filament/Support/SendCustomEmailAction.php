@@ -3,6 +3,7 @@
 namespace App\Filament\Support;
 
 use App\Enums\EmailTemplateAudience;
+use App\Http\Controllers\EmailImageController;
 use App\Jobs\SendCustomTemplateEmail;
 use App\Models\Client;
 use App\Models\ClientContact;
@@ -14,6 +15,7 @@ use App\Models\MarketingCampaign;
 use App\Services\Mail\CustomTemplatePlaceholders;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
@@ -57,6 +59,7 @@ class SendCustomEmailAction
                     auth()->id(),
                     $data['adhoc_subject'] ?? null,
                     $data['adhoc_body'] ?? null,
+                    adHocAttachments: $data['adhoc_attachments'] ?? [],
                 );
 
                 Notification::make()->success()->title('Email queued for sending')->send();
@@ -84,6 +87,7 @@ class SendCustomEmailAction
                     auth()->id(),
                     $data['adhoc_subject'] ?? null,
                     $data['adhoc_body'] ?? null,
+                    adHocAttachments: $data['adhoc_attachments'] ?? [],
                 ));
 
                 $title = "Queued {$sendable->count()} email(s)";
@@ -128,6 +132,7 @@ class SendCustomEmailAction
                     $data['adhoc_subject'] ?? null,
                     $data['adhoc_body'] ?? null,
                     $campaign,
+                    $data['adhoc_attachments'] ?? [],
                 ));
 
                 $title = "Queued {$sendable->count()} email(s)";
@@ -175,6 +180,7 @@ class SendCustomEmailAction
                     $data['adhoc_subject'] ?? null,
                     $data['adhoc_body'] ?? null,
                     $campaign,
+                    $data['adhoc_attachments'] ?? [],
                 ));
 
                 $title = "Queued {$sendable->count()} email(s)";
@@ -238,6 +244,13 @@ class SendCustomEmailAction
                         ->keys()
                         ->map(fn (string $key): string => "{{$key}}")
                         ->implode(', ')),
+                EmailImageController::ADHOC_DIRECTORY,
+            ),
+
+            EmailAttachmentUpload::configure(
+                FileUpload::make('adhoc_attachments')
+                    ->label('Attachments')
+                    ->helperText('Sent as regular attachments on this email only — not kept afterwards.'),
             ),
         ];
     }

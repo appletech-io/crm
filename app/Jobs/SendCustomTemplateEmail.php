@@ -11,11 +11,13 @@ use App\Models\MarketingCampaign;
 use App\Models\User;
 use App\Services\Mail\Concerns\ReplacesEmailPlaceholders;
 use App\Services\Mail\CustomTemplatePlaceholders;
+use App\Services\Mail\EmailBodyImages;
 use App\Services\Mail\EmailFooter;
 use App\Services\Mail\EmailSenderResolver;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 class SendCustomTemplateEmail implements ShouldQueue
@@ -30,6 +32,9 @@ class SendCustomTemplateEmail implements ShouldQueue
     /**
      * $template is null for an ad-hoc email, in which case $adHocSubject and
      * $adHocBody carry the raw (pre-placeholder-substitution) content instead.
+     * $adHocAttachments are storage paths under EmailImageController::ADHOC_DIRECTORY
+     * for files attached to this specific send only (see PruneAdhocEmailAttachments
+     * for how those eventually get cleaned up).
      */
     public function __construct(
         public readonly ?EmailTemplate $template,
@@ -38,6 +43,8 @@ class SendCustomTemplateEmail implements ShouldQueue
         public readonly ?string $adHocSubject = null,
         public readonly ?string $adHocBody = null,
         public readonly ?MarketingCampaign $campaign = null,
+        /** @var array<int, string> */
+        public readonly array $adHocAttachments = [],
     ) {}
 
     /**
@@ -60,18 +67,46 @@ class SendCustomTemplateEmail implements ShouldQueue
 
         try {
             $mailer = $company->mailer();
+            $disk = Storage::disk(config('filesystems.default'));
 
             $subject = $this->replacePlaceholders($this->template?->subject ?? $this->adHocSubject ?? '', $replacements);
             $body = $this->replacePlaceholders($this->template?->body ?? $this->adHocBody ?? '', $replacements);
 
+            // The raw $body (with signed email-images links, not cid:
+            // references) is what gets stored for the campaign send record
+            // below, so it still renders normally when viewed back in the CRM.
+            $embeddedImages = EmailBodyImages::embedInline($body);
+
+            $attachments = [EmailFooter::logoAttachment(), ...$embeddedImages['attachments']];
+
+            foreach ($this->adHocAttachments as $path) {
+                if (! $disk->exists($path)) {
+                    continue;
+                }
+
+                $attachments[] = [
+                    'name' => basename($path),
+                    'mimeType' => $disk->mimeType($path) ?: 'application/octet-stream',
+                    'inline' => false,
+                    'content' => $disk->get($path),
+                ];
+            }
+
             $mailer->send(
                 to: $email,
                 subject: $subject,
-                body: $body.EmailFooter::render($company, $sender),
+                body: $embeddedImages['body'].EmailFooter::render($company, $sender),
                 from: $sender?->email ?? $company->defaultFromEmail(),
-                attachments: [EmailFooter::logoAttachment()],
+                attachments: $attachments,
             );
 
+            // Ad-hoc images/attachments aren't deleted here: a bulk/campaign
+            // send dispatches one of these jobs per recipient, all sharing
+            // the same uploaded files, so the first job to finish would
+            // otherwise delete a file the next one still needs. They're
+            // swept up later by PruneAdhocEmailAttachments instead — a
+            // saved template's images are never touched by that, since
+            // those live under a different, permanent directory.
             $this->recipient->activities()->create([
                 'user_id' => $this->sentByUserId,
                 'type' => ActivityType::Email->value,

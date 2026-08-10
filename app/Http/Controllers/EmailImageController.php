@@ -11,6 +11,16 @@ class EmailImageController extends Controller
     public const string DIRECTORY = 'email-attachments';
 
     /**
+     * Files uploaded for a one-off ad-hoc email (as opposed to a saved
+     * template's body, which is reused indefinitely) — a subdirectory of
+     * DIRECTORY so the abort_unless() check below still covers it. Deleted
+     * once the email that references them has sent; see
+     * SendCustomTemplateEmail and PruneAdhocEmailAttachments for the two
+     * halves of that cleanup.
+     */
+    public const string ADHOC_DIRECTORY = self::DIRECTORY.'/adhoc';
+
+    /**
      * Deliberately unauthenticated — this URL is embedded in outbound emails
      * and loaded by an external recipient's mail client, which has no
      * session with the app. Safety comes from the route's "signed"
