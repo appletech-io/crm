@@ -9,6 +9,16 @@
         </x-filament::tabs.item>
 
         <x-filament::tabs.item
+            :active="$activeSection === 'requests'"
+            wire:click="$set('activeSection', 'requests')"
+            icon="heroicon-o-inbox-arrow-down"
+            :badge="$this->requestsCount() ?: null"
+            badge-color="warning"
+        >
+            Requests
+        </x-filament::tabs.item>
+
+        <x-filament::tabs.item
             :active="$activeSection === 'all'"
             wire:click="$set('activeSection', 'all')"
             icon="heroicon-o-table-cells"
