@@ -2,8 +2,14 @@
 
 namespace App\Filament\Client\Pages;
 
+use App\Enums\BookingStatus;
+use App\Models\Booking;
 use App\Models\Client;
 use App\Models\EducationCandidate;
+use Filament\Actions\Action;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Textarea;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -45,6 +51,40 @@ class MyCandidates extends Page implements HasTable
                     ->placeholder('—'),
                 TextColumn::make('phone')
                     ->placeholder('—'),
+            ])
+            ->recordActions([
+                Action::make('book')
+                    ->label('Book')
+                    ->icon(Heroicon::OutlinedCalendarDays)
+                    ->modalHeading(fn (Model $record): string => 'Request a booking for '.trim("{$record->first_name} {$record->last_name}"))
+                    ->modalSubmitActionLabel('Request Booking')
+                    ->schema([
+                        DatePicker::make('start_date')
+                            ->required(),
+                        DatePicker::make('end_date'),
+                        Textarea::make('notes')
+                            ->label('Notes for your consultant')
+                            ->rows(3),
+                    ])
+                    ->action(function (Model $record, array $data): void {
+                        $client = $this->client();
+
+                        Booking::create([
+                            'client_id' => $client->id,
+                            'consultant_id' => $client->consultant_id,
+                            'candidate_type' => $record::class,
+                            'candidate_id' => $record->id,
+                            'start_date' => $data['start_date'],
+                            'end_date' => $data['end_date'] ?? null,
+                            'notes' => $data['notes'] ?? null,
+                            'status' => BookingStatus::Requested,
+                        ]);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Booking requested — your consultant will confirm the details shortly.')
+                            ->send();
+                    }),
             ])
             ->paginated(false)
             ->emptyStateHeading('No candidates in your pool yet');

@@ -145,6 +145,13 @@ class BookingForm
                             ->hidden(fn (?Booking $record): bool => $record === null)
                             ->disabled(fn (?Booking $record): bool => $record !== null)
                             ->dehydrated(),
+                        Textarea::make('notes')
+                            ->label('Client Notes')
+                            ->helperText('Submitted by the client when they requested this booking.')
+                            ->disabled()
+                            ->dehydrated(false)
+                            ->visible(fn (?Booking $record): bool => filled($record?->notes))
+                            ->columnSpanFull(),
                     ]),
 
                 Section::make('Daily Schedule')
