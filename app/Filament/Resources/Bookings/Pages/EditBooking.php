@@ -93,7 +93,7 @@ class EditBooking extends EditRecord
                 ->color('gray')
                 ->requiresConfirmation()
                 ->modalDescription('This will regenerate the booking confirmation PDF and resend the confirmation emails to the candidate and client.')
-                ->hidden(fn (): bool => $this->isApproved())
+                ->visible(fn (): bool => $this->isUpcoming())
                 ->action(function (): void {
                     /** @var Booking $record */
                     $record = $this->record;
@@ -125,6 +125,14 @@ class EditBooking extends EditRecord
         $record = $this->record;
 
         return $record->status === BookingStatus::Requested;
+    }
+
+    protected function isUpcoming(): bool
+    {
+        /** @var Booking $record */
+        $record = $this->record;
+
+        return $record->status === BookingStatus::Upcoming;
     }
 
     /** @param  array<string, mixed>  $data */

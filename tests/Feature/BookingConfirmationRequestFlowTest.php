@@ -108,6 +108,41 @@ test('the confirm and reject actions are only visible while the booking is reque
         ->assertActionHidden('rejectBooking');
 });
 
+test('resend confirmation emails is only visible while the booking is upcoming', function () {
+    $statusesWhereHidden = [
+        BookingStatus::Requested,
+        BookingStatus::AwaitingApproval,
+        BookingStatus::Approved,
+        BookingStatus::Completed,
+    ];
+
+    foreach ($statusesWhereHidden as $status) {
+        $booking = Booking::factory()->create([
+            'company_id' => $this->user->company_id,
+            'client_id' => $this->client->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
+            'job_title_id' => $this->jobTitle->id,
+            'status' => $status,
+        ]);
+
+        Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+            ->assertActionHidden('resendConfirmationEmails');
+    }
+
+    $upcoming = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'status' => BookingStatus::Upcoming,
+    ]);
+
+    Livewire::test(EditBooking::class, ['record' => $upcoming->getRouteKey()])
+        ->assertActionVisible('resendConfirmationEmails');
+});
+
 test('rejecting a request soft-deletes the booking and the client is not notified', function () {
     $booking = Booking::factory()->create([
         'company_id' => $this->user->company_id,

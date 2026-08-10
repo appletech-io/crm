@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Clients\EnsureClientCandidatePool;
+use App\Enums\BookingDayPeriod;
 use App\Enums\BookingStatus;
 use App\Filament\Client\Pages\MyCandidates;
 use App\Jobs\SendBookingConfirmationEmail;
@@ -63,7 +64,11 @@ test('booking a pooled candidate creates a requested booking with no job title o
     Livewire::test(MyCandidates::class)
         ->callTableAction('book', $this->candidate, data: [
             'start_date' => '2026-09-01',
-            'end_date' => '2026-09-05',
+            'end_date' => '2026-09-02',
+            'day_periods' => [
+                ['date' => '2026-09-01', 'period' => 'full_day'],
+                ['date' => '2026-09-02', 'period' => 'am'],
+            ],
             'notes' => 'Needs someone for the whole week please.',
         ])
         ->assertNotified('Booking requested — your consultant will confirm the details shortly.');
@@ -76,34 +81,75 @@ test('booking a pooled candidate creates a requested booking with no job title o
         ->and($booking->candidate_id)->toBe($this->candidate->id)
         ->and($booking->consultant_id)->toBe($this->consultant->id)
         ->and($booking->start_date->toDateString())->toBe('2026-09-01')
-        ->and($booking->end_date->toDateString())->toBe('2026-09-05')
+        ->and($booking->end_date->toDateString())->toBe('2026-09-02')
         ->and($booking->notes)->toBe('Needs someone for the whole week please.')
         ->and($booking->job_title_id)->toBeNull()
         ->and($booking->day_rate)->toBeNull()
         ->and($booking->day_charge_rate)->toBeNull();
 });
 
+test('the selected day-by-day sessions are saved as real booking day rows', function () {
+    Livewire::test(MyCandidates::class)
+        ->callTableAction('book', $this->candidate, data: [
+            'start_date' => '2026-09-01',
+            'end_date' => '2026-09-03',
+            'day_periods' => [
+                ['date' => '2026-09-01', 'period' => 'am'],
+                ['date' => '2026-09-02', 'period' => 'pm'],
+                ['date' => '2026-09-03', 'period' => 'full_day'],
+            ],
+        ])
+        ->assertHasNoTableActionErrors();
+
+    $booking = Booking::where('client_id', $this->client->id)->first();
+    $days = $booking->dayPeriods()->orderBy('date')->get();
+
+    expect($days)->toHaveCount(3)
+        ->and($days[0]->date->toDateString())->toBe('2026-09-01')
+        ->and($days[0]->period)->toBe(BookingDayPeriod::Am)
+        ->and($days[1]->period)->toBe(BookingDayPeriod::Pm)
+        ->and($days[2]->period)->toBe(BookingDayPeriod::FullDay);
+});
+
+test('an end date before the start date is rejected', function () {
+    Livewire::test(MyCandidates::class)
+        ->callTableAction('book', $this->candidate, data: [
+            'start_date' => '2026-09-10',
+            'end_date' => '2026-09-05',
+        ])
+        ->assertHasTableActionErrors(['end_date']);
+
+    expect(Booking::where('client_id', $this->client->id)->exists())->toBeFalse();
+});
+
 test('requesting a booking does not fire the booking confirmation pdf or emails', function () {
     Livewire::test(MyCandidates::class)
         ->callTableAction('book', $this->candidate, data: [
             'start_date' => '2026-09-01',
+            'day_periods' => [
+                ['date' => '2026-09-01', 'period' => 'full_day'],
+            ],
         ]);
 
     Bus::assertNotDispatched(SendBookingConfirmationEmail::class);
     Bus::assertNotDispatched(SendClientBookingConfirmationEmail::class);
 });
 
-test('a request with no end date or notes is still created successfully', function () {
+test('a request with no end date or notes is still created successfully as a single day', function () {
     Livewire::test(MyCandidates::class)
         ->callTableAction('book', $this->candidate, data: [
             'start_date' => '2026-09-01',
+            'day_periods' => [
+                ['date' => '2026-09-01', 'period' => 'full_day'],
+            ],
         ])
         ->assertHasNoTableActionErrors();
 
     $booking = Booking::where('client_id', $this->client->id)->first();
 
     expect($booking->end_date)->toBeNull()
-        ->and($booking->notes)->toBeNull();
+        ->and($booking->notes)->toBeNull()
+        ->and($booking->dayPeriods()->count())->toBe(1);
 });
 
 test('a candidate not in the pool cannot be booked', function () {

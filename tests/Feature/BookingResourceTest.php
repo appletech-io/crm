@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\BookingDayPeriod;
+use App\Enums\BookingStatus;
 use App\Filament\Resources\Bookings\Pages\CreateBooking;
 use App\Filament\Resources\Bookings\Pages\EditBooking;
 use App\Filament\Resources\Bookings\Pages\ListBookings;
@@ -1561,4 +1562,89 @@ test('candidate pay rate lookups are skipped when the active industry has no reg
             'half_day_charge_rate' => null,
             'hourly_charge_rate' => null,
         ]);
+});
+
+test('the requests tab only shows requested bookings', function () {
+    $requested = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'consultant_id' => $this->user->id,
+        'status' => BookingStatus::Requested,
+    ]);
+    $upcoming = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'consultant_id' => $this->user->id,
+        'status' => BookingStatus::Upcoming,
+    ]);
+
+    Livewire::test(ListBookings::class)
+        ->set('activeSection', 'requests')
+        ->assertCanSeeTableRecords([$requested])
+        ->assertCanNotSeeTableRecords([$upcoming]);
+});
+
+test('the requests tab is scoped to the current consultant like the all tab', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+
+    $ownRequest = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'consultant_id' => $this->user->id,
+        'status' => BookingStatus::Requested,
+    ]);
+    $otherConsultantRequest = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'consultant_id' => $consultant->id,
+        'status' => BookingStatus::Requested,
+    ]);
+
+    Livewire::test(ListBookings::class)
+        ->set('activeSection', 'requests')
+        ->assertCanSeeTableRecords([$ownRequest])
+        ->assertCanNotSeeTableRecords([$otherConsultantRequest]);
+});
+
+test('the requests count only reflects the current users visible bookings', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+
+    Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'consultant_id' => $this->user->id,
+        'status' => BookingStatus::Requested,
+    ]);
+    Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'consultant_id' => $consultant->id,
+        'status' => BookingStatus::Requested,
+    ]);
+    Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'consultant_id' => $this->user->id,
+        'status' => BookingStatus::Upcoming,
+    ]);
+
+    $component = Livewire::test(ListBookings::class);
+
+    expect($component->instance()->requestsCount())->toBe(1);
 });
