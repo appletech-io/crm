@@ -4,6 +4,7 @@ namespace App\Enums;
 
 enum BookingStatus: string
 {
+    case Requested = 'requested';
     case Upcoming = 'upcoming';
     case AwaitingApproval = 'awaiting_approval';
     case Approved = 'approved';
@@ -12,6 +13,7 @@ enum BookingStatus: string
     public function label(): string
     {
         return match ($this) {
+            self::Requested => 'Requested',
             self::Upcoming => 'Upcoming',
             self::AwaitingApproval => 'Awaiting Approval',
             self::Approved => 'Approved',
@@ -22,6 +24,7 @@ enum BookingStatus: string
     public function color(): string
     {
         return match ($this) {
+            self::Requested => 'warning',
             self::Upcoming => 'gray',
             self::AwaitingApproval => 'amber',
             self::Approved => 'success',

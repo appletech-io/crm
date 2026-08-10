@@ -113,6 +113,18 @@ class Booking extends Model
         return ['dayPeriods'];
     }
 
+    /** @return array<string, array{label: string, type: string, options?: array<string, string>}> */
+    protected static function computedFieldSuggestions(): array
+    {
+        return [
+            'status' => [
+                'label' => 'Status',
+                'type' => 'select',
+                'options' => BookingStatus::options(),
+            ],
+        ];
+    }
+
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);

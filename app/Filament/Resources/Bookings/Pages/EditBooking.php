@@ -38,6 +38,55 @@ class EditBooking extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('confirmBooking')
+                ->label('Confirm Booking')
+                ->icon('heroicon-o-check-badge')
+                ->color('success')
+                ->requiresConfirmation()
+                ->modalDescription('This confirms the booking, generates the confirmation PDF, and emails the candidate and client.')
+                ->visible(fn (): bool => $this->isRequested())
+                ->action(function (): void {
+                    /** @var Booking $record */
+                    $record = $this->record;
+
+                    if (! $record->job_title_id) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Set a job title and pay/charge rates before confirming.')
+                            ->send();
+
+                        return;
+                    }
+
+                    $record->update(['status' => BookingStatus::Upcoming]);
+
+                    BookingCreated::run($record);
+
+                    Notification::make()
+                        ->title('Booking confirmed — confirmation emails queued.')
+                        ->success()
+                        ->send();
+                }),
+            Action::make('rejectBooking')
+                ->label('Reject Request')
+                ->icon('heroicon-o-x-circle')
+                ->color('danger')
+                ->requiresConfirmation()
+                ->modalDescription('This deletes the booking request. The client is not notified automatically.')
+                ->visible(fn (): bool => $this->isRequested())
+                ->action(function (): void {
+                    /** @var Booking $record */
+                    $record = $this->record;
+
+                    $record->delete();
+
+                    Notification::make()
+                        ->title('Booking request rejected')
+                        ->success()
+                        ->send();
+
+                    $this->redirect(BookingResource::getUrl('index'));
+                }),
             Action::make('resendConfirmationEmails')
                 ->label('Resend Confirmation Emails')
                 ->icon('heroicon-o-paper-airplane')
@@ -70,13 +119,32 @@ class EditBooking extends EditRecord
         return $record->status === BookingStatus::Approved;
     }
 
+    protected function isRequested(): bool
+    {
+        /** @var Booking $record */
+        $record = $this->record;
+
+        return $record->status === BookingStatus::Requested;
+    }
+
     /** @param  array<string, mixed>  $data */
     protected function mutateFormDataBeforeFill(array $data): array
     {
         /** @var Booking $record */
         $record = $this->record;
 
-        $data['day_periods'] = BookingForm::loadDayPeriods($record);
+        $dayPeriods = BookingForm::loadDayPeriods($record);
+
+        // A client-submitted request has no BookingDay rows yet (those are
+        // only created on save), so without this the schedule would open
+        // empty and the consultant would have to re-touch a date field just
+        // to trigger the same default-generation the client's dates already
+        // imply.
+        if (empty($dayPeriods) && $record->status === BookingStatus::Requested) {
+            $dayPeriods = BookingForm::dayPeriodsForRange($record->start_date, $record->end_date);
+        }
+
+        $data['day_periods'] = $dayPeriods;
 
         return $data;
     }
