@@ -2,6 +2,7 @@
 
 use App\Enums\EmailTemplateAudience;
 use App\Enums\EmailTemplateType;
+use App\Http\Controllers\EmailImageController;
 use App\Jobs\SendCustomTemplateEmail;
 use App\Models\CampaignSend;
 use App\Models\Client;
@@ -13,6 +14,9 @@ use App\Models\Industry;
 use App\Models\MarketingCampaign;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 
 beforeEach(function () {
     $this->company = Company::factory()->create([
@@ -22,6 +26,9 @@ beforeEach(function () {
         'ms_sender_email' => 'sender@example.com',
     ]);
     $this->industry = Industry::factory()->create(['slug' => 'education']);
+
+    Storage::fake('local');
+    config(['filesystems.default' => 'local']);
 
     Http::fake([
         'login.microsoftonline.com/*' => Http::response(['access_token' => 'fake-token'], 200),
@@ -345,4 +352,139 @@ test('it does not record a campaign send when no campaign is passed', function (
     (new SendCustomTemplateEmail(template: null, recipient: $client, adHocSubject: 'Hi', adHocBody: 'Body'))->handle();
 
     expect(CampaignSend::count())->toBe(0);
+});
+
+test('a pasted image in the body is sent as a cid inline attachment rather than a hotlinked signed url', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id, 'email' => 'jane@example.com']);
+
+    $imagePath = EmailImageController::ADHOC_DIRECTORY.'/screenshot.png';
+    Storage::disk('local')->put($imagePath, 'the actual image bytes');
+    $imageUrl = URL::signedRoute('email-images.show', ['path' => $imagePath]);
+
+    (new SendCustomTemplateEmail(
+        template: null,
+        recipient: $candidate,
+        adHocSubject: 'Hi',
+        adHocBody: "<p>Look at this:</p><img src=\"{$imageUrl}\">",
+    ))->handle();
+
+    Http::assertSent(function ($request) use ($imageUrl): bool {
+        if (! str_contains($request->url(), 'sendMail')) {
+            return false;
+        }
+
+        $content = $request['message']['body']['content'];
+        $inline = collect($request['message']['attachments'])->firstWhere('name', 'screenshot.png');
+
+        return ! str_contains($content, $imageUrl)
+            && str_contains($content, "cid:{$inline['contentId']}")
+            && $inline['contentBytes'] === base64_encode('the actual image bytes');
+    });
+});
+
+test('an ad-hoc file attachment is sent as a real (non-inline) attachment', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id, 'email' => 'jane@example.com']);
+
+    $attachmentPath = EmailImageController::ADHOC_DIRECTORY.'/'.Str::random(10).'/invoice.pdf';
+    Storage::disk('local')->put($attachmentPath, 'the actual pdf bytes');
+
+    (new SendCustomTemplateEmail(
+        template: null,
+        recipient: $candidate,
+        adHocSubject: 'Hi',
+        adHocBody: 'Please see attached.',
+        adHocAttachments: [$attachmentPath],
+    ))->handle();
+
+    Http::assertSent(function ($request): bool {
+        if (! str_contains($request->url(), 'sendMail')) {
+            return false;
+        }
+
+        $attachment = collect($request['message']['attachments'])->firstWhere('name', 'invoice.pdf');
+
+        return $attachment
+            && $attachment['isInline'] === false
+            && $attachment['contentBytes'] === base64_encode('the actual pdf bytes');
+    });
+});
+
+test('ad-hoc images and attachments are not deleted immediately after sending, since a bulk send shares them across several queued jobs', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id, 'email' => 'jane@example.com']);
+
+    $imagePath = EmailImageController::ADHOC_DIRECTORY.'/screenshot.png';
+    Storage::disk('local')->put($imagePath, 'bytes');
+    $imageUrl = URL::signedRoute('email-images.show', ['path' => $imagePath]);
+
+    $attachmentPath = EmailImageController::ADHOC_DIRECTORY.'/'.Str::random(10).'/invoice.pdf';
+    Storage::disk('local')->put($attachmentPath, 'bytes');
+
+    (new SendCustomTemplateEmail(
+        template: null,
+        recipient: $candidate,
+        adHocSubject: 'Hi',
+        adHocBody: "<img src=\"{$imageUrl}\">",
+        adHocAttachments: [$attachmentPath],
+    ))->handle();
+
+    Storage::disk('local')->assertExists($imagePath);
+    Storage::disk('local')->assertExists($attachmentPath);
+});
+
+test('a saved templates embedded image is also sent as a cid attachment, and the template file is left untouched', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id, 'email' => 'jane@example.com']);
+
+    $imagePath = EmailImageController::DIRECTORY.'/logo.png';
+    Storage::disk('local')->put($imagePath, 'template image bytes');
+    $imageUrl = URL::signedRoute('email-images.show', ['path' => $imagePath]);
+
+    $template = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Template with an image',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => EmailTemplateAudience::Candidate->value,
+        'subject' => 'Hello',
+        'body' => "<img src=\"{$imageUrl}\">",
+    ]);
+
+    (new SendCustomTemplateEmail($template, $candidate, null))->handle();
+
+    Http::assertSent(function ($request) use ($imageUrl): bool {
+        if (! str_contains($request->url(), 'sendMail')) {
+            return false;
+        }
+
+        $content = $request['message']['body']['content'];
+        $inline = collect($request['message']['attachments'])->firstWhere('name', 'logo.png');
+
+        return ! str_contains($content, $imageUrl) && $inline && $inline['isInline'] === true;
+    });
+
+    Storage::disk('local')->assertExists($imagePath);
+});
+
+test('the campaign send record stores the raw body with its original signed image url, not the cid-rewritten version sent to the mailer', function () {
+    $client = Client::factory()->create(['company_id' => $this->company->id]);
+    ClientContact::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $client->id,
+        'main_contact' => true,
+        'email' => 'sam@acme.test',
+    ]);
+    $campaign = MarketingCampaign::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+
+    $imagePath = EmailImageController::ADHOC_DIRECTORY.'/screenshot.png';
+    Storage::disk('local')->put($imagePath, 'bytes');
+    $imageUrl = URL::signedRoute('email-images.show', ['path' => $imagePath]);
+
+    (new SendCustomTemplateEmail(
+        template: null,
+        recipient: $client,
+        campaign: $campaign,
+        adHocSubject: 'Hi',
+        adHocBody: "<img src=\"{$imageUrl}\">",
+    ))->handle();
+
+    expect($campaign->sends()->first()->body)->toContain($imageUrl);
 });

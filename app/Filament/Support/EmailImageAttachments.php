@@ -19,11 +19,16 @@ use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
  */
 class EmailImageAttachments
 {
-    public static function configure(RichEditor $richEditor): RichEditor
+    /**
+     * $directory defaults to the permanent, reused-forever template
+     * directory. Pass EmailImageController::ADHOC_DIRECTORY for a one-off
+     * compose body whose images should be cleaned up after sending instead.
+     */
+    public static function configure(RichEditor $richEditor, string $directory = EmailImageController::DIRECTORY): RichEditor
     {
         return $richEditor
-            ->saveUploadedFileAttachmentUsing(function (TemporaryUploadedFile $file): string {
-                $path = EmailImageController::DIRECTORY.'/'.Str::random(40).'.'.$file->getClientOriginalExtension();
+            ->saveUploadedFileAttachmentUsing(function (TemporaryUploadedFile $file) use ($directory): string {
+                $path = $directory.'/'.Str::random(40).'.'.$file->getClientOriginalExtension();
 
                 // A plain content write rather than $file->store()/storeAs() —
                 // those move/copy from the temporary upload disk, and since
