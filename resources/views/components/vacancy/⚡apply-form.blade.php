@@ -2,20 +2,18 @@
 
 use App\Enums\ActivityType;
 use App\Enums\DocumentType;
-use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
 use App\Models\Industry;
-use App\Models\Qualification;
 use App\Models\Vacancy;
 use App\Models\VacancyApplication;
 use App\Services\Ai\CvParserService;
 use App\Services\Candidates\Document;
+use App\Services\Matching\CandidateMatcher;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -28,8 +26,7 @@ new #[Layout('layouts.application', ['maxWidth' => 'max-w-4xl'])] class extends 
         1 => 'Upload CV',
         2 => 'Your Details',
         3 => 'Employment History',
-        4 => 'Skills',
-        5 => 'Application Complete',
+        4 => 'Application Complete',
     ];
 
     private const DATE_DISPLAY_FORMAT = 'M Y';
@@ -74,35 +71,14 @@ new #[Layout('layouts.application', ['maxWidth' => 'max-w-4xl'])] class extends 
     /** @var array<int, array<string, mixed>> */
     public array $employmentHistories = [];
 
-    public ?string $qualification_id = null;
-
-    /** @var array<int, int> */
-    public array $skill_ids = [];
-
     public bool $isReturningCandidate = false;
+
+    public bool $alreadyApplied = false;
 
     public function mount(Vacancy $vacancy): void
     {
         $this->vacancy = $vacancy;
         $this->employmentHistories = [$this->blankEmploymentHistory()];
-    }
-
-    /** @return \Illuminate\Support\Collection<int, Qualification> */
-    public function getQualificationsProperty()
-    {
-        return Qualification::where('company_id', $this->companyId())
-            ->where('industry_id', $this->industryId())
-            ->orderBy('name')
-            ->get();
-    }
-
-    /** @return \Illuminate\Support\Collection<int, CandidateSkill> */
-    public function getSkillsProperty()
-    {
-        return CandidateSkill::where('company_id', $this->companyId())
-            ->where('industry_id', $this->industryId())
-            ->orderByRaw('COALESCE(parent_id, id), parent_id IS NOT NULL, name')
-            ->get();
     }
 
     public function goToStep(int $step): void
@@ -197,7 +173,13 @@ new #[Layout('layouts.application', ['maxWidth' => 'max-w-4xl'])] class extends 
         ]);
 
         $localPath = 'vacancy-apply-cv-uploads/'.Str::uuid().'.'.$this->cv->getClientOriginalExtension();
-        Storage::disk('local')->put($localPath, file_get_contents($this->cv->getRealPath()));
+
+        // Not $this->cv->getRealPath() + file_get_contents(): Livewire's
+        // temporary upload disk defaults to the app's default disk (S3
+        // here), so the "real path" isn't a real local filesystem path at
+        // all — file_get_contents() on it fails outright. readStream()
+        // reads from whichever disk the temp file actually lives on.
+        Storage::disk('local')->writeStream($localPath, $this->cv->readStream());
 
         try {
             $extracted = $service->parse(Storage::disk('local')->path($localPath));
@@ -265,28 +247,36 @@ new #[Layout('layouts.application', ['maxWidth' => 'max-w-4xl'])] class extends 
 
     public function saveEmploymentHistory(): void
     {
+        if ($this->hasAlreadyApplied()) {
+            $this->alreadyApplied = true;
+        } else {
+            $this->createCandidate();
+        }
+
         $this->goToStep(4);
     }
 
-    public function saveSkills(): void
+    /**
+     * Whether this email has already applied for this exact vacancy —
+     * checked up front so a repeat submission doesn't touch the candidate's
+     * details, re-run matching, or log activities a second time.
+     */
+    private function hasAlreadyApplied(): bool
     {
-        $this->validate([
-            'qualification_id' => [
-                'nullable', 'integer',
-                Rule::exists('qualifications', 'id')->where('company_id', $this->companyId())->where('industry_id', $this->industryId()),
-            ],
-            'skill_ids' => ['required', 'array', 'min:1'],
-            'skill_ids.*' => [
-                'integer',
-                Rule::exists('candidate_skills', 'id')->where('company_id', $this->companyId())->where('industry_id', $this->industryId()),
-            ],
-        ], [
-            'skill_ids.required' => 'Please select at least one skill.',
-        ]);
+        $candidateModelClass = $this->candidateModelClass();
 
-        $this->createCandidate();
+        $existingCandidate = $candidateModelClass::where('company_id', $this->companyId())
+            ->where('email', $this->email)
+            ->first();
 
-        $this->goToStep(5);
+        if (! $existingCandidate) {
+            return false;
+        }
+
+        return VacancyApplication::where('vacancy_id', $this->vacancy->id)
+            ->where('candidate_type', $candidateModelClass)
+            ->where('candidate_id', $existingCandidate->id)
+            ->exists();
     }
 
     public function workPeriodLabel(array $item): ?string
@@ -316,11 +306,11 @@ new #[Layout('layouts.application', ['maxWidth' => 'max-w-4xl'])] class extends 
             // A returning candidate (matched by email within this company) is
             // updated in place rather than rejected or duplicated. Only the
             // basic details this form collects are touched here — name,
-            // contact info, qualification, employment history, and skills —
-            // none of which are specific to temp or perm work, so refreshing
-            // them for someone applying to a new vacancy is always safe. Any
-            // compliance/vetting fields on the candidate are never written
-            // to by this flow, so they're untouched either way.
+            // contact info, and employment history — none of which are
+            // specific to temp or perm work, so refreshing them for someone
+            // applying to a new vacancy is always safe. Any compliance/
+            // vetting fields on the candidate are never written to by this
+            // flow, so they're untouched either way.
             $existingCandidate = $candidateModelClass::where('company_id', $companyId)
                 ->where('email', $this->email)
                 ->first();
@@ -338,7 +328,6 @@ new #[Layout('layouts.application', ['maxWidth' => 'max-w-4xl'])] class extends 
                 'county' => $this->county ?: null,
                 'country' => $this->country ?: null,
                 'postcode' => $this->postcode ?: null,
-                'qualification_id' => $this->qualification_id ?: null,
             ];
 
             if ($existingCandidate) {
@@ -374,15 +363,6 @@ new #[Layout('layouts.application', ['maxWidth' => 'max-w-4xl'])] class extends 
                 ]);
             }
 
-            $parentIds = CandidateSkill::whereIn('id', $this->skill_ids)
-                ->whereNotNull('parent_id')
-                ->pluck('parent_id');
-
-            // syncWithoutDetaching rather than sync: a returning candidate's
-            // previously recorded skills are additive, never lost just
-            // because this particular application didn't re-select them.
-            $candidate->skills()->syncWithoutDetaching(collect($this->skill_ids)->merge($parentIds)->unique());
-
             if ($candidate->statuses()->doesntExist()) {
                 $onboarding = CandidateStatus::where('company_id', $companyId)
                     ->where('industry_id', $this->industryId())
@@ -394,10 +374,12 @@ new #[Layout('layouts.application', ['maxWidth' => 'max-w-4xl'])] class extends 
                 }
             }
 
-            VacancyApplication::firstOrCreate([
+            VacancyApplication::updateOrCreate([
                 'vacancy_id' => $this->vacancy->id,
                 'candidate_type' => $candidate::class,
                 'candidate_id' => $candidate->id,
+            ], [
+                'match_strength' => app(CandidateMatcher::class)->score($candidate, $this->vacancy),
             ]);
 
             $candidateName = trim("{$candidate->first_name} {$candidate->last_name}");
@@ -504,7 +486,6 @@ new #[Layout('layouts.application', ['maxWidth' => 'max-w-4xl'])] class extends 
 
     <div class="flex flex-col gap-1">
         <flux:heading size="lg">{{ $vacancy->title }}</flux:heading>
-        <flux:subheading>{{ $vacancy->client->name }}</flux:subheading>
     </div>
 
     @if (! $vacancy->open_for_applications)
@@ -515,13 +496,45 @@ new #[Layout('layouts.application', ['maxWidth' => 'max-w-4xl'])] class extends 
         @endif
 
         @if ($step === 1)
-            <div class="flex flex-col gap-6">
-                <div wire:loading.remove wire:target="cv">
-                    <flux:input type="file" wire:model="cv" label="Upload your CV (PDF or Word document) — optional" />
-                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Selecting a file will analyse it and pre-fill the next steps automatically.</p>
+            <div class="flex flex-col items-center gap-6">
+                <div wire:loading.remove wire:target="cv" class="w-full">
+                    <label for="cv" class="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                        Upload your CV (PDF or Word document) — optional
+                    </label>
+
+                    <div class="relative flex items-center justify-center rounded-lg border-2 border-dashed border-zinc-300 bg-zinc-50 px-6 py-10 dark:border-zinc-700 dark:bg-zinc-900">
+                        <div class="text-center">
+                            <svg class="mx-auto size-10 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m6.75 12-3-3m0 0-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                            </svg>
+                            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                                @if ($cv)
+                                    <span class="font-medium text-zinc-800 dark:text-zinc-200">{{ $cv->getClientOriginalName() }}</span>
+                                @else
+                                    <span>Click to select or drag and drop</span>
+                                @endif
+                            </p>
+                            <p class="mt-1 text-xs text-zinc-500">PDF or Word document, up to 10MB</p>
+                            <input
+                                id="cv"
+                                type="file"
+                                wire:model="cv"
+                                accept=".pdf,.docx"
+                                class="absolute inset-0 cursor-pointer opacity-0"
+                            />
+                        </div>
+                    </div>
+
+                    <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Selecting a file will analyse it and pre-fill the next steps automatically.</p>
                 </div>
 
-                <div wire:loading wire:target="cv" class="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+                {{--
+                    wire:loading (no display modifier) sets display:inline-block
+                    via inline style when revealed, which overrides the `flex`
+                    class below and stacks the icon above the text instead of
+                    beside it — wire:loading.flex sets display:flex instead.
+                --}}
+                <div wire:loading.flex wire:target="cv" class="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
                     <flux:icon.loading class="size-4" />
                     Analysing your CV…
                 </div>
@@ -536,7 +549,18 @@ new #[Layout('layouts.application', ['maxWidth' => 'max-w-4xl'])] class extends 
 
         @if ($step === 2)
             <form wire:submit="savePersonalDetails" class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <flux:select wire:model="title" label="Title" placeholder="Select…">
+                {{--
+                    A real blank option rather than Flux's placeholder=""
+                    prop: that renders <option disabled selected>, and a
+                    browser will silently refuse to set a <select>'s value
+                    to a disabled option via JS — so as soon as Livewire
+                    hydrates and tries to sync the select to the (null)
+                    bound property, it snaps to the first real option
+                    ("Mr") instead, and that gets submitted even though the
+                    candidate never touched the field.
+                --}}
+                <flux:select wire:model="title" label="Title">
+                    <flux:select.option value="">Select…</flux:select.option>
                     @foreach (['Mr', 'Mrs', 'Miss', 'Ms', 'Dr', 'Prof'] as $t)
                         <flux:select.option value="{{ $t }}">{{ $t }}</flux:select.option>
                     @endforeach
@@ -650,45 +674,30 @@ new #[Layout('layouts.application', ['maxWidth' => 'max-w-4xl'])] class extends 
                     Add another job
                 </flux:button>
 
-                <flux:button type="submit" variant="primary">Continue</flux:button>
-            </form>
-        @endif
-
-        @if ($step === 4)
-            <form wire:submit="saveSkills" class="flex flex-col gap-6">
-                <flux:select wire:model="qualification_id" label="Qualification (optional)" placeholder="Select…">
-                    @foreach ($this->qualifications as $qualification)
-                        <flux:select.option value="{{ $qualification->id }}">{{ $qualification->name }}</flux:select.option>
-                    @endforeach
-                </flux:select>
-
-                <div>
-                    <flux:label>Skills</flux:label>
-                    <flux:error name="skill_ids" />
-
-                    <div class="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
-                        @foreach ($this->skills as $skill)
-                            <flux:checkbox wire:model="skill_ids" value="{{ $skill->id }}" label="{{ $skill->parent_id ? '↳ '.$skill->name : $skill->name }}" />
-                        @endforeach
-                    </div>
-                </div>
-
                 <flux:button type="submit" variant="primary">Submit Application</flux:button>
             </form>
         @endif
 
-        @if ($step === 5)
+        @if ($step === 4)
             <div class="flex flex-col items-center gap-3 py-6 text-center">
-                <flux:icon.check-circle class="size-12 text-emerald-500" />
-                <flux:heading size="lg">Application Received</flux:heading>
-                @if ($isReturningCandidate)
+                @if ($alreadyApplied)
+                    <flux:icon.information-circle class="size-12 text-zinc-400" />
+                    <flux:heading size="lg">You have already applied</flux:heading>
                     <flux:subheading>
-                        Welcome back! We've updated your details and registered your interest in {{ $vacancy->title }}. We'll be in touch if it's a good match.
+                        You've already applied for {{ $vacancy->title }}. We'll be in touch if it's a good match.
                     </flux:subheading>
                 @else
-                    <flux:subheading>
-                        Thanks for applying for {{ $vacancy->title }}. We'll be in touch if your application is a good match.
-                    </flux:subheading>
+                    <flux:icon.check-circle class="size-12 text-emerald-500" />
+                    <flux:heading size="lg">Application Received</flux:heading>
+                    @if ($isReturningCandidate)
+                        <flux:subheading>
+                            Welcome back! We've updated your details and registered your interest in {{ $vacancy->title }}. We'll be in touch if it's a good match.
+                        </flux:subheading>
+                    @else
+                        <flux:subheading>
+                            Thanks for applying for {{ $vacancy->title }}, we'll be in touch.
+                        </flux:subheading>
+                    @endif
                 @endif
             </div>
         @endif

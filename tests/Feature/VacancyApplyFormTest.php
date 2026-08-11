@@ -10,14 +10,24 @@ use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use App\Models\Industry;
 use App\Models\Vacancy;
+use App\Services\Ai\CvParserService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Features\SupportFileUploads\FileUploadConfiguration;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\Livewire;
 
 beforeEach(function () {
     Storage::fake('local');
 });
+
+function makeFakeCvUpload(string $filename, string $contents = 'fake-cv-bytes'): TemporaryUploadedFile
+{
+    FileUploadConfiguration::storage()->put(FileUploadConfiguration::path($filename, false), $contents);
+
+    return TemporaryUploadedFile::createFromLivewire($filename);
+}
 
 function createVacancyFor(string $industrySlug, array $vacancyAttributes = []): Vacancy
 {
@@ -46,8 +56,26 @@ test('an open vacancy shows the apply form starting at the cv upload step', func
     Livewire::test('vacancy.apply-form', ['vacancy' => $vacancy])
         ->assertSuccessful()
         ->assertSee($vacancy->title)
-        ->assertSee($vacancy->client->name)
         ->assertSee('Upload your CV');
+});
+
+// This is a public, unauthenticated page — the client's identity is
+// commercially sensitive and must never be exposed to a candidate (or a
+// competitor) browsing a job ad.
+test('the client name is never shown on the public apply page, at any step', function () {
+    $vacancy = createVacancyFor('education');
+
+    Livewire::test('vacancy.apply-form', ['vacancy' => $vacancy])
+        ->assertDontSee($vacancy->client->name)
+        ->call('skipCv')
+        ->assertDontSee($vacancy->client->name)
+        ->set('first_name', 'Jane')
+        ->set('last_name', 'Doe')
+        ->set('email', 'jane.doe@example.com')
+        ->call('savePersonalDetails')
+        ->assertDontSee($vacancy->client->name)
+        ->call('saveEmploymentHistory')
+        ->assertDontSee($vacancy->client->name);
 });
 
 test('the progress bar renders above the job title, right at the top of the page', function () {
@@ -155,7 +183,7 @@ test('selecting an address suggestion populates the address fields from the goog
         ->assertSet('address_suggestions', []);
 });
 
-test('applying end to end for an education vacancy creates a basic candidate with employment history, skills, and activity logs', function () {
+test('applying end to end for an education vacancy creates a basic candidate with employment history and activity logs', function () {
     $vacancy = createVacancyFor('education');
     $companyId = $vacancy->client->company_id;
     $industryId = $vacancy->client->industry_id;
@@ -165,9 +193,6 @@ test('applying end to end for an education vacancy creates a basic candidate wit
         'industry_id' => $industryId,
         'name' => 'Onboarding',
     ]);
-
-    $parentSkill = CandidateSkill::factory()->create(['company_id' => $companyId, 'industry_id' => $industryId, 'name' => 'Teaching']);
-    $childSkill = CandidateSkill::factory()->create(['company_id' => $companyId, 'industry_id' => $industryId, 'name' => 'Key Stage 2', 'parent_id' => $parentSkill->id]);
 
     Livewire::test('vacancy.apply-form', ['vacancy' => $vacancy])
         ->call('skipCv')
@@ -185,11 +210,8 @@ test('applying end to end for an education vacancy creates a basic candidate wit
         ->set('employmentHistories.0.job_title', 'Class Teacher')
         ->set('employmentHistories.0.worked_from', '2020-09-01')
         ->call('saveEmploymentHistory')
-        ->assertSet('step', 4)
-        ->set('skill_ids', [$childSkill->id])
-        ->call('saveSkills')
         ->assertHasNoErrors()
-        ->assertSet('step', 5)
+        ->assertSet('step', 4)
         ->assertSee('Application Received');
 
     $candidate = EducationCandidate::where('email', 'jane.doe@example.com')->first();
@@ -206,9 +228,6 @@ test('applying end to end for an education vacancy creates a basic candidate wit
     expect($candidate->employmentHistories()->count())->toBe(1);
     expect($candidate->employmentHistories()->first()->company_name)->toBe('Oakwood Primary');
 
-    $skillIds = $candidate->skills()->pluck('candidate_skills.id')->all();
-    expect($skillIds)->toContain($childSkill->id, $parentSkill->id);
-
     expect($candidate->statuses()->where('candidate_status_id', $onboarding->id)->exists())->toBeTrue();
 
     expect($candidate->activities()->where('note', 'like', 'Applied via the public link%')->exists())->toBeTrue();
@@ -218,7 +237,12 @@ test('applying end to end for an education vacancy creates a basic candidate wit
     expect($application)->not->toBeNull();
     expect($application->candidate_type)->toBe(EducationCandidate::class);
     expect($application->candidate_id)->toBe($candidate->id);
-    expect($application->match_strength)->toBeNull();
+    // No skills or location signal here, but the vacancy always has a job
+    // title (a required field) and this candidate has one too ("Class
+    // Teacher"), so JobTitleMatchScorer always has *some* signal — the
+    // exact score depends on word overlap with the factory's random fake
+    // job title, so only its shape is asserted, not an exact value.
+    expect($application->match_strength)->toBeInt()->toBeGreaterThanOrEqual(0)->toBeLessThanOrEqual(100);
     expect($candidate->vacancyApplications()->where('vacancy_id', $vacancy->id)->exists())->toBeTrue();
 });
 
@@ -233,16 +257,44 @@ test('applying to a healthcare vacancy creates a healthcare candidate, proving t
         ->call('savePersonalDetails')
         ->assertHasNoErrors()
         ->call('saveEmploymentHistory')
-        ->set('skill_ids', [CandidateSkill::factory()->create([
-            'company_id' => $vacancy->client->company_id,
-            'industry_id' => $vacancy->client->industry_id,
-        ])->id])
-        ->call('saveSkills')
         ->assertHasNoErrors()
-        ->assertSet('step', 5);
+        ->assertSet('step', 4);
 
     expect(HealthcareCandidate::where('email', 'sam.carter@example.com')->exists())->toBeTrue();
     expect(EducationCandidate::where('email', 'sam.carter@example.com')->exists())->toBeFalse();
+});
+
+test('applying sets a match score on the resulting application when the candidate already has the vacancy\'s required skills', function () {
+    $vacancy = createVacancyFor('education');
+    $companyId = $vacancy->client->company_id;
+    $industryId = $vacancy->client->industry_id;
+
+    $skill = CandidateSkill::factory()->create(['company_id' => $companyId, 'industry_id' => $industryId]);
+    $vacancy->skills()->attach($skill->id);
+
+    // A returning candidate (matched by email) who already has the
+    // required skill recorded from a previous application — the apply form
+    // itself no longer collects skills, so this is the only realistic way
+    // a candidate has any recorded today.
+    $existingCandidate = EducationCandidate::factory()->create([
+        'company_id' => $companyId,
+        'email' => 'returning-with-skill@example.com',
+    ]);
+    $existingCandidate->skills()->attach($skill->id);
+
+    Livewire::test('vacancy.apply-form', ['vacancy' => $vacancy])
+        ->call('skipCv')
+        ->set('first_name', 'Jane')
+        ->set('last_name', 'Doe')
+        ->set('email', 'returning-with-skill@example.com')
+        ->call('savePersonalDetails')
+        ->call('saveEmploymentHistory')
+        ->assertHasNoErrors();
+
+    $application = $vacancy->applications()->where('candidate_id', $existingCandidate->id)->first();
+
+    expect($application)->not->toBeNull();
+    expect($application->match_strength)->toBe(100);
 });
 
 test('applying with an email that already belongs to a candidate updates that candidate instead of creating a duplicate', function () {
@@ -255,8 +307,6 @@ test('applying with an email that already belongs to a candidate updates that ca
         'industry_id' => $industryId,
         'name' => 'Available',
     ]);
-    $existingSkill = CandidateSkill::factory()->create(['company_id' => $companyId, 'industry_id' => $industryId]);
-    $newSkill = CandidateSkill::factory()->create(['company_id' => $companyId, 'industry_id' => $industryId]);
 
     $existingCandidate = EducationCandidate::factory()->create([
         'company_id' => $companyId,
@@ -265,7 +315,6 @@ test('applying with an email that already belongs to a candidate updates that ca
         'email' => 'existing@example.com',
         'phone' => '00000000000',
     ]);
-    $existingCandidate->skills()->attach($existingSkill->id);
     $existingCandidate->statuses()->create(['candidate_status_id' => $existingStatus->id]);
 
     Livewire::test('vacancy.apply-form', ['vacancy' => $vacancy])
@@ -278,10 +327,8 @@ test('applying with an email that already belongs to a candidate updates that ca
         ->assertHasNoErrors()
         ->assertSet('step', 3)
         ->call('saveEmploymentHistory')
-        ->set('skill_ids', [$newSkill->id])
-        ->call('saveSkills')
         ->assertHasNoErrors()
-        ->assertSet('step', 5)
+        ->assertSet('step', 4)
         ->assertSee('Welcome back');
 
     expect(EducationCandidate::where('email', 'existing@example.com')->count())->toBe(1);
@@ -291,9 +338,8 @@ test('applying with an email that already belongs to a candidate updates that ca
     expect($existingCandidate->last_name)->toBe('Doe');
     expect($existingCandidate->phone)->toBe('07123456789');
 
-    // Previously recorded skills and status are kept, not wiped, by the update.
-    $skillIds = $existingCandidate->skills()->pluck('candidate_skills.id')->all();
-    expect($skillIds)->toContain($existingSkill->id, $newSkill->id);
+    // Previously recorded status is kept, not wiped, by the update — this
+    // flow only ever touches the basic details it collects.
     expect($existingCandidate->statuses()->where('candidate_status_id', $existingStatus->id)->exists())->toBeTrue();
 
     expect($vacancy->applications()->where('candidate_id', $existingCandidate->id)->exists())->toBeTrue();
@@ -302,12 +348,8 @@ test('applying with an email that already belongs to a candidate updates that ca
 
 test('applying twice to the same vacancy does not create a duplicate application row', function () {
     $vacancy = createVacancyFor('education');
-    $skill = CandidateSkill::factory()->create([
-        'company_id' => $vacancy->client->company_id,
-        'industry_id' => $vacancy->client->industry_id,
-    ]);
 
-    $apply = function () use ($vacancy, $skill): void {
+    $apply = function () use ($vacancy): void {
         Livewire::test('vacancy.apply-form', ['vacancy' => $vacancy])
             ->call('skipCv')
             ->set('first_name', 'Jane')
@@ -315,8 +357,6 @@ test('applying twice to the same vacancy does not create a duplicate application
             ->set('email', 'jane.doe@example.com')
             ->call('savePersonalDetails')
             ->call('saveEmploymentHistory')
-            ->set('skill_ids', [$skill->id])
-            ->call('saveSkills')
             ->assertHasNoErrors();
     };
 
@@ -327,7 +367,7 @@ test('applying twice to the same vacancy does not create a duplicate application
     expect($vacancy->applications()->where('candidate_id', $candidate->id)->count())->toBe(1);
 });
 
-test('saveSkills requires at least one skill to be selected', function () {
+test('applying a second time to the same vacancy shows already applied and logs no activity', function () {
     $vacancy = createVacancyFor('education');
 
     Livewire::test('vacancy.apply-form', ['vacancy' => $vacancy])
@@ -337,10 +377,35 @@ test('saveSkills requires at least one skill to be selected', function () {
         ->set('email', 'jane.doe@example.com')
         ->call('savePersonalDetails')
         ->call('saveEmploymentHistory')
-        ->call('saveSkills')
-        ->assertHasErrors(['skill_ids' => 'required']);
+        ->assertHasNoErrors();
 
-    expect(EducationCandidate::where('email', 'jane.doe@example.com')->exists())->toBeFalse();
+    $candidate = EducationCandidate::where('email', 'jane.doe@example.com')->first();
+    $candidateActivityCountAfterFirstApply = $candidate->activities()->count();
+    $vacancyActivityCountAfterFirstApply = $vacancy->activities()->count();
+
+    Livewire::test('vacancy.apply-form', ['vacancy' => $vacancy])
+        ->call('skipCv')
+        ->set('first_name', 'Changed')
+        ->set('last_name', 'Name')
+        ->set('email', 'jane.doe@example.com')
+        ->call('savePersonalDetails')
+        ->call('saveEmploymentHistory')
+        ->assertHasNoErrors()
+        ->assertSet('alreadyApplied', true)
+        ->assertSet('step', 4)
+        ->assertSee('You have already applied');
+
+    // No new activity logged for the repeat submission.
+    expect($candidate->activities()->count())->toBe($candidateActivityCountAfterFirstApply);
+    expect($vacancy->activities()->count())->toBe($vacancyActivityCountAfterFirstApply);
+
+    // The candidate's details from the first application are untouched —
+    // the repeat submission's changed name was never applied.
+    $candidate->refresh();
+    expect($candidate->first_name)->toBe('Jane');
+    expect($candidate->last_name)->toBe('Doe');
+
+    expect($vacancy->applications()->where('candidate_id', $candidate->id)->count())->toBe(1);
 });
 
 test('selecting a cv automatically parses it and prefills personal details, address, and employment history', function () {
@@ -385,10 +450,6 @@ test('the uploaded cv is attached to the candidate created at the end of the flo
     CvParser::fake(fn () => ['firstName' => 'Jane', 'lastName' => 'Doe']);
 
     $vacancy = createVacancyFor('education');
-    $skill = CandidateSkill::factory()->create([
-        'company_id' => $vacancy->client->company_id,
-        'industry_id' => $vacancy->client->industry_id,
-    ]);
     $file = UploadedFile::fake()->create('cv.pdf', 200, 'application/pdf');
 
     Livewire::test('vacancy.apply-form', ['vacancy' => $vacancy])
@@ -397,8 +458,6 @@ test('the uploaded cv is attached to the candidate created at the end of the flo
         ->call('savePersonalDetails')
         ->assertHasNoErrors()
         ->call('saveEmploymentHistory')
-        ->set('skill_ids', [$skill->id])
-        ->call('saveSkills')
         ->assertHasNoErrors();
 
     $candidate = EducationCandidate::where('email', 'jane.doe@example.com')->first();
@@ -417,4 +476,62 @@ test('generateUniqueSlug de-duplicates slugs for the same title', function () {
     expect($first)->toBe('year-3-class-teacher');
     expect($second)->toBe('year-3-class-teacher-2');
     expect($second)->not->toBe($first);
+});
+
+/**
+ * Regression test: the original bug read the temp upload via
+ * $file->getRealPath() + file_get_contents(). getRealPath() resolves
+ * through the temp upload disk's path() method, which for a remote disk
+ * (this app's default is S3) returns the raw storage key rather than a
+ * real local filesystem path — file_get_contents() on that fails outright.
+ * readStream() reads correctly regardless of which disk the temp file
+ * actually lives on, so it's the only thing this asserts is called.
+ */
+test('cv parsing copies the temp upload via a stream rather than reading its real path', function () {
+    config(['filesystems.default' => 's3']);
+    CvParser::fake(fn () => ['firstName' => 'Jane', 'lastName' => 'Doe']);
+
+    $vacancy = createVacancyFor('education');
+    $file = makeFakeCvUpload('cv.pdf');
+
+    Storage::shouldReceive('disk')->with('local')->andReturnSelf();
+    Storage::shouldReceive('writeStream')
+        ->once()
+        ->withArgs(fn (string $path): bool => str_starts_with($path, 'vacancy-apply-cv-uploads/'))
+        ->andReturnTrue();
+    Storage::shouldReceive('path')->once()->andReturn('/tmp/fake-cv-for-test.pdf');
+    Storage::shouldReceive('delete')->once()->andReturnTrue();
+    Storage::shouldReceive('get')->never();
+    Storage::shouldReceive('put')->never();
+
+    // ->set('cv', $file) drives Livewire's own upload synthesizer, which
+    // expects a file created via its normal upload flow — a
+    // TemporaryUploadedFile built by hand for this test isn't one, so the
+    // component's cv property is set directly instead, isolating the
+    // assertion to parseCv()'s own file-handling rather than Livewire's
+    // upload machinery (already covered by the CvParser::fake() tests above).
+    $component = Livewire::test('vacancy.apply-form', ['vacancy' => $vacancy]);
+    $component->instance()->cv = $file;
+    $component->instance()->parseCv(app(CvParserService::class));
+
+    expect($component->instance()->parseError)->toBeNull();
+});
+
+/**
+ * Regression test: the Title select used Flux's placeholder="" prop,
+ * which renders a disabled, pre-selected blank <option>. Browsers refuse
+ * to set a <select>'s value to a disabled option via JS, so as soon as
+ * Livewire hydrates the page and tries to sync the select to the (null)
+ * bound property, it silently snaps to the first real option ("Mr")
+ * instead — and that gets submitted even though the candidate never
+ * touched the field. The fix uses a real, non-disabled blank option.
+ */
+test('the title select renders a real, non-disabled blank option', function () {
+    $vacancy = createVacancyFor('education');
+
+    $html = Livewire::test('vacancy.apply-form', ['vacancy' => $vacancy])
+        ->call('skipCv')
+        ->html();
+
+    expect($html)->not->toContain('disabled selected');
 });

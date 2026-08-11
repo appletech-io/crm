@@ -219,3 +219,80 @@ test('the healthcare candidates rating filter narrows to a minimum star threshol
         ->assertCanSeeTableRecords([$highlyRated])
         ->assertCanNotSeeTableRecords([$poorlyRated]);
 });
+
+test('the edit page header title has no rating badge for an unrated candidate', function () {
+    $user = actingAsRatingTestUser('education');
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $user->company_id,
+        'first_name' => 'Jane',
+        'last_name' => 'Doe',
+    ]);
+
+    $title = Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->instance()
+        ->getTitle();
+
+    expect($title)->toBe('Jane Doe');
+});
+
+test('the edit page header title includes a star rating badge for a rated candidate', function () {
+    $user = actingAsRatingTestUser('education');
+    $client = Client::factory()->create(['company_id' => $user->company_id]);
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $user->company_id,
+        'first_name' => 'Jane',
+        'last_name' => 'Doe',
+    ]);
+
+    Booking::factory()->create([
+        'company_id' => $user->company_id,
+        'client_id' => $client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_rating' => 4,
+        'candidate_rated_at' => now(),
+    ]);
+    Booking::factory()->create([
+        'company_id' => $user->company_id,
+        'client_id' => $client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_rating' => 5,
+        'candidate_rated_at' => now(),
+    ]);
+
+    $title = Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->instance()
+        ->getTitle();
+
+    expect((string) $title)
+        ->toContain('Jane Doe')
+        ->toContain('★ 4.5');
+});
+
+test('the healthcare edit page header title also includes a star rating badge for a rated candidate', function () {
+    $user = actingAsRatingTestUser('healthcare');
+    $client = Client::factory()->create(['company_id' => $user->company_id]);
+    $candidate = HealthcareCandidate::factory()->create([
+        'company_id' => $user->company_id,
+        'first_name' => 'John',
+        'last_name' => 'Smith',
+    ]);
+
+    Booking::factory()->create([
+        'company_id' => $user->company_id,
+        'client_id' => $client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => HealthcareCandidate::class,
+        'candidate_rating' => 2,
+        'candidate_rated_at' => now(),
+    ]);
+
+    $title = Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->instance()
+        ->getTitle();
+
+    expect((string) $title)
+        ->toContain('John Smith')
+        ->toContain('★ 2.0');
+});

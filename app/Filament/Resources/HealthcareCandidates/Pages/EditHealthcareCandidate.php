@@ -11,7 +11,10 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\HtmlString;
 
 class EditHealthcareCandidate extends EditRecord
 {
@@ -31,10 +34,28 @@ class EditHealthcareCandidate extends EditRecord
         ];
     }
 
-    public function getTitle(): string
+    public function getTitle(): string|Htmlable
     {
-        return $this->record->first_name
+        $name = $this->record->first_name
             ? trim("{$this->record->first_name} {$this->record->last_name}")
             : $this->record->email;
+
+        if ($this->record->average_rating === null) {
+            return $name;
+        }
+
+        $ratingBadge = Blade::render(
+            '<x-filament::badge color="{{ $color }}">★ {{ $rating }}</x-filament::badge>',
+            [
+                'color' => match (true) {
+                    $this->record->average_rating >= 4 => 'success',
+                    $this->record->average_rating >= 3 => 'warning',
+                    default => 'danger',
+                },
+                'rating' => number_format($this->record->average_rating, 1),
+            ],
+        );
+
+        return new HtmlString(e($name).' '.$ratingBadge);
     }
 }

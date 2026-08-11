@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Vacancies\Schemas;
 
 use App\Filament\Widgets\VacancyActivityTimeline;
 use App\Filament\Widgets\VacancyApplicantsTable;
+use App\Filament\Widgets\VacancyMatchesTable;
 use App\Models\Client;
 use App\Models\JobStatus;
 use App\Models\JobTitle;
@@ -126,6 +127,14 @@ class VacancyForm
                                             ->formatStateUsing(fn (?Vacancy $record): ?string => $record ? route('vacancy.apply', $record->slug) : null)
                                             ->visible(fn (?Vacancy $record): bool => $record !== null)
                                             ->columnSpanFull(),
+
+                                        Toggle::make('run_match')
+                                            ->label('Match against all candidates now')
+                                            ->helperText('Runs in the background and scores every candidate in your pool against this vacancy — check the Matches tab shortly after saving.')
+                                            ->default(true)
+                                            ->dehydrated(false)
+                                            ->visible(fn (?Vacancy $record): bool => $record === null)
+                                            ->columnSpanFull(),
                                     ]),
                             ]),
 
@@ -133,6 +142,20 @@ class VacancyForm
                             ->schema([
                                 LivewireComponent::make(VacancyApplicantsTable::class)
                                     ->key('vacancy-applicants-table')
+                                    ->hidden(fn (?Model $record): bool => $record === null),
+                            ]),
+
+                        Tab::make('Shortlisted')
+                            ->schema([
+                                LivewireComponent::make(VacancyApplicantsTable::class, ['onlyShortlisted' => true])
+                                    ->key('vacancy-shortlisted-table')
+                                    ->hidden(fn (?Model $record): bool => $record === null),
+                            ]),
+
+                        Tab::make('Matches')
+                            ->schema([
+                                LivewireComponent::make(VacancyMatchesTable::class)
+                                    ->key('vacancy-matches-table')
                                     ->hidden(fn (?Model $record): bool => $record === null),
                             ]),
 
