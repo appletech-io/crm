@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Clients\Schemas;
 
 use App\Enums\Education\KeyStage;
 use App\Filament\Widgets\ClientActivityTimeline;
+use App\Filament\Widgets\ClientPipelineOverview;
 use App\Filament\Widgets\ClientTimesheetOverview;
 use App\Models\Client;
 use App\Models\ClientType;
@@ -50,6 +51,13 @@ class ClientForm
                             ->schema([
                                 LivewireComponent::make(ClientTimesheetOverview::class)
                                     ->key('client-timesheet-overview')
+                                    ->hidden(fn (?Model $record): bool => $record === null),
+                            ]),
+
+                        Tab::make('Pipeline')
+                            ->schema([
+                                LivewireComponent::make(ClientPipelineOverview::class)
+                                    ->key('client-pipeline-overview')
                                     ->hidden(fn (?Model $record): bool => $record === null),
                             ]),
 
