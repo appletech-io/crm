@@ -242,6 +242,8 @@ test('a fully completed professional form submits successfully', function () {
     $reference = makeVerifiedReference(['type' => 'professional']);
 
     Livewire::test('reference.reference-form', ['token' => $reference->token])
+        ->set('answers.worked_from', '2018-01-01')
+        ->set('answers.worked_to', '2020-01-01')
         ->set('answers.safeguarding_issues', 'no')
         ->set('answers.recommend_short_term', 'yes')
         ->set('answers.recommend_long_term', 'yes')
