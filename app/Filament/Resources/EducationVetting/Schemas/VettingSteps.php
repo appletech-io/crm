@@ -545,8 +545,7 @@ class VettingSteps
                     ->description('Check the candidate\'s TRN via the DfE sign-in service, then record when it was issued.')
                     ->schema([
                         TextInput::make('trn_number')
-                            ->label('TRN')
-                            ->disabled(),
+                            ->label('TRN'),
 
                         Actions::make([
                             Action::make('checkTrn')

@@ -6,17 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
-class VacancyApplication extends Model
+class VacancyCandidateMatch extends Model
 {
     protected $guarded = [];
-
-    /** @return array<string, string> */
-    protected function casts(): array
-    {
-        return [
-            'shortlisted_at' => 'datetime',
-        ];
-    }
 
     public function vacancy(): BelongsTo
     {
@@ -26,10 +18,5 @@ class VacancyApplication extends Model
     public function candidate(): MorphTo
     {
         return $this->morphTo();
-    }
-
-    public function isShortlisted(): bool
-    {
-        return $this->shortlisted_at !== null;
     }
 }

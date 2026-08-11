@@ -114,6 +114,11 @@ class Vacancy extends Model
         return $this->hasMany(VacancyApplication::class)->latest();
     }
 
+    public function matches(): HasMany
+    {
+        return $this->hasMany(VacancyCandidateMatch::class)->orderByDesc('score');
+    }
+
     public function scopeVisibleToCurrentUser(Builder $query): Builder
     {
         $query->forActiveIndustry();

@@ -371,6 +371,96 @@ test('location filter using an address geocodes it and filters by radius', funct
         ->assertCanNotSeeTableRecords([$farAway]);
 });
 
+test('the rating column on the search page is sortable', function () {
+    $lowRated = makeSearchCandidate();
+    $lowRated->bookings()->create([
+        'company_id' => $this->consultant->company_id,
+        'client_id' => Client::factory()->create(['company_id' => $this->consultant->company_id])->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => now()->toDateString(),
+        'status' => BookingStatus::Completed,
+        'candidate_rating' => 2,
+        'candidate_rated_at' => now(),
+    ]);
+
+    $highRated = makeSearchCandidate();
+    $highRated->bookings()->create([
+        'company_id' => $this->consultant->company_id,
+        'client_id' => Client::factory()->create(['company_id' => $this->consultant->company_id])->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => now()->toDateString(),
+        'status' => BookingStatus::Completed,
+        'candidate_rating' => 5,
+        'candidate_rated_at' => now(),
+    ]);
+
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'search')
+        ->sortTable('average_rating')
+        ->assertCanSeeTableRecords([$lowRated, $highRated], inOrder: true)
+        ->sortTable('average_rating', 'desc')
+        ->assertCanSeeTableRecords([$highRated, $lowRated], inOrder: true);
+});
+
+test('the availability column on the search page shows how many of the 5 days are free', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+
+    $fullyFree = makeSearchCandidate();
+
+    $partiallyBooked = makeSearchCandidate();
+    $booking = $partiallyBooked->bookings()->create([
+        'company_id' => $this->consultant->company_id,
+        'client_id' => Client::factory()->create(['company_id' => $this->consultant->company_id])->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => $monday->toDateString(),
+        'status' => BookingStatus::Upcoming,
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->consultant->company_id,
+        'date' => $monday->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->consultant->company_id,
+        'date' => $monday->copy()->addDay()->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'search')
+        ->assertTableColumnStateSet('availability_score', '5/5 available', record: $fullyFree)
+        ->assertTableColumnStateSet('availability_score', '3/5 available', record: $partiallyBooked);
+});
+
+test('the availability column on the search page is sortable, most available first', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+
+    $fullyFree = makeSearchCandidate();
+
+    $mostlyBooked = makeSearchCandidate();
+    foreach ([0, 1, 2] as $dayOffset) {
+        $booking = $mostlyBooked->bookings()->create([
+            'company_id' => $this->consultant->company_id,
+            'client_id' => Client::factory()->create(['company_id' => $this->consultant->company_id])->id,
+            'candidate_type' => EducationCandidate::class,
+            'start_date' => $monday->copy()->addDays($dayOffset)->toDateString(),
+            'status' => BookingStatus::Upcoming,
+        ]);
+        $booking->dayPeriods()->create([
+            'company_id' => $this->consultant->company_id,
+            'date' => $monday->copy()->addDays($dayOffset)->toDateString(),
+            'period' => BookingDayPeriod::FullDay,
+        ]);
+    }
+
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'search')
+        ->sortTable('availability_score', 'desc')
+        ->assertCanSeeTableRecords([$fullyFree, $mostlyBooked], inOrder: true)
+        ->sortTable('availability_score', 'asc')
+        ->assertCanSeeTableRecords([$mostlyBooked, $fullyFree], inOrder: true);
+});
+
 test('day columns have a non-blank state so the icon actually renders rather than a blank placeholder cell', function () {
     $candidate = makeSearchCandidate();
 

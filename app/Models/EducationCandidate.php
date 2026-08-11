@@ -36,6 +36,8 @@ class EducationCandidate extends Model
         'employment_history' => 'string',
         'latitude' => 'float',
         'longitude' => 'float',
+        'average_rating' => 'float',
+        'ratings_count' => 'integer',
         'available_from' => 'date',
         'compliance_completed_at' => 'datetime',
         'barred_list_check_date' => 'date',
