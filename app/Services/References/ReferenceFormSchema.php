@@ -71,6 +71,8 @@ class ReferenceFormSchema
                 [
                     'heading' => null,
                     'fields' => [
+                        self::dateField('worked_from', 'Worked From'),
+                        self::dateField('worked_to', 'Worked To'),
                         self::radioField('safeguarding_issues', 'Please inform Applebough Education of any safeguarding, child protection or disciplinary issues relating to this candidate', self::YES_NO_OPTIONS),
                         self::textareaField('safeguarding_details', 'Please provide details', showWhen: ['safeguarding_issues', 'yes']),
                     ],

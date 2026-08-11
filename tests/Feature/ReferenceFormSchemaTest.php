@@ -30,7 +30,7 @@ test('character asks for dates and a suitability question with a conditional det
     expect($rules['answers.suitability_details'])->toContain('required_if:answers.suitable_for_role,no');
 });
 
-test('professional includes the safeguarding question, the recommendation grid, the rating grid, and free text questions', function () {
+test('professional includes dates worked, the safeguarding question, the recommendation grid, the rating grid, and free text questions', function () {
     $sections = ReferenceFormSchema::sectionsFor(ReferenceType::Professional);
     $headings = collect($sections)->pluck('heading')->all();
 
@@ -39,6 +39,8 @@ test('professional includes the safeguarding question, the recommendation grid, 
     $keys = collect($sections)->flatMap(fn (array $section) => collect($section['fields'])->pluck('key'))->all();
 
     expect($keys)->toBe([
+        'worked_from',
+        'worked_to',
         'safeguarding_issues',
         'safeguarding_details',
         'recommend_short_term',
