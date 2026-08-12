@@ -15,6 +15,26 @@ beforeEach(function () {
     Cache::put("user.{$this->user->id}.active_industry", 'healthcare');
 });
 
+test('an NI number can be saved on the personal details tab', function () {
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm(['ni_number' => 'QQ123456C'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($candidate->refresh()->ni_number)->toBe('QQ123456C');
+});
+
+test('an invalid NI number is rejected on the personal details tab', function () {
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm(['ni_number' => 'not-a-real-ni-number'])
+        ->call('save')
+        ->assertHasFormErrors(['ni_number' => 'regex']);
+});
+
 test('a UK landline number is accepted in the phone field', function () {
     $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
 

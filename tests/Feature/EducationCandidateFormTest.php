@@ -36,6 +36,7 @@ test('personal details can be saved on candidate', function () {
             'nationality' => 'British',
             'date_of_birth' => '1990-01-15',
             'place_of_birth' => 'London',
+            'ni_number' => 'QQ123456C',
             'phone' => '07700900000',
             'mobile' => '07700900001',
             'postcode' => 'SW1A 1AA',
@@ -52,7 +53,17 @@ test('personal details can be saved on candidate', function () {
     expect($candidate->first_name)->toBe('Jane');
     expect($candidate->last_name)->toBe('Doe');
     expect($candidate->gender)->toBe('female');
+    expect($candidate->ni_number)->toBe('QQ123456C');
     expect($candidate->emergency_contact_name)->toBe('John Doe');
+});
+
+test('an invalid NI number is rejected on the personal details tab', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm(['ni_number' => 'not-a-real-ni-number'])
+        ->call('save')
+        ->assertHasFormErrors(['ni_number' => 'regex']);
 });
 
 test('a UK landline number is accepted in the phone field', function () {

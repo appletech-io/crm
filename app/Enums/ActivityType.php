@@ -11,6 +11,10 @@ enum ActivityType: string
 
     case Call = 'call';
 
+    case Interview = 'interview';
+    case BdmCall = 'bdm_call';
+    case Visit = 'visit';
+
     case Other = 'other';
     case StatusAutomation = 'status_automation';
     case StatusChange = 'status_change';
@@ -22,6 +26,9 @@ enum ActivityType: string
             self::Note => 'Note',
             self::Meeting => 'Meeting',
             self::Call => 'Call',
+            self::Interview => 'Interview',
+            self::BdmCall => 'BDM Call',
+            self::Visit => 'Visit',
             self::Other => 'Other',
             self::StatusAutomation => 'Status Automation',
             self::StatusChange => 'Status Change',
@@ -35,6 +42,9 @@ enum ActivityType: string
             self::Note => 'heroicon-o-pencil-square',
             self::Meeting => 'heroicon-o-calendar-days',
             self::Call => 'heroicon-o-phone',
+            self::Interview => 'heroicon-o-chat-bubble-left-right',
+            self::BdmCall => 'heroicon-o-phone-arrow-up-right',
+            self::Visit => 'heroicon-o-map-pin',
             self::Other => 'heroicon-o-ellipsis-horizontal-circle',
             self::StatusAutomation => 'heroicon-o-bolt',
             self::StatusChange => 'heroicon-o-flag',
@@ -48,6 +58,9 @@ enum ActivityType: string
             self::Note => 'info',
             self::Call => 'success',
             self::Meeting => 'warning',
+            self::Interview => 'info',
+            self::BdmCall => 'success',
+            self::Visit => 'warning',
             self::StatusAutomation => 'danger',
             self::StatusChange => 'warning',
             self::Other => 'gray',

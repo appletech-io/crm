@@ -52,6 +52,30 @@ test('activity action requires type and note', function () {
         ->assertHasTableActionErrors(['type', 'note']);
 });
 
+test('an interview can be logged against a candidate', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    Livewire::test(CandidateActivityTimeline::class, ['record' => $candidate])
+        ->callTableAction('logActivity', data: [
+            'type' => 'interview',
+            'note' => 'Interviewed for Year 3 role',
+        ])
+        ->assertHasNoTableActionErrors();
+
+    expect(CandidateActivity::where('type', 'interview')->exists())->toBeTrue();
+});
+
+test('BDM Call is not a loggable type on a candidate, since it belongs on clients', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    Livewire::test(CandidateActivityTimeline::class, ['record' => $candidate])
+        ->callTableAction('logActivity', data: [
+            'type' => 'bdm_call',
+            'note' => 'Should not be allowed',
+        ])
+        ->assertHasTableActionErrors(['type']);
+});
+
 test('activities are paginated', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => null]);
 
