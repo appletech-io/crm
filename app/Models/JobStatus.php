@@ -18,6 +18,13 @@ class JobStatus extends Model
 
     protected $guarded = [];
 
+    protected function casts(): array
+    {
+        return [
+            'is_filled_status' => 'boolean',
+        ];
+    }
+
     /**
      * @var array<string, string>
      */

@@ -17,6 +17,20 @@ class ClientContact extends Model
 
     protected $guarded = [];
 
+    /**
+     * Eloquent doesn't reload column defaults into the in-memory model after
+     * an insert, so a contact created without explicitly passing
+     * wants_portal_access would otherwise look "off" to code running in the
+     * same request (e.g. ClientContactObserver::created()) even though the
+     * database default is true. Declaring it here keeps every creation path
+     * — the Filament form, direct create(), imports — defaulted the same way.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'wants_portal_access' => true,
+    ];
+
     protected function casts(): array
     {
         return [
@@ -24,6 +38,7 @@ class ClientContact extends Model
             'timesheet_contact' => 'boolean',
             'invoice_contact' => 'boolean',
             'booking_contact' => 'boolean',
+            'wants_portal_access' => 'boolean',
         ];
     }
 

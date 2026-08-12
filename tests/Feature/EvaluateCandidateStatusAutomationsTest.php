@@ -3,9 +3,11 @@
 use App\Actions\Candidates\ChangeCandidateStatus;
 use App\Actions\Candidates\CheckCandidateStatusAutomations;
 use App\Enums\ActivityType;
+use App\Models\Booking;
 use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
 use App\Models\CandidateStatusAutomation;
+use App\Models\Client;
 use App\Models\EducationCandidate;
 use App\Models\Industry;
 use App\Models\User;
@@ -350,6 +352,184 @@ test('a days_since_at_least condition never matches when the date field is empty
     expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
 });
 
+test('moves candidate to offline when their last booking ended more than 3 months ago', function () {
+    $candidate = EducationCandidate::factory()->create();
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    $client = Client::factory()->create(['company_id' => $candidate->company_id]);
+    Booking::factory()->create([
+        'company_id' => $candidate->company_id,
+        'client_id' => $client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => now()->subMonths(4)->toDateString(),
+        'end_date' => now()->subMonths(4)->addDays(3)->toDateString(),
+    ]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'last_booking_date', 'operator' => 'days_since_at_least', 'value' => '90'],
+        ],
+    ]);
+
+    CheckCandidateStatusAutomations::run($candidate);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeTrue();
+});
+
+test('does not move candidate to offline when their last booking was within 3 months', function () {
+    $candidate = EducationCandidate::factory()->create();
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    $client = Client::factory()->create(['company_id' => $candidate->company_id]);
+    Booking::factory()->create([
+        'company_id' => $candidate->company_id,
+        'client_id' => $client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => now()->subMonth()->toDateString(),
+        'end_date' => now()->subMonth()->addDays(3)->toDateString(),
+    ]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'last_booking_date', 'operator' => 'days_since_at_least', 'value' => '90'],
+        ],
+    ]);
+
+    CheckCandidateStatusAutomations::run($candidate);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
+});
+
+test('does not move a candidate to offline who has never had a booking', function () {
+    $candidate = EducationCandidate::factory()->create();
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'last_booking_date', 'operator' => 'days_since_at_least', 'value' => '90'],
+        ],
+    ]);
+
+    CheckCandidateStatusAutomations::run($candidate);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
+});
+
+test('a blank condition matches a candidate with no bookings at all', function () {
+    $candidate = EducationCandidate::factory()->create();
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'last_booking_date', 'operator' => 'blank'],
+        ],
+    ]);
+
+    CheckCandidateStatusAutomations::run($candidate);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeTrue();
+});
+
+test('a blank condition does not match a candidate who has a last booking date', function () {
+    $candidate = EducationCandidate::factory()->create();
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    $client = Client::factory()->create(['company_id' => $candidate->company_id]);
+    Booking::factory()->create([
+        'company_id' => $candidate->company_id,
+        'client_id' => $client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => now()->subMonth()->toDateString(),
+        'end_date' => now()->subMonth()->addDays(3)->toDateString(),
+    ]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'last_booking_date', 'operator' => 'blank'],
+        ],
+    ]);
+
+    CheckCandidateStatusAutomations::run($candidate);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
+});
+
+test('a blank condition on a wildcard relation matches when the relation has no records', function () {
+    $candidate = EducationCandidate::factory()->create(['first_name' => 'Jane']);
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'skills.*', 'operator' => 'blank'],
+        ],
+    ]);
+
+    CheckCandidateStatusAutomations::run($candidate);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeTrue();
+});
+
+test('a blank condition on a wildcard relation does not match once the relation has a record', function () {
+    $candidate = EducationCandidate::factory()->create(['first_name' => 'Jane']);
+
+    $skill = CandidateSkill::factory()->create([
+        'company_id' => $candidate->company_id,
+        'industry_id' => $this->industry->id,
+    ]);
+    $candidate->skills()->attach($skill);
+
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'skills.*', 'operator' => 'blank'],
+        ],
+    ]);
+
+    CheckCandidateStatusAutomations::run($candidate);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
+});
+
+test('a candidate who never booked but was recently marked compliance-complete is not yet moved offline, only once 90 days have passed', function () {
+    $candidate = EducationCandidate::factory()->create(['compliance_completed_at' => now()->subDays(10)]);
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'last_booking_date', 'operator' => 'blank'],
+            ['field' => 'compliance_completed_at', 'operator' => 'days_since_at_least', 'value' => '90'],
+        ],
+    ]);
+
+    CheckCandidateStatusAutomations::run($candidate);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
+
+    $candidate->update(['compliance_completed_at' => now()->subDays(100)]);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeTrue();
+});
+
 test('moves candidate when a days_until_at_most condition is satisfied', function () {
     $candidate = EducationCandidate::factory()->create(['available_from' => now()->addDays(10)->toDateString()]);
     $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
@@ -393,6 +573,62 @@ test('a days_until_at_most condition never matches when the date field is empty'
         'to_candidate_status_id' => $this->toStatus->id,
         'conditions' => [
             ['field' => 'available_from', 'operator' => 'days_until_at_most', 'value' => '30'],
+        ],
+    ]);
+
+    CheckCandidateStatusAutomations::run($candidate);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
+});
+
+test('moves candidate to the same target status when only one of two automations for that pair is satisfied', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'dbs_expiry_date' => now()->subDay()->toDateString(), // expired
+        'right_to_work_expiry_date' => now()->addYear()->toDateString(), // not expired
+    ]);
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'dbs_expiry_date', 'operator' => 'before', 'value' => now()->toDateString()],
+        ],
+    ]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'right_to_work_expiry_date', 'operator' => 'before', 'value' => now()->toDateString()],
+        ],
+    ]);
+
+    CheckCandidateStatusAutomations::run($candidate);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeTrue();
+});
+
+test('does not move candidate when neither of two automations for the same pair is satisfied', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'dbs_expiry_date' => now()->addYear()->toDateString(),
+        'right_to_work_expiry_date' => now()->addYear()->toDateString(),
+    ]);
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'dbs_expiry_date', 'operator' => 'before', 'value' => now()->toDateString()],
+        ],
+    ]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'right_to_work_expiry_date', 'operator' => 'before', 'value' => now()->toDateString()],
         ],
     ]);
 

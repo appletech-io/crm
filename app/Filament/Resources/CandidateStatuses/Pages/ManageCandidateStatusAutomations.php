@@ -109,13 +109,17 @@ class ManageCandidateStatusAutomations extends Page implements HasTable
                 ->icon('heroicon-o-plus')
                 ->schema($this->automationFormSchema())
                 ->action(function (array $data): void {
-                    CandidateStatusAutomation::updateOrCreate(
-                        [
-                            'candidate_status_id' => $data['candidate_status_id'],
-                            'to_candidate_status_id' => $data['to_candidate_status_id'] ?? null,
-                        ],
-                        ['conditions' => $data['conditions']],
-                    );
+                    // Always a new row, never a merge into an existing one —
+                    // several automations can share the same from/to pair
+                    // (e.g. "Live -> Offline" for DBS expiry, again for
+                    // safeguarding, again for right to work), each checked
+                    // independently and any one of them satisfied is enough
+                    // to trigger the change.
+                    CandidateStatusAutomation::create([
+                        'candidate_status_id' => $data['candidate_status_id'],
+                        'to_candidate_status_id' => $data['to_candidate_status_id'] ?? null,
+                        'conditions' => $data['conditions'],
+                    ]);
                 }),
         ];
     }

@@ -2,11 +2,13 @@
 
 namespace App\Filament\Resources\Clients\Schemas;
 
+use App\Actions\Clients\CreateClientContactPortalAccount;
 use App\Enums\Education\KeyStage;
 use App\Filament\Widgets\ClientActivityTimeline;
 use App\Filament\Widgets\ClientPipelineOverview;
 use App\Filament\Widgets\ClientTimesheetOverview;
 use App\Models\Client;
+use App\Models\ClientContact;
 use App\Models\ClientType;
 use App\Models\JobTitle;
 use App\Models\User;
@@ -18,6 +20,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Livewire as LivewireComponent;
 use Filament\Schemas\Components\Section;
@@ -285,6 +288,20 @@ class ClientForm
                                         TextInput::make('email')
                                             ->email()
                                             ->maxLength(255)
+                                            // Only bites on a brand new contact — an already-saved one
+                                            // can be edited freely even without an email, since the
+                                            // toggle below no longer does anything for them anyway.
+                                            ->required(fn (Get $get): bool => blank($get('id')) && (bool) $get('wants_portal_access'))
+                                            ->columnSpanFull(),
+                                        Toggle::make('wants_portal_access')
+                                            ->label('Create User Account')
+                                            ->helperText(fn (Get $get): string => filled($get('id'))
+                                                ? 'Only takes effect when the contact is created — use "Create User Account" below for an existing contact.'
+                                                : 'Sends this contact a login to the client portal with an auto-generated password.'
+                                            )
+                                            ->default(true)
+                                            ->disabled(fn (Get $get): bool => filled($get('id')))
+                                            ->live()
                                             ->columnSpanFull(),
                                         Toggle::make('main_contact')
                                             ->label('Main Contact')
@@ -310,6 +327,36 @@ class ClientForm
                                             return $roles->isNotEmpty() ? $roles->implode(', ') : 'No roles assigned';
                                         })
                                             ->color(fn (Get $get): string => $get('main_contact') ? 'success' : 'gray')
+                                            ->columnSpanFull(),
+                                        Actions::make([
+                                            Action::make('create_portal_account')
+                                                ->label('Create User Account')
+                                                ->icon('heroicon-o-key')
+                                                ->color('gray')
+                                                ->requiresConfirmation()
+                                                ->modalDescription('This emails the contact a login to the client portal with an auto-generated password.')
+                                                ->visible(fn (Get $get): bool => filled($get('id'))
+                                                    && filled($get('email'))
+                                                    && ! User::withoutGlobalScope('company')->where('client_contact_id', $get('id'))->exists()
+                                                )
+                                                ->action(function (Get $get): void {
+                                                    $contact = ClientContact::find($get('id'));
+
+                                                    if (! $contact) {
+                                                        return;
+                                                    }
+
+                                                    $user = CreateClientContactPortalAccount::run($contact);
+
+                                                    $notification = Notification::make()
+                                                        ->title($user ? 'Portal account created' : 'Could not create a portal account — that email may already be in use');
+
+                                                    $user ? $notification->success() : $notification->warning();
+
+                                                    $notification->send();
+                                                }),
+                                        ])
+                                            ->visible(fn (Get $get): bool => filled($get('id')))
                                             ->columnSpanFull(),
                                     ])
                                     ->columns(2)

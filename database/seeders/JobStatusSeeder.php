@@ -28,6 +28,7 @@ class JobStatusSeeder extends Seeder
             'name' => $name,
         ], [
             'color' => $color,
+            'is_filled_status' => $name === 'Filled',
         ]));
     }
 }

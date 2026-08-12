@@ -11,6 +11,7 @@ enum EmailTemplateType: string
     case ClientBookingConfirmation = 'client_booking_confirmation';
     case PayrollConfirmation = 'payroll_confirmation';
     case ReferenceRequest = 'reference_request';
+    case ClientPortalWelcome = 'client_portal_welcome';
 
     public function label(): string
     {
@@ -22,6 +23,7 @@ enum EmailTemplateType: string
             self::ClientBookingConfirmation => 'Client Booking Confirmation Email',
             self::PayrollConfirmation => 'Payroll Confirmation Email',
             self::ReferenceRequest => 'Reference Request Email',
+            self::ClientPortalWelcome => 'Client Portal Welcome Email',
         };
     }
 
@@ -97,6 +99,14 @@ enum EmailTemplateType: string
                 'candidate_name' => "The candidate's full name",
                 'reference_link' => 'Link to the reference form',
                 'expiry_date' => 'The date the reference link expires',
+            ],
+
+            self::ClientPortalWelcome => [
+                'client_contact_name' => 'The recipient contact name',
+                'client_name' => "The client's name",
+                'portal_email' => 'The email address they log in with',
+                'temporary_password' => 'The auto-generated password to include in the email',
+                'portal_link' => 'Link to log in to the client portal',
             ],
         };
     }

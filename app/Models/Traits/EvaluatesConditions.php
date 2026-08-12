@@ -57,6 +57,7 @@ trait EvaluatesConditions
             'after' => $this->evaluateDateComparison($record, $field, $value, fn (CarbonInterface $a, CarbonInterface $b): bool => $a->gt($b)),
             'days_since_at_least' => $this->evaluateDaysSinceAtLeast($record, $field, $value),
             'days_until_at_most' => $this->evaluateDaysUntilAtMost($record, $field, $value),
+            'blank' => $this->evaluateBlank($record, $field),
             default => $this->evaluateFilled($record, $field),
         };
     }
@@ -74,6 +75,17 @@ trait EvaluatesConditions
         }
 
         return filled(data_get($record, $field));
+    }
+
+    /**
+     * The exact inverse of "filled" — a plain attribute must be empty, or a
+     * wildcard relation must have no records at all. Needed rather than
+     * relying on "equals" with an empty value, since the value input the
+     * condition builder shows for equals/not_equals is always required.
+     */
+    private function evaluateBlank(Model $record, string $field): bool
+    {
+        return ! $this->evaluateFilled($record, $field);
     }
 
     /**

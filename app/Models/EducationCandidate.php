@@ -160,6 +160,25 @@ class EducationCandidate extends Model
         );
     }
 
+    /**
+     * The end (or, for an open-ended booking, start) date of this
+     * candidate's most recent booking — exposed as a virtual
+     * "last_booking_date" attribute so "no booking in the last N months"
+     * can be expressed with the existing days_since_at_least condition,
+     * the same way an expiry date is. Null for a candidate who's never had
+     * a booking, so — deliberately — that alone never satisfies a
+     * days_since_at_least condition; "never booked" isn't the same claim
+     * as "was booked, but a while ago".
+     */
+    protected function lastBookingDate(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->bookings()
+                ->selectRaw('MAX(COALESCE(end_date, start_date)) as last_date')
+                ->value('last_date'),
+        );
+    }
+
     /** @return array<string, array{label: string, type: string, options?: array<string, string>}> */
     protected static function computedFieldSuggestions(): array
     {
@@ -173,6 +192,10 @@ class EducationCandidate extends Model
                     ->orderBy('name')
                     ->pluck('name', 'name')
                     ->all(),
+            ],
+            'last_booking_date' => [
+                'label' => 'Last Booking Date',
+                'type' => 'date',
             ],
         ];
     }
