@@ -38,8 +38,8 @@ test('matching against all candidates scores every candidate in the company pool
     $goodMatch->skills()->attach($skill->id);
 
     // Missing the required skill (and any location signal) is a real,
-    // scoreable 0% skill match — not "unscoreable" — so this still gets a
-    // match row, just a low-scoring one.
+    // scoreable 0% skill match — not "unscoreable" — but it's below the
+    // minimum score, so it's excluded like an unscoreable candidate would be.
     $noMatchingSkills = EducationCandidate::factory()->create([
         'company_id' => $this->company->id,
         'latitude' => null,
@@ -53,8 +53,62 @@ test('matching against all candidates scores every candidate in the company pool
     MatchCandidatesToVacancy::dispatchSync($this->vacancy->id);
 
     expect(VacancyCandidateMatch::where('vacancy_id', $this->vacancy->id)->where('candidate_id', $goodMatch->id)->value('score'))->toBe(100);
-    expect(VacancyCandidateMatch::where('vacancy_id', $this->vacancy->id)->where('candidate_id', $noMatchingSkills->id)->value('score'))->toBe(0);
+    expect(VacancyCandidateMatch::where('vacancy_id', $this->vacancy->id)->where('candidate_id', $noMatchingSkills->id)->exists())->toBeFalse();
     expect(VacancyCandidateMatch::where('vacancy_id', $this->vacancy->id)->where('candidate_id', $outsideCompany->id)->exists())->toBeFalse();
+});
+
+test('a score at or below the 50% minimum does not get a match row', function () {
+    $skillA = CandidateSkill::factory()->create(['company_id' => $this->company->id]);
+    $skillB = CandidateSkill::factory()->create(['company_id' => $this->company->id]);
+    $this->vacancy->skills()->attach([$skillA->id, $skillB->id]);
+
+    $borderlineCandidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $borderlineCandidate->skills()->attach($skillA->id);
+
+    MatchCandidatesToVacancy::dispatchSync($this->vacancy->id);
+
+    expect(VacancyCandidateMatch::where('vacancy_id', $this->vacancy->id)->where('candidate_id', $borderlineCandidate->id)->exists())->toBeFalse();
+});
+
+test('a match that falls back to or below the minimum score on a re-run is removed', function () {
+    $skillA = CandidateSkill::factory()->create(['company_id' => $this->company->id]);
+    $skillB = CandidateSkill::factory()->create(['company_id' => $this->company->id]);
+    $this->vacancy->skills()->attach([$skillA->id, $skillB->id]);
+
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $candidate->skills()->attach([$skillA->id, $skillB->id]);
+
+    MatchCandidatesToVacancy::dispatchSync($this->vacancy->id);
+    expect(VacancyCandidateMatch::where('candidate_id', $candidate->id)->value('score'))->toBe(100);
+
+    $candidate->skills()->detach($skillB->id);
+    MatchCandidatesToVacancy::dispatchSync($this->vacancy->id);
+
+    expect(VacancyCandidateMatch::where('vacancy_id', $this->vacancy->id)->where('candidate_id', $candidate->id)->exists())->toBeFalse();
+});
+
+test('a re-run clears matches for candidates who have left the pool entirely, not just re-scored ones', function () {
+    $skill = CandidateSkill::factory()->create(['company_id' => $this->company->id]);
+    $this->vacancy->skills()->attach($skill->id);
+
+    $staysInPool = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $staysInPool->skills()->attach($skill->id);
+
+    $leavesPool = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $leavesPool->skills()->attach($skill->id);
+
+    MatchCandidatesToVacancy::dispatchSync($this->vacancy->id);
+    expect(VacancyCandidateMatch::where('vacancy_id', $this->vacancy->id)->count())->toBe(2);
+
+    // Moving to another company (or deletion) takes them out of the query
+    // this job scans — the per-row loop alone would never revisit them.
+    $otherCompany = Company::factory()->create();
+    $leavesPool->update(['company_id' => $otherCompany->id]);
+
+    MatchCandidatesToVacancy::dispatchSync($this->vacancy->id);
+
+    expect(VacancyCandidateMatch::where('vacancy_id', $this->vacancy->id)->where('candidate_id', $staysInPool->id)->exists())->toBeTrue();
+    expect(VacancyCandidateMatch::where('vacancy_id', $this->vacancy->id)->where('candidate_id', $leavesPool->id)->exists())->toBeFalse();
 });
 
 test('a candidate with no scoreable signal at all is skipped rather than given a match row', function () {
@@ -87,16 +141,17 @@ test('matching does not touch the vacancy_applications table at all', function (
 test('running the match again updates existing scores instead of duplicating rows', function () {
     $skillA = CandidateSkill::factory()->create(['company_id' => $this->company->id]);
     $skillB = CandidateSkill::factory()->create(['company_id' => $this->company->id]);
-    $this->vacancy->skills()->attach([$skillA->id, $skillB->id]);
+    $skillC = CandidateSkill::factory()->create(['company_id' => $this->company->id]);
+    $this->vacancy->skills()->attach([$skillA->id, $skillB->id, $skillC->id]);
 
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
-    $candidate->skills()->attach($skillA->id);
+    $candidate->skills()->attach([$skillA->id, $skillB->id]);
 
     MatchCandidatesToVacancy::dispatchSync($this->vacancy->id);
     expect(VacancyCandidateMatch::where('vacancy_id', $this->vacancy->id)->count())->toBe(1);
-    expect(VacancyCandidateMatch::where('candidate_id', $candidate->id)->value('score'))->toBe(50);
+    expect(VacancyCandidateMatch::where('candidate_id', $candidate->id)->value('score'))->toBe(67);
 
-    $candidate->skills()->attach($skillB->id);
+    $candidate->skills()->attach($skillC->id);
     MatchCandidatesToVacancy::dispatchSync($this->vacancy->id);
 
     expect(VacancyCandidateMatch::where('vacancy_id', $this->vacancy->id)->count())->toBe(1);

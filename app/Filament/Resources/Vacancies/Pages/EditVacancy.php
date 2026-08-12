@@ -23,7 +23,7 @@ class EditVacancy extends EditRecord
                 ->icon('heroicon-o-sparkles')
                 ->color('gray')
                 ->requiresConfirmation()
-                ->modalDescription('This re-scores every candidate in your pool against this vacancy in the background. Existing matches are refreshed, not duplicated.')
+                ->modalDescription('This re-scores every candidate in your pool against this vacancy in the background. Existing matches are cleared and replaced with the new results.')
                 ->action(function (): void {
                     MatchCandidatesToVacancy::dispatch($this->record->id)->afterCommit();
 

@@ -250,6 +250,74 @@ test('the matches widget shows an empty state when nothing has been matched yet'
         ->assertSee('No matches yet');
 });
 
+test('a matched candidate can be added to the shortlist from the matches widget', function () {
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+    ]);
+
+    $matchedCandidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Jane',
+        'last_name' => 'Doe',
+    ]);
+
+    $match = VacancyCandidateMatch::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $matchedCandidate->id,
+        'score' => 82,
+    ]);
+
+    Livewire::test(VacancyMatchesTable::class, ['record' => $vacancy])
+        ->callTableAction('addToShortlist', $match);
+
+    $application = VacancyApplication::where('vacancy_id', $vacancy->id)
+        ->where('candidate_id', $matchedCandidate->id)
+        ->first();
+
+    expect($application)->not->toBeNull()
+        ->and($application->isShortlisted())->toBeTrue()
+        ->and($application->match_strength)->toBe(82);
+
+    expect($vacancy->activities()->where('note', 'Shortlisted: Jane Doe')->exists())->toBeTrue();
+
+    Livewire::test(VacancyMatchesTable::class, ['record' => $vacancy])
+        ->assertTableActionHidden('addToShortlist', $match);
+});
+
+test('shortlisting a match who already applied shortlists their existing application instead of duplicating it', function () {
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+    ]);
+
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+
+    $application = VacancyApplication::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+    ]);
+
+    $match = VacancyCandidateMatch::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'score' => 90,
+    ]);
+
+    Livewire::test(VacancyMatchesTable::class, ['record' => $vacancy])
+        ->callTableAction('addToShortlist', $match);
+
+    expect(VacancyApplication::where('vacancy_id', $vacancy->id)->where('candidate_id', $candidate->id)->count())->toBe(1);
+    expect($application->refresh()->isShortlisted())->toBeTrue();
+});
+
 test('the applicants widget lists candidates who applied to the vacancy, with a link to their profile', function () {
     $vacancy = Vacancy::factory()->create([
         'company_id' => $this->company->id,
