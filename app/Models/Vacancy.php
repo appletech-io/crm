@@ -35,6 +35,7 @@ class Vacancy extends Model
             'salary_min' => Money::class,
             'salary_max' => Money::class,
             'positions_available' => 'integer',
+            'placement_fee_percentage' => 'float',
             'open_for_applications' => 'boolean',
             'filled_at' => 'datetime',
         ];
@@ -117,6 +118,35 @@ class Vacancy extends Model
     public function matches(): HasMany
     {
         return $this->hasMany(VacancyCandidateMatch::class)->orderByDesc('score');
+    }
+
+    /**
+     * A rough placement-fee estimate for this vacancy, used to give the
+     * client's Pipeline tab a sense of deal size — the midpoint of the
+     * salary range (or whichever bound is set) times the fee percentage,
+     * times how many positions are open. Returns null rather than a
+     * misleading £0 when the salary or fee percentage isn't set yet, or
+     * when a partial fill can't be accounted for (there's no per-position
+     * fill tracking, so this always assumes every position is still open).
+     */
+    public function estimatedPlacementValue(): ?float
+    {
+        if ($this->placement_fee_percentage === null) {
+            return null;
+        }
+
+        $salary = match (true) {
+            $this->salary_min !== null && $this->salary_max !== null => ($this->salary_min + $this->salary_max) / 2,
+            $this->salary_min !== null => $this->salary_min,
+            $this->salary_max !== null => $this->salary_max,
+            default => null,
+        };
+
+        if ($salary === null) {
+            return null;
+        }
+
+        return $salary * ($this->placement_fee_percentage / 100) * $this->positions_available;
     }
 
     public function scopeVisibleToCurrentUser(Builder $query): Builder

@@ -103,6 +103,15 @@ class VacancyForm
                                             ->default(1)
                                             ->required(),
 
+                                        TextInput::make('placement_fee_percentage')
+                                            ->label('Placement Fee %')
+                                            ->helperText('Used to estimate this job\'s value on the client\'s Pipeline tab.')
+                                            ->numeric()
+                                            ->minValue(0)
+                                            ->maxValue(100)
+                                            ->step(0.5)
+                                            ->suffix('%'),
+
                                         Select::make('job_status_id')
                                             ->label('Status')
                                             ->options(fn (): array => JobStatus::query()

@@ -83,6 +83,29 @@ test('can create a vacancy for a client with the required fields', function () {
         ->and($vacancy->job_status_id)->toBe($this->jobStatus->id);
 });
 
+test('the placement fee percentage saves on create and can be updated on edit', function () {
+    Livewire::test(CreateVacancy::class)
+        ->fillForm([
+            'client_id' => $this->client->id,
+            'job_title_id' => $this->jobTitle->id,
+            'job_status_id' => $this->jobStatus->id,
+            'title' => 'Year 3 Class Teacher',
+            'placement_fee_percentage' => 15,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $vacancy = Vacancy::where('title', 'Year 3 Class Teacher')->first();
+    expect($vacancy->placement_fee_percentage)->toBe(15.0);
+
+    Livewire::test(EditVacancy::class, ['record' => $vacancy->getRouteKey()])
+        ->fillForm(['placement_fee_percentage' => 20])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($vacancy->refresh()->placement_fee_percentage)->toBe(20.0);
+});
+
 test('creating a vacancy stamps the consultant_id to the creating user', function () {
     Livewire::test(CreateVacancy::class)
         ->fillForm([

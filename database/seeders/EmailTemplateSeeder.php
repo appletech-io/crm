@@ -40,6 +40,10 @@ class EmailTemplateSeeder extends Seeder
                 'subject' => 'Reference request for {candidate_name}',
                 'body' => '<p>Dear {referee_name},</p><p>{candidate_name} has listed you as a reference as part of their application with Applebough Education Recruitment. Please complete the short reference form using the link below by {expiry_date}.</p><p>{reference_link}</p><p>Thank you for your time.</p><p>Best wishes,<br>The Applebough Team</p>',
             ],
+            EmailTemplateType::ClientPortalWelcome->value => [
+                'subject' => 'Your Applebough client portal login',
+                'body' => '<p>Dear {client_contact_name},</p><p>We\'ve set up a client portal account for you at {client_name}. You can use it to review bookings, confirm timesheets and more.</p><p>Email: {portal_email}<br>Temporary password: {temporary_password}</p><p>You\'ll be asked to choose a new password the first time you log in.</p><p>{portal_link}</p><p>Best wishes,<br>The Applebough Team</p>',
+            ],
         ];
 
         foreach ($templates as $typeValue => $content) {

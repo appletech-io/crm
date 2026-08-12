@@ -104,11 +104,13 @@ class ConditionsRepeaterField
         return match ($type) {
             'boolean' => [
                 'filled' => 'Is filled',
+                'blank' => 'Is blank',
                 'equals' => 'Equals',
                 'not_equals' => 'Does not equal',
             ],
             'date', 'datetime' => [
                 'filled' => 'Is filled',
+                'blank' => 'Is blank',
                 'equals' => 'Equals',
                 'not_equals' => 'Does not equal',
                 'before' => 'Before',
@@ -118,14 +120,17 @@ class ConditionsRepeaterField
             ],
             'relation_exists' => [
                 'filled' => 'Is filled',
+                'blank' => 'Is blank',
             ],
             'select' => [
                 'filled' => 'Is filled',
+                'blank' => 'Is blank',
                 'equals' => 'Equals',
                 'not_equals' => 'Does not equal',
             ],
             default => [
                 'filled' => 'Is filled',
+                'blank' => 'Is blank',
                 'equals' => 'Equals',
                 'not_equals' => 'Does not equal',
                 'contains' => 'Contains',
@@ -142,7 +147,7 @@ class ConditionsRepeaterField
      */
     public static function valueKind(array $suggestions, ?string $field, ?string $operator): ?string
     {
-        if (blank($operator) || $operator === 'filled') {
+        if (blank($operator) || in_array($operator, ['filled', 'blank'], true)) {
             return null;
         }
 
@@ -190,6 +195,7 @@ class ConditionsRepeaterField
             'after' => "{$label} after {$value}",
             'days_since_at_least' => "{$label} at least {$value} days ago",
             'days_until_at_most' => "{$label} at most {$value} days away",
+            'blank' => "{$label} is blank",
             default => "{$label} is filled",
         };
     }

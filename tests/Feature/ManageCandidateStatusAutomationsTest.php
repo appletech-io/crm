@@ -52,6 +52,37 @@ test('can create an automation with a filled condition from the suggestion list'
     ]);
 });
 
+test('can create an automation with a blank condition and no value needed', function () {
+    $onboarding = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Onboarding',
+    ]);
+
+    $vetting = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Vetting',
+    ]);
+
+    Livewire::test(ManageCandidateStatusAutomations::class)
+        ->callAction('create', data: [
+            'candidate_status_id' => $onboarding->id,
+            'to_candidate_status_id' => $vetting->id,
+            'conditions' => [
+                'item-1' => ['field' => 'application.completed_at', 'operator' => 'blank'],
+            ],
+        ])
+        ->assertHasNoActionErrors();
+
+    $automation = CandidateStatusAutomation::where('candidate_status_id', $onboarding->id)->first();
+
+    expect($automation)->not->toBeNull();
+    expect($automation->conditions)->toBe([
+        ['field' => 'application.completed_at', 'operator' => 'blank'],
+    ]);
+});
+
 test('can create an automation with an equals condition and a value', function () {
     $onboarding = CandidateStatus::factory()->create([
         'company_id' => $this->user->company_id,
@@ -191,6 +222,45 @@ test('can create an automation with a deleted_at condition from the suggestion l
     expect($automation->conditions)->toBe([
         ['field' => 'deleted_at', 'operator' => 'filled'],
     ]);
+});
+
+test('a second automation for the same from/to pair is added as its own row, not merged into the first', function () {
+    $live = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Live',
+    ]);
+
+    $offline = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Offline',
+    ]);
+
+    Livewire::test(ManageCandidateStatusAutomations::class)
+        ->callAction('create', data: [
+            'candidate_status_id' => $live->id,
+            'to_candidate_status_id' => $offline->id,
+            'conditions' => [
+                'item-1' => ['field' => 'dbs_expiry_date', 'operator' => 'before', 'value' => now()->toDateString()],
+            ],
+        ])
+        ->assertHasNoActionErrors()
+        ->callAction('create', data: [
+            'candidate_status_id' => $live->id,
+            'to_candidate_status_id' => $offline->id,
+            'conditions' => [
+                'item-1' => ['field' => 'right_to_work_expiry_date', 'operator' => 'before', 'value' => now()->toDateString()],
+            ],
+        ])
+        ->assertHasNoActionErrors();
+
+    $automations = CandidateStatusAutomation::where('candidate_status_id', $live->id)
+        ->where('to_candidate_status_id', $offline->id)
+        ->get();
+
+    expect($automations)->toHaveCount(2);
+    expect($automations->pluck('conditions.0.field')->all())->toBe(['dbs_expiry_date', 'right_to_work_expiry_date']);
 });
 
 test('cannot create an automation with a field that is not in the suggestion list', function () {
