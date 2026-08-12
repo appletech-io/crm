@@ -123,6 +123,12 @@ class EducationCandidateForm
                                                     ->maxLength(255),
                                                 TextInput::make('previous_surname')
                                                     ->maxLength(255),
+                                                TextInput::make('ni_number')
+                                                    ->label('NI Number')
+                                                    ->rule('regex:/^[A-Za-z]{2}[0-9]{6}[A-Za-z]$/')
+                                                    ->validationMessages([
+                                                        'regex' => 'Please enter a valid National Insurance number (e.g. QQ123456C).',
+                                                    ]),
                                                 Select::make('gender')
                                                     ->options([
                                                         'male' => 'Male',

@@ -37,28 +37,8 @@ class CheckActions
 
                 if ($isSatisfied && ! $openTrigger) {
                     $this->fireAction($action, $record);
-
-                    return;
-                }
-
-                if ((! $isSatisfied) && $openTrigger) {
-                    $this->resolveTrigger($openTrigger);
                 }
             });
-    }
-
-    /**
-     * Resolving a trigger means whatever it flagged is no longer true, so the
-     * todos it created are done too — without touching one someone already
-     * completed themselves.
-     */
-    private function resolveTrigger(ActionTrigger $trigger): void
-    {
-        $trigger->update(['resolved_at' => now()]);
-
-        $trigger->todoItems
-            ->reject(fn (TodoItem $todoItem): bool => $todoItem->isComplete())
-            ->each(fn (TodoItem $todoItem) => $todoItem->update(['completed_at' => now()]));
     }
 
     /**

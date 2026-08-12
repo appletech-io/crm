@@ -21,6 +21,23 @@ trait HasActivityTimeline
         $this->record = $record;
     }
 
+    /**
+     * The subset of ActivityType a "Log Activity" modal offers, since not
+     * every type makes sense on every record (e.g. a BDM Call belongs on a
+     * client, not a candidate). Override per-widget to add to this default.
+     *
+     * @return array<int, ActivityType>
+     */
+    protected static function loggableTypes(): array
+    {
+        return [
+            ActivityType::Call,
+            ActivityType::Note,
+            ActivityType::Meeting,
+            ActivityType::Other,
+        ];
+    }
+
     public function table(Table $table): Table
     {
         return $table
@@ -93,12 +110,10 @@ trait HasActivityTimeline
                     ->modalWidth('md')
                     ->schema([
                         Select::make('type')
-                            ->options([
-                                ActivityType::Call->value => ActivityType::Call->label(),
-                                ActivityType::Note->value => ActivityType::Note->label(),
-                                ActivityType::Meeting->value => ActivityType::Meeting->label(),
-                                ActivityType::Other->value => ActivityType::Other->label(),
-                            ])
+                            ->options(collect(static::loggableTypes())
+                                ->mapWithKeys(fn (ActivityType $type): array => [$type->value => $type->label()])
+                                ->toArray()
+                            )
                             ->required(),
                         TextInput::make('note')
                             ->required()

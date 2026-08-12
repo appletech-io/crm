@@ -113,7 +113,13 @@ test('does not fire again for the same record once already triggered', function 
     expect(TodoItem::count())->toBe(1);
 });
 
-test('closes the open trigger once the condition is no longer satisfied', function () {
+test('the trigger and its todo stay open once the condition is no longer satisfied', function () {
+    // Auto-resolving was removed deliberately: a candidate going Live ->
+    // Offline was clearing a safeguarding-expiry trigger (and completing its
+    // todo) purely because the "Live" half of the condition stopped
+    // matching, even though the safeguarding issue itself was still
+    // unresolved. Once a todo exists, it's left for a person to action or
+    // complete themselves — see CheckActions::handle().
     $client = Client::factory()->create([
         'company_id' => $this->company->id,
         'industry_id' => $this->industry->id,
@@ -138,41 +144,12 @@ test('closes the open trigger once the condition is no longer satisfied', functi
     $client->update(['notes' => null]);
     CheckActions::run($client);
 
-    expect($trigger->refresh()->isOpen())->toBeFalse()
+    expect($trigger->refresh()->isOpen())->toBeTrue()
         ->and(TodoItem::count())->toBe(1)
-        ->and($trigger->todoItems->first()->refresh()->isComplete())->toBeTrue();
+        ->and($trigger->todoItems->first()->refresh()->isComplete())->toBeFalse();
 });
 
-test('does not overwrite a todo the consultant already completed themselves when resolving', function () {
-    $client = Client::factory()->create([
-        'company_id' => $this->company->id,
-        'industry_id' => $this->industry->id,
-        'consultant_id' => $this->consultant->id,
-        'notes' => 'Needs a follow up call',
-    ]);
-
-    $action = Action::factory()->create([
-        'company_id' => $this->company->id,
-        'industry_id' => $this->industry->id,
-        'model_type' => Client::class,
-        'conditions' => [
-            ['field' => 'notes', 'operator' => 'filled'],
-        ],
-    ]);
-
-    CheckActions::run($client);
-
-    $trigger = ActionTrigger::where('action_id', $action->id)->where('model_id', $client->id)->first();
-    $completedAt = now()->subDays(3);
-    $trigger->todoItems->first()->update(['completed_at' => $completedAt]);
-
-    $client->update(['notes' => null]);
-    CheckActions::run($client);
-
-    expect($trigger->todoItems->first()->refresh()->completed_at->toDateTimeString())->toBe($completedAt->toDateTimeString());
-});
-
-test('fires again as a new occurrence once the condition becomes true again after resolving', function () {
+test('does not fire again even after the condition clears and becomes true again later, since nothing resolves the trigger anymore', function () {
     $client = Client::factory()->create([
         'company_id' => $this->company->id,
         'industry_id' => $this->industry->id,
@@ -192,20 +169,20 @@ test('fires again as a new occurrence once the condition becomes true again afte
     // First occurrence.
     CheckActions::run($client);
 
-    // Notes get cleared — the trigger resolves, no new todo yet.
+    // Notes get cleared — condition no longer met, but the trigger is left open.
     $client->update(['notes' => null]);
     CheckActions::run($client);
 
-    // Notes get filled in again months later — a fresh occurrence.
+    // Notes get filled in again months later — still the same open trigger,
+    // so this is not treated as a fresh occurrence.
     $client->update(['notes' => 'Needs another follow up call']);
     CheckActions::run($client);
 
-    expect(TodoItem::count())->toBe(2);
+    expect(TodoItem::count())->toBe(1);
 
-    $triggers = ActionTrigger::where('action_id', $action->id)->where('model_id', $client->id)->orderBy('id')->get();
-    expect($triggers)->toHaveCount(2)
-        ->and($triggers->first()->isOpen())->toBeFalse()
-        ->and($triggers->last()->isOpen())->toBeTrue();
+    $triggers = ActionTrigger::where('action_id', $action->id)->where('model_id', $client->id)->get();
+    expect($triggers)->toHaveCount(1)
+        ->and($triggers->first()->isOpen())->toBeTrue();
 });
 
 test('does not create a todo when the record has no consultant', function () {
@@ -722,7 +699,7 @@ test('a role-based action with nobody in the matching role does not create a tri
     expect(TodoItem::where('user_id', $compliance->id)->exists())->toBeTrue();
 });
 
-test('resolving a role-based trigger completes every todo it created', function () {
+test('a role-based triggers todos stay open too once the condition is no longer satisfied', function () {
     $this->seed(RoleSeeder::class);
 
     $compliance1 = User::factory()->create(['company_id' => $this->company->id]);
@@ -757,8 +734,8 @@ test('resolving a role-based trigger completes every todo it created', function 
     $client->update(['notes' => null]);
     CheckActions::run($client);
 
-    expect($trigger->refresh()->isOpen())->toBeFalse();
-    expect($trigger->todoItems->every(fn (TodoItem $todoItem) => $todoItem->refresh()->isComplete()))->toBeTrue();
+    expect($trigger->refresh()->isOpen())->toBeTrue();
+    expect($trigger->todoItems->every(fn (TodoItem $todoItem) => ! $todoItem->refresh()->isComplete()))->toBeTrue();
 });
 
 function makeActionEmailTemplate(string $companyId, string $industryId, string $audience): EmailTemplate
