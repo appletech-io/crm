@@ -2,16 +2,19 @@
 
 namespace App\Filament\Widgets;
 
+use App\Enums\ActivityType;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Filament\Resources\HealthcareCandidates\HealthcareCandidateResource;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use App\Models\Vacancy;
+use App\Models\VacancyApplication;
 use App\Models\VacancyCandidateMatch;
 use Filament\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
+use Illuminate\Support\Facades\Auth;
 
 class VacancyMatchesTable extends TableWidget
 {
@@ -53,6 +56,30 @@ class VacancyMatchesTable extends TableWidget
                     ->sortable(),
             ])
             ->recordActions([
+                Action::make('addToShortlist')
+                    ->label('Add to Shortlist')
+                    ->icon('heroicon-o-star')
+                    ->color('gray')
+                    ->visible(fn (VacancyCandidateMatch $record): bool => ! $this->isShortlisted($record))
+                    ->action(function (VacancyCandidateMatch $record): void {
+                        VacancyApplication::updateOrCreate([
+                            'vacancy_id' => $this->record->id,
+                            'candidate_type' => $record->candidate_type,
+                            'candidate_id' => $record->candidate_id,
+                        ], [
+                            'match_strength' => $record->score,
+                            'shortlisted_at' => now(),
+                        ]);
+
+                        $candidateName = trim("{$record->candidate?->first_name} {$record->candidate?->last_name}") ?: 'Candidate';
+
+                        $this->record->activities()->create([
+                            'user_id' => Auth::id(),
+                            'type' => ActivityType::Note->value,
+                            'note' => "Shortlisted: {$candidateName}",
+                            'contacted' => false,
+                        ]);
+                    }),
                 Action::make('viewCandidate')
                     ->label('View')
                     ->icon('heroicon-o-eye')
@@ -67,5 +94,15 @@ class VacancyMatchesTable extends TableWidget
             ])
             ->emptyStateHeading('No matches yet')
             ->emptyStateDescription('Run a match from this vacancy\'s edit page to rank your candidate pool against it.');
+    }
+
+    private function isShortlisted(VacancyCandidateMatch $record): bool
+    {
+        return VacancyApplication::query()
+            ->where('vacancy_id', $this->record->id)
+            ->where('candidate_type', $record->candidate_type)
+            ->where('candidate_id', $record->candidate_id)
+            ->whereNotNull('shortlisted_at')
+            ->exists();
     }
 }
