@@ -2,7 +2,9 @@
 
 namespace App\Filament\Widgets;
 
+use App\Enums\DocumentType;
 use App\Filament\Concerns\HasAdditionalDocuments;
+use App\Jobs\GenerateFormattedCv;
 use App\Services\Candidates\CandidateDocumentRequirements;
 use App\Services\Candidates\Document;
 use Filament\Actions\Action;
@@ -134,8 +136,9 @@ class CandidateDocumentManager extends TableWidget
         if ($existing) {
             Storage::disk(config('filesystems.default'))->delete($existing->path);
             $existing->update(['path' => $path]);
+            $document = $existing;
         } else {
-            $this->record->documents()->create([
+            $document = $this->record->documents()->create([
                 'document_type' => $documentType,
                 'path' => $path,
             ]);
@@ -143,6 +146,10 @@ class CandidateDocumentManager extends TableWidget
 
         if (in_array($documentType, ['dbs_front', 'dbs_back'], true) && $this->record->has_dbs !== 'yes') {
             $this->record->update(['has_dbs' => 'yes']);
+        }
+
+        if ($documentType === DocumentType::Cv->value) {
+            GenerateFormattedCv::dispatch($this->record, $document);
         }
 
         $this->resetTable();

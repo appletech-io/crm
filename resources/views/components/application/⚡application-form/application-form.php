@@ -6,6 +6,7 @@ use App\Enums\Education\Availability;
 use App\Enums\Education\KeyStage;
 use App\Enums\ReferenceStatus;
 use App\Enums\ReferenceType;
+use App\Jobs\GenerateFormattedCv;
 use App\Models\CandidateSkill;
 use App\Models\EducationApplication;
 use App\Models\EducationCandidate;
@@ -323,10 +324,12 @@ new #[Layout('layouts.application')] class extends Component
         ]);
 
         $documentPath = Document::upload($this->cv, $this->application->educationCandidate, 'cv');
-        $this->application->educationCandidate->documents()->updateOrCreate(
+        $cvDocument = $this->application->educationCandidate->documents()->updateOrCreate(
             ['document_type' => DocumentType::Cv],
             ['path' => $documentPath],
         );
+
+        GenerateFormattedCv::dispatch($this->application->educationCandidate, $cvDocument);
 
         $localPath = 'cv-uploads/'.$this->application->id.'.'.pathinfo($documentPath, PATHINFO_EXTENSION);
         Storage::disk('local')->put($localPath, Storage::readStream($documentPath));

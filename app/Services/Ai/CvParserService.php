@@ -40,6 +40,7 @@ class CvParserService
         $extraction->educationAndQualification = $response['educationAndQualification'] ?? null;
         $extraction->summary = $response['summary'] ?? null;
         $extraction->skills = $response['skills'] ?? null;
+        $extraction->bodyHtml = $response['bodyHtml'] ?? null;
 
         return $extraction;
     }

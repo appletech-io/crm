@@ -2,7 +2,9 @@
 
 namespace App\Filament\EducationCandidate\Pages;
 
+use App\Enums\DocumentType;
 use App\Filament\Concerns\HasAdditionalDocuments;
+use App\Jobs\GenerateFormattedCv;
 use App\Services\Candidates\CandidateDocumentRequirements;
 use App\Services\Candidates\Document;
 use Filament\Actions\Action;
@@ -180,8 +182,9 @@ class Documents extends Page implements HasTable
         if ($existing) {
             Storage::disk(config('filesystems.default'))->delete($existing->path);
             $existing->update(['path' => $path]);
+            $document = $existing;
         } else {
-            $candidate->documents()->create([
+            $document = $candidate->documents()->create([
                 'document_type' => $documentType,
                 'path' => $path,
             ]);
@@ -189,6 +192,10 @@ class Documents extends Page implements HasTable
 
         if (in_array($documentType, ['dbs_front', 'dbs_back'], true) && $candidate->has_dbs !== 'yes') {
             $candidate->update(['has_dbs' => 'yes']);
+        }
+
+        if ($documentType === DocumentType::Cv->value) {
+            GenerateFormattedCv::dispatch($candidate, $document);
         }
 
         $this->resetTable();

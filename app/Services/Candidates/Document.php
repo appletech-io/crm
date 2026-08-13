@@ -60,6 +60,22 @@ class Document
         return $path;
     }
 
+    /**
+     * Same as putGenerated(), but written to the same disk documents are
+     * actually served from ({@see self::viewUrl()} /
+     * CandidateDocumentController, both read config('filesystems.default'))
+     * — for a generated file that needs to be viewable by link, not just
+     * attached to an email that's sent immediately after being built.
+     */
+    public static function putGeneratedViewable(string $contents, Model $candidate, string $filename, string $subdirectory): string
+    {
+        $path = self::directoryFor($candidate)."/{$subdirectory}/{$filename}";
+
+        Storage::disk(config('filesystems.default'))->put($path, $contents);
+
+        return $path;
+    }
+
     private static function directoryFor(Model $candidate): string
     {
         $companyName = Str::slug($candidate->company?->name) ?: $candidate->company_id;

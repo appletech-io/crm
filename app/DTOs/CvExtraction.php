@@ -40,4 +40,7 @@ class CvExtraction
     public ?string $summary = null;
 
     public ?string $skills = null;
+
+    /** The full CV content reproduced as HTML, with contact details omitted — see App\Ai\Agents\CvParser. */
+    public ?string $bodyHtml = null;
 }

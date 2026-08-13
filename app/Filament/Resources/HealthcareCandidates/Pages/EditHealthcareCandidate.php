@@ -7,6 +7,7 @@ use App\Filament\Resources\HealthcareCandidates\HealthcareCandidateResource;
 use App\Filament\Resources\HealthcareCandidates\Pages\Concerns\HasCandidateStatusSubheading;
 use App\Filament\Support\ChangeCandidateStatusAction;
 use App\Filament\Support\SendCustomEmailAction;
+use App\Services\Candidates\FormattedCvGenerator;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
@@ -32,6 +33,23 @@ class EditHealthcareCandidate extends EditRecord
             ForceDeleteAction::make(),
             RestoreAction::make(),
         ];
+    }
+
+    /**
+     * Keeps the formatted CV's PDF preview in sync with hand edits made on
+     * the Formatted CV tab — the RichEditor content saves like any other
+     * field, but the PDF artifact needs an explicit re-render to match.
+     * Always re-rendering (rather than checking wasChanged()) sidesteps
+     * whether the relation Filament just saved is the same in-memory
+     * instance accessed here — the render itself is cheap (no AI call).
+     */
+    protected function afterSave(): void
+    {
+        $formattedCv = $this->record->formattedCv()->first();
+
+        if ($formattedCv && filled($formattedCv->content)) {
+            app(FormattedCvGenerator::class)->regeneratePdf($this->record, $formattedCv);
+        }
     }
 
     public function getTitle(): string|Htmlable
