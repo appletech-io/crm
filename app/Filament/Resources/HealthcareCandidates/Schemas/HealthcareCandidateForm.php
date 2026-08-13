@@ -441,6 +441,7 @@ class HealthcareCandidateForm
                                     ->schema([
                                         RichEditor::make('content')
                                             ->hiddenLabel()
+                                            ->extraAttributes(['class' => 'formatted-cv-editor'])
                                             ->columnSpanFull(),
                                     ]),
 
