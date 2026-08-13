@@ -5,6 +5,7 @@ use App\Models\HealthcareCandidate;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -13,6 +14,48 @@ beforeEach(function () {
     $this->user->assignRole('admin');
     $this->actingAs($this->user);
     Cache::put("user.{$this->user->id}.active_industry", 'healthcare');
+});
+
+test('the formatted CV content can be edited and saved from its tab', function () {
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $candidate->formattedCv()->create(['content' => '<p>Original content</p>']);
+
+    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm([
+            'formattedCv' => ['content' => '<p>Edited content</p>'],
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($candidate->formattedCv()->first()->content)->toBe('<p>Edited content</p>');
+});
+
+test('saving the candidate form regenerates the formatted CV pdf from the saved content', function () {
+    Storage::fake('local');
+
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    Storage::disk('local')->put('test-cvs/cv.pdf', 'fake pdf');
+    $candidate->documents()->create(['document_type' => 'cv', 'path' => 'test-cvs/cv.pdf']);
+    $candidate->formattedCv()->create(['content' => '<p>Some content</p>']);
+
+    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm([
+            'formattedCv' => ['content' => '<p>Some content</p>'],
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $pdfPath = $candidate->formattedCv()->first()->pdf_path;
+
+    expect($pdfPath)->not->toBeNull();
+    Storage::disk('local')->assertExists($pdfPath);
+});
+
+test('the documents tab renders for a healthcare candidate', function () {
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful();
 });
 
 test('an NI number can be saved on the personal details tab', function () {

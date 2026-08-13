@@ -7,6 +7,7 @@ use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -64,6 +65,41 @@ test('an invalid NI number is rejected on the personal details tab', function ()
         ->fillForm(['ni_number' => 'not-a-real-ni-number'])
         ->call('save')
         ->assertHasFormErrors(['ni_number' => 'regex']);
+});
+
+test('the formatted CV content can be edited and saved from its tab', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+    $candidate->formattedCv()->create(['content' => '<p>Original content</p>']);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm([
+            'formattedCv' => ['content' => '<p>Edited content</p>'],
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($candidate->formattedCv()->first()->content)->toBe('<p>Edited content</p>');
+});
+
+test('saving the candidate form regenerates the formatted CV pdf from the saved content', function () {
+    Storage::fake('local');
+
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+    Storage::disk('local')->put('test-cvs/cv.pdf', 'fake pdf');
+    $candidate->documents()->create(['document_type' => 'cv', 'path' => 'test-cvs/cv.pdf']);
+    $candidate->formattedCv()->create(['content' => '<p>Some content</p>']);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm([
+            'formattedCv' => ['content' => '<p>Some content</p>'],
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $pdfPath = $candidate->formattedCv()->first()->pdf_path;
+
+    expect($pdfPath)->not->toBeNull();
+    Storage::disk('local')->assertExists($pdfPath);
 });
 
 test('a UK landline number is accepted in the phone field', function () {

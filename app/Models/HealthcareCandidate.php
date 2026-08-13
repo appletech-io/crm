@@ -120,6 +120,11 @@ class HealthcareCandidate extends Model
         return $this->morphMany(CandidateDocument::class, 'candidate');
     }
 
+    public function formattedCv(): MorphOne
+    {
+        return $this->morphOne(FormattedCv::class, 'candidate');
+    }
+
     public function statuses(): MorphMany
     {
         return $this->morphMany(CandidateCandidateStatus::class, 'model')->latest();

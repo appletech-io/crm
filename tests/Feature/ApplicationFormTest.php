@@ -5,6 +5,7 @@ use App\Ai\Agents\CvParser;
 use App\Enums\DocumentType;
 use App\Enums\ReferenceStatus;
 use App\Enums\ReferenceType;
+use App\Jobs\GenerateFormattedCv;
 use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
 use App\Models\CandidateStatusAutomation;
@@ -18,6 +19,7 @@ use App\Services\ApplicationAccessSession;
 use Carbon\CarbonInterface;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -29,6 +31,10 @@ beforeEach(function () {
     Storage::fake('local');
     Industry::factory()->create(['name' => 'Education', 'slug' => 'education']);
     $this->seed(RoleSeeder::class);
+    // Uploading a CV synchronously dispatches formatted-CV generation (real
+    // AI call) — faked by default so tests unrelated to that feature don't
+    // need to know about it.
+    Bus::fake();
 });
 
 function makePendingApplication(): EducationApplication
@@ -232,6 +238,23 @@ test('parseCv populates fields and advances to step 2', function () {
 
     expect($application->fresh()->current_step)->toBe(2);
     expect($application->fresh()->cv_parsed_data)->not->toBeEmpty();
+});
+
+test('parseCv dispatches formatted CV generation once the CV is uploaded', function () {
+    CvParser::fake(fn () => ['firstName' => 'Jane', 'lastName' => 'Doe']);
+
+    $application = makePendingApplication();
+    $file = UploadedFile::fake()->create('cv.pdf', 200, 'application/pdf');
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('cv', $file)
+        ->call('parseCv')
+        ->assertHasNoErrors();
+
+    Bus::assertDispatched(
+        GenerateFormattedCv::class,
+        fn (GenerateFormattedCv $job): bool => $job->candidate->is($application->fresh()->educationCandidate)
+    );
 });
 
 test('parseCv advances to step 2 with error message when parsing fails', function () {

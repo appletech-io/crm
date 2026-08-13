@@ -1,11 +1,14 @@
 <?php
 
 use App\Filament\Widgets\CandidateDocumentManager;
+use App\Jobs\GenerateFormattedCv;
 use App\Models\EducationCandidate;
+use App\Models\HealthcareCandidate;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Filament\Actions\Testing\TestAction;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -13,6 +16,10 @@ use Livewire\Livewire;
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
     Storage::fake('local');
+    // Uploading a CV synchronously dispatches formatted-CV generation (real
+    // AI call) — faked by default so tests unrelated to that feature don't
+    // need to know about it; the tests that do care fake it again anyway.
+    Bus::fake();
 
     $this->user = User::factory()->create();
     $this->actingAs($this->user);
@@ -85,6 +92,46 @@ test('a document can be uploaded', function () {
 
     expect($document)->not->toBeNull();
     Storage::disk('local')->assertExists($document->path);
+});
+
+test('uploading a CV dispatches formatted CV generation', function () {
+    Bus::fake();
+
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $file = UploadedFile::fake()->create('cv.pdf', 100, 'application/pdf');
+
+    Livewire::test(CandidateDocumentManager::class, ['record' => $candidate])
+        ->callAction(TestAction::make('upload')->table(record: 'cv'), data: ['file' => $file])
+        ->assertHasNoActionErrors();
+
+    Bus::assertDispatched(GenerateFormattedCv::class, fn (GenerateFormattedCv $job): bool => $job->candidate->is($candidate->fresh()));
+});
+
+test('uploading a non-CV document does not dispatch formatted CV generation', function () {
+    Bus::fake();
+
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $file = UploadedFile::fake()->create('photo.jpg', 100, 'image/jpeg');
+
+    Livewire::test(CandidateDocumentManager::class, ['record' => $candidate])
+        ->callAction(TestAction::make('upload')->table(record: 'photo'), data: ['file' => $file])
+        ->assertHasNoActionErrors();
+
+    Bus::assertNotDispatched(GenerateFormattedCv::class);
+});
+
+test('a healthcare candidate can also upload a CV via the same widget, dispatching formatted CV generation', function () {
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $file = UploadedFile::fake()->create('cv.pdf', 100, 'application/pdf');
+
+    Livewire::test(CandidateDocumentManager::class, ['record' => $candidate])
+        ->callAction(TestAction::make('upload')->table(record: 'cv'), data: ['file' => $file])
+        ->assertHasNoActionErrors();
+
+    $document = $candidate->fresh()->documents()->where('document_type', 'cv')->first();
+    expect($document)->not->toBeNull();
+
+    Bus::assertDispatched(GenerateFormattedCv::class, fn (GenerateFormattedCv $job): bool => $job->candidate->is($candidate->fresh()));
 });
 
 test('the table reflects an upload immediately, without needing a fresh page load', function () {

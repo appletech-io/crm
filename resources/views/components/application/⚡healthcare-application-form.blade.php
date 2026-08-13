@@ -5,6 +5,7 @@ use App\Enums\DocumentType;
 use App\Enums\Education\Availability;
 use App\Enums\Healthcare\CareSetting;
 use App\Enums\ReferenceType;
+use App\Jobs\GenerateFormattedCv;
 use App\Models\CandidateSkill;
 use App\Models\HealthcareApplication;
 use App\Models\Industry;
@@ -165,10 +166,12 @@ new #[Layout('layouts.application')] class extends Component
         $candidate = $this->application->candidate;
         $path = Document::upload($this->cv, $candidate, 'cv');
 
-        $candidate->documents()->updateOrCreate(
+        $cvDocument = $candidate->documents()->updateOrCreate(
             ['document_type' => DocumentType::Cv->value],
             ['path' => $path],
         );
+
+        GenerateFormattedCv::dispatch($candidate, $cvDocument);
 
         $this->goToStep(2);
     }

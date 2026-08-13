@@ -14,6 +14,7 @@ use App\Filament\Resources\EducationVetting\VettingResource;
 use App\Filament\Widgets\CandidateActivityTimeline;
 use App\Filament\Widgets\CandidateAvailabilityCalendar;
 use App\Filament\Widgets\CandidateDocumentManager;
+use App\Jobs\GenerateFormattedCv;
 use App\Models\CandidateDocument;
 use App\Models\CandidateReference;
 use App\Models\CandidateSkill;
@@ -37,6 +38,7 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Html;
 use Filament\Schemas\Components\Image;
 use Filament\Schemas\Components\Livewire as LivewireComponent;
 use Filament\Schemas\Components\Section;
@@ -49,7 +51,9 @@ use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 
 class EducationCandidateForm
@@ -670,6 +674,51 @@ class EducationCandidateForm
                                 LivewireComponent::make(CandidateDocumentManager::class)
                                     ->key('candidate-document-manager')
                                     ->hidden(fn (?Model $record): bool => $record === null),
+                            ]),
+
+                        Tab::make('Formatted CV')
+                            ->hidden(fn (?Model $record): bool => $record === null)
+                            ->schema([
+                                Section::make('Formatted CV')
+                                    ->relationship('formattedCv')
+                                    ->schema([
+                                        RichEditor::make('content')
+                                            ->hiddenLabel()
+                                            ->columnSpanFull(),
+                                    ]),
+
+                                Html::make(fn (?EducationCandidate $record): HtmlString => new HtmlString(
+                                    $record?->formattedCv?->pdf_path
+                                        ? Blade::render(
+                                            <<<'BLADE'
+                                                <div class="flex flex-col gap-2">
+                                                    <embed src="{{ $url }}" type="application/pdf" class="h-[70vh] w-full rounded-lg border border-gray-200 dark:border-gray-700" />
+                                                    <a href="{{ $url }}" target="_blank" rel="noopener" class="text-sm text-primary-600 underline dark:text-primary-400">{{ __('Open formatted CV in a new tab') }}</a>
+                                                </div>
+                                                BLADE,
+                                            ['url' => Document::viewUrl($record->formattedCv->pdf_path)],
+                                        )
+                                        : '<p class="text-sm text-gray-500 dark:text-gray-400">No formatted CV yet — upload a CV on the Documents tab to generate one automatically.</p>'
+                                )),
+
+                                Actions::make([
+                                    Action::make('regenerateFormattedCv')
+                                        ->label('Regenerate from CV')
+                                        ->icon('heroicon-o-arrow-path')
+                                        ->color('gray')
+                                        ->visible(fn (?EducationCandidate $record): bool => $record?->documents->firstWhere('document_type', DocumentType::Cv) !== null)
+                                        ->action(function (?EducationCandidate $record): void {
+                                            $cvDocument = $record->documents->firstWhere('document_type', DocumentType::Cv);
+
+                                            GenerateFormattedCv::dispatch($record, $cvDocument);
+
+                                            Notification::make()
+                                                ->success()
+                                                ->title('Regenerating formatted CV')
+                                                ->body('The updated version will appear here shortly.')
+                                                ->send();
+                                        }),
+                                ])->columnSpanFull(),
                             ]),
 
                         Tab::make('Weekly Availability')

@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\EducationCandidate\Pages\Documents;
+use App\Jobs\GenerateFormattedCv;
 use App\Models\CandidateCandidateStatus;
 use App\Models\CandidateStatus;
 use App\Models\Company;
@@ -10,6 +11,7 @@ use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Filament\Actions\Testing\TestAction;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
@@ -17,6 +19,10 @@ use Livewire\Livewire;
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
     Storage::fake('local');
+    // Uploading a CV synchronously dispatches formatted-CV generation (real
+    // AI call) — faked by default so tests unrelated to that feature don't
+    // need to know about it.
+    Bus::fake();
 });
 
 function makeCandidateUser(string $statusName, array $candidateAttributes = []): User
@@ -311,6 +317,19 @@ test('uploading a document creates a candidate_documents record and stores the f
 
     expect($document)->not->toBeNull();
     Storage::disk('local')->assertExists($document->path);
+});
+
+test('a candidate uploading their own CV dispatches formatted CV generation', function () {
+    $user = makeCandidateUser('Onboarding');
+    $this->actingAs($user);
+
+    $file = UploadedFile::fake()->create('cv.pdf', 100, 'application/pdf');
+
+    Livewire::test(Documents::class)
+        ->callAction(TestAction::make('upload')->table(record: 'cv'), data: ['file' => $file])
+        ->assertHasNoActionErrors();
+
+    Bus::assertDispatched(GenerateFormattedCv::class, fn (GenerateFormattedCv $job): bool => $job->candidate->is($user->candidate->fresh()));
 });
 
 test('uploading a proof of ni document creates a candidate_documents record and stores the file', function () {

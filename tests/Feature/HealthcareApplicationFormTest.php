@@ -1,16 +1,25 @@
 <?php
 
+use App\Jobs\GenerateFormattedCv;
 use App\Models\HealthcareApplication;
 use App\Models\HealthcareCandidate;
 use App\Models\Industry;
 use App\Services\ApplicationAccessSession;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
 
 beforeEach(function () {
+    Storage::fake('local');
     Industry::factory()->create(['name' => 'Healthcare', 'slug' => 'healthcare']);
     $this->seed(RoleSeeder::class);
+    // Uploading a CV synchronously dispatches formatted-CV generation (real
+    // AI call) — faked by default so tests unrelated to that feature don't
+    // need to know about it.
+    Bus::fake();
 });
 
 function makePendingHealthcareApplication(): HealthcareApplication
@@ -30,6 +39,25 @@ function makePendingHealthcareApplication(): HealthcareApplication
 
     return $application;
 }
+
+test('saveCv stores the document and dispatches formatted CV generation', function () {
+    $application = makePendingHealthcareApplication();
+    $file = UploadedFile::fake()->create('cv.pdf', 200, 'application/pdf');
+
+    Livewire::test('application.healthcare-application-form', ['token' => $application->token])
+        ->set('cv', $file)
+        ->call('saveCv')
+        ->assertHasNoErrors()
+        ->assertSet('step', 2);
+
+    $candidate = $application->fresh()->candidate;
+    expect($candidate->documents()->where('document_type', 'cv')->exists())->toBeTrue();
+
+    Bus::assertDispatched(
+        GenerateFormattedCv::class,
+        fn (GenerateFormattedCv $job): bool => $job->candidate->is($candidate)
+    );
+});
 
 test('savePersonalDetails accepts a valid dropdown title', function () {
     $application = makePendingHealthcareApplication();
