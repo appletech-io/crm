@@ -35,21 +35,20 @@ class FormattedCvGenerator
             unlink($tempPath);
         }
 
-        $html = view('pdfs.formatted-cv', [
+        $contentHtml = view('pdfs.formatted-cv-content', [
             'name' => trim(collect([$extraction->firstName, $extraction->middleName, $extraction->lastName])->filter()->implode(' ')) ?: 'Candidate',
             'bodyHtml' => $extraction->bodyHtml,
-            'logoDataUri' => $this->logoDataUri(),
         ])->render();
 
         $formattedCv = FormattedCv::updateOrCreate([
             'candidate_type' => $candidate->getMorphClass(),
             'candidate_id' => $candidate->getKey(),
         ], [
-            'content' => $html,
+            'content' => $contentHtml,
         ]);
 
         $formattedCv->update([
-            'pdf_path' => $this->generatePdf($html, $candidate, $cvDocument),
+            'pdf_path' => $this->generatePdf($contentHtml, $candidate, $cvDocument),
         ]);
 
         return $formattedCv;
@@ -99,8 +98,13 @@ class FormattedCvGenerator
         return 'data:image/png;base64,'.base64_encode($contents);
     }
 
-    private function generatePdf(string $html, Model $candidate, CandidateDocument $cvDocument): string
+    private function generatePdf(string $contentHtml, Model $candidate, CandidateDocument $cvDocument): string
     {
+        $html = view('pdfs.formatted-cv', [
+            'contentHtml' => $contentHtml,
+            'logoDataUri' => $this->logoDataUri(),
+        ])->render();
+
         $pdf = Pdf::loadHTML($html)->output();
 
         $companySlug = Str::slug($candidate->company?->name) ?: 'formatted';

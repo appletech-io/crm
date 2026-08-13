@@ -56,8 +56,6 @@
         <img src="{{ $logoDataUri }}" alt="{{ config('app.name') }}">
     </header>
 
-    <h1>{{ $name }}</h1>
-
-    {!! $bodyHtml !!}
+    {!! $contentHtml !!}
 </body>
 </html>
