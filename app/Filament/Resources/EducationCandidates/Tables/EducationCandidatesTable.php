@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\EducationCandidates\Tables;
 
 use App\Enums\EmailTemplateAudience;
+use App\Filament\Support\ExportCandidatesCsvAction;
 use App\Filament\Support\SendCustomEmailAction;
 use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
@@ -133,6 +134,7 @@ class EducationCandidatesTable
             ->toolbarActions([
                 BulkActionGroup::make([
                     SendCustomEmailAction::bulk(EmailTemplateAudience::Candidate),
+                    ExportCandidatesCsvAction::bulk(),
                     DeleteBulkAction::make()
                         ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false),
                     ForceDeleteBulkAction::make(),
