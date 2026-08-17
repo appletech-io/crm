@@ -75,6 +75,7 @@ class EducationCandidatesTable
             ->filters([
                 SelectFilter::make('status')
                     ->label('Status')
+                    ->multiple()
                     ->options(fn (): array => CandidateStatus::query()
                         ->where('company_id', Auth::user()->company_id)
                         ->where('industry_id', active_industry_id())
@@ -83,8 +84,8 @@ class EducationCandidatesTable
                         ->toArray()
                     )
                     ->query(fn (Builder $query, array $data) => $query->when(
-                        $data['value'],
-                        fn ($q, $value) => $q->whereHas('statuses', fn ($q) => $q->where('candidate_status_id', $value))
+                        $data['values'],
+                        fn ($q, $values) => $q->whereHas('statuses', fn ($q) => $q->whereIn('candidate_status_id', $values))
                     )),
                 SelectFilter::make('skills')
                     ->label('Skill')
