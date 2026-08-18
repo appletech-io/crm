@@ -9,7 +9,7 @@
     <div class="flex flex-col gap-4">
         <p class="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{{ __('Qualification & Availability') }}</p>
 
-        <flux:select wire:model="qualification_id" :label="__('Qualification')" placeholder="{{ __('Select…') }}">
+        <flux:select wire:model="qualification_id" :label="__('Qualification')" placeholder="{{ __('Select…') }}" required>
             @foreach($this->qualificationOptions as $id => $name)
                 <flux:select.option value="{{ $id }}">{{ $name }}</flux:select.option>
             @endforeach

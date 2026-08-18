@@ -1241,6 +1241,16 @@ test('saveWorkPreferences persists skills, qualification, and work preferences a
     expect($application->fresh()->current_step)->toBe(8);
 });
 
+test('saveWorkPreferences requires a qualification', function () {
+    $application = makePendingApplication();
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 7)
+        ->set('qualification_id', null)
+        ->call('saveWorkPreferences')
+        ->assertHasErrors(['qualification_id']);
+});
+
 test('saveWorkPreferences validates availability and key_stages values', function () {
     $application = makePendingApplication();
 
@@ -1289,6 +1299,11 @@ test('saveWorkPreferences strips spaces and uppercases the ni number before vali
     $application = makePendingApplication();
     $candidate = $application->educationCandidate;
 
+    $qualification = Qualification::factory()->create([
+        'company_id' => $candidate->company_id,
+        'industry_id' => Industry::where('slug', 'education')->value('id'),
+    ]);
+
     $parentSkill = CandidateSkill::factory()->create([
         'company_id' => $candidate->company_id,
         'industry_id' => Industry::where('slug', 'education')->value('id'),
@@ -1296,6 +1311,7 @@ test('saveWorkPreferences strips spaces and uppercases the ni number before vali
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 7)
+        ->set('qualification_id', $qualification->id)
         ->set('skills', [$parentSkill->id])
         ->set('ni_number', 'ab 12 34 56 c')
         ->call('saveWorkPreferences')
@@ -1308,6 +1324,11 @@ test('saveWorkPreferences does not require a trn number', function () {
     $application = makePendingApplication();
     $candidate = $application->educationCandidate;
 
+    $qualification = Qualification::factory()->create([
+        'company_id' => $candidate->company_id,
+        'industry_id' => Industry::where('slug', 'education')->value('id'),
+    ]);
+
     $parentSkill = CandidateSkill::factory()->create([
         'company_id' => $candidate->company_id,
         'industry_id' => Industry::where('slug', 'education')->value('id'),
@@ -1315,6 +1336,7 @@ test('saveWorkPreferences does not require a trn number', function () {
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 7)
+        ->set('qualification_id', $qualification->id)
         ->set('skills', [$parentSkill->id])
         ->set('ni_number', 'AB123456C')
         ->call('saveWorkPreferences')

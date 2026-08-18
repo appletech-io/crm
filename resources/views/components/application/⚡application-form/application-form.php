@@ -701,7 +701,7 @@ new #[Layout('layouts.application')] class extends Component
         $this->ni_number = strtoupper(str_replace(' ', '', $this->ni_number));
 
         $this->validate([
-            'qualification_id' => ['nullable', 'integer', 'exists:qualifications,id'],
+            'qualification_id' => ['required', 'integer', 'exists:qualifications,id'],
             'availability' => ['nullable', 'array'],
             'availability.*' => ['string', Rule::enum(Availability::class)],
             'available_from' => ['nullable', 'date'],

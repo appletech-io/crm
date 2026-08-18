@@ -557,6 +557,33 @@ test('the confirm visa restrictions action is hidden for a non-visa candidate', 
         ->assertActionDoesNotExist(TestAction::make('confirm_visa_restrictions')->schemaComponent());
 });
 
+test('manually confirming a qualification sets a transient flag without persisting anything', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSet('qualificationManuallyConfirmed', false)
+        ->callAction(TestAction::make('confirm_qualification')->schemaComponent())
+        ->assertSet('qualificationManuallyConfirmed', true);
+
+    expect($candidate->fresh()->documents()->where('document_type', DocumentType::Qualification)->exists())->toBeFalse();
+});
+
+test('the confirm qualification action is hidden once a qualification document has been uploaded', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::Qualification,
+        'path' => 'fake/qualification.pdf',
+    ]);
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertActionDoesNotExist(TestAction::make('confirm_qualification')->schemaComponent());
+});
+
 test('dnuCandidate is true when the current status is DNU', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
     assignStatus($candidate, $this->industry, $this->user->company_id, 'DNU');
@@ -1120,7 +1147,7 @@ test('the Complete button is enabled when the vetting checklist is fully met', f
         'hourly_rate' => 20,
     ]);
 
-    foreach ([DocumentType::Cv, DocumentType::Photo, DocumentType::BirthCertificate, DocumentType::DbsFront, DocumentType::DbsBack, DocumentType::SafeguardingTraining, DocumentType::Reference] as $documentType) {
+    foreach ([DocumentType::Cv, DocumentType::Photo, DocumentType::BirthCertificate, DocumentType::DbsFront, DocumentType::DbsBack, DocumentType::SafeguardingTraining, DocumentType::Reference, DocumentType::Qualification] as $documentType) {
         CandidateDocument::create([
             'candidate_type' => EducationCandidate::class,
             'candidate_id' => $candidate->id,

@@ -114,6 +114,13 @@ function fullyCompliantCandidate(array $attributes = []): EducationCandidate
         'path' => 'fake/reference.pdf',
     ]);
 
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::Qualification,
+        'path' => 'fake/qualification.pdf',
+    ]);
+
     return $candidate->fresh();
 }
 
@@ -525,6 +532,29 @@ test('reference check fails when the only confirmed reference is a gap/statement
 
     expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeFalse();
     expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('qualification check fails without a document and no manual override', function () {
+    $candidate = fullyCompliantCandidate();
+    $candidate->documents()->where('document_type', DocumentType::Qualification)->delete();
+
+    expect(CandidateVettingRequirements::for($candidate)['qualification']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('qualification check passes with a document even without a manual override', function () {
+    $candidate = fullyCompliantCandidate();
+
+    expect(CandidateVettingRequirements::for($candidate)['qualification']['complete'])->toBeTrue();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeTrue();
+});
+
+test('qualification check passes when manually confirmed even without a document', function () {
+    $candidate = fullyCompliantCandidate();
+    $candidate->documents()->where('document_type', DocumentType::Qualification)->delete();
+
+    expect(CandidateVettingRequirements::for($candidate, qualificationManuallyConfirmed: true)['qualification']['complete'])->toBeTrue();
+    expect(CandidateVettingRequirements::isComplete($candidate, qualificationManuallyConfirmed: true))->toBeTrue();
 });
 
 test('right to work label includes the mode in brackets', function () {
