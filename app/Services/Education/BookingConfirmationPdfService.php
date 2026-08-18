@@ -65,6 +65,7 @@ class BookingConfirmationPdfService
             ['label' => 'Reference(s) Checked', 'value' => $this->referencesCheckedLabel($candidate)],
             ['label' => 'Qualification', 'value' => $candidate->qualification?->name ?? 'N/A'],
             ['label' => 'Safeguarding Training', 'value' => $candidate->safeguarding_certified_date?->format('jS M Y') ?? 'N/A'],
+            ['label' => 'Benedict\'s Law Training', 'value' => $candidate->benedicts_law_issue_date?->format('jS M Y') ?? 'N/A'],
             ['label' => 'TRN', 'value' => $candidate->trn_number ?? 'N/A'],
             ['label' => 'TRA/NCTL Sanctions', 'value' => $candidate->sanctions === 'yes' ? 'Sanctions' : 'No Sanctions'],
             ['label' => 'DBS No', 'value' => $candidate->dbs_certificate_number ?? 'N/A'],

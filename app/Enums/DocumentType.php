@@ -19,6 +19,7 @@ enum DocumentType: string
     case Reference = 'reference';
     case Other = 'other';
     case Qualification = 'qualification';
+    case BenedictsLaw = 'benedicts_law';
 
     public function label(): string
     {
@@ -38,6 +39,7 @@ enum DocumentType: string
             self::Reference => 'Reference',
             self::Other => 'Other',
             self::Qualification => 'Qualification',
+            self::BenedictsLaw => 'Benedict\'s Law Certificate',
         };
     }
 }

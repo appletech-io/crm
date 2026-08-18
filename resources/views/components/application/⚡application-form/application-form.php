@@ -217,6 +217,8 @@ new #[Layout('layouts.application')] class extends Component
 
     public ?string $safeguarding_expiry_date = null;
 
+    public ?string $benedicts_law_expiry_date = null;
+
     // Account
     public string $password = '';
 
@@ -961,6 +963,7 @@ new #[Layout('layouts.application')] class extends Component
             'dbs_expiry_date' => ['nullable', 'date'],
             'has_naric' => ['nullable', 'in:yes,no'],
             'safeguarding_expiry_date' => ['nullable', 'date'],
+            'benedicts_law_expiry_date' => ['nullable', 'date'],
         ]);
 
         $this->application->educationCandidate->update([
@@ -972,6 +975,7 @@ new #[Layout('layouts.application')] class extends Component
             'dbs_expiry_date' => $this->has_dbs === 'yes' ? $this->dbs_expiry_date : null,
             'has_naric' => $this->has_naric,
             'safeguarding_expiry_date' => $this->safeguarding_expiry_date,
+            'benedicts_law_expiry_date' => $this->benedicts_law_expiry_date,
         ]);
 
         $this->goToStep(11);
@@ -1617,6 +1621,7 @@ new #[Layout('layouts.application')] class extends Component
         $this->dbs_expiry_date = $candidate->dbs_expiry_date?->toDateString();
         $this->has_naric = $candidate->has_naric;
         $this->safeguarding_expiry_date = $candidate->safeguarding_expiry_date?->toDateString();
+        $this->benedicts_law_expiry_date = $candidate->benedicts_law_expiry_date?->toDateString();
 
         $this->qualification_id = $candidate->qualification_id;
         $this->availability = $candidate->availability ?? [];

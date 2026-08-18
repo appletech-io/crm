@@ -231,6 +231,8 @@ class ViewApplication extends ViewRecord
                             ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state)),
                         TextEntry::make('safeguarding_expiry_date')->label('Safeguarding Certificate Expiry Date')
                             ->date('d/m/Y')->placeholder('—'),
+                        TextEntry::make('benedicts_law_expiry_date')->label('Benedict\'s Law Certificate Expiry Date')
+                            ->date('d/m/Y')->placeholder('—'),
                     ]),
 
                 Section::make('Employment History')

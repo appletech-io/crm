@@ -47,6 +47,8 @@ class EducationCandidate extends Model
         'trn_issue_date' => 'date',
         'safeguarding_certified_date' => 'date',
         'safeguarding_expiry_date' => 'date',
+        'benedicts_law_issue_date' => 'date',
+        'benedicts_law_expiry_date' => 'date',
         'dbs_checked_date' => 'date',
         'dbs_expiry_date' => 'date',
         'right_to_work_expiry_date' => 'date',

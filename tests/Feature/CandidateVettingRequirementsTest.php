@@ -30,6 +30,7 @@ function fullyCompliantCandidate(array $attributes = []): EducationCandidate
         'trn_number' => null,
         'trn_issue_date' => null,
         'safeguarding_certified_date' => now(),
+        'benedicts_law_issue_date' => now(),
         'right_to_work_type' => 'birth_certificate',
         'ni_number' => 'QQ123456C',
     ], $attributes));
@@ -91,6 +92,13 @@ function fullyCompliantCandidate(array $attributes = []): EducationCandidate
         'candidate_id' => $candidate->id,
         'document_type' => DocumentType::SafeguardingTraining,
         'path' => 'fake/safeguarding-training.pdf',
+    ]);
+
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::BenedictsLaw,
+        'path' => 'fake/benedicts-law.pdf',
     ]);
 
     CandidateDocument::create([
@@ -346,6 +354,39 @@ test('safeguarding check passes when the certificate expires just beyond the 3 d
     $candidate = fullyCompliantCandidate(['safeguarding_expiry_date' => now()->addDays(4)]);
 
     expect(CandidateVettingRequirements::for($candidate)['safeguarding']['complete'])->toBeTrue();
+});
+
+test('benedicts law check fails without an issue date', function () {
+    $candidate = fullyCompliantCandidate(['benedicts_law_issue_date' => null]);
+
+    expect(CandidateVettingRequirements::for($candidate)['benedicts_law']['complete'])->toBeFalse();
+});
+
+test('benedicts law check fails without the certificate document, even with an issue date', function () {
+    $candidate = fullyCompliantCandidate();
+    $candidate->documents()->where('document_type', DocumentType::BenedictsLaw)->delete();
+
+    expect(CandidateVettingRequirements::for($candidate)['benedicts_law']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('benedicts law check fails when the certificate has already expired', function () {
+    $candidate = fullyCompliantCandidate(['benedicts_law_expiry_date' => now()->subDay()]);
+
+    expect(CandidateVettingRequirements::for($candidate)['benedicts_law']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('benedicts law check fails when the certificate expires within the next 3 days', function () {
+    $candidate = fullyCompliantCandidate(['benedicts_law_expiry_date' => now()->addDays(3)]);
+
+    expect(CandidateVettingRequirements::for($candidate)['benedicts_law']['complete'])->toBeFalse();
+});
+
+test('benedicts law check passes when the certificate expires just beyond the 3 day window', function () {
+    $candidate = fullyCompliantCandidate(['benedicts_law_expiry_date' => now()->addDays(4)]);
+
+    expect(CandidateVettingRequirements::for($candidate)['benedicts_law']['complete'])->toBeTrue();
 });
 
 test('right to work check fails without a type set', function () {

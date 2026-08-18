@@ -744,6 +744,7 @@ class EducationCandidateForm
                                 static::dbsSection(),
                                 static::rightToWorkSection(),
                                 static::safeguardingSection(),
+                                static::benedictsLawSection(),
                                 static::medicalInformationSection(),
                                 static::employmentConductSection(),
                                 static::disclosureSection(),
@@ -927,6 +928,23 @@ class EducationCandidateForm
                     ->label('Keeping Children Safe in Education (Read on Application)')
                     ->date('d/m/Y')
                     ->placeholder('Not set'),
+            ])
+            ->columns(2);
+    }
+
+    protected static function benedictsLawSection(): Section
+    {
+        return Section::make('Benedict\'s Law')
+            ->schema([
+                DatePicker::make('benedicts_law_issue_date')
+                    ->label('Issue Date')
+                    ->native(false),
+
+                DatePicker::make('benedicts_law_expiry_date')
+                    ->label('Expiry Date')
+                    ->native(false),
+
+                static::documentEntry('Certificate', DocumentType::BenedictsLaw),
             ])
             ->columns(2);
     }

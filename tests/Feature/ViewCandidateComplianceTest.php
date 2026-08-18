@@ -224,6 +224,36 @@ test('the compliance tab shows a document view link when a safeguarding certific
     expect($html)->toContain('href=');
 });
 
+test('the compliance tab shows benedicts law fields', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'benedicts_law_issue_date' => '2026-09-01',
+    ]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertFormSet(['benedicts_law_issue_date' => '2026-09-01']);
+});
+
+test('the compliance tab shows a document view link when a benedicts law certificate is uploaded', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    $path = 'candidates/'.$candidate->id.'/benedicts-law.pdf';
+    Storage::disk('local')->put($path, 'fake pdf contents');
+
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::BenedictsLaw,
+        'path' => $path,
+    ]);
+
+    $html = Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->html();
+
+    expect($html)->toContain('Uploaded');
+    expect($html)->toContain('href=');
+});
+
 test('the compliance tab shows the candidates medical information', function () {
     $candidate = EducationCandidate::factory()->create([
         'company_id' => $this->user->company_id,
@@ -286,6 +316,7 @@ test('compliance fields can be edited and saved from the candidate edit page', f
             'visa_expiry_date' => '2028-01-01',
             'visa_notes' => 'Skilled worker visa.',
             'safeguarding_certified_date' => '2025-01-01',
+            'benedicts_law_issue_date' => '2026-09-01',
             'has_health_condition_or_disability' => 'no',
             'retired_early' => 'no',
             'dismissed_from_relevant_position' => 'no',
@@ -307,6 +338,7 @@ test('compliance fields can be edited and saved from the candidate edit page', f
     expect($candidate->visa_expiry_date->toDateString())->toBe('2028-01-01');
     expect($candidate->visa_notes)->toBe('Skilled worker visa.');
     expect($candidate->safeguarding_certified_date->toDateString())->toBe('2025-01-01');
+    expect($candidate->benedicts_law_issue_date->toDateString())->toBe('2026-09-01');
 });
 
 test('compliance detail fields stay hidden until their yes/no trigger is switched to yes', function () {

@@ -549,6 +549,7 @@ class VettingSteps
         return [
             'trn_issue_date', 'sanctions', 'restrictions', 'sanction_restrictions_details',
             'safeguarding_certified_date', 'safeguarding_expiry_date',
+            'benedicts_law_issue_date', 'benedicts_law_expiry_date',
         ];
     }
 
@@ -625,6 +626,34 @@ class VettingSteps
                                 ->url(fn (?EducationCandidate $record): ?string => static::safeguardingDocumentUrl($record))
                                 ->openUrlInNewTab()
                                 ->visible(fn (?EducationCandidate $record): bool => (bool) static::safeguardingDocument($record)),
+                        ])->columnSpanFull(),
+                    ]),
+
+                Section::make('Benedict\'s Law Training')
+                    ->schema([
+                        DatePicker::make('benedicts_law_issue_date')
+                            ->label('Issue Date')
+                            ->native(false),
+
+                        DatePicker::make('benedicts_law_expiry_date')
+                            ->label('Expiry Date')
+                            ->native(false),
+
+                        Text::make(fn (?EducationCandidate $record): string => static::benedictsLawDocument($record)
+                            ? 'Benedict\'s Law certificate uploaded'
+                            : 'Benedict\'s Law certificate not uploaded'
+                        )
+                            ->color(fn (?EducationCandidate $record): string => static::benedictsLawDocument($record) ? 'success' : 'danger')
+                            ->columnSpanFull(),
+
+                        Actions::make([
+                            Action::make('viewBenedictsLawCertificate')
+                                ->label('View Certificate')
+                                ->icon('heroicon-o-eye')
+                                ->color('gray')
+                                ->url(fn (?EducationCandidate $record): ?string => static::benedictsLawDocumentUrl($record))
+                                ->openUrlInNewTab()
+                                ->visible(fn (?EducationCandidate $record): bool => (bool) static::benedictsLawDocument($record)),
                         ])->columnSpanFull(),
                     ]),
             ]);
@@ -845,6 +874,23 @@ class VettingSteps
     protected static function safeguardingDocumentUrl(?EducationCandidate $record): ?string
     {
         $document = static::safeguardingDocument($record);
+
+        return $document
+            ? Document::viewUrl($document->path)
+            : null;
+    }
+
+    protected static function benedictsLawDocument(?EducationCandidate $record): ?CandidateDocument
+    {
+        /** @var CandidateDocument|null $document */
+        $document = $record?->documents->firstWhere('document_type', DocumentType::BenedictsLaw);
+
+        return $document;
+    }
+
+    protected static function benedictsLawDocumentUrl(?EducationCandidate $record): ?string
+    {
+        $document = static::benedictsLawDocument($record);
 
         return $document
             ? Document::viewUrl($document->path)
