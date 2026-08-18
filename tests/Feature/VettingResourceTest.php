@@ -749,6 +749,98 @@ test('vetting wizard can save safeguarding checks', function () {
     expect($candidate->safeguarding_expiry_date->toDateString())->toBe('2029-02-01');
 });
 
+test('vetting wizard can save benedicts law checks', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'trn_number' => null,
+    ]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm([
+            'barred_list_check' => 'yes',
+            'benedicts_law_issue_date' => '2026-02-01',
+            'benedicts_law_expiry_date' => '2027-02-01',
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $candidate->refresh();
+
+    expect($candidate->benedicts_law_issue_date->toDateString())->toBe('2026-02-01');
+    expect($candidate->benedicts_law_expiry_date->toDateString())->toBe('2027-02-01');
+});
+
+test('benedicts law section shows the certificate is not uploaded when missing', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSee('Benedict\'s Law certificate not uploaded');
+});
+
+test('benedicts law section shows the certificate is uploaded when present', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::BenedictsLaw,
+        'path' => 'fake/benedicts-law.pdf',
+    ]);
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSee('Benedict\'s Law certificate uploaded');
+});
+
+test('view certificate action is hidden for benedicts law without a document', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertDontSee('View Certificate');
+});
+
+test('view certificate action is shown for benedicts law once a document is uploaded', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::BenedictsLaw,
+        'path' => 'fake/benedicts-law.pdf',
+    ]);
+
+    $html = Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])->html();
+
+    expect(substr_count($html, 'View Certificate'))->toBe(1);
+});
+
+test('the benedicts law certificate view link resolves the document at click-time rather than baking in a temporary url', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $path = 'candidates/'.$candidate->id.'/benedicts-law.pdf';
+    CandidateDocument::create([
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $candidate->id,
+        'document_type' => DocumentType::BenedictsLaw,
+        'path' => $path,
+    ]);
+    $candidate->load('documents');
+
+    $method = new ReflectionMethod(VettingSteps::class, 'benedictsLawDocumentUrl');
+    $method->setAccessible(true);
+
+    $url = $method->invoke(null, $candidate);
+
+    expect($url)->toStartWith(route('documents.view'));
+
+    parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+
+    expect(Crypt::decryptString($query['path']))->toBe($path);
+});
+
 test('safeguarding section shows the certificate is not uploaded when missing', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
     assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
@@ -1124,6 +1216,7 @@ test('the Complete button is enabled when the vetting checklist is fully met', f
         'ni_number_match' => 'yes',
         'trn_number' => null,
         'safeguarding_certified_date' => now(),
+        'benedicts_law_issue_date' => now(),
         'right_to_work_type' => 'birth_certificate',
         'ni_number' => 'QQ123456C',
     ]);
@@ -1147,7 +1240,7 @@ test('the Complete button is enabled when the vetting checklist is fully met', f
         'hourly_rate' => 20,
     ]);
 
-    foreach ([DocumentType::Cv, DocumentType::Photo, DocumentType::BirthCertificate, DocumentType::DbsFront, DocumentType::DbsBack, DocumentType::SafeguardingTraining, DocumentType::Reference, DocumentType::Qualification] as $documentType) {
+    foreach ([DocumentType::Cv, DocumentType::Photo, DocumentType::BirthCertificate, DocumentType::DbsFront, DocumentType::DbsBack, DocumentType::SafeguardingTraining, DocumentType::Reference, DocumentType::Qualification, DocumentType::BenedictsLaw] as $documentType) {
         CandidateDocument::create([
             'candidate_type' => EducationCandidate::class,
             'candidate_id' => $candidate->id,

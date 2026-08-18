@@ -101,6 +101,13 @@ class CandidateVettingRequirements
                     && $candidate->documents()->where('document_type', DocumentType::SafeguardingTraining)->exists()
                     && ! static::isExpiredOrExpiringSoon($candidate->safeguarding_expiry_date),
             ],
+            'benedicts_law' => [
+                'label' => 'Benedict\'s Law Training',
+                'description' => 'Benedict\'s Law (allergy and anaphylaxis) training has been checked and certified, with the certificate uploaded, and not expired or expiring within 3 days.',
+                'complete' => filled($candidate->benedicts_law_issue_date)
+                    && $candidate->documents()->where('document_type', DocumentType::BenedictsLaw)->exists()
+                    && ! static::isExpiredOrExpiringSoon($candidate->benedicts_law_expiry_date),
+            ],
             'right_to_work' => [
                 'label' => static::rightToWorkLabel($candidate),
                 'description' => 'Right to work has been established: passport with document uploaded, birth certificate with document uploaded, or visa details set. For a passport or visa, the right to work expiry date must not be expired or expiring within 3 days.',

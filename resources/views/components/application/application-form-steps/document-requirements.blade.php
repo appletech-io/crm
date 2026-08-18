@@ -109,6 +109,18 @@
         @enderror
     </div>
 
+    <div class="flex flex-col gap-2">
+        <flux:input
+            type="date"
+            wire:model="benedicts_law_expiry_date"
+            :label="__('Benedict\'s Law Training Certificate Expiry Date (optional, if known)')"
+        />
+
+        @error('benedicts_law_expiry_date')
+            <flux:error>{{ $message }}</flux:error>
+        @enderror
+    </div>
+
     <flux:button type="submit" variant="primary" class="w-full">
         {{ __('Next') }}
     </flux:button>

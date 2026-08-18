@@ -36,6 +36,11 @@ class CandidateDocumentRequirements
                 'label' => 'Qualification',
                 'description' => 'Evidence of your teaching qualification or certificate.',
             ];
+
+            $definitions['benedicts_law'] = [
+                'label' => 'Benedict\'s Law Certificate',
+                'description' => 'Certificate confirming completion of allergy and anaphylaxis training required under Benedict\'s Law.',
+            ];
         }
 
         if ($candidate instanceof HealthcareCandidate) {

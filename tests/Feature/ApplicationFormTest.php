@@ -2185,7 +2185,7 @@ test('saveDocumentRequirements clears the visa share code when right to work is 
     expect($candidate->refresh()->visa_share_code)->toBeNull();
 });
 
-test('saveDocumentRequirements persists the optional right to work, dbs and safeguarding expiry dates', function () {
+test('saveDocumentRequirements persists the optional right to work, dbs, safeguarding and benedicts law expiry dates', function () {
     $application = makePendingApplication();
     $candidate = $application->educationCandidate;
 
@@ -2199,6 +2199,7 @@ test('saveDocumentRequirements persists the optional right to work, dbs and safe
         ->set('dbs_expiry_date', '2029-03-01')
         ->set('has_naric', 'yes')
         ->set('safeguarding_expiry_date', '2028-06-01')
+        ->set('benedicts_law_expiry_date', '2027-09-01')
         ->call('saveDocumentRequirements')
         ->assertHasNoErrors()
         ->assertSet('currentStep', 11);
@@ -2207,6 +2208,7 @@ test('saveDocumentRequirements persists the optional right to work, dbs and safe
     expect($candidate->right_to_work_expiry_date->toDateString())->toBe('2027-01-01');
     expect($candidate->dbs_expiry_date->toDateString())->toBe('2029-03-01');
     expect($candidate->safeguarding_expiry_date->toDateString())->toBe('2028-06-01');
+    expect($candidate->benedicts_law_expiry_date->toDateString())->toBe('2027-09-01');
 });
 
 test('saveDocumentRequirements persists the right to work expiry date for a passport too', function () {

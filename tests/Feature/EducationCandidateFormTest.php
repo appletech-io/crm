@@ -421,6 +421,7 @@ test('compliance expiry dates can be edited inline from the candidate edit page'
             'dbs_expiry_date' => '2029-03-01',
             'right_to_work_expiry_date' => '2027-01-01',
             'safeguarding_expiry_date' => '2028-06-01',
+            'benedicts_law_expiry_date' => '2027-09-01',
         ])
         ->call('save')
         ->assertHasNoFormErrors();
@@ -429,6 +430,7 @@ test('compliance expiry dates can be edited inline from the candidate edit page'
     expect($candidate->dbs_expiry_date->toDateString())->toBe('2029-03-01');
     expect($candidate->right_to_work_expiry_date->toDateString())->toBe('2027-01-01');
     expect($candidate->safeguarding_expiry_date->toDateString())->toBe('2028-06-01');
+    expect($candidate->benedicts_law_expiry_date->toDateString())->toBe('2027-09-01');
 });
 
 test('the right to work expiry date field is hidden and not saved when right to work type is birth certificate', function () {
