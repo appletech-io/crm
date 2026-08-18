@@ -5,10 +5,10 @@ namespace App\Console\Commands;
 use App\Enums\Education\KeyStage;
 use App\Models\Client;
 use App\Models\ClientContact;
+use App\Models\ClientContactJobTitle;
 use App\Models\ClientType;
 use App\Models\Company;
 use App\Models\Industry;
-use App\Models\JobTitle;
 use App\Models\User;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -56,7 +56,7 @@ class ImportClientDetailsData extends Command
     /** @var array<string, int> resolved client type name => id */
     private array $clientTypeIds = [];
 
-    /** @var array<string, int> resolved job title name => id */
+    /** @var array<string, int> resolved contact job title name => id */
     private array $jobTitleIds = [];
 
     /** @var array<string, int> lowercased email => user id, for contacts already given a login this run */
@@ -125,7 +125,7 @@ class ImportClientDetailsData extends Command
         $this->components->twoColumnDetail('Contacts created', (string) $stats['contacts_created']);
         $this->components->twoColumnDetail('Logins created', (string) $stats['logins_created']);
         $this->components->twoColumnDetail('Client types created', (string) $stats['client_types_created']);
-        $this->components->twoColumnDetail('Job titles created', (string) $stats['job_titles_created']);
+        $this->components->twoColumnDetail('Contact job titles created', (string) $stats['job_titles_created']);
 
         if (! empty($stats['unresolved_consultants'])) {
             $this->warn('Unresolved desk_consultant values (left null): '.implode(', ', array_unique($stats['unresolved_consultants'])));
@@ -239,7 +239,7 @@ class ImportClientDetailsData extends Command
         $contact = ClientContact::create([
             'company_id' => $this->companyId,
             'client_id' => $client->id,
-            'job_title_id' => $this->resolveJobTitle($jobTitleName, $stats),
+            'client_contact_job_title_id' => $this->resolveJobTitle($jobTitleName, $stats),
             'first_name' => $firstName,
             'last_name' => $lastName,
             'email' => $email,
@@ -346,7 +346,23 @@ class ImportClientDetailsData extends Command
             return $this->jobTitleIds[$name];
         }
 
-        $jobTitle = JobTitle::firstOrCreate([
+        if ($this->dryRun) {
+            $existing = ClientContactJobTitle::query()
+                ->where('company_id', $this->companyId)
+                ->where('industry_id', $this->industryId)
+                ->where('name', $name)
+                ->first();
+
+            if ($existing) {
+                $this->jobTitleIds[$name] = $existing->id;
+
+                return $existing->id;
+            }
+
+            return null;
+        }
+
+        $jobTitle = ClientContactJobTitle::firstOrCreate([
             'company_id' => $this->companyId,
             'industry_id' => $this->industryId,
             'name' => $name,

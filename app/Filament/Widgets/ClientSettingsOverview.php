@@ -2,12 +2,12 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Resources\ClientContactJobTitles\ClientContactJobTitleResource;
 use App\Filament\Resources\ClientPools\ClientPoolResource;
 use App\Filament\Resources\ClientTypes\ClientTypeResource;
-use App\Filament\Resources\JobTitles\JobTitleResource;
+use App\Models\ClientContactJobTitle;
 use App\Models\ClientPool;
 use App\Models\ClientType;
-use App\Models\JobTitle;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Facades\Auth;
@@ -20,7 +20,7 @@ class ClientSettingsOverview extends StatsOverviewWidget
 
     protected function getStats(): array
     {
-        $jobTitlesCount = JobTitle::query()
+        $contactJobTitlesCount = ClientContactJobTitle::query()
             ->where('company_id', Auth::user()->company_id)
             ->where('industry_id', active_industry_id())
             ->count();
@@ -40,11 +40,11 @@ class ClientSettingsOverview extends StatsOverviewWidget
             ->count();
 
         return [
-            Stat::make('Job Titles', $jobTitlesCount)
-                ->description('Job titles configured')
-                ->descriptionIcon('heroicon-m-briefcase')
+            Stat::make('Contact Job Titles', $contactJobTitlesCount)
+                ->description('Client contact job titles configured')
+                ->descriptionIcon('heroicon-m-identification')
                 ->color('primary')
-                ->url(JobTitleResource::getUrl('index')),
+                ->url(ClientContactJobTitleResource::getUrl('index')),
             Stat::make('Client Types', $clientTypesCount)
                 ->description('Client types configured')
                 ->descriptionIcon('heroicon-m-rectangle-stack')
