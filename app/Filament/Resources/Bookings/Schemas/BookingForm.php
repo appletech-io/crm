@@ -10,6 +10,7 @@ use App\Models\Client;
 use App\Models\Industry;
 use App\Models\JobTitle;
 use App\Models\PayRate;
+use App\Services\Booking\BookingEligibility;
 use App\Services\Booking\BookingOverlap;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
@@ -74,7 +75,19 @@ class BookingForm
                             ->searchable()
                             ->preload()
                             ->live()
-                            ->afterStateUpdated(fn (Set $set, Get $get) => static::applyDefaultRates($set, $get)),
+                            ->afterStateUpdated(fn (Set $set, Get $get) => static::applyDefaultRates($set, $get))
+                            ->rule(function (Get $get): Closure {
+                                return function (string $attribute, mixed $value, Closure $fail) use ($get): void {
+                                    $candidateModelClass = Industry::candidateModelForSlug(active_industry() ?? '');
+                                    $candidate = $candidateModelClass ? $candidateModelClass::find($get('candidate_id')) : null;
+
+                                    $reason = BookingEligibility::disallowedJobTitleReason($candidate, $value ? (int) $value : null);
+
+                                    if ($reason) {
+                                        $fail($reason);
+                                    }
+                                };
+                            }),
                         Select::make('candidate_id')
                             ->label('Candidate')
                             ->options(function (?Booking $record): array {
@@ -185,13 +198,23 @@ class BookingForm
                                         $record?->id,
                                     );
 
-                                    if ($conflicts->isEmpty()) {
-                                        return;
+                                    if ($conflicts->isNotEmpty()) {
+                                        $dates = $conflicts->map(fn (string $date): string => Carbon::parse($date)->format('jS M Y'))->implode(', ');
+
+                                        $fail("This candidate already has a booking that overlaps on: {$dates}.");
                                     }
 
-                                    $dates = $conflicts->map(fn (string $date): string => Carbon::parse($date)->format('jS M Y'))->implode(', ');
+                                    $unavailable = BookingEligibility::unavailableDates(
+                                        $candidateModelClass,
+                                        $get('candidate_id'),
+                                        $value ?? [],
+                                    );
 
-                                    $fail("This candidate already has a booking that overlaps on: {$dates}.");
+                                    if ($unavailable->isNotEmpty()) {
+                                        $dates = $unavailable->map(fn (string $date): string => Carbon::parse($date)->format('jS M Y'))->implode(', ');
+
+                                        $fail("This candidate is not available on: {$dates}.");
+                                    }
                                 };
                             })
                             ->schema([
