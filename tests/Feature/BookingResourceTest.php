@@ -2,6 +2,7 @@
 
 use App\Enums\BookingDayPeriod;
 use App\Enums\BookingStatus;
+use App\Enums\CandidateAvailabilityStatus;
 use App\Filament\Resources\Bookings\Pages\CreateBooking;
 use App\Filament\Resources\Bookings\Pages\EditBooking;
 use App\Filament\Resources\Bookings\Pages\ListBookings;
@@ -11,6 +12,7 @@ use App\Jobs\SendBookingConfirmationEmail;
 use App\Jobs\SendClientBookingConfirmationEmail;
 use App\Models\Booking;
 use App\Models\BookingDay;
+use App\Models\CandidateAvailability;
 use App\Models\CandidateCandidateStatus;
 use App\Models\CandidateStatus;
 use App\Models\Client;
@@ -18,6 +20,7 @@ use App\Models\EducationCandidate;
 use App\Models\Industry;
 use App\Models\JobTitle;
 use App\Models\PayRate;
+use App\Models\Qualification;
 use App\Models\User;
 use Carbon\Carbon;
 use Database\Seeders\RoleSeeder;
@@ -1537,6 +1540,117 @@ test('editing a booking into a conflict with another booking for the same candid
         ])
         ->call('save')
         ->assertHasFormErrors(['day_periods']);
+});
+
+test('creating a booking for a job title the candidate is not qualified for fails validation', function () {
+    $qualification = Qualification::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+    ]);
+    $allowedJobTitle = JobTitle::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+    ]);
+    $qualification->jobTitles()->attach($allowedJobTitle->id, [
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+    ]);
+    $this->candidate->update(['qualification_id' => $qualification->id]);
+
+    Livewire::test(CreateBooking::class)
+        ->fillForm([
+            'client_id' => $this->client->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
+            'job_title_id' => $this->jobTitle->id,
+            'start_date' => '2026-08-03',
+            'day_charge_rate' => 320,
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['job_title_id']);
+
+    expect(Booking::count())->toBe(0);
+});
+
+test('creating a booking for a job title the candidate is qualified for succeeds', function () {
+    $qualification = Qualification::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+    ]);
+    $qualification->jobTitles()->attach($this->jobTitle->id, [
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+    ]);
+    $this->candidate->update(['qualification_id' => $qualification->id]);
+
+    Livewire::test(CreateBooking::class)
+        ->fillForm([
+            'client_id' => $this->client->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
+            'job_title_id' => $this->jobTitle->id,
+            'start_date' => '2026-08-03',
+            'day_charge_rate' => 320,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+});
+
+test('creating a booking is unaffected when the candidates qualification has no allowed job titles configured', function () {
+    $qualification = Qualification::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+    ]);
+    $this->candidate->update(['qualification_id' => $qualification->id]);
+
+    Livewire::test(CreateBooking::class)
+        ->fillForm([
+            'client_id' => $this->client->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
+            'job_title_id' => $this->jobTitle->id,
+            'start_date' => '2026-08-03',
+            'day_charge_rate' => 320,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+});
+
+test('creating a booking on a date the candidate marked not available fails validation', function () {
+    CandidateAvailability::create([
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'date' => '2026-08-03',
+        'status' => CandidateAvailabilityStatus::NotAvailable,
+    ]);
+
+    Livewire::test(CreateBooking::class)
+        ->fillForm([
+            'client_id' => $this->client->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
+            'job_title_id' => $this->jobTitle->id,
+            'start_date' => '2026-08-03',
+            'day_charge_rate' => 320,
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['day_periods']);
+
+    expect(Booking::count())->toBe(0);
+});
+
+test('creating a booking on a date with no availability record succeeds', function () {
+    Livewire::test(CreateBooking::class)
+        ->fillForm([
+            'client_id' => $this->client->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
+            'job_title_id' => $this->jobTitle->id,
+            'start_date' => '2026-08-03',
+            'day_charge_rate' => 320,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
 });
 
 test('the candidate select resolves candidates via the active industry rather than a hardcoded model', function () {
