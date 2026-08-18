@@ -22,6 +22,13 @@ class VettingWizard extends EditRecord
 
     protected static string $resource = VettingResource::class;
 
+    /**
+     * Whether staff have manually confirmed a qualification isn't required
+     * for this candidate — deliberately never persisted, so it only applies
+     * for the current wizard session and must be reconfirmed next time.
+     */
+    public bool $qualificationManuallyConfirmed = false;
+
     protected function getHeaderActions(): array
     {
         return [];
@@ -50,7 +57,8 @@ class VettingWizard extends EditRecord
     {
         $record = $this->getRecord();
 
-        return $record instanceof EducationCandidate && CandidateVettingRequirements::isComplete($record);
+        return $record instanceof EducationCandidate
+            && CandidateVettingRequirements::isComplete($record, $this->qualificationManuallyConfirmed);
     }
 
     protected function getConfirmAndSaveAlpineHandler(): string

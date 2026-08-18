@@ -5,6 +5,7 @@ namespace App\Filament\Resources\EducationVetting\Schemas;
 use App\Enums\DocumentType;
 use App\Enums\Education\KeyStage;
 use App\Exceptions\Dbs\DbsUpdateServiceException;
+use App\Filament\Resources\EducationVetting\Pages\VettingWizard;
 use App\Filament\Widgets\CandidateAdditionalDocuments;
 use App\Filament\Widgets\CandidateDocumentStatus;
 use App\Filament\Widgets\CandidateReferencesSummary;
@@ -304,8 +305,8 @@ class VettingSteps
         return Step::make('Confirm')
             ->schema([
                 Section::make('Vetting Checklist')
-                    ->schema(fn (?EducationCandidate $record): array => $record
-                        ? collect(CandidateVettingRequirements::for($record))
+                    ->schema(fn (?EducationCandidate $record, VettingWizard $livewire): array => $record
+                        ? collect(CandidateVettingRequirements::for($record, $livewire->qualificationManuallyConfirmed))
                             ->map(function (array $check, string $key): Flex {
                                 $items = [
                                     Icon::make(Heroicon::InformationCircle)
@@ -340,6 +341,20 @@ class VettingSteps
     protected static function manualConfirmAction(string $key): ?Action
     {
         return match ($key) {
+            'qualification' => Action::make('confirm_qualification')
+                ->iconButton()
+                ->icon('heroicon-o-check-badge')
+                ->color('gray')
+                ->tooltip('Manually confirm a qualification isn\'t required for this candidate')
+                ->visible(fn (?EducationCandidate $record, VettingWizard $livewire): bool => ! $livewire->qualificationManuallyConfirmed
+                    && ! $record?->documents()->where('document_type', DocumentType::Qualification)->exists())
+                ->requiresConfirmation()
+                ->modalHeading('Confirm qualification not required')
+                ->modalDescription('Use this if this candidate does not require a qualification on file. This is not saved and only applies for the rest of this session — it will need confirming again next time this candidate is vetted.')
+                ->modalSubmitActionLabel('Confirm')
+                ->action(function (VettingWizard $livewire): void {
+                    $livewire->qualificationManuallyConfirmed = true;
+                }),
             'proof_of_address' => Action::make('confirm_proof_of_address')
                 ->iconButton()
                 ->icon('heroicon-o-check-badge')

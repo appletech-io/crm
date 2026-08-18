@@ -18,7 +18,7 @@ class CandidateVettingRequirements
     private const EXPIRY_WARNING_DAYS = 3;
 
     /** @return array<string, array{label: string, description: string, complete: bool}> */
-    public static function for(EducationCandidate $candidate): array
+    public static function for(EducationCandidate $candidate, bool $qualificationManuallyConfirmed = false): array
     {
         return [
             'dbs' => [
@@ -52,6 +52,12 @@ class CandidateVettingRequirements
                     ->where('type', '!=', ReferenceType::GapStatement)
                     ->exists()
                     || $candidate->documents()->where('document_type', DocumentType::Reference)->exists(),
+            ],
+            'qualification' => [
+                'label' => 'Qualification',
+                'description' => 'Qualification document uploaded, or manually confirmed as not required for this candidate.',
+                'complete' => $candidate->documents()->where('document_type', DocumentType::Qualification)->exists()
+                    || $qualificationManuallyConfirmed,
             ],
             'skills' => [
                 'label' => 'Skills',
@@ -135,9 +141,9 @@ class CandidateVettingRequirements
         };
     }
 
-    public static function isComplete(EducationCandidate $candidate): bool
+    public static function isComplete(EducationCandidate $candidate, bool $qualificationManuallyConfirmed = false): bool
     {
-        return collect(self::for($candidate))->every(fn (array $check): bool => $check['complete']);
+        return collect(self::for($candidate, $qualificationManuallyConfirmed))->every(fn (array $check): bool => $check['complete']);
     }
 
     /**

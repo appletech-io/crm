@@ -31,6 +31,11 @@ class CandidateDocumentRequirements
                 'label' => 'Safeguarding Training',
                 'description' => 'Certificate confirming completion of safeguarding training.',
             ];
+
+            $definitions['qualification'] = [
+                'label' => 'Qualification',
+                'description' => 'Evidence of your teaching qualification or certificate.',
+            ];
         }
 
         if ($candidate instanceof HealthcareCandidate) {
