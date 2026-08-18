@@ -149,7 +149,8 @@ test('the job creates a candidate from the parsed CV and assigns status, skills,
         ->and($candidate->email)->toBe('jane@example.com')
         ->and($candidate->statuses()->where('candidate_status_id', $this->status->id)->exists())->toBeTrue()
         ->and($candidate->skills()->where('candidate_skills.id', $skill->id)->exists())->toBeTrue()
-        ->and($candidate->documents()->where('document_type', DocumentType::Cv)->exists())->toBeTrue();
+        ->and($candidate->documents()->where('document_type', DocumentType::Cv)->exists())->toBeTrue()
+        ->and($candidate->application->expires_on->toDateString())->toBe(now()->addWeeks(2)->toDateString());
 
     Queue::assertPushed(SendApplicationEmail::class);
 });

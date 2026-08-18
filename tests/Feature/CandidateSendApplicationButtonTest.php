@@ -130,6 +130,46 @@ test('the send application button does not show once an application already exis
         ->assertSee('Application Pending');
 });
 
+test('an expired education application shows a resend button instead of the pending badge', function () {
+    actingAsIndustryUserFor('education');
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $candidate->application()->create([
+        'email' => $candidate->email,
+        'status' => 'pending',
+        'token' => Str::uuid(),
+        'expires_on' => now()->subDay()->toDateString(),
+    ]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertSee('Application Expired')
+        ->assertSee('Resend Application')
+        ->assertDontSee('Application Pending')
+        ->assertDontSee('Send Application');
+});
+
+test('clicking resend application on an education candidate refreshes the token and expiry then resends the email', function () {
+    $industry = actingAsIndustryUserFor('education');
+    makeApplicationTemplate($industry);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $application = $candidate->application()->create([
+        'email' => $candidate->email,
+        'status' => 'pending',
+        'token' => 'stale-token',
+        'expires_on' => now()->subDay()->toDateString(),
+    ]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->call('resendApplicationEmail')
+        ->assertSee('Application Pending')
+        ->assertDontSee('Application Expired');
+
+    $application->refresh();
+    expect($application->token)->not->toBe('stale-token');
+    expect($application->expires_on->toDateString())->toBe(now()->addWeeks(2)->toDateString());
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), 'sendMail'));
+});
+
 test('a send application button shows on a healthcare candidate with no application who is onboarding', function () {
     $industry = actingAsIndustryUserFor('healthcare');
     $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
@@ -164,6 +204,46 @@ test('clicking send application on a healthcare candidate creates an application
         ->assertDontSee('Send Application');
 
     expect($candidate->application()->exists())->toBeTrue();
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), 'sendMail'));
+});
+
+test('an expired healthcare application shows a resend button instead of the pending badge', function () {
+    actingAsIndustryUserFor('healthcare');
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $candidate->application()->create([
+        'email' => $candidate->email,
+        'status' => 'pending',
+        'token' => Str::uuid(),
+        'expires_on' => now()->subDay()->toDateString(),
+    ]);
+
+    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertSee('Application Expired')
+        ->assertSee('Resend Application')
+        ->assertDontSee('Application Pending')
+        ->assertDontSee('Send Application');
+});
+
+test('clicking resend application on a healthcare candidate refreshes the token and expiry then resends the email', function () {
+    $industry = actingAsIndustryUserFor('healthcare');
+    makeApplicationTemplate($industry);
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $application = $candidate->application()->create([
+        'email' => $candidate->email,
+        'status' => 'pending',
+        'token' => 'stale-token',
+        'expires_on' => now()->subDay()->toDateString(),
+    ]);
+
+    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->call('resendApplicationEmail')
+        ->assertSee('Application Pending')
+        ->assertDontSee('Application Expired');
+
+    $application->refresh();
+    expect($application->token)->not->toBe('stale-token');
+    expect($application->expires_on->toDateString())->toBe(now()->addWeeks(2)->toDateString());
 
     Http::assertSent(fn ($request) => str_contains($request->url(), 'sendMail'));
 });

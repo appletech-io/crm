@@ -20,7 +20,7 @@ class HealthcareCandidateCreated
             'email' => $candidate->email,
             'status' => 'pending',
             'token' => Str::uuid(),
-            'expires_on' => now()->addDays(7)->toDateString(),
+            'expires_on' => now()->addWeeks(2)->toDateString(),
         ]);
 
         $onboarding = CandidateStatus::where('company_id', $candidate->company_id)

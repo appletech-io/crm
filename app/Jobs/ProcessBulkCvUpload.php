@@ -102,7 +102,7 @@ class ProcessBulkCvUpload implements ShouldQueue
                 'email' => $candidate->email,
                 'status' => 'pending',
                 'token' => Str::uuid(),
-                'expires_on' => now()->addDays(7)->toDateString(),
+                'expires_on' => now()->addWeeks(2)->toDateString(),
             ]);
 
             SendApplicationEmail::dispatch($candidate, $application);
