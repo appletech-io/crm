@@ -9,6 +9,7 @@ use App\Filament\Widgets\ClientPipelineOverview;
 use App\Filament\Widgets\ClientTimesheetOverview;
 use App\Models\Client;
 use App\Models\ClientContact;
+use App\Models\ClientContactJobTitle;
 use App\Models\ClientType;
 use App\Models\JobTitle;
 use App\Models\User;
@@ -271,9 +272,9 @@ class ClientForm
                                     ->schema([
                                         TextInput::make('title')
                                             ->maxLength(255),
-                                        Select::make('job_title_id')
+                                        Select::make('client_contact_job_title_id')
                                             ->label('Job Title')
-                                            ->options(fn (): array => JobTitle::query()
+                                            ->options(fn (): array => ClientContactJobTitle::query()
                                                 ->where('company_id', Auth::user()->company_id)
                                                 ->where('industry_id', active_industry_id())
                                                 ->pluck('name', 'id')

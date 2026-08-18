@@ -58,8 +58,8 @@ class ClientContact extends Model
         return $this->belongsTo(Client::class);
     }
 
-    public function jobTitle(): BelongsTo
+    public function clientContactJobTitle(): BelongsTo
     {
-        return $this->belongsTo(JobTitle::class);
+        return $this->belongsTo(ClientContactJobTitle::class);
     }
 }

@@ -5,11 +5,13 @@ namespace App\Filament\Widgets;
 use App\Filament\Resources\CandidatePools\CandidatePoolResource;
 use App\Filament\Resources\CandidateSkills\CandidateSkillResource;
 use App\Filament\Resources\CandidateStatuses\CandidateStatusResource;
+use App\Filament\Resources\JobTitles\JobTitleResource;
 use App\Filament\Resources\QualificationJobTitles\QualificationJobTitleResource;
 use App\Filament\Resources\Qualifications\QualificationResource;
 use App\Models\CandidatePool;
 use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
+use App\Models\JobTitle;
 use App\Models\Qualification;
 use App\Models\QualificationJobTitle;
 use Filament\Widgets\StatsOverviewWidget;
@@ -43,6 +45,11 @@ class CandidateSettingsOverview extends StatsOverviewWidget
             )
             ->count();
 
+        $jobTitlesCount = JobTitle::query()
+            ->where('company_id', Auth::user()->company_id)
+            ->where('industry_id', active_industry_id())
+            ->count();
+
         $qualificationsCount = Qualification::query()
             ->where('company_id', Auth::user()->company_id)
             ->where('industry_id', active_industry_id())
@@ -71,6 +78,12 @@ class CandidateSettingsOverview extends StatsOverviewWidget
                 ->descriptionIcon('heroicon-m-rectangle-stack')
                 ->color('primary')
                 ->url(CandidatePoolResource::getUrl('index')),
+
+            Stat::make('Job Titles', $jobTitlesCount)
+                ->description('Job titles configured')
+                ->descriptionIcon('heroicon-m-briefcase')
+                ->color('primary')
+                ->url(JobTitleResource::getUrl('index')),
 
             Stat::make('Qualifications', $qualificationsCount)
                 ->description('Qualifications configured')

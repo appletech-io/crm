@@ -5,6 +5,7 @@ use App\Filament\Resources\Clients\Pages\EditClient;
 use App\Filament\Resources\Clients\Pages\ListClients;
 use App\Models\Client;
 use App\Models\ClientContact;
+use App\Models\ClientContactJobTitle;
 use App\Models\ClientType;
 use App\Models\Industry;
 use App\Models\User;
@@ -184,6 +185,11 @@ test('a contact can be added via the Contacts tab on the edit page', function ()
         'industry_id' => Cache::get("user.{$this->user->id}.active_industry_id"),
     ]);
 
+    $jobTitle = ClientContactJobTitle::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => Cache::get("user.{$this->user->id}.active_industry_id"),
+    ]);
+
     Livewire::test(EditClient::class, ['record' => $client->id])
         ->fillForm([
             'contacts' => [
@@ -192,6 +198,7 @@ test('a contact can be added via the Contacts tab on the edit page', function ()
                     'last_name' => 'Smith',
                     'email' => 'ashley@example.com',
                     'main_contact' => true,
+                    'client_contact_job_title_id' => $jobTitle->id,
                 ],
             ],
         ])
@@ -203,7 +210,8 @@ test('a contact can be added via the Contacts tab on the edit page', function ()
     expect($contact)->not->toBeNull()
         ->and($contact->first_name)->toBe('Ashley')
         ->and($contact->last_name)->toBe('Smith')
-        ->and($contact->main_contact)->toBeTrue();
+        ->and($contact->main_contact)->toBeTrue()
+        ->and($contact->client_contact_job_title_id)->toBe($jobTitle->id);
 });
 
 test('setting a contact as main unsets the previous main contact', function () {
