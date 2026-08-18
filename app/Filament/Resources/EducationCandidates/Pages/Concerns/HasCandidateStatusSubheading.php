@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\EducationCandidates\Pages\Concerns;
 
+use App\Actions\Applications\ResendApplicationEmail;
 use App\Actions\Candidates\CandidateCreated;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use Filament\Notifications\Notification;
@@ -20,6 +21,18 @@ trait HasCandidateStatusSubheading
         Notification::make()
             ->success()
             ->title('Application email sent')
+            ->send();
+    }
+
+    public function resendApplicationEmail(): void
+    {
+        ResendApplicationEmail::run($this->record);
+
+        $this->record->unsetRelation('application');
+
+        Notification::make()
+            ->success()
+            ->title('Application email resent')
             ->send();
     }
 
@@ -47,6 +60,13 @@ trait HasCandidateStatusSubheading
             $url = EducationCandidateResource::getUrl('view-application', ['record' => $this->record]);
             $applicationHtml = Blade::render(
                 '<a href="{{ $url }}" target="_blank"><x-filament::badge color="success">Application Complete</x-filament::badge></a>',
+                ['url' => $url]
+            );
+        } elseif ($application?->expires_on?->isPast()) {
+            $url = route('application.form', ['token' => $application->token]);
+            $applicationHtml = Blade::render(
+                '<a href="{{ $url }}" target="_blank"><x-filament::badge color="danger">Application Expired</x-filament::badge></a> '.
+                '<x-filament::button size="sm" color="gray" wire:click="resendApplicationEmail" wire:confirm="Resend the application email to this candidate?">Resend Application</x-filament::button>',
                 ['url' => $url]
             );
         } elseif ($application) {

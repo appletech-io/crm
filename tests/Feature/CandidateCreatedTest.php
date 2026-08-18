@@ -50,5 +50,6 @@ test('it creates a pending application and assigns the onboarding status', funct
 
     expect($candidate->application)->not->toBeNull()
         ->and($candidate->application->status)->toBe('pending')
+        ->and($candidate->application->expires_on->toDateString())->toBe(now()->addWeeks(2)->toDateString())
         ->and($candidate->currentStatusName())->toBe('Onboarding');
 });
