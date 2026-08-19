@@ -69,6 +69,39 @@ class BookingRevenuePeriodCalculator
             ->values();
     }
 
+    /**
+     * Same grouping as {@see self::byClient()} but by booking, for a
+     * row-level revenue/cost/margin report rather than a per-client rollup.
+     *
+     * @return Collection<int, array{bookingId: int, clientName: string, consultantName: string, jobTitle: string, revenue: float, cost: float, margin: float, days: int}>
+     */
+    public static function byBooking(Carbon $start, Carbon $end, ?int $consultantId = null, ?int $clientId = null): Collection
+    {
+        return self::dayPeriodsQuery($start, $end, $consultantId, $clientId)
+            ->with('booking.consultant', 'booking.jobTitle')
+            ->get()
+            ->groupBy('booking_id')
+            ->map(function (Collection $periods, int $bookingId): array {
+                [$revenue, $cost] = self::sumRevenueAndCost($periods);
+
+                /** @var Booking $booking */
+                $booking = $periods->first()->booking;
+
+                return [
+                    'bookingId' => $bookingId,
+                    'clientName' => $booking->client?->name ?? 'Unknown client',
+                    'consultantName' => $booking->consultant?->name ?? 'Unassigned',
+                    'jobTitle' => $booking->jobTitle?->name ?? 'Unknown role',
+                    'revenue' => round($revenue, 2),
+                    'cost' => round($cost, 2),
+                    'margin' => round($revenue - $cost, 2),
+                    'days' => $periods->pluck('date')->unique()->count(),
+                ];
+            })
+            ->sortByDesc('revenue')
+            ->values();
+    }
+
     /** @return array{bookings: int, revenue: float, cost: float, margin: float, avgMargin: float} */
     public static function totals(Carbon $start, Carbon $end, ?int $consultantId = null, ?int $clientId = null): array
     {

@@ -31,6 +31,19 @@ class PlacementPeriodCalculator
             ->values();
     }
 
+    /** @return Collection<int, array{clientId: int, count: int, value: float}> */
+    public static function byClient(Carbon $start, Carbon $end, ?int $consultantId = null, ?int $clientId = null): Collection
+    {
+        return self::filledVacancies($start, $end, $consultantId, $clientId)
+            ->groupBy('client_id')
+            ->map(fn (Collection $vacancies, int $groupClientId): array => [
+                'clientId' => $groupClientId,
+                'count' => $vacancies->count(),
+                'value' => round($vacancies->sum(fn (Vacancy $vacancy): float => $vacancy->estimatedPlacementValue() ?? 0), 2),
+            ])
+            ->values();
+    }
+
     /** @return array{count: int, value: float, avgValue: float} */
     public static function totals(Carbon $start, Carbon $end, ?int $consultantId = null, ?int $clientId = null): array
     {

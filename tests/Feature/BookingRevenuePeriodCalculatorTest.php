@@ -154,6 +154,28 @@ test('a consultant filter excludes other consultants bookings', function () {
         ->and($totals['revenue'])->toBe(150.0);
 });
 
+test('byBooking returns one row per booking with its own revenue, cost and margin', function () {
+    $client = Client::factory()->create(['company_id' => $this->company->id, 'name' => 'Acme Ltd']);
+    $consultant = User::factory()->create(['company_id' => $this->company->id, 'name' => 'Jo Consultant']);
+
+    $booking = createReportBookingWithDay($this->user, $client, $this->jobTitle, '2026-01-05', [
+        'consultant_id' => $consultant->id,
+        'day_rate' => 100,
+        'day_charge_rate' => 150,
+    ]);
+
+    $rows = BookingRevenuePeriodCalculator::byBooking(Carbon::parse('2026-01-01'), Carbon::parse('2026-01-31'));
+
+    expect($rows)->toHaveCount(1)
+        ->and($rows[0]['bookingId'])->toBe($booking->id)
+        ->and($rows[0]['clientName'])->toBe('Acme Ltd')
+        ->and($rows[0]['consultantName'])->toBe('Jo Consultant')
+        ->and($rows[0]['revenue'])->toBe(150.0)
+        ->and($rows[0]['cost'])->toBe(100.0)
+        ->and($rows[0]['margin'])->toBe(50.0)
+        ->and($rows[0]['days'])->toBe(1);
+});
+
 test('byClient ranks clients by revenue descending', function () {
     $bigClient = Client::factory()->create(['company_id' => $this->company->id, 'name' => 'Big Client']);
     $smallClient = Client::factory()->create(['company_id' => $this->company->id, 'name' => 'Small Client']);
