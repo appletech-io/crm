@@ -87,6 +87,13 @@ class AskAssistant extends Component
             'Compliance' => [
                 "Which candidates have {$this->exampleComplianceRequirement()} expiring soon?",
             ],
+            'Nearby candidates' => [
+                'Which candidates are within 10 miles of a specific client?',
+                'Find candidates near a postcode or address',
+            ],
+            'Best-rated candidates nearby' => [
+                "Find me a good {$this->exampleSkillOrQualification()} near a client",
+            ],
         ];
     }
 
@@ -96,6 +103,15 @@ class AskAssistant extends Component
             'education' => 'a Teacher',
             'healthcare' => 'a Nursing',
             default => null,
+        };
+    }
+
+    private function exampleSkillOrQualification(): string
+    {
+        return match (active_industry()) {
+            'education' => 'maths teacher',
+            'healthcare' => 'nurse',
+            default => 'candidate',
         };
     }
 
