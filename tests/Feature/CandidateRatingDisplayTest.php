@@ -128,6 +128,7 @@ test('the healthcare candidates list and edit page also show the average rating'
     ]);
 
     Livewire::test(ListHealthcareCandidates::class)
+        ->set('activeSection', 'all')
         ->assertTableColumnStateSet('average_rating', 5.0, record: $candidate);
 
     Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
@@ -215,6 +216,7 @@ test('the healthcare candidates rating filter narrows to a minimum star threshol
     ]);
 
     Livewire::test(ListHealthcareCandidates::class)
+        ->set('activeSection', 'all')
         ->filterTable('average_rating', '3')
         ->assertCanSeeTableRecords([$highlyRated])
         ->assertCanNotSeeTableRecords([$poorlyRated]);

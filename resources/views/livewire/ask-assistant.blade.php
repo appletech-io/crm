@@ -1,5 +1,76 @@
 <div
-    x-data
+    x-data="{
+        listening: false,
+        recognition: null,
+        base: '',
+        toggleDictation() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+            if (! SpeechRecognition) {
+                alert('Speech to text is not supported in this browser. Try Chrome or Edge.');
+                return;
+            }
+
+            if (this.recognition) {
+                this.recognition.stop();
+                return;
+            }
+
+            const input = $refs.promptInput;
+            this.base = input.value ? input.value.trim() + ' ' : '';
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'en-GB';
+            recognition.interimResults = true;
+            recognition.continuous = true;
+
+            recognition.onresult = (event) => {
+                let interim = '';
+
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const chunk = event.results[i][0].transcript;
+
+                    if (event.results[i].isFinal) {
+                        this.base += chunk.trim() + ' ';
+                    } else {
+                        interim += chunk;
+                    }
+                }
+
+                input.value = (this.base + interim).trim();
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            };
+
+            recognition.onend = () => {
+                this.recognition = null;
+                this.listening = false;
+            };
+
+            recognition.onerror = (event) => {
+                this.recognition = null;
+                this.listening = false;
+
+                if (event.error === 'no-speech') {
+                    alert('No speech was detected. Check your microphone is working and try again.');
+                } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                    alert('Microphone access was blocked. Check your browser is allowed to use the microphone on this site and try again.');
+                } else if (event.error !== 'aborted') {
+                    alert('Speech recognition error: ' + event.error);
+                }
+            };
+
+            this.recognition = recognition;
+            this.listening = true;
+
+            try {
+                recognition.start();
+            } catch (e) {
+                this.recognition = null;
+                this.listening = false;
+                alert('Could not start speech recognition: ' + e.message);
+            }
+        },
+    }"
     class="flex h-full max-h-[44rem] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl shadow-zinc-950/10 dark:border-white/10 dark:bg-zinc-900"
 >
     <div class="flex shrink-0 items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-white/10">
@@ -126,78 +197,6 @@
 
     <form
         wire:submit="send"
-        x-data="{
-            listening: false,
-            recognition: null,
-            base: '',
-            toggleDictation() {
-                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-                if (! SpeechRecognition) {
-                    alert('Speech to text is not supported in this browser. Try Chrome or Edge.');
-                    return;
-                }
-
-                if (this.recognition) {
-                    this.recognition.stop();
-                    return;
-                }
-
-                const input = $refs.promptInput;
-                this.base = input.value ? input.value.trim() + ' ' : '';
-
-                const recognition = new SpeechRecognition();
-                recognition.lang = 'en-GB';
-                recognition.interimResults = true;
-                recognition.continuous = true;
-
-                recognition.onresult = (event) => {
-                    let interim = '';
-
-                    for (let i = event.resultIndex; i < event.results.length; i++) {
-                        const chunk = event.results[i][0].transcript;
-
-                        if (event.results[i].isFinal) {
-                            this.base += chunk.trim() + ' ';
-                        } else {
-                            interim += chunk;
-                        }
-                    }
-
-                    input.value = (this.base + interim).trim();
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                };
-
-                recognition.onend = () => {
-                    this.recognition = null;
-                    this.listening = false;
-                };
-
-                recognition.onerror = (event) => {
-                    this.recognition = null;
-                    this.listening = false;
-
-                    if (event.error === 'no-speech') {
-                        alert('No speech was detected. Check your microphone is working and try again.');
-                    } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-                        alert('Microphone access was blocked. Check your browser is allowed to use the microphone on this site and try again.');
-                    } else if (event.error !== 'aborted') {
-                        alert('Speech recognition error: ' + event.error);
-                    }
-                };
-
-                this.recognition = recognition;
-                this.listening = true;
-
-                try {
-                    recognition.start();
-                } catch (e) {
-                    this.recognition = null;
-                    this.listening = false;
-                    alert('Could not start speech recognition: ' + e.message);
-                }
-            },
-        }"
         x-on:submit="recognition && recognition.stop()"
         class="flex shrink-0 gap-2 border-t border-zinc-200 p-4 dark:border-white/10"
     >

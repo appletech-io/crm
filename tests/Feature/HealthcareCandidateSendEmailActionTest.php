@@ -43,6 +43,7 @@ test('the row action dispatches the job for the selected candidate and template'
     ]);
 
     Livewire::test(ListHealthcareCandidates::class)
+        ->set('activeSection', 'all')
         ->callTableAction('sendEmail', $candidate, data: ['email_template_id' => $this->template->id])
         ->assertNotified('Email queued for sending');
 
@@ -64,6 +65,7 @@ test('the bulk action dispatches for sendable candidates and reports skipped one
     ]);
 
     Livewire::test(ListHealthcareCandidates::class)
+        ->set('activeSection', 'all')
         ->callTableBulkAction('sendEmail', [$sendable, $skipped], data: ['email_template_id' => $this->template->id])
         ->assertNotified('Queued 1 email(s). Skipped 1 (no contact email on file): No Email');
 
