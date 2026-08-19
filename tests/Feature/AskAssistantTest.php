@@ -67,7 +67,20 @@ test('the prompt help modal lists examples for every tool', function () {
         ->assertSee('Vacancy matches')
         ->assertSee('Can this candidate be booked?')
         ->assertSee('Compliance')
-        ->assertSee('DBS expiring soon?');
+        ->assertSee('DBS expiring soon?')
+        ->assertSee('Nearby candidates')
+        ->assertSee('Which candidates are within 10 miles of a specific client?')
+        ->assertSee('Best-rated candidates nearby')
+        ->assertSee('Find me a good candidate near a client');
+});
+
+test('the prompt help modal best-rated-nearby example is tailored to the education sector', function () {
+    $industry = Industry::factory()->create(['slug' => 'education']);
+    Cache::put("user.{$this->user->id}.active_industry", $industry->slug);
+    Cache::put("user.{$this->user->id}.active_industry_id", $industry->id);
+
+    Livewire::test(AskAssistant::class)
+        ->assertSee('Find me a good maths teacher near a client');
 });
 
 test('the prompt help modal compliance example is tailored to the education sector', function () {

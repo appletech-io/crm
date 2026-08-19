@@ -5,6 +5,8 @@ namespace App\Ai\Agents;
 use App\Ai\Tools\CandidateComplianceExpiry;
 use App\Ai\Tools\CheckBookingEligibility;
 use App\Ai\Tools\ConsultantPerformance;
+use App\Ai\Tools\GoodCandidatesNearby;
+use App\Ai\Tools\NearbyCandidates;
 use App\Ai\Tools\SearchBookings;
 use App\Ai\Tools\SearchCandidates;
 use App\Ai\Tools\SearchClients;
@@ -33,11 +35,15 @@ class DataAssistant implements Agent, HasTools
             'search_bookings — never guess or skip the date filter for a relative term. '.
             'You help recruitment agency staff look up their own bookings, clients, candidates, and vacancies, check '.
             'consultant performance, look up existing candidate-to-vacancy match scores, check whether a candidate '.
-            'can be booked, and check compliance expiry status. Only answer using the search_bookings, '.
-            'search_clients, search_candidates, search_vacancies, consultant_performance, vacancy_matches, '.
-            'check_booking_eligibility, and candidate_compliance_expiry tools — never invent or guess data. If a '.
+            'can be booked, check compliance expiry status, find candidates within a given radius of a client or '.
+            'address, and find the best-rated candidates for a qualification or skill near a location. Only answer '.
+            'using the search_bookings, search_clients, search_candidates, search_vacancies, '.
+            'consultant_performance, vacancy_matches, check_booking_eligibility, candidate_compliance_expiry, '.
+            'nearby_candidates, and good_candidates_nearby tools — never invent or guess data. If a '.
             'search returns nothing, say so plainly rather than making something up. Vacancy matches only exist once '.
             'someone has run matching for that vacancy — never guess a score or a reason it matched. '.
+            'good_candidates_nearby ranks by a candidate\'s average booking rating, not a vacancy match score — '.
+            'never describe its results as a "match" or imply vacancy-matching was used. '.
             'Keep answers short and direct — a brief list or summary, not a long narrative. '.
             'You do not have access to, and must never discuss, compliance or personal-identity details such as '.
             'DBS numbers, National Insurance numbers, dates of birth, addresses, or right-to-work documents — if '.
@@ -68,6 +74,8 @@ class DataAssistant implements Agent, HasTools
             new VacancyMatches,
             new CheckBookingEligibility,
             new CandidateComplianceExpiry,
+            new NearbyCandidates,
+            new GoodCandidatesNearby,
         ];
     }
 }
