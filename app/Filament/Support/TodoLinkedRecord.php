@@ -33,13 +33,13 @@ class TodoLinkedRecord
             $model === null => [],
             $model instanceof Client => [self::clientLink($model)],
             $model instanceof Booking => array_values(array_filter([
-                ['label' => "Booking #{$model->id}", 'url' => BookingResource::getUrl('edit', ['record' => $model])],
+                self::bookingLink($model),
                 self::candidateLink($model->candidate),
                 $model->client ? self::clientLink($model->client) : null,
             ])),
             $model instanceof Vacancy => array_values(array_filter([
                 self::candidateLink($model->filledBy),
-                ['label' => $model->title, 'url' => VacancyResource::getUrl('edit', ['record' => $model])],
+                self::vacancyLink($model),
                 $model->client ? self::clientLink($model->client) : null,
             ])),
             $model instanceof CandidateReference => array_filter([self::candidateLink($model->candidate)]),
@@ -51,13 +51,25 @@ class TodoLinkedRecord
     }
 
     /** @return array{label: string, url: string} */
-    private static function clientLink(Model $client): array
+    public static function clientLink(Model $client): array
     {
         return ['label' => $client->name, 'url' => ClientResource::getUrl('edit', ['record' => $client])];
     }
 
+    /** @return array{label: string, url: string} */
+    public static function bookingLink(Booking $booking): array
+    {
+        return ['label' => "Booking #{$booking->id}", 'url' => BookingResource::getUrl('edit', ['record' => $booking])];
+    }
+
+    /** @return array{label: string, url: string} */
+    public static function vacancyLink(Vacancy $vacancy): array
+    {
+        return ['label' => $vacancy->title, 'url' => VacancyResource::getUrl('edit', ['record' => $vacancy])];
+    }
+
     /** @return array{label: string, url: string}|null */
-    private static function candidateLink(?Model $candidate): ?array
+    public static function candidateLink(?Model $candidate): ?array
     {
         if (! $candidate) {
             return null;
