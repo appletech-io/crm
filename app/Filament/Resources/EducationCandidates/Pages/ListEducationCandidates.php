@@ -8,6 +8,7 @@ use App\Enums\CandidateAvailabilityStatus;
 use App\Enums\EmailTemplateAudience;
 use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
+use App\Filament\Support\AddToCandidatePoolAction;
 use App\Filament\Support\SendCustomEmailAction;
 use App\Models\Booking;
 use App\Models\BookingDay;
@@ -70,10 +71,6 @@ class ListEducationCandidates extends ListRecords implements HasForms
     public function updatedActiveSection(): void
     {
         $this->resetTable();
-
-        if ($this->activeSection === 'search') {
-            $this->search();
-        }
     }
 
     protected function getHeaderActions(): array
@@ -245,11 +242,31 @@ class ListEducationCandidates extends ListRecords implements HasForms
 
     public function table(Table $table): Table
     {
-        if ($this->activeSection !== 'search') {
+        if ($this->activeSection !== 'search' && ! $this->hasActiveSearchFilters()) {
             return $table;
         }
 
         return $this->configureSearchTable($table);
+    }
+
+    /**
+     * Whether the search form has any criteria filled in beyond its
+     * defaults — used on the "All Candidates" tab to decide whether to keep
+     * that tab's broader default scope (all consultants, all statuses) or
+     * narrow to configureSearchTable()'s scope (via CandidateSearchService:
+     * consultant-own, status "Live" only) once the user has actually
+     * searched for something.
+     */
+    private function hasActiveSearchFilters(): bool
+    {
+        $data = $this->data ?? [];
+
+        return filled($data['name'] ?? null)
+            || filled($data['email'] ?? null)
+            || filled($data['skill_ids'] ?? null)
+            || filled($data['client_id'] ?? null)
+            || filled($data['address'] ?? null)
+            || filled($data['days'] ?? null);
     }
 
     protected function configureSearchTable(Table $table): Table
@@ -299,6 +316,7 @@ class ListEducationCandidates extends ListRecords implements HasForms
             ->toolbarActions([
                 BulkActionGroup::make([
                     SendCustomEmailAction::bulk(EmailTemplateAudience::Candidate),
+                    AddToCandidatePoolAction::bulk(EducationCandidate::class),
                 ]),
             ])
             ->columns([

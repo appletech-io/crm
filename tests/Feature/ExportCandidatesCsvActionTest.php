@@ -40,6 +40,7 @@ test('selected healthcare candidates can be exported to a csv file', function ()
     $candidates = HealthcareCandidate::factory()->count(2)->create(['company_id' => $this->user->company_id]);
 
     Livewire::test(ListHealthcareCandidates::class)
+        ->set('activeSection', 'all')
         ->selectTableRecords($candidates->pluck('id')->map(fn ($id) => (string) $id)->all())
         ->callAction(TestAction::make('exportCsv')->table()->bulk())
         ->assertFileDownloaded();

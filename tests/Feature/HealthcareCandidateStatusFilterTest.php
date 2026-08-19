@@ -44,6 +44,7 @@ test('the status filter accepts multiple values and matches candidates with any 
     $candidateC->statuses()->create(['candidate_status_id' => $statusC->id]);
 
     Livewire::test(ListHealthcareCandidates::class)
+        ->set('activeSection', 'all')
         ->filterTable('status', [$statusA->id, $statusB->id])
         ->assertCanSeeTableRecords([$candidateA, $candidateB])
         ->assertCanNotSeeTableRecords([$candidateC]);

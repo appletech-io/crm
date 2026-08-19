@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\HealthcareCandidates\Tables;
 
 use App\Enums\EmailTemplateAudience;
+use App\Filament\Support\AddToCandidatePoolAction;
 use App\Filament\Support\ExportCandidatesCsvAction;
 use App\Filament\Support\SendCustomEmailAction;
 use App\Models\CandidateSkill;
@@ -135,6 +136,7 @@ class HealthcareCandidatesTable
                 BulkActionGroup::make([
                     SendCustomEmailAction::bulk(EmailTemplateAudience::Candidate),
                     ExportCandidatesCsvAction::bulk(),
+                    AddToCandidatePoolAction::bulk(HealthcareCandidate::class),
                     DeleteBulkAction::make()
                         ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false),
                     ForceDeleteBulkAction::make(),
