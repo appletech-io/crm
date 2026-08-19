@@ -23,11 +23,9 @@ use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Navigation\NavigationGroup;
-use Filament\Navigation\NavigationItem;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Support\Icons\Heroicon;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -91,6 +89,10 @@ class AdminPanelProvider extends PanelProvider
                 fn () => view('filament.candidate-header-photo'),
                 scopes: [EditEducationCandidate::class, EditHealthcareCandidate::class],
             )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn () => view('filament.ask-assistant-floating-button'),
+            )
             ->navigationGroups([
                 NavigationGroup::make('Analytics'),
                 NavigationGroup::make('Settings')->collapsed(),
@@ -111,12 +113,6 @@ class AdminPanelProvider extends PanelProvider
                 VacanciesReport::class,
                 ClientsReport::class,
                 CandidatesReport::class,
-            ])
-            ->navigationItems([
-                NavigationItem::make('Ask Assistant')
-                    ->icon(Heroicon::OutlinedSparkles)
-                    ->url(fn () => route('ask-assistant'))
-                    ->sort(2),
             ])
             ->widgets([
                 //
