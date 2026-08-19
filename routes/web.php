@@ -4,6 +4,7 @@ use App\Http\Controllers\BookingConfirmationController;
 use App\Http\Controllers\CandidateDocumentController;
 use App\Http\Controllers\EmailImageController;
 use App\Http\Controllers\ImpersonationController;
+use App\Livewire\AskAssistant;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/crm')->name('home');
@@ -12,6 +13,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::redirect('dashboard', '/crm')->name('dashboard');
 
     Route::livewire('/select-sector', 'sector-selector')->name('sector.select');
+
+    Route::livewire('/crm/ask-assistant', AskAssistant::class)->name('ask-assistant');
 
     Route::get('/documents/view', [CandidateDocumentController::class, 'show'])->name('documents.view');
 });

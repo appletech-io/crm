@@ -20,9 +20,11 @@ use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Navigation\NavigationGroup;
+use Filament\Navigation\NavigationItem;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\Support\Icons\Heroicon;
 use Filament\View\PanelsRenderHook;
 use Guava\Calendar\CalendarPlugin;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -106,6 +108,12 @@ class AdminPanelProvider extends PanelProvider
                 Calendar::class,
                 RunPayroll::class,
                 Reports::class,
+            ])
+            ->navigationItems([
+                NavigationItem::make('Ask Assistant')
+                    ->icon(Heroicon::OutlinedSparkles)
+                    ->url(fn () => route('ask-assistant'))
+                    ->sort(2),
             ])
             ->widgets([
                 //
