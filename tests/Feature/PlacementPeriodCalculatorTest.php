@@ -88,6 +88,20 @@ test('byWeek buckets placements by the week they were filled', function () {
         ->and($weeks[1]['count'])->toBe(1);
 });
 
+test('byClient groups placement count and value by client', function () {
+    $clientA = Client::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+    $clientB = Client::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+
+    createFilledVacancy($this->user, $this->filledStatus, $this->jobTitle, '2026-01-05', ['client_id' => $clientA->id]);
+    createFilledVacancy($this->user, $this->filledStatus, $this->jobTitle, '2026-01-06', ['client_id' => $clientA->id]);
+    createFilledVacancy($this->user, $this->filledStatus, $this->jobTitle, '2026-01-07', ['client_id' => $clientB->id]);
+
+    $rows = PlacementPeriodCalculator::byClient(Carbon::parse('2026-01-01'), Carbon::parse('2026-01-31'))->keyBy('clientId');
+
+    expect($rows[$clientA->id]['count'])->toBe(2)
+        ->and($rows[$clientB->id]['count'])->toBe(1);
+});
+
 test('a consultant filter excludes other consultants placements', function () {
     $consultantA = User::factory()->create(['company_id' => $this->company->id]);
     $consultantB = User::factory()->create(['company_id' => $this->company->id]);

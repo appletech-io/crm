@@ -21,9 +21,9 @@ class Reports extends BaseDashboard
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedChartBar;
 
-    protected static ?string $navigationLabel = 'Reports';
+    protected static ?string $navigationLabel = 'Overview';
 
-    protected static \UnitEnum|string|null $navigationGroup = 'Admin';
+    protected static \UnitEnum|string|null $navigationGroup = 'Analytics';
 
     protected static ?string $title = 'Reports';
 

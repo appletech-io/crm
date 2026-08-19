@@ -2,7 +2,10 @@
 
 namespace App\Providers\Filament;
 
-use App\Filament\Pages\Calendar;
+use App\Filament\Pages\Analytics\CandidatesReport;
+use App\Filament\Pages\Analytics\ClientsReport;
+use App\Filament\Pages\Analytics\RevenueMarginReport;
+use App\Filament\Pages\Analytics\VacanciesReport;
 use App\Filament\Pages\CandidateSettings;
 use App\Filament\Pages\ClientSettings;
 use App\Filament\Pages\ComplianceDashboard;
@@ -26,7 +29,6 @@ use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\Support\Icons\Heroicon;
 use Filament\View\PanelsRenderHook;
-use Guava\Calendar\CalendarPlugin;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -90,24 +92,25 @@ class AdminPanelProvider extends PanelProvider
                 scopes: [EditEducationCandidate::class, EditHealthcareCandidate::class],
             )
             ->navigationGroups([
+                NavigationGroup::make('Analytics'),
                 NavigationGroup::make('Settings')->collapsed(),
                 NavigationGroup::make('Admin')->collapsed(),
                 NavigationGroup::make('Marketing')->collapsed(),
                 NavigationGroup::make('Site Settings'),
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
-            ->plugins([
-                CalendarPlugin::make(),
-            ])
             ->pages([
                 Dashboard::class,
                 ComplianceDashboard::class,
                 CandidateSettings::class,
                 ClientSettings::class,
                 JobSettings::class,
-                Calendar::class,
                 RunPayroll::class,
                 Reports::class,
+                RevenueMarginReport::class,
+                VacanciesReport::class,
+                ClientsReport::class,
+                CandidatesReport::class,
             ])
             ->navigationItems([
                 NavigationItem::make('Ask Assistant')
