@@ -25,7 +25,7 @@ class PermPlacementStats extends StatsOverviewWidget
 
         return [
             Stat::make('Placements', $totals['count']),
-            Stat::make('Est. Value', '£'.number_format($totals['value'], 2)),
+            Stat::make('Value', '£'.number_format($totals['value'], 2)),
             Stat::make('Avg Value', '£'.number_format($totals['avgValue'], 2)),
         ];
     }

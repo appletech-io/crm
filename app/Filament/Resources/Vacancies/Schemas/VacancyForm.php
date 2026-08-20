@@ -2,13 +2,16 @@
 
 namespace App\Filament\Resources\Vacancies\Schemas;
 
+use App\Enums\VacancyEmploymentType;
 use App\Filament\Widgets\VacancyActivityTimeline;
 use App\Filament\Widgets\VacancyApplicantsTable;
 use App\Filament\Widgets\VacancyMatchesTable;
+use App\Filament\Widgets\VacancyPlacementsTable;
 use App\Models\Client;
 use App\Models\JobStatus;
 use App\Models\JobTitle;
 use App\Models\Vacancy;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -17,6 +20,7 @@ use Filament\Schemas\Components\Livewire as LivewireComponent;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -103,14 +107,36 @@ class VacancyForm
                                             ->default(1)
                                             ->required(),
 
+                                        Select::make('employment_type')
+                                            ->label('Employment Type')
+                                            ->options(VacancyEmploymentType::options())
+                                            ->default(VacancyEmploymentType::Permanent->value)
+                                            ->helperText('Temp roles are filled via a Booking and excluded from placement fee/margin reporting on this job.')
+                                            ->native(false)
+                                            ->live()
+                                            ->required(),
+
                                         TextInput::make('placement_fee_percentage')
                                             ->label('Placement Fee %')
-                                            ->helperText('Used to estimate this job\'s value on the client\'s Pipeline tab.')
+                                            ->helperText('Used to estimate this job\'s value on the client\'s Pipeline tab. Not used for temp roles.')
                                             ->numeric()
                                             ->minValue(0)
                                             ->maxValue(100)
                                             ->step(0.5)
-                                            ->suffix('%'),
+                                            ->suffix('%')
+                                            ->visible(fn (Get $get): bool => $get('employment_type') !== VacancyEmploymentType::Temp->value),
+
+                                        DatePicker::make('start_date')
+                                            ->label('Cover Needed From')
+                                            ->helperText('Used to prefill the Booking when a shortlisted candidate is booked for this cover.')
+                                            ->native(false)
+                                            ->visible(fn (Get $get): bool => $get('employment_type') === VacancyEmploymentType::Temp->value),
+
+                                        DatePicker::make('end_date')
+                                            ->label('Cover Needed To')
+                                            ->native(false)
+                                            ->afterOrEqual('start_date')
+                                            ->visible(fn (Get $get): bool => $get('employment_type') === VacancyEmploymentType::Temp->value),
 
                                         Select::make('job_status_id')
                                             ->label('Status')
@@ -165,6 +191,13 @@ class VacancyForm
                             ->schema([
                                 LivewireComponent::make(VacancyMatchesTable::class)
                                     ->key('vacancy-matches-table')
+                                    ->hidden(fn (?Model $record): bool => $record === null),
+                            ]),
+
+                        Tab::make('Placements')
+                            ->schema([
+                                LivewireComponent::make(VacancyPlacementsTable::class)
+                                    ->key('vacancy-placements-table')
                                     ->hidden(fn (?Model $record): bool => $record === null),
                             ]),
 

@@ -2,30 +2,36 @@
 
 namespace App\Services\Reporting;
 
-use App\Models\Vacancy;
-use App\Observers\VacancyObserver;
+use App\Enums\VacancyEmploymentType;
+use App\Models\VacancyPlacement;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * A "placement" is a vacancy that reached a job status flagged
- * is_filled_status, bucketed by when that happened
- * ({@see VacancyObserver::syncFilledAt()} keeps filled_at
- * current). estimatedPlacementValue() (already on the model) supplies the
- * fee estimate — not recomputed here.
+ * A "placement" here is one VacancyPlacement record — a single candidate
+ * placed against a single vacancy position — bucketed by that placement's
+ * own placed_at, and valued at its recorded actual_salary times the
+ * vacancy's placement_fee_percentage. A multi-position vacancy filled one
+ * candidate at a time therefore shows up incrementally as each candidate is
+ * placed, not as one lump event once every position is filled.
+ *
+ * Only permanent vacancies count — temp roles are tracked through Booking
+ * revenue instead (see BookingRevenuePeriodCalculator), so their placements
+ * are excluded entirely here rather than reported at zero value, matching
+ * this report's "Permanent Placements" framing.
  */
 class PlacementPeriodCalculator
 {
     /** @return Collection<int, array{weekStart: Carbon, count: int, value: float}> */
     public static function byWeek(Carbon $start, Carbon $end, ?int $consultantId = null, ?int $clientId = null): Collection
     {
-        return self::filledVacancies($start, $end, $consultantId, $clientId)
-            ->groupBy(fn (Vacancy $vacancy): string => $vacancy->filled_at->copy()->startOfWeek(Carbon::MONDAY)->toDateString())
-            ->map(fn (Collection $vacancies, string $weekStart): array => [
+        return self::placements($start, $end, $consultantId, $clientId)
+            ->groupBy(fn (VacancyPlacement $placement): string => $placement->placed_at->copy()->startOfWeek(Carbon::MONDAY)->toDateString())
+            ->map(fn (Collection $placements, string $weekStart): array => [
                 'weekStart' => Carbon::parse($weekStart),
-                'count' => $vacancies->count(),
-                'value' => round($vacancies->sum(fn (Vacancy $vacancy): float => $vacancy->estimatedPlacementValue() ?? 0), 2),
+                'count' => $placements->count(),
+                'value' => round($placements->sum(fn (VacancyPlacement $placement): float => self::value($placement)), 2),
             ])
             ->sortKeys()
             ->values();
@@ -34,12 +40,12 @@ class PlacementPeriodCalculator
     /** @return Collection<int, array{clientId: int, count: int, value: float}> */
     public static function byClient(Carbon $start, Carbon $end, ?int $consultantId = null, ?int $clientId = null): Collection
     {
-        return self::filledVacancies($start, $end, $consultantId, $clientId)
-            ->groupBy('client_id')
-            ->map(fn (Collection $vacancies, int $groupClientId): array => [
+        return self::placements($start, $end, $consultantId, $clientId)
+            ->groupBy(fn (VacancyPlacement $placement): int => $placement->vacancy->client_id)
+            ->map(fn (Collection $placements, int $groupClientId): array => [
                 'clientId' => $groupClientId,
-                'count' => $vacancies->count(),
-                'value' => round($vacancies->sum(fn (Vacancy $vacancy): float => $vacancy->estimatedPlacementValue() ?? 0), 2),
+                'count' => $placements->count(),
+                'value' => round($placements->sum(fn (VacancyPlacement $placement): float => self::value($placement)), 2),
             ])
             ->values();
     }
@@ -47,10 +53,10 @@ class PlacementPeriodCalculator
     /** @return array{count: int, value: float, avgValue: float} */
     public static function totals(Carbon $start, Carbon $end, ?int $consultantId = null, ?int $clientId = null): array
     {
-        $vacancies = self::filledVacancies($start, $end, $consultantId, $clientId);
+        $placements = self::placements($start, $end, $consultantId, $clientId);
 
-        $value = round($vacancies->sum(fn (Vacancy $vacancy): float => $vacancy->estimatedPlacementValue() ?? 0), 2);
-        $count = $vacancies->count();
+        $value = round($placements->sum(fn (VacancyPlacement $placement): float => self::value($placement)), 2);
+        $count = $placements->count();
 
         return [
             'count' => $count,
@@ -59,15 +65,28 @@ class PlacementPeriodCalculator
         ];
     }
 
-    /** @return Collection<int, Vacancy> */
-    private static function filledVacancies(Carbon $start, Carbon $end, ?int $consultantId, ?int $clientId): Collection
+    private static function value(VacancyPlacement $placement): float
     {
-        return Vacancy::query()
-            ->forActiveIndustry()
-            ->whereHas('jobStatus', fn (Builder $query) => $query->where('is_filled_status', true))
-            ->whereBetween('filled_at', [$start->copy()->startOfDay(), $end->copy()->endOfDay()])
-            ->when($consultantId, fn (Builder $query) => $query->where('consultant_id', $consultantId))
-            ->when($clientId, fn (Builder $query) => $query->where('client_id', $clientId))
+        if ($placement->actual_salary === null || $placement->vacancy->placement_fee_percentage === null) {
+            return 0.0;
+        }
+
+        return $placement->actual_salary * ($placement->vacancy->placement_fee_percentage / 100);
+    }
+
+    /** @return Collection<int, VacancyPlacement> */
+    private static function placements(Carbon $start, Carbon $end, ?int $consultantId, ?int $clientId): Collection
+    {
+        return VacancyPlacement::query()
+            ->whereNotNull('placed_at')
+            ->whereBetween('placed_at', [$start->copy()->startOfDay(), $end->copy()->endOfDay()])
+            ->whereHas('vacancy', function (Builder $query) use ($consultantId, $clientId): void {
+                $query->forActiveIndustry()
+                    ->where('employment_type', VacancyEmploymentType::Permanent->value)
+                    ->when($consultantId, fn (Builder $q) => $q->where('consultant_id', $consultantId))
+                    ->when($clientId, fn (Builder $q) => $q->where('client_id', $clientId));
+            })
+            ->with('vacancy')
             ->get();
     }
 }

@@ -10,6 +10,7 @@ use App\Models\JobStatus;
 use App\Models\JobTitle;
 use App\Models\User;
 use App\Models\Vacancy;
+use App\Models\VacancyPlacement;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
@@ -64,22 +65,29 @@ test('it renders successfully and combines booking revenue with placements per c
         'period' => BookingDayPeriod::FullDay,
     ]);
 
-    $filledStatus = JobStatus::factory()->create([
+    $openStatus = JobStatus::factory()->create([
         'company_id' => $company->id,
         'industry_id' => $industry->id,
-        'is_filled_status' => true,
+        'is_filled_status' => false,
     ]);
 
-    Vacancy::factory()->create([
+    $vacancy = Vacancy::factory()->create([
         'company_id' => $company->id,
         'client_id' => $client->id,
         'job_title_id' => $jobTitle->id,
-        'job_status_id' => $filledStatus->id,
-        'filled_at' => now(),
+        'job_status_id' => $openStatus->id,
         'placement_fee_percentage' => 15,
         'salary_min' => 20000,
         'salary_max' => 30000,
         'positions_available' => 1,
+    ]);
+
+    VacancyPlacement::factory()->create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => EducationCandidate::factory()->create(['company_id' => $company->id])->id,
+        'actual_salary' => 25000,
+        'placed_at' => now(),
     ]);
 
     $component = Livewire::test(ClientsReport::class)->assertSuccessful();

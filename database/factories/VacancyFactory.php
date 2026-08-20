@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\VacancyEmploymentType;
 use App\Models\Client;
 use App\Models\Company;
 use App\Models\JobStatus;
@@ -31,6 +32,7 @@ class VacancyFactory extends Factory
             'salary_min' => fake()->numberBetween(20000, 30000),
             'salary_max' => fake()->numberBetween(30000, 45000),
             'positions_available' => 1,
+            'employment_type' => VacancyEmploymentType::Permanent->value,
             'open_for_applications' => true,
             'job_status_id' => JobStatus::factory(),
         ];

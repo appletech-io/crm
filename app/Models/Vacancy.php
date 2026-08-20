@@ -3,10 +3,12 @@
 namespace App\Models;
 
 use App\Casts\Money;
+use App\Enums\VacancyEmploymentType;
 use App\Models\Traits\BelongsToCompany;
 use App\Models\Traits\HasFieldSuggestions;
 use Database\Factories\VacancyFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -35,6 +37,9 @@ class Vacancy extends Model
             'salary_min' => Money::class,
             'salary_max' => Money::class,
             'positions_available' => 'integer',
+            'employment_type' => VacancyEmploymentType::class,
+            'start_date' => 'date',
+            'end_date' => 'date',
             'placement_fee_percentage' => 'float',
             'open_for_applications' => 'boolean',
             'filled_at' => 'datetime',
@@ -73,6 +78,17 @@ class Vacancy extends Model
     protected static function toManyRelationSuggestions(): array
     {
         return ['skills'];
+    }
+
+    /** @return array<string, array{label: string, type: string, options?: array<string, string>}> */
+    protected static function computedFieldSuggestions(): array
+    {
+        return [
+            'placements_filled' => [
+                'label' => 'Placements Filled',
+                'type' => 'boolean',
+            ],
+        ];
     }
 
     public function client(): BelongsTo
@@ -120,6 +136,50 @@ class Vacancy extends Model
         return $this->hasMany(VacancyCandidateMatch::class)->orderByDesc('score');
     }
 
+    public function placements(): HasMany
+    {
+        return $this->hasMany(VacancyPlacement::class);
+    }
+
+    public function isTemp(): bool
+    {
+        return $this->employment_type === VacancyEmploymentType::Temp;
+    }
+
+    /**
+     * Whether every open position has a recorded placement.
+     */
+    public function isFullyPlaced(): bool
+    {
+        return $this->placements()->count() >= $this->positions_available;
+    }
+
+    /**
+     * True once every position has a placement and every placed candidate's
+     * current status is flagged as a filled placement (CandidateStatus::
+     * is_filled_status). Exposed as a "Placements Filled" condition field so
+     * a consultant can drive a Job Status Automation off it — e.g. "From:
+     * Client Assessment, To: Placed, Condition: Placements Filled = True" —
+     * rather than this app forcing any particular target status itself.
+     * Re-checked (via VacancyPlacementObserver and
+     * CandidateCandidateStatusObserver) whenever a placement or a placed
+     * candidate's status changes.
+     */
+    protected function placementsFilled(): Attribute
+    {
+        return Attribute::make(
+            get: function (): bool {
+                if (! $this->isFullyPlaced()) {
+                    return false;
+                }
+
+                return $this->placements->every(
+                    fn (VacancyPlacement $placement): bool => (bool) $placement->candidate?->latestStatus?->status?->is_filled_status
+                );
+            },
+        );
+    }
+
     /**
      * A rough placement-fee estimate for this vacancy, used to give the
      * client's Pipeline tab a sense of deal size — the midpoint of the
@@ -128,10 +188,12 @@ class Vacancy extends Model
      * misleading £0 when the salary or fee percentage isn't set yet, or
      * when a partial fill can't be accounted for (there's no per-position
      * fill tracking, so this always assumes every position is still open).
+     * Temp roles never produce an estimate here — they're filled via a
+     * Booking, not a permanent placement fee.
      */
     public function estimatedPlacementValue(): ?float
     {
-        if ($this->placement_fee_percentage === null) {
+        if ($this->isTemp() || $this->placement_fee_percentage === null) {
             return null;
         }
 
@@ -147,6 +209,28 @@ class Vacancy extends Model
         }
 
         return $salary * ($this->placement_fee_percentage / 100) * $this->positions_available;
+    }
+
+    /**
+     * The real placement margin for this vacancy, computed from the actual
+     * salary recorded against each placed candidate rather than the salary
+     * range estimate estimatedPlacementValue() uses. Temp roles are
+     * excluded — their margin comes from the rate/charge-rate spread on the
+     * Booking created for them, not from a vacancy-level fee percentage.
+     */
+    public function actualPlacementValue(): ?float
+    {
+        if ($this->isTemp() || $this->placement_fee_percentage === null) {
+            return null;
+        }
+
+        $salaries = $this->placements->pluck('actual_salary')->filter();
+
+        if ($salaries->isEmpty()) {
+            return null;
+        }
+
+        return $salaries->sum() * ($this->placement_fee_percentage / 100);
     }
 
     public function scopeVisibleToCurrentUser(Builder $query): Builder
