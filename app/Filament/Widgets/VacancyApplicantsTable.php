@@ -2,14 +2,21 @@
 
 namespace App\Filament\Widgets;
 
+use App\Actions\Candidates\CandidateCreated;
+use App\Actions\Candidates\HealthcareCandidateCreated;
 use App\Enums\ActivityType;
+use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Filament\Resources\HealthcareCandidates\HealthcareCandidateResource;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use App\Models\Vacancy;
 use App\Models\VacancyApplication;
+use App\Models\VacancyPlacement;
+use Carbon\CarbonPeriod;
 use Filament\Actions\Action;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TernaryFilter;
@@ -93,6 +100,73 @@ class VacancyApplicantsTable extends TableWidget
                             'contacted' => false,
                         ]);
                     }),
+                Action::make('sendApplicationForm')
+                    ->label('Send Application Form')
+                    ->icon('heroicon-o-paper-airplane')
+                    ->color('gray')
+                    ->requiresConfirmation()
+                    ->modalDescription('Send the full application form to this candidate by email?')
+                    ->visible(fn (VacancyApplication $record): bool => $record->isShortlisted()
+                        && $record->candidate !== null
+                        && ! $record->candidate->application)
+                    ->action(function (VacancyApplication $record): void {
+                        match ($record->candidate_type) {
+                            EducationCandidate::class => CandidateCreated::run($record->candidate, true),
+                            HealthcareCandidate::class => HealthcareCandidateCreated::run($record->candidate, true),
+                            default => null,
+                        };
+
+                        Notification::make()
+                            ->success()
+                            ->title('Application form sent')
+                            ->send();
+                    }),
+                Action::make('markPlaced')
+                    ->label('Mark as Placed')
+                    ->icon('heroicon-o-check-badge')
+                    ->color('success')
+                    ->visible(fn (VacancyApplication $record): bool => ! $this->record->isTemp() && ! $this->isPlaced($record))
+                    ->schema([
+                        TextInput::make('actual_salary')
+                            ->label('Actual Salary')
+                            ->numeric()
+                            ->prefix('£')
+                            ->required(),
+                    ])
+                    ->action(function (VacancyApplication $record, array $data): void {
+                        VacancyPlacement::create([
+                            'vacancy_id' => $this->record->id,
+                            'candidate_type' => $record->candidate_type,
+                            'candidate_id' => $record->candidate_id,
+                            'actual_salary' => $data['actual_salary'],
+                            'placed_at' => now(),
+                        ]);
+
+                        $candidateName = trim("{$record->candidate?->first_name} {$record->candidate?->last_name}") ?: 'Candidate';
+
+                        $this->record->activities()->create([
+                            'user_id' => Auth::id(),
+                            'type' => ActivityType::Note->value,
+                            'note' => "Marked as placed: {$candidateName}",
+                            'contacted' => false,
+                        ]);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Candidate marked as placed')
+                            ->send();
+                    }),
+                Action::make('createBooking')
+                    ->label('Create Booking')
+                    ->icon('heroicon-o-calendar-days')
+                    ->color('success')
+                    ->visible(fn (VacancyApplication $record): bool => $this->record->isTemp() && $record->isShortlisted())
+                    ->url(fn (VacancyApplication $record): string => BookingResource::getUrl('create', [
+                        'candidate_id' => $record->candidate_id,
+                        'client_id' => $this->record->client_id,
+                        'job_title_id' => $this->record->job_title_id,
+                        'dates' => $this->coverDates(),
+                    ])),
                 Action::make('viewCandidate')
                     ->label('View')
                     ->icon('heroicon-o-eye')
@@ -109,5 +183,34 @@ class VacancyApplicantsTable extends TableWidget
             ->emptyStateDescription($this->onlyShortlisted
                 ? 'Use the Shortlist action on the Applicants tab to add candidates here.'
                 : 'Applications submitted via the public application link will appear here.');
+    }
+
+    private function isPlaced(VacancyApplication $record): bool
+    {
+        return VacancyPlacement::query()
+            ->where('vacancy_id', $this->record->id)
+            ->where('candidate_type', $record->candidate_type)
+            ->where('candidate_id', $record->candidate_id)
+            ->exists();
+    }
+
+    /**
+     * Every date between this vacancy's cover start/end dates, passed to
+     * Create Booking as its "dates" prefill so the booking's day schedule is
+     * generated for the whole range rather than a single day. Empty when
+     * either date isn't set — the consultant then just picks dates fresh on
+     * the booking form.
+     *
+     * @return array<int, string>
+     */
+    private function coverDates(): array
+    {
+        if (! $this->record->start_date || ! $this->record->end_date) {
+            return [];
+        }
+
+        return collect(CarbonPeriod::create($this->record->start_date, $this->record->end_date))
+            ->map(fn ($date): string => $date->toDateString())
+            ->all();
     }
 }

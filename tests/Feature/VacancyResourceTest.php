@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\VacancyEmploymentType;
+use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\Vacancies\Pages\CreateVacancy;
 use App\Filament\Resources\Vacancies\Pages\EditVacancy;
 use App\Filament\Resources\Vacancies\Pages\ListVacancies;
@@ -10,6 +12,7 @@ use App\Models\CandidateSkill;
 use App\Models\Client;
 use App\Models\Company;
 use App\Models\EducationCandidate;
+use App\Models\EmailTemplate;
 use App\Models\Industry;
 use App\Models\JobStatus;
 use App\Models\JobTitle;
@@ -17,10 +20,13 @@ use App\Models\User;
 use App\Models\Vacancy;
 use App\Models\VacancyApplication;
 use App\Models\VacancyCandidateMatch;
+use App\Models\VacancyPlacement;
 use Database\Seeders\RoleSeeder;
 use Filament\Forms\Components\TextInput;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -585,4 +591,336 @@ test('a vacancy for a client in a different industry is not visible', function (
     Livewire::test(ListVacancies::class)
         ->assertCanSeeTableRecords([$mine])
         ->assertCanNotSeeTableRecords([$otherIndustryVacancy]);
+});
+
+test('a vacancy defaults to permanent employment type', function () {
+    Livewire::test(CreateVacancy::class)
+        ->fillForm([
+            'client_id' => $this->client->id,
+            'job_title_id' => $this->jobTitle->id,
+            'job_status_id' => $this->jobStatus->id,
+            'title' => 'Year 3 Class Teacher',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $vacancy = Vacancy::where('title', 'Year 3 Class Teacher')->first();
+
+    expect($vacancy->employment_type)->toBe(VacancyEmploymentType::Permanent);
+});
+
+test('a vacancy can be created as a temp role', function () {
+    Livewire::test(CreateVacancy::class)
+        ->fillForm([
+            'client_id' => $this->client->id,
+            'job_title_id' => $this->jobTitle->id,
+            'job_status_id' => $this->jobStatus->id,
+            'title' => 'Supply Teacher',
+            'employment_type' => VacancyEmploymentType::Temp->value,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $vacancy = Vacancy::where('title', 'Supply Teacher')->first();
+
+    expect($vacancy->employment_type)->toBe(VacancyEmploymentType::Temp);
+});
+
+test('a shortlisted applicant can be marked as placed from the applicants widget', function () {
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+        'placement_fee_percentage' => 15,
+    ]);
+
+    $applicant = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Jane',
+        'last_name' => 'Doe',
+    ]);
+
+    $application = VacancyApplication::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $applicant->id,
+    ]);
+
+    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
+        ->callTableAction('markPlaced', $application, data: ['actual_salary' => 28000]);
+
+    $placement = VacancyPlacement::where('vacancy_id', $vacancy->id)
+        ->where('candidate_id', $applicant->id)
+        ->first();
+
+    expect($placement)->not->toBeNull()
+        ->and($placement->actual_salary)->toBe(28000.0);
+    expect($vacancy->activities()->where('note', 'Marked as placed: Jane Doe')->exists())->toBeTrue();
+});
+
+test('the mark as placed action is hidden for temp vacancies', function () {
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+        'employment_type' => VacancyEmploymentType::Temp->value,
+    ]);
+
+    $applicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+
+    $application = VacancyApplication::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $applicant->id,
+    ]);
+
+    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
+        ->assertTableActionHidden('markPlaced', $application);
+});
+
+test('a matched candidate can be marked as placed from the matches widget', function () {
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+        'placement_fee_percentage' => 15,
+    ]);
+
+    $matchedCandidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Jane',
+        'last_name' => 'Doe',
+    ]);
+
+    $match = VacancyCandidateMatch::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $matchedCandidate->id,
+        'score' => 82,
+    ]);
+
+    Livewire::test(VacancyMatchesTable::class, ['record' => $vacancy])
+        ->callTableAction('markPlaced', $match, data: ['actual_salary' => 30000]);
+
+    $placement = VacancyPlacement::where('vacancy_id', $vacancy->id)
+        ->where('candidate_id', $matchedCandidate->id)
+        ->first();
+
+    expect($placement)->not->toBeNull()
+        ->and($placement->actual_salary)->toBe(30000.0);
+});
+
+test('the send application form action is hidden for an applicant who is not shortlisted', function () {
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+    ]);
+
+    $applicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $application = VacancyApplication::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $applicant->id,
+    ]);
+
+    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
+        ->assertTableActionHidden('sendApplicationForm', $application);
+});
+
+test('the send application form action is visible for a shortlisted applicant with no application yet', function () {
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+    ]);
+
+    $applicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $application = VacancyApplication::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $applicant->id,
+        'shortlisted_at' => now(),
+    ]);
+
+    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
+        ->assertTableActionVisible('sendApplicationForm', $application);
+});
+
+test('the send application form action is hidden once the candidate already has an application', function () {
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+    ]);
+
+    $applicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $applicant->application()->create([
+        'email' => $applicant->email,
+        'status' => 'pending',
+        'token' => Str::uuid(),
+        'expires_on' => now()->addWeeks(2)->toDateString(),
+    ]);
+
+    $application = VacancyApplication::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $applicant->id,
+        'shortlisted_at' => now(),
+    ]);
+
+    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
+        ->assertTableActionHidden('sendApplicationForm', $application);
+});
+
+test('clicking send application form on a shortlisted applicant creates an application and sends the email immediately', function () {
+    $this->company->update([
+        'ms_tenant_id' => 'tenant',
+        'ms_client_id' => 'client',
+        'ms_client_secret' => 'secret',
+        'ms_sender_email' => 'sender@example.com',
+    ]);
+
+    Http::fake([
+        'login.microsoftonline.com/*' => Http::response(['access_token' => 'fake-token'], 200),
+        'graph.microsoft.com/*' => Http::response([], 202),
+    ]);
+
+    EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Application',
+        'type' => 'application',
+        'subject' => 'Apply now, {firstname}',
+        'body' => 'Hi {firstname}, please apply: {application_link}',
+    ]);
+
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+    ]);
+
+    $applicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $application = VacancyApplication::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $applicant->id,
+        'shortlisted_at' => now(),
+    ]);
+
+    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
+        ->callTableAction('sendApplicationForm', $application)
+        ->assertNotified('Application form sent');
+
+    expect($applicant->application()->exists())->toBeTrue();
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), 'sendMail'));
+});
+
+test('the cover date fields are hidden for a permanent vacancy and visible for a temp one', function () {
+    Livewire::test(CreateVacancy::class)
+        ->assertFormFieldIsHidden('start_date')
+        ->assertFormFieldIsHidden('end_date')
+        ->assertFormFieldIsVisible('placement_fee_percentage')
+        ->set('data.employment_type', VacancyEmploymentType::Temp->value)
+        ->assertFormFieldIsVisible('start_date')
+        ->assertFormFieldIsVisible('end_date')
+        ->assertFormFieldIsHidden('placement_fee_percentage');
+});
+
+test('a temp vacancy persists its cover start and end dates', function () {
+    Livewire::test(CreateVacancy::class)
+        ->fillForm([
+            'client_id' => $this->client->id,
+            'job_title_id' => $this->jobTitle->id,
+            'job_status_id' => $this->jobStatus->id,
+            'title' => 'Supply Teacher',
+            'employment_type' => VacancyEmploymentType::Temp->value,
+            'start_date' => '2026-09-01',
+            'end_date' => '2026-09-05',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $vacancy = Vacancy::where('title', 'Supply Teacher')->first();
+
+    expect($vacancy->start_date->toDateString())->toBe('2026-09-01')
+        ->and($vacancy->end_date->toDateString())->toBe('2026-09-05');
+});
+
+test('the create booking action is hidden for a permanent vacancy even if the applicant is shortlisted', function () {
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+    ]);
+
+    $applicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $application = VacancyApplication::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $applicant->id,
+        'shortlisted_at' => now(),
+    ]);
+
+    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
+        ->assertTableActionHidden('createBooking', $application);
+});
+
+test('the create booking action is hidden for a temp vacancy applicant who is not shortlisted', function () {
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+        'employment_type' => VacancyEmploymentType::Temp->value,
+    ]);
+
+    $applicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $application = VacancyApplication::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $applicant->id,
+    ]);
+
+    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
+        ->assertTableActionHidden('createBooking', $application);
+});
+
+test('the create booking action is visible for a shortlisted applicant on a temp vacancy and links to a prefilled create booking url', function () {
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+        'employment_type' => VacancyEmploymentType::Temp->value,
+        'start_date' => '2026-09-01',
+        'end_date' => '2026-09-03',
+    ]);
+
+    $applicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $application = VacancyApplication::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $applicant->id,
+        'shortlisted_at' => now(),
+    ]);
+
+    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
+        ->assertTableActionVisible('createBooking', $application)
+        ->assertTableActionHasUrl('createBooking', BookingResource::getUrl('create', [
+            'candidate_id' => $applicant->id,
+            'client_id' => $this->client->id,
+            'job_title_id' => $this->jobTitle->id,
+            'dates' => ['2026-09-01', '2026-09-02', '2026-09-03'],
+        ]), record: $application);
 });

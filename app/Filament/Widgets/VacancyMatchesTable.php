@@ -10,7 +10,10 @@ use App\Models\HealthcareCandidate;
 use App\Models\Vacancy;
 use App\Models\VacancyApplication;
 use App\Models\VacancyCandidateMatch;
+use App\Models\VacancyPlacement;
 use Filament\Actions\Action;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
@@ -80,6 +83,41 @@ class VacancyMatchesTable extends TableWidget
                             'contacted' => false,
                         ]);
                     }),
+                Action::make('markPlaced')
+                    ->label('Mark as Placed')
+                    ->icon('heroicon-o-check-badge')
+                    ->color('success')
+                    ->visible(fn (VacancyCandidateMatch $record): bool => ! $this->record->isTemp() && ! $this->isPlaced($record))
+                    ->schema([
+                        TextInput::make('actual_salary')
+                            ->label('Actual Salary')
+                            ->numeric()
+                            ->prefix('£')
+                            ->required(),
+                    ])
+                    ->action(function (VacancyCandidateMatch $record, array $data): void {
+                        VacancyPlacement::create([
+                            'vacancy_id' => $this->record->id,
+                            'candidate_type' => $record->candidate_type,
+                            'candidate_id' => $record->candidate_id,
+                            'actual_salary' => $data['actual_salary'],
+                            'placed_at' => now(),
+                        ]);
+
+                        $candidateName = trim("{$record->candidate?->first_name} {$record->candidate?->last_name}") ?: 'Candidate';
+
+                        $this->record->activities()->create([
+                            'user_id' => Auth::id(),
+                            'type' => ActivityType::Note->value,
+                            'note' => "Marked as placed: {$candidateName}",
+                            'contacted' => false,
+                        ]);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Candidate marked as placed')
+                            ->send();
+                    }),
                 Action::make('viewCandidate')
                     ->label('View')
                     ->icon('heroicon-o-eye')
@@ -103,6 +141,15 @@ class VacancyMatchesTable extends TableWidget
             ->where('candidate_type', $record->candidate_type)
             ->where('candidate_id', $record->candidate_id)
             ->whereNotNull('shortlisted_at')
+            ->exists();
+    }
+
+    private function isPlaced(VacancyCandidateMatch $record): bool
+    {
+        return VacancyPlacement::query()
+            ->where('vacancy_id', $this->record->id)
+            ->where('candidate_type', $record->candidate_type)
+            ->where('candidate_id', $record->candidate_id)
             ->exists();
     }
 }

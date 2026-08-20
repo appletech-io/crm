@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Analytics;
 
+use App\Enums\VacancyEmploymentType;
 use App\Models\Client;
 use App\Models\JobStatus;
 use App\Models\User;
@@ -48,7 +49,7 @@ class VacanciesReport extends Page implements HasTable
         $query = $this->getFilteredTableQuery();
 
         if (! $query) {
-            return ['Total vacancies' => 0, 'Open' => 0, 'Filled' => 0, 'Est. pipeline value' => '£0.00'];
+            return ['Total vacancies' => 0, 'Open' => 0, 'Filled' => 0, 'Est. pipeline value' => '£0.00', 'Actual margin' => '£0.00'];
         }
 
         $total = (clone $query)->count();
@@ -58,12 +59,21 @@ class VacanciesReport extends Page implements HasTable
             ->whereHas('jobStatus', fn (Builder $q) => $q->where('is_filled_status', false))
             ->get()
             ->sum(fn (Vacancy $vacancy): float => $vacancy->estimatedPlacementValue() ?? 0);
+        // Not filtered to is_filled_status vacancies: actualPlacementValue()
+        // already sums only what's actually been placed, so a vacancy with
+        // e.g. 2 of 3 positions placed still contributes its real margin
+        // here even though it hasn't moved into a filled status yet.
+        $actualMargin = (clone $query)
+            ->with('placements')
+            ->get()
+            ->sum(fn (Vacancy $vacancy): float => $vacancy->actualPlacementValue() ?? 0);
 
         return [
             'Total vacancies' => $total,
             'Open' => $open,
             'Filled' => $filled,
             'Est. pipeline value' => '£'.number_format($pipelineValue, 2),
+            'Actual margin' => '£'.number_format($actualMargin, 2),
         ];
     }
 
@@ -76,10 +86,12 @@ class VacanciesReport extends Page implements HasTable
                 TextColumn::make('client.name')->label('Client')->searchable()->sortable(),
                 TextColumn::make('consultant.name')->label('Consultant')->searchable()->sortable(),
                 TextColumn::make('jobStatus.name')->label('Status')->badge()->color(fn (Vacancy $record): ?string => $record->jobStatus?->color),
+                TextColumn::make('employment_type')->label('Type')->badge()->formatStateUsing(fn (VacancyEmploymentType $state): string => $state->label())->color(fn (VacancyEmploymentType $state): string => $state === VacancyEmploymentType::Temp ? 'warning' : 'gray'),
                 TextColumn::make('positions_available')->label('Positions')->alignEnd()->sortable(),
                 TextColumn::make('salary_min')->label('Salary min')->formatStateUsing(fn (?float $state): string => $state !== null ? '£'.number_format($state, 2) : '—')->alignEnd()->sortable(),
                 TextColumn::make('salary_max')->label('Salary max')->formatStateUsing(fn (?float $state): string => $state !== null ? '£'.number_format($state, 2) : '—')->alignEnd()->sortable(),
                 TextColumn::make('estimated_value')->label('Est. Value')->state(fn (Vacancy $record): ?float => $record->estimatedPlacementValue())->formatStateUsing(fn (?float $state): string => $state !== null ? '£'.number_format($state, 2) : '—')->alignEnd(),
+                TextColumn::make('actual_value')->label('Actual Margin')->state(fn (Vacancy $record): ?float => $record->actualPlacementValue())->formatStateUsing(fn (?float $state): string => $state !== null ? '£'.number_format($state, 2) : '—')->alignEnd(),
                 TextColumn::make('days_open')->label('Days open')->state(fn (Vacancy $record): int => (int) $record->created_at->diffInDays($record->filled_at ?? now()))->alignEnd(),
                 TextColumn::make('filled_at')->label('Filled')->date()->sortable(),
                 IconColumn::make('open_for_applications')->label('Open for applications')->boolean(),
@@ -108,6 +120,10 @@ class VacanciesReport extends Page implements HasTable
 
                         return $indicators;
                     }),
+                SelectFilter::make('employment_type')
+                    ->label('Type')
+                    ->placeholder('All Types')
+                    ->options(VacancyEmploymentType::options()),
                 SelectFilter::make('job_status_id')
                     ->label('Status')
                     ->placeholder('All Statuses')

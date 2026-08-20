@@ -2,11 +2,13 @@
 
 use App\Filament\Pages\Analytics\VacanciesReport;
 use App\Models\Client;
+use App\Models\EducationCandidate;
 use App\Models\Industry;
 use App\Models\JobStatus;
 use App\Models\JobTitle;
 use App\Models\User;
 use App\Models\Vacancy;
+use App\Models\VacancyPlacement;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
@@ -86,4 +88,53 @@ test('it renders successfully and totals open and filled vacancies', function ()
     expect($stats['Total vacancies'])->toBe(2)
         ->and($stats['Filled'])->toBe(1)
         ->and($stats['Open'])->toBe(1);
+});
+
+test('actual margin counts a partially placed vacancy even though it is still open', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+
+    $industry = Industry::factory()->create(['slug' => 'education']);
+    Cache::put("user.{$admin->id}.active_industry", 'education');
+    Cache::put("user.{$admin->id}.active_industry_id", $industry->id);
+
+    $company = $admin->company;
+    $jobTitle = JobTitle::factory()->create(['company_id' => $company->id]);
+    $client = Client::factory()->create(['company_id' => $company->id, 'industry_id' => $industry->id]);
+
+    $openStatus = JobStatus::factory()->create([
+        'company_id' => $company->id,
+        'industry_id' => $industry->id,
+        'is_filled_status' => false,
+    ]);
+
+    // Only 2 of 3 positions placed — still sitting in an open status.
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $company->id,
+        'client_id' => $client->id,
+        'job_title_id' => $jobTitle->id,
+        'job_status_id' => $openStatus->id,
+        'placement_fee_percentage' => 10,
+        'positions_available' => 3,
+    ]);
+
+    VacancyPlacement::factory()->create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => EducationCandidate::factory()->create(['company_id' => $company->id])->id,
+        'actual_salary' => 20000,
+    ]);
+    VacancyPlacement::factory()->create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => EducationCandidate::factory()->create(['company_id' => $company->id])->id,
+        'actual_salary' => 30000,
+    ]);
+
+    $component = Livewire::test(VacanciesReport::class)->assertSuccessful();
+
+    $stats = $component->instance()->stats();
+
+    expect($stats['Actual margin'])->toBe('£5,000.00');
 });
