@@ -13,7 +13,9 @@ use App\Filament\Support\SendCustomEmailAction;
 use App\Models\Booking;
 use App\Models\BookingDay;
 use App\Models\CandidateAvailability;
+use App\Models\CandidatePool;
 use App\Models\CandidateSkill;
+use App\Models\CandidateStatus;
 use App\Models\Client;
 use App\Models\HealthcareCandidate;
 use App\Services\Healthcare\CandidateSearchService;
@@ -127,6 +129,36 @@ class ListHealthcareCandidates extends ListRecords implements HasForms
                             ->multiple()
                             ->searchable()
                             ->options(fn (): array => CandidateSkill::query()
+                                ->where('company_id', Auth::user()->company_id)
+                                ->where('industry_id', active_industry_id())
+                                ->orderBy('name')
+                                ->pluck('name', 'id')
+                                ->toArray()
+                            ),
+                        Select::make('pool_ids')
+                            ->label('Pools')
+                            ->multiple()
+                            ->searchable()
+                            ->options(fn (): array => CandidatePool::query()
+                                ->where('industry_id', active_industry_id())
+                                ->where(fn ($query) => $query
+                                    ->where('user_id', Auth::id())
+                                    ->orWhere(fn ($q) => $q->where('company_pool', true)->whereNull('user_id'))
+                                )
+                                ->orderBy('name')
+                                ->pluck('name', 'id')
+                                ->toArray()
+                            ),
+                        Select::make('status_ids')
+                            ->label('Status')
+                            ->multiple()
+                            ->searchable()
+                            // Only meaningful on the "All Candidates" tab — the
+                            // dedicated Search tab is always restricted to Live
+                            // candidates (see CandidateSearchService), so a
+                            // status picker there would be redundant.
+                            ->visible(fn (ListHealthcareCandidates $livewire): bool => $livewire->activeSection === 'all')
+                            ->options(fn (): array => CandidateStatus::query()
                                 ->where('company_id', Auth::user()->company_id)
                                 ->where('industry_id', active_industry_id())
                                 ->orderBy('name')
@@ -247,10 +279,12 @@ class ListHealthcareCandidates extends ListRecords implements HasForms
     /**
      * Whether the search form has any criteria filled in beyond its
      * defaults — used on the "All Candidates" tab to decide whether to keep
-     * that tab's broader default scope (all consultants, all statuses) or
-     * narrow to configureSearchTable()'s scope (via CandidateSearchService:
-     * consultant-own, status "Live" only) once the user has actually
-     * searched for something.
+     * that tab's broader default (bare, unfiltered resource query) or switch
+     * to configureSearchTable() once the user has actually searched for
+     * something. That switch only applies the entered filter criteria on
+     * this tab — CandidateSearchService's consultant-own/status "Live"
+     * restriction is passed as false here, since "All Candidates" search
+     * should still mean every consultant's candidates, any status.
      */
     private function hasActiveSearchFilters(): bool
     {
@@ -261,7 +295,9 @@ class ListHealthcareCandidates extends ListRecords implements HasForms
             || filled($data['skill_ids'] ?? null)
             || filled($data['client_id'] ?? null)
             || filled($data['address'] ?? null)
-            || filled($data['days'] ?? null);
+            || filled($data['days'] ?? null)
+            || filled($data['pool_ids'] ?? null)
+            || filled($data['status_ids'] ?? null);
     }
 
     protected function configureSearchTable(Table $table): Table
@@ -278,7 +314,14 @@ class ListHealthcareCandidates extends ListRecords implements HasForms
                     'lat' => $this->searchLat,
                     'lng' => $this->searchLng,
                     'radius_miles' => $this->data['radius_miles'] ?? null,
-                ])
+                    'pool_ids' => $this->data['pool_ids'] ?? null,
+                    // Status is only ever offered as a filter on the "All
+                    // Candidates" tab (see the field's visible() above) — the
+                    // Search tab is hardcoded to Live via
+                    // restrictToOwnLiveCandidates, so applying it there too
+                    // would be redundant at best.
+                    'status_ids' => $this->activeSection === 'all' ? ($this->data['status_ids'] ?? null) : null,
+                ], restrictToOwnLiveCandidates: $this->activeSection === 'search')
                 ->with([
                     'bookings' => fn ($query) => $query
                         ->whereHas('dayPeriods', fn ($q) => $q
