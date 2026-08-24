@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\TimesheetFrequency;
 use App\Models\Traits\BelongsToCompany;
 use App\Models\Traits\HasFieldSuggestions;
+use App\Models\Traits\HasProviderExternalId;
 use Database\Factories\ClientFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -24,6 +25,7 @@ class Client extends Model
 
     use HasFactory;
     use HasFieldSuggestions;
+    use HasProviderExternalId;
     use SoftDeletes;
 
     protected $guarded = [];

@@ -141,7 +141,7 @@ class RunPayroll extends Page implements HasTable
         $period = $this->currentPeriod();
 
         return BookingDay::query()
-            ->whereHas('booking', fn ($query) => $query->visibleToCurrentUser())
+            ->whereHas('booking', fn ($query) => $query->visibleToCurrentUser()->excludingRequests())
             ->whereBetween('date', [$period['start']->toDateString(), $period['end']->toDateString()])
             ->whereNull('cancelled_at')
             ->with([
@@ -158,6 +158,7 @@ class RunPayroll extends Page implements HasTable
 
         return Booking::query()
             ->visibleToCurrentUser()
+            ->excludingRequests()
             ->whereHas('dayPeriods', function ($query) use ($period): void {
                 $query->whereBetween('date', [$period['start']->toDateString(), $period['end']->toDateString()])
                     ->whereNull('cancelled_at');
@@ -171,7 +172,7 @@ class RunPayroll extends Page implements HasTable
         $period = $this->currentPeriod();
 
         return BookingDay::query()
-            ->whereHas('booking', fn ($query) => $query->visibleToCurrentUser())
+            ->whereHas('booking', fn ($query) => $query->visibleToCurrentUser()->excludingRequests())
             ->whereBetween('date', [$period['start']->toDateString(), $period['end']->toDateString()])
             ->whereNull('cancelled_at')
             ->whereNotNull('payroll_confirmation_sent_at')

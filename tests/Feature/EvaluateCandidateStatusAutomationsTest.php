@@ -581,6 +581,69 @@ test('a days_until_at_most condition never matches when the date field is empty'
     expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
 });
 
+test('moves candidate when compliance is complete and their dbs expiry is still in the future', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'compliance_completed_by' => User::factory()->create()->id,
+        'dbs_expiry_date' => now()->addDays(30)->toDateString(),
+    ]);
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'compliance_completed_by', 'operator' => 'filled'],
+            ['field' => 'dbs_expiry_date', 'operator' => 'in_future'],
+        ],
+    ]);
+
+    CheckCandidateStatusAutomations::run($candidate);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeTrue();
+});
+
+test('does not move candidate when compliance is complete but their dbs has already expired', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'compliance_completed_by' => User::factory()->create()->id,
+        'dbs_expiry_date' => now()->subDay()->toDateString(),
+    ]);
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'compliance_completed_by', 'operator' => 'filled'],
+            ['field' => 'dbs_expiry_date', 'operator' => 'in_future'],
+        ],
+    ]);
+
+    CheckCandidateStatusAutomations::run($candidate);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
+});
+
+test('does not move candidate whose dbs is still valid but compliance has not been completed', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'compliance_completed_by' => null,
+        'dbs_expiry_date' => now()->addDays(30)->toDateString(),
+    ]);
+    $candidate->statuses()->create(['candidate_status_id' => $this->fromStatus->id]);
+
+    CandidateStatusAutomation::factory()->create([
+        'candidate_status_id' => $this->fromStatus->id,
+        'to_candidate_status_id' => $this->toStatus->id,
+        'conditions' => [
+            ['field' => 'compliance_completed_by', 'operator' => 'filled'],
+            ['field' => 'dbs_expiry_date', 'operator' => 'in_future'],
+        ],
+    ]);
+
+    CheckCandidateStatusAutomations::run($candidate);
+
+    expect($candidate->statuses()->where('candidate_status_id', $this->toStatus->id)->exists())->toBeFalse();
+});
+
 test('moves candidate to the same target status when only one of two automations for that pair is satisfied', function () {
     $candidate = EducationCandidate::factory()->create([
         'dbs_expiry_date' => now()->subDay()->toDateString(), // expired

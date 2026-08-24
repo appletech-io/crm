@@ -9,8 +9,8 @@ use Illuminate\Support\Carbon;
 
 class TimesheetPeriod
 {
-    /** A known Friday used purely to keep bi-weekly blocks aligned to a stable 14-day grid. */
-    private const BIWEEKLY_ANCHOR = '2024-01-05';
+    /** A known Sunday used purely to keep bi-weekly blocks aligned to a stable 14-day grid. */
+    private const BIWEEKLY_ANCHOR = '2024-01-07';
 
     /** @return array{start: Carbon, end: Carbon} */
     public static function containing(Company $company, CarbonInterface $date): array
@@ -73,15 +73,15 @@ class TimesheetPeriod
     private static function weeklyPeriod(CarbonInterface $date): array
     {
         return [
-            'start' => $date->copy()->startOfWeek(Carbon::SATURDAY),
-            'end' => $date->copy()->endOfWeek(Carbon::FRIDAY),
+            'start' => $date->copy()->startOfWeek(Carbon::MONDAY),
+            'end' => $date->copy()->endOfWeek(Carbon::SUNDAY),
         ];
     }
 
     /** @return array{start: Carbon, end: Carbon} */
     private static function biweeklyPeriod(CarbonInterface $date): array
     {
-        $weekEnd = $date->copy()->endOfWeek(Carbon::FRIDAY);
+        $weekEnd = $date->copy()->endOfWeek(Carbon::SUNDAY);
 
         $anchor = Carbon::parse(self::BIWEEKLY_ANCHOR)->endOfDay();
         $weeksBetween = (int) $anchor->diffInWeeks($weekEnd, false);

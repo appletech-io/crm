@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Clients\Schemas;
 
 use App\Actions\Clients\CreateClientContactPortalAccount;
 use App\Enums\Education\KeyStage;
+use App\Enums\Integration;
 use App\Filament\Widgets\ClientActivityTimeline;
 use App\Filament\Widgets\ClientPipelineOverview;
 use App\Filament\Widgets\ClientTimesheetOverview;
@@ -260,6 +261,22 @@ class ClientForm
                                                     ->toArray()
                                             )
                                             ->columns(3),
+                                    ]),
+
+                                Section::make('Payroll Provider')
+                                    ->visible(fn (): bool => (Auth::user()?->isAdmin() ?? false) && filled(Auth::user()->company->payroll_provider))
+                                    ->schema([
+                                        TextInput::make('payroll_provider_id')
+                                            ->label('Payroll Provider ID')
+                                            ->helperText('This client\'s existing ID in the agency\'s payroll provider, if one already exists there.')
+                                            ->dehydrated(false)
+                                            ->afterStateHydrated(function (TextInput $component, ?Client $record): void {
+                                                $provider = Auth::user()->company->payroll_provider;
+
+                                                if ($record && $provider instanceof Integration) {
+                                                    $component->state($record->providerExternalId($provider));
+                                                }
+                                            }),
                                     ]),
 
                             ]),

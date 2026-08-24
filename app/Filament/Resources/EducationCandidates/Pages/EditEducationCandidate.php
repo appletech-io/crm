@@ -50,6 +50,20 @@ class EditEducationCandidate extends EditRecord
         if ($formattedCv && filled($formattedCv->content)) {
             app(FormattedCvGenerator::class)->regeneratePdf($this->record, $formattedCv);
         }
+
+        // Only admins can see the Payroll Provider ID field (see the form's
+        // matching isAdmin() gate) — this mirrors it so a consultant saving
+        // the rest of the form, where the field was never rendered, can't
+        // wipe out an existing external ID mapping via its absent state.
+        if (! (Auth::user()?->isAdmin() ?? false)) {
+            return;
+        }
+
+        $provider = Auth::user()->company->payroll_provider;
+
+        if ($provider) {
+            $this->record->setProviderExternalId($provider, $this->form->getRawState()['payroll_provider_id'] ?? null);
+        }
     }
 
     public function getTitle(): string|Htmlable

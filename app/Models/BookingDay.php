@@ -22,6 +22,7 @@ class BookingDay extends Model
             'payroll_confirmation_sent_at' => 'datetime',
             'approved_at' => 'datetime',
             'disputed_at' => 'datetime',
+            'sent_to_provider_at' => 'datetime',
         ];
     }
 
@@ -58,5 +59,10 @@ class BookingDay extends Model
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
+    }
+
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by_user_id');
     }
 }

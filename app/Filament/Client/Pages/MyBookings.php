@@ -134,7 +134,7 @@ class MyBookings extends Page implements HasTable
 
     private function approveDay(BookingDay $day): void
     {
-        $day->update(['approved_at' => now(), 'disputed_at' => null, 'dispute_reason' => null]);
+        $day->update(['approved_at' => now(), 'approved_by_user_id' => Auth::id(), 'disputed_at' => null, 'dispute_reason' => null]);
         $day->booking->refreshPayrollStatus();
 
         Notification::make()
@@ -145,7 +145,7 @@ class MyBookings extends Page implements HasTable
 
     private function disputeDay(BookingDay $day, string $reason): void
     {
-        $day->update(['disputed_at' => now(), 'dispute_reason' => $reason, 'approved_at' => null]);
+        $day->update(['disputed_at' => now(), 'dispute_reason' => $reason, 'approved_at' => null, 'approved_by_user_id' => null]);
         $day->booking->refreshPayrollStatus();
 
         Notification::make()
@@ -158,7 +158,7 @@ class MyBookings extends Page implements HasTable
     {
         $booking = $this->findBooking($bookingId);
 
-        $this->bookingDaysQuery($bookingId)->update(['approved_at' => now(), 'disputed_at' => null, 'dispute_reason' => null]);
+        $this->bookingDaysQuery($bookingId)->update(['approved_at' => now(), 'approved_by_user_id' => Auth::id(), 'disputed_at' => null, 'dispute_reason' => null]);
         $booking->refreshPayrollStatus();
 
         Notification::make()
@@ -171,7 +171,7 @@ class MyBookings extends Page implements HasTable
     {
         $booking = $this->findBooking($bookingId);
 
-        $this->bookingDaysQuery($bookingId)->update(['disputed_at' => now(), 'dispute_reason' => $reason, 'approved_at' => null]);
+        $this->bookingDaysQuery($bookingId)->update(['disputed_at' => now(), 'dispute_reason' => $reason, 'approved_at' => null, 'approved_by_user_id' => null]);
         $booking->refreshPayrollStatus();
 
         Notification::make()
@@ -204,7 +204,7 @@ class MyBookings extends Page implements HasTable
         $period = $this->currentPeriod();
 
         return BookingDay::query()
-            ->whereHas('booking', fn ($query) => $query->where('client_id', $this->client()->id))
+            ->whereHas('booking', fn ($query) => $query->where('client_id', $this->client()->id)->excludingRequests())
             ->where('company_id', $this->client()->company_id)
             ->whereNotNull('payroll_confirmation_sent_at')
             ->whereBetween('date', [$period['start']->toDateString(), $period['end']->toDateString()])

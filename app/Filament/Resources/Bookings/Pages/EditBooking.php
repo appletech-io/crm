@@ -4,8 +4,10 @@ namespace App\Filament\Resources\Bookings\Pages;
 
 use App\Actions\Bookings\BookingCreated;
 use App\Enums\BookingStatus;
+use App\Enums\Integration;
 use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\Bookings\Schemas\BookingForm;
+use App\Jobs\SendTimesheetToPayrollProvider;
 use App\Models\Booking;
 use App\Models\Industry;
 use Filament\Actions\Action;
@@ -15,6 +17,7 @@ use Filament\Actions\RestoreAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Auth;
 
 class EditBooking extends EditRecord
 {
@@ -87,6 +90,36 @@ class EditBooking extends EditRecord
 
                     $this->redirect(BookingResource::getUrl('index'));
                 }),
+            Action::make('retryPayrollSubmission')
+                ->label('Retry Payroll Submission')
+                ->icon('heroicon-o-arrow-path')
+                ->color('warning')
+                ->visible(fn (): bool => $this->hasProviderError())
+                ->action(function (): void {
+                    /** @var Booking $record */
+                    $record = $this->record;
+
+                    try {
+                        SendTimesheetToPayrollProvider::dispatchSync($record);
+                    } catch (\Throwable) {
+                        // recordFailure() inside the job already persisted
+                        // the error detail — the check below picks it up.
+                    }
+
+                    if ($this->hasProviderError()) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Retry failed — see the error below')
+                            ->send();
+
+                        return;
+                    }
+
+                    Notification::make()
+                        ->title('Payroll submission retried successfully')
+                        ->success()
+                        ->send();
+                }),
             Action::make('resendConfirmationEmails')
                 ->label('Resend Confirmation Emails')
                 ->icon('heroicon-o-paper-airplane')
@@ -135,6 +168,20 @@ class EditBooking extends EditRecord
         return $record->status === BookingStatus::Upcoming;
     }
 
+    protected function hasProviderError(): bool
+    {
+        /** @var Booking $record */
+        $record = $this->record;
+
+        $provider = $record->company->payroll_provider;
+
+        if (! $provider instanceof Integration) {
+            return false;
+        }
+
+        return $record->providerErrors()->where('provider', $provider->value)->exists();
+    }
+
     /** @param  array<string, mixed>  $data */
     protected function mutateFormDataBeforeFill(array $data): array
     {
@@ -168,5 +215,19 @@ class EditBooking extends EditRecord
     protected function afterSave(): void
     {
         BookingForm::syncDayPeriods($this->record, $this->form->getRawState()['day_periods'] ?? []);
+
+        // Only admins can see the Payroll Provider ID field (see the form's
+        // matching isAdmin() gate) — this mirrors it so a consultant saving
+        // the rest of the form, where the field was never rendered, can't
+        // wipe out an existing external ID mapping via its absent state.
+        if (! (Auth::user()?->isAdmin() ?? false)) {
+            return;
+        }
+
+        $provider = Auth::user()->company->payroll_provider;
+
+        if ($provider) {
+            $this->record->setProviderExternalId($provider, $this->form->getRawState()['payroll_provider_id'] ?? null);
+        }
     }
 }

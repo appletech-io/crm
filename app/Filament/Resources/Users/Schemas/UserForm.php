@@ -2,12 +2,15 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
+use App\Enums\Integration;
 use App\Models\ClientContact;
+use App\Models\User;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Auth;
 use Spatie\Permission\Models\Role;
 
 class UserForm
@@ -82,6 +85,22 @@ class UserForm
                             )
                             ->searchable()
                             ->preload(),
+                    ]),
+
+                Section::make('Payroll Provider')
+                    ->visible(fn (): bool => (Auth::user()?->isAdmin() ?? false) && filled(Auth::user()->company->payroll_provider))
+                    ->schema([
+                        TextInput::make('payroll_provider_id')
+                            ->label('Payroll Provider ID')
+                            ->helperText('This consultant\'s existing Consultant ID in the agency\'s payroll provider, if one already exists there.')
+                            ->dehydrated(false)
+                            ->afterStateHydrated(function (TextInput $component, ?User $record): void {
+                                $provider = Auth::user()->company->payroll_provider;
+
+                                if ($record && $provider instanceof Integration) {
+                                    $component->state($record->providerExternalId($provider));
+                                }
+                            }),
                     ]),
 
                 Section::make('Sectors')

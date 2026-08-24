@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Bookings\Schemas;
 
 use App\Enums\BookingDayPeriod;
 use App\Enums\BookingStatus;
+use App\Enums\Integration;
 use App\Models\Booking;
 use App\Models\BookingDay;
 use App\Models\Client;
@@ -312,7 +313,54 @@ class BookingForm
                                     ->visible(fn (Get $get): bool => static::hourlyRateVisible($get)),
                             ]),
                     ]),
+
+                Section::make('Payroll Submission Failed')
+                    ->columnSpanFull()
+                    ->icon('heroicon-o-exclamation-triangle')
+                    ->iconColor('danger')
+                    ->visible(fn (?Booking $record): bool => $record && static::currentProviderErrors($record)->isNotEmpty())
+                    ->schema([
+                        Textarea::make('payroll_provider_errors')
+                            ->hiddenLabel()
+                            ->disabled()
+                            ->dehydrated(false)
+                            ->rows(3)
+                            ->columnSpanFull()
+                            ->afterStateHydrated(function (Textarea $component, ?Booking $record): void {
+                                if ($record) {
+                                    $component->state(static::currentProviderErrors($record)->implode("\n"));
+                                }
+                            }),
+                    ]),
+
+                Section::make('Payroll Provider')
+                    ->visible(fn (): bool => (Auth::user()?->isAdmin() ?? false) && filled(Auth::user()->company->payroll_provider))
+                    ->schema([
+                        TextInput::make('payroll_provider_id')
+                            ->label('Payroll Provider ID')
+                            ->helperText('This booking\'s existing Placement ID in the agency\'s payroll provider, if one already exists there.')
+                            ->dehydrated(false)
+                            ->afterStateHydrated(function (TextInput $component, ?Booking $record): void {
+                                $provider = Auth::user()->company->payroll_provider;
+
+                                if ($record && $provider instanceof Integration) {
+                                    $component->state($record->providerExternalId($provider));
+                                }
+                            }),
+                    ]),
             ]);
+    }
+
+    /** @return Collection<int, string> */
+    protected static function currentProviderErrors(Booking $record): Collection
+    {
+        $provider = $record->company->payroll_provider;
+
+        if (! $provider instanceof Integration) {
+            return collect();
+        }
+
+        return collect($record->providerErrors()->where('provider', $provider->value)->value('errors') ?? []);
     }
 
     /** @return Collection<int, string> */

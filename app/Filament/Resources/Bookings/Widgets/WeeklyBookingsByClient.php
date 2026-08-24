@@ -106,6 +106,7 @@ class WeeklyBookingsByClient extends BaseWidget
 
         return Booking::query()
             ->visibleToCurrentUser()
+            ->excludingRequests()
             ->whereHas('dayPeriods', fn ($query) => $query->whereBetween('date', [$start->toDateString(), $end->toDateString()]))
             ->with([
                 'dayPeriods' => fn ($query) => $query->whereBetween('date', [$start->toDateString(), $end->toDateString()]),

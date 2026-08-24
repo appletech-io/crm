@@ -117,6 +117,8 @@ class ConditionsRepeaterField
                 'after' => 'After',
                 'days_since_at_least' => 'At least X days ago',
                 'days_until_at_most' => 'At most X days before (or overdue)',
+                'in_future' => 'Is in the future',
+                'is_past' => 'Is in the past',
             ],
             'relation_exists' => [
                 'filled' => 'Is filled',
@@ -147,7 +149,7 @@ class ConditionsRepeaterField
      */
     public static function valueKind(array $suggestions, ?string $field, ?string $operator): ?string
     {
-        if (blank($operator) || in_array($operator, ['filled', 'blank'], true)) {
+        if (blank($operator) || in_array($operator, ['filled', 'blank', 'in_future', 'is_past'], true)) {
             return null;
         }
 
@@ -195,6 +197,8 @@ class ConditionsRepeaterField
             'after' => "{$label} after {$value}",
             'days_since_at_least' => "{$label} at least {$value} days ago",
             'days_until_at_most' => "{$label} at most {$value} days away",
+            'in_future' => "{$label} is in the future",
+            'is_past' => "{$label} is in the past",
             'blank' => "{$label} is blank",
             default => "{$label} is filled",
         };

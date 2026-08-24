@@ -6,6 +6,7 @@ use App\Actions\References\ResendReferenceRequestEmail;
 use App\Enums\DocumentType;
 use App\Enums\Education\Availability;
 use App\Enums\Education\KeyStage;
+use App\Enums\Integration;
 use App\Enums\Nationality;
 use App\Enums\ReferenceStatus;
 use App\Enums\ReferenceType;
@@ -20,6 +21,7 @@ use App\Models\CandidateReference;
 use App\Models\CandidateSkill;
 use App\Models\EducationCandidate;
 use App\Models\JobTitle;
+use App\Models\PaymentProvider;
 use App\Models\Qualification;
 use App\Models\User;
 use App\Services\Candidates\Document;
@@ -154,6 +156,27 @@ class EducationCandidateForm
                                                         ->toArray()
                                                     )
                                                     ->searchable(),
+                                                Select::make('payment_provider_id')
+                                                    ->label('Payment Provider')
+                                                    ->helperText('The umbrella/Ltd company this candidate is paid through, if any. Leave blank for standard PAYE.')
+                                                    ->options(fn (): array => PaymentProvider::query()
+                                                        ->where('company_id', Auth::user()->company_id)
+                                                        ->pluck('name', 'id')
+                                                        ->toArray()
+                                                    )
+                                                    ->searchable(),
+                                                TextInput::make('payroll_provider_id')
+                                                    ->label('Payroll Provider ID')
+                                                    ->helperText('This candidate\'s existing ID in the agency\'s payroll provider, if one already exists there.')
+                                                    ->visible(fn (): bool => (Auth::user()?->isAdmin() ?? false) && filled(Auth::user()->company->payroll_provider))
+                                                    ->dehydrated(false)
+                                                    ->afterStateHydrated(function (TextInput $component, ?EducationCandidate $record): void {
+                                                        $provider = Auth::user()->company->payroll_provider;
+
+                                                        if ($record && $provider instanceof Integration) {
+                                                            $component->state($record->providerExternalId($provider));
+                                                        }
+                                                    }),
                                             ]),
                                     ]),
 

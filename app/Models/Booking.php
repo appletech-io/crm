@@ -6,6 +6,7 @@ use App\Casts\Money;
 use App\Enums\BookingStatus;
 use App\Models\Traits\BelongsToCompany;
 use App\Models\Traits\HasFieldSuggestions;
+use App\Models\Traits\HasProviderExternalId;
 use Database\Factories\BookingFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -23,6 +24,7 @@ class Booking extends Model
     use HasFactory;
 
     use HasFieldSuggestions;
+    use HasProviderExternalId;
     use SoftDeletes;
 
     protected $guarded = [];
@@ -145,6 +147,11 @@ class Booking extends Model
         return $this->hasMany(BookingDay::class)->orderBy('date');
     }
 
+    public function providerErrors(): HasMany
+    {
+        return $this->hasMany(ProviderError::class);
+    }
+
     public function consultant(): BelongsTo
     {
         return $this->belongsTo(User::class, 'consultant_id');
@@ -175,5 +182,17 @@ class Booking extends Model
         }
 
         return $query->where('candidate_type', $candidateModel);
+    }
+
+    /**
+     * A Requested booking hasn't been accepted yet, so it has no business
+     * appearing anywhere a genuinely scheduled booking would — the weekly
+     * view, the "All" bookings table, or payroll (its own admin page and the
+     * client portal) — until it moves past Requested. Applied everywhere
+     * except the dedicated Requests tab.
+     */
+    public function scopeExcludingRequests(Builder $query): Builder
+    {
+        return $query->where('status', '!=', BookingStatus::Requested);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Traits\BelongsToCompany;
 use App\Models\Traits\HasFieldSuggestions;
+use App\Models\Traits\HasProviderExternalId;
 use Database\Factories\HealthcareCandidateFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -23,6 +24,7 @@ class HealthcareCandidate extends Model
 
     use HasFactory;
     use HasFieldSuggestions;
+    use HasProviderExternalId;
     use SoftDeletes;
 
     protected $guarded = [];
@@ -73,6 +75,11 @@ class HealthcareCandidate extends Model
     public function consultant(): BelongsTo
     {
         return $this->belongsTo(User::class, 'consultant_id');
+    }
+
+    public function paymentProvider(): BelongsTo
+    {
+        return $this->belongsTo(PaymentProvider::class);
     }
 
     public function scopeVisibleToCurrentUser(Builder $query): Builder

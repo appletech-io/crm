@@ -4,6 +4,8 @@ namespace App\Observers;
 
 use App\Actions\Automations\CheckActions;
 use App\Actions\Candidates\RecalculateCandidateRating;
+use App\Enums\BookingStatus;
+use App\Jobs\SendTimesheetToPayrollProvider;
 use App\Models\Booking;
 
 class BookingObserver
@@ -12,6 +14,10 @@ class BookingObserver
     {
         CheckActions::run($booking);
         $this->recalculateCandidateRating($booking);
+
+        if ($booking->wasChanged('status') && $booking->status === BookingStatus::Approved) {
+            SendTimesheetToPayrollProvider::dispatch($booking);
+        }
     }
 
     public function deleted(Booking $booking): void

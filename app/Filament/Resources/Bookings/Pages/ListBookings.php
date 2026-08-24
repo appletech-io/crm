@@ -31,6 +31,8 @@ class ListBookings extends ListRecords
 
         if ($this->activeSection === 'requests') {
             $query?->where('status', BookingStatus::Requested);
+        } else {
+            $query?->excludingRequests();
         }
 
         return $query;
