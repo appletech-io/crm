@@ -181,7 +181,7 @@ class HealthcareCandidateForm
                                                 TextInput::make('payroll_provider_id')
                                                     ->label('Payroll Provider ID')
                                                     ->helperText('This candidate\'s existing ID in the agency\'s payroll provider, if one already exists there.')
-                                                    ->visible(fn (): bool => (Auth::user()?->isAdmin() ?? false) && filled(Auth::user()->company->payroll_provider))
+                                                    ->hidden()
                                                     ->dehydrated(false)
                                                     ->afterStateHydrated(function (TextInput $component, ?HealthcareCandidate $record): void {
                                                         $provider = Auth::user()->company->payroll_provider;

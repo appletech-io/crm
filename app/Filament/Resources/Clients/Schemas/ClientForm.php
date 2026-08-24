@@ -264,7 +264,7 @@ class ClientForm
                                     ]),
 
                                 Section::make('Payroll Provider')
-                                    ->visible(fn (): bool => (Auth::user()?->isAdmin() ?? false) && filled(Auth::user()->company->payroll_provider))
+                                    ->hidden()
                                     ->schema([
                                         TextInput::make('payroll_provider_id')
                                             ->label('Payroll Provider ID')
