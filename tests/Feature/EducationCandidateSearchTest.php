@@ -6,6 +6,7 @@ use App\Enums\CandidateAvailabilityStatus;
 use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\EducationCandidates\Pages\ListEducationCandidates;
 use App\Models\CandidateCandidateStatus;
+use App\Models\CandidatePool;
 use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
 use App\Models\Client;
@@ -17,6 +18,7 @@ use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -155,6 +157,47 @@ test('skills filter narrows results', function () {
         ->assertCanNotSeeTableRecords([$nonMatch]);
 });
 
+test('pools filter narrows results', function () {
+    $pool = CandidatePool::create([
+        'company_id' => $this->consultant->company_id,
+        'industry_id' => $this->industry->id,
+        'user_id' => $this->consultant->id,
+        'name' => 'Shortlist',
+    ]);
+
+    $match = makeSearchCandidate();
+    $pool->candidatesOfType(EducationCandidate::class)->attach($match->id);
+
+    $nonMatch = makeSearchCandidate();
+
+    Livewire::test(ListEducationCandidates::class)
+        ->fillForm(['pool_ids' => [$pool->id]])
+        ->set('activeSection', 'search')
+        ->call('search')
+        ->assertCanSeeTableRecords([$match])
+        ->assertCanNotSeeTableRecords([$nonMatch]);
+});
+
+test('the status filter is hidden and has no effect on the dedicated Search tab', function () {
+    $onboardingStatus = CandidateStatus::factory()->create([
+        'company_id' => $this->consultant->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Onboarding',
+    ]);
+
+    $liveCandidate = makeSearchCandidate();
+
+    // Selecting Onboarding should have no effect here — status_ids is only
+    // ever applied on the All Candidates tab (see ListEducationCandidates::
+    // configureSearchTable()); the Search tab stays Live-only regardless.
+    Livewire::test(ListEducationCandidates::class)
+        ->fillForm(['status_ids' => [$onboardingStatus->id]])
+        ->set('activeSection', 'search')
+        ->assertFormFieldIsHidden('status_ids', 'form')
+        ->call('search')
+        ->assertCanSeeTableRecords([$liveCandidate]);
+});
+
 test('client dropdown only offers clients belonging to the logged in consultant', function () {
     $ownClient = Client::factory()->create([
         'company_id' => $this->consultant->company_id,
@@ -170,10 +213,20 @@ test('client dropdown only offers clients belonging to the logged in consultant'
         'name' => 'Someone Elses School',
     ]);
 
-    Livewire::test(ListEducationCandidates::class)
+    // Scoped to the client_id field's own rendered markup rather than the
+    // whole page — every client auto-creates a same-named CandidatePool
+    // (EnsureClientCandidatePool), which the "Pools" search field
+    // legitimately surfaces company-wide, so a page-wide assertDontSee for
+    // "Someone Elses School" would also (incorrectly) catch that unrelated
+    // "Someone Elses School Candidates" pool option.
+    $html = Livewire::test(ListEducationCandidates::class)
         ->set('activeSection', 'search')
-        ->assertSee('My School')
-        ->assertDontSee('Someone Elses School');
+        ->html();
+
+    $clientFieldHtml = Str::between($html, 'schema-component::form.client_id', 'schema-component::form.address');
+
+    expect($clientFieldHtml)->toContain('My School')
+        ->not->toContain('Someone Elses School');
 });
 
 test('day filter excludes candidates booked on a selected day and respects cancellations', function () {

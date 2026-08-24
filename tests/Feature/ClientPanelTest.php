@@ -76,6 +76,41 @@ test('the my bookings page renders for a logged in client contact', function () 
     Livewire::test(MyBookings::class)->assertSuccessful();
 });
 
+test('the charge rate column shows the rate matching each days period', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+
+    $booking = Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'day_charge_rate' => 200.00,
+        'half_day_charge_rate' => 110.00,
+        'hourly_charge_rate' => 25.00,
+    ]);
+
+    $fullDay = sentDayForClientPanel($booking, now()->toDateString(), ['period' => BookingDayPeriod::FullDay]);
+    $halfDay = sentDayForClientPanel($booking, now()->addDay()->toDateString(), ['period' => BookingDayPeriod::Am]);
+    $hoursDay = sentDayForClientPanel($booking, now()->addDays(2)->toDateString(), [
+        'period' => BookingDayPeriod::Hours,
+        'time_from' => '09:00:00',
+        'time_to' => '13:00:00',
+    ]);
+
+    expect($fullDay->chargeRate())->toBe(200.00)
+        ->and($halfDay->chargeRate())->toBe(110.00)
+        ->and($hoursDay->chargeRate())->toBe(25.00);
+
+    $this->actingAs($this->user);
+
+    Livewire::test(MyBookings::class)
+        ->assertSuccessful()
+        ->assertTableColumnStateSet('charge_rate', 200.00, $fullDay)
+        ->assertTableColumnStateSet('charge_rate', 110.00, $halfDay)
+        ->assertTableColumnStateSet('charge_rate', 25.00, $hoursDay);
+});
+
 test('it only shows bookings that have been sent for confirmation, scoped to this client', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
 
@@ -113,6 +148,26 @@ test('it only shows bookings that have been sent for confirmation, scoped to thi
         ->assertCanNotSeeTableRecords([$otherClientDay]);
 });
 
+test('a requested booking never shows on the client portal, even if a day was already marked sent', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+
+    $requestedBooking = Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'status' => BookingStatus::Requested,
+    ]);
+    $requestedDay = sentDayForClientPanel($requestedBooking, now()->toDateString());
+
+    $this->actingAs($this->user);
+
+    Livewire::test(MyBookings::class)
+        ->assertSuccessful()
+        ->assertCanNotSeeTableRecords([$requestedDay]);
+});
+
 test('approving a day through the table row action marks it approved', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
     $booking = Booking::factory()->create([
@@ -129,7 +184,8 @@ test('approving a day through the table row action marks it approved', function 
     Livewire::test(MyBookings::class)
         ->callTableAction('approveDay', $day);
 
-    expect($day->fresh()->approved_at)->not->toBeNull();
+    expect($day->fresh()->approved_at)->not->toBeNull()
+        ->and($day->fresh()->approved_by_user_id)->toBe($this->user->id);
 });
 
 test('disputing a day through the table row action requires a reason and stores it', function () {
@@ -141,7 +197,12 @@ test('disputing a day through the table row action requires a reason and stores 
         'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
-    $day = sentDayForClientPanel($booking, now()->toDateString());
+    // Pre-approved, so the dispute action's job of clearing both approved_at
+    // and approved_by_user_id is actually exercised, not trivially true.
+    $day = sentDayForClientPanel($booking, now()->toDateString(), [
+        'approved_at' => now(),
+        'approved_by_user_id' => $this->user->id,
+    ]);
 
     $this->actingAs($this->user);
 
@@ -156,7 +217,8 @@ test('disputing a day through the table row action requires a reason and stores 
     $day->refresh();
 
     expect($day->disputed_at)->not->toBeNull()
-        ->and($day->dispute_reason)->toBe('Candidate did not attend');
+        ->and($day->dispute_reason)->toBe('Candidate did not attend')
+        ->and($day->approved_by_user_id)->toBeNull();
 });
 
 test('approving all days for a booking through the table row action marks the booking approved', function () {
@@ -176,7 +238,8 @@ test('approving all days for a booking through the table row action marks the bo
     Livewire::test(MyBookings::class)
         ->callTableAction('approveBooking', $dayOne);
 
-    expect($booking->fresh()->status)->toBe(BookingStatus::Approved);
+    expect($booking->fresh()->status)->toBe(BookingStatus::Approved)
+        ->and($dayOne->fresh()->approved_by_user_id)->toBe($this->user->id);
 });
 
 test('a client contact cannot act on another clients booking day through a tampered action call', function () {

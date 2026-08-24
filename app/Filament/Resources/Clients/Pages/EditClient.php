@@ -26,4 +26,23 @@ class EditClient extends EditRecord
             RestoreAction::make(),
         ];
     }
+
+    /**
+     * Only admins can see the Payroll Provider ID field (ClientForm gates it
+     * on isAdmin() too) — this mirrors that gate so a consultant saving the
+     * rest of the form, where the field was never rendered, can't wipe out
+     * an existing external ID mapping via its absent/blank raw state.
+     */
+    protected function afterSave(): void
+    {
+        if (! (Auth::user()?->isAdmin() ?? false)) {
+            return;
+        }
+
+        $provider = Auth::user()->company->payroll_provider;
+
+        if ($provider) {
+            $this->record->setProviderExternalId($provider, $this->form->getRawState()['payroll_provider_id'] ?? null);
+        }
+    }
 }

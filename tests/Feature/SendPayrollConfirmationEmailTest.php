@@ -269,6 +269,34 @@ test('it excludes cancelled days from the breakdown and does not mark them sent'
         ->and($cancelledDay->fresh()->payroll_confirmation_sent_at)->toBeNull();
 });
 
+test('it excludes days from a requested booking from the breakdown and does not mark them sent', function () {
+    $this->client->contacts()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Main',
+        'last_name' => 'Contact',
+        'email' => 'main@example.com',
+        'main_contact' => true,
+    ]);
+
+    createPayrollTemplate($this->company);
+
+    $this->booking->update(['status' => BookingStatus::Requested]);
+
+    $requestedDay = $this->booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => $this->weekStart->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+
+    (new SendPayrollConfirmationEmail($this->client, $this->weekStart->toDateString()))->handle();
+
+    // No other, non-requested booking has any days this period, so the job
+    // should find nothing to send at all — not just skip this one day.
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), 'graph.microsoft.com'));
+
+    expect($requestedDay->fresh()->payroll_confirmation_sent_at)->toBeNull();
+});
+
 test('it appends the consultants email footer to the sent body', function () {
     $consultant = User::factory()->create([
         'company_id' => $this->company->id,

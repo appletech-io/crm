@@ -10,6 +10,8 @@ use App\Filament\Pages\CandidateSettings;
 use App\Filament\Pages\ClientSettings;
 use App\Filament\Pages\ComplianceDashboard;
 use App\Filament\Pages\Dashboard;
+use App\Filament\Pages\Integrations\EvertimeIntegration;
+use App\Filament\Pages\Integrations\ListIntegrations;
 use App\Filament\Pages\JobSettings;
 use App\Filament\Pages\Reports;
 use App\Filament\Pages\RunPayroll;
@@ -107,6 +109,8 @@ class AdminPanelProvider extends PanelProvider
                 CandidateSettings::class,
                 ClientSettings::class,
                 JobSettings::class,
+                ListIntegrations::class,
+                EvertimeIntegration::class,
                 RunPayroll::class,
                 Reports::class,
                 RevenueMarginReport::class,

@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentMethod;
 use App\Models\Traits\BelongsToCompany;
 use App\Models\Traits\HasFieldSuggestions;
+use App\Models\Traits\HasProviderExternalId;
 use Database\Factories\EducationCandidateFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -24,6 +26,7 @@ class EducationCandidate extends Model
 
     use HasFactory;
     use HasFieldSuggestions;
+    use HasProviderExternalId;
     use SoftDeletes;
 
     protected $guarded = [];
@@ -39,6 +42,7 @@ class EducationCandidate extends Model
         'average_rating' => 'float',
         'ratings_count' => 'integer',
         'available_from' => 'date',
+        'payment_method' => PaymentMethod::class,
         'compliance_completed_at' => 'datetime',
         'barred_list_check_date' => 'date',
         'overseas_police_clearance_check_date' => 'date',
@@ -81,6 +85,11 @@ class EducationCandidate extends Model
     public function consultant(): BelongsTo
     {
         return $this->belongsTo(User::class, 'consultant_id');
+    }
+
+    public function paymentProvider(): BelongsTo
+    {
+        return $this->belongsTo(PaymentProvider::class);
     }
 
     public function scopeVisibleToCurrentUser(Builder $query): Builder

@@ -1,12 +1,14 @@
 <?php
 
 use App\Enums\DocumentType;
+use App\Enums\PaymentMethod;
 use App\Models\CandidateDocument;
 use App\Models\CandidateSkill;
 use App\Models\Company;
 use App\Models\HealthcareCandidate;
 use App\Models\Industry;
 use App\Models\JobTitle;
+use App\Models\PaymentProvider;
 use App\Models\PayRate;
 use App\Services\Healthcare\CandidateVettingRequirements;
 use App\Services\Healthcare\DbsUpdateService;
@@ -26,6 +28,9 @@ function fullyCompliantHealthcareCandidate(array $attributes = []): HealthcareCa
         'professional_registration_checked_at' => now(),
         'right_to_work_type' => 'birth_certificate',
         'ni_number' => 'QQ123456C',
+        'payment_method' => PaymentMethod::Paye,
+        'bank_account_number' => '12345678',
+        'bank_sort_code' => '123456',
     ], $attributes));
 
     $skill = CandidateSkill::factory()->create([
@@ -97,6 +102,43 @@ test('isComplete is true when every check passes', function () {
     $candidate = fullyCompliantHealthcareCandidate();
 
     expect(CandidateVettingRequirements::isComplete($candidate))->toBeTrue();
+});
+
+test('payment method check fails when no payment method has been set', function () {
+    $candidate = fullyCompliantHealthcareCandidate(['payment_method' => null]);
+
+    $checks = CandidateVettingRequirements::for($candidate);
+
+    expect($checks['payment_method']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('payment method check fails for PAYE without bank account number or sort code', function () {
+    $candidate = fullyCompliantHealthcareCandidate(['payment_method' => PaymentMethod::Paye, 'bank_account_number' => null, 'bank_sort_code' => null]);
+
+    $checks = CandidateVettingRequirements::for($candidate);
+
+    expect($checks['payment_method']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('payment method check fails for umbrella without a payment provider selected', function () {
+    $candidate = fullyCompliantHealthcareCandidate(['payment_method' => PaymentMethod::Umbrella, 'payment_provider_id' => null]);
+
+    $checks = CandidateVettingRequirements::for($candidate);
+
+    expect($checks['payment_method']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('payment method check passes for umbrella with a payment provider selected', function () {
+    $candidate = fullyCompliantHealthcareCandidate();
+    $paymentProvider = PaymentProvider::factory()->create(['company_id' => $candidate->company_id]);
+    $candidate->update(['payment_method' => PaymentMethod::Umbrella, 'payment_provider_id' => $paymentProvider->id]);
+
+    $checks = CandidateVettingRequirements::for($candidate->fresh());
+
+    expect($checks['payment_method']['complete'])->toBeTrue();
 });
 
 test('dbs check passes without any documents uploaded when the update service has verified it', function () {

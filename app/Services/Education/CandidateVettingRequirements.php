@@ -3,6 +3,7 @@
 namespace App\Services\Education;
 
 use App\Enums\DocumentType;
+use App\Enums\PaymentMethod;
 use App\Enums\ReferenceStatus;
 use App\Enums\ReferenceType;
 use App\Models\EducationCandidate;
@@ -69,6 +70,11 @@ class CandidateVettingRequirements
                 'description' => 'At least one pay rate has been set for the candidate.',
                 'complete' => $candidate->payRates()->exists(),
             ],
+            'payment_method' => [
+                'label' => 'Payment Method',
+                'description' => 'Payment method is set to PAYE (with bank account number and sort code), or an umbrella/Ltd company has been selected.',
+                'complete' => static::paymentMethodComplete($candidate),
+            ],
             'not_barred' => [
                 'label' => 'Not Barred',
                 'description' => 'Candidate has been checked against the barred list and cleared.',
@@ -119,6 +125,15 @@ class CandidateVettingRequirements
                 'complete' => $candidate->right_to_work_type !== 'visa' || $candidate->right_to_work_checked === 'yes',
             ],
         ];
+    }
+
+    protected static function paymentMethodComplete(EducationCandidate $candidate): bool
+    {
+        return match ($candidate->payment_method) {
+            PaymentMethod::Paye => filled($candidate->bank_account_number) && filled($candidate->bank_sort_code),
+            PaymentMethod::Umbrella => filled($candidate->payment_provider_id),
+            default => false,
+        };
     }
 
     protected static function rightToWorkLabel(EducationCandidate $candidate): string

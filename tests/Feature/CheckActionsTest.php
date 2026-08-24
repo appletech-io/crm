@@ -1120,6 +1120,92 @@ test('does not fire a days_until_at_most condition while the date is still far a
     expect(TodoItem::count())->toBe(0);
 });
 
+test('fires a condition using the in_future operator when the date is ahead of now', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+        'dbs_expiry_date' => now()->addDay()->toDateString(),
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => EducationCandidate::class,
+        'conditions' => [
+            ['field' => 'dbs_expiry_date', 'operator' => 'in_future'],
+        ],
+        'todo_name' => 'DBS still valid',
+    ]);
+
+    CheckActions::run($candidate);
+
+    expect(TodoItem::where('model_type', EducationCandidate::class)->where('model_id', $candidate->id)->where('name', 'DBS still valid')->exists())->toBeTrue();
+});
+
+test('does not fire an in_future condition once the date has already passed', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+        'dbs_expiry_date' => now()->subDay()->toDateString(),
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => EducationCandidate::class,
+        'conditions' => [
+            ['field' => 'dbs_expiry_date', 'operator' => 'in_future'],
+        ],
+    ]);
+
+    CheckActions::run($candidate);
+
+    expect(TodoItem::count())->toBe(0);
+});
+
+test('fires a condition using the is_past operator once the date has already passed', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+        'dbs_expiry_date' => now()->subDay()->toDateString(),
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => EducationCandidate::class,
+        'conditions' => [
+            ['field' => 'dbs_expiry_date', 'operator' => 'is_past'],
+        ],
+        'todo_name' => 'DBS has expired',
+    ]);
+
+    CheckActions::run($candidate);
+
+    expect(TodoItem::where('model_type', EducationCandidate::class)->where('model_id', $candidate->id)->where('name', 'DBS has expired')->exists())->toBeTrue();
+});
+
+test('does not fire an is_past condition while the date is still ahead of now', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+        'dbs_expiry_date' => now()->addDay()->toDateString(),
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => EducationCandidate::class,
+        'conditions' => [
+            ['field' => 'dbs_expiry_date', 'operator' => 'is_past'],
+        ],
+    ]);
+
+    CheckActions::run($candidate);
+
+    expect(TodoItem::count())->toBe(0);
+});
+
 test('soft-deleting a booking triggers a matching action via the deleted_at field', function () {
     $booking = Booking::factory()->create([
         'company_id' => $this->company->id,

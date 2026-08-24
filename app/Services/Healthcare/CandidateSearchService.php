@@ -21,19 +21,30 @@ class CandidateSearchService
      *     lat?: ?float,
      *     lng?: ?float,
      *     radius_miles?: ?float,
+     *     pool_ids?: ?array<int, int|string>,
+     *     status_ids?: ?array<int, int|string>,
      * }  $filters
+     * @param  bool  $restrictToOwnLiveCandidates  The dedicated "Search" tab is a booking tool — it only
+     *                                             makes sense to search your own Live candidates there. The "All Candidates" tab's search is a
+     *                                             general lookup across every consultant's candidates regardless of status, so it passes false to
+     *                                             keep that "all" scope and only apply the actual filter criteria below.
      */
-    public function search(array $filters): Builder
+    public function search(array $filters, bool $restrictToOwnLiveCandidates = true): Builder
     {
-        $query = HealthcareCandidate::query()
-            ->where('consultant_id', auth()->id())
-            ->whereHas('statuses.status', fn (Builder $q) => $q->where('name', 'Live'));
+        $query = HealthcareCandidate::query();
+
+        if ($restrictToOwnLiveCandidates) {
+            $query->where('consultant_id', auth()->id())
+                ->whereHas('statuses.status', fn (Builder $q) => $q->where('name', 'Live'));
+        }
 
         $this->applyName($query, $filters['name'] ?? null);
         $this->applyEmail($query, $filters['email'] ?? null);
         $this->applySkills($query, $filters['skill_ids'] ?? null);
         $this->applyDays($query, $filters['days'] ?? null);
         $this->applyLocation($query, $filters['lat'] ?? null, $filters['lng'] ?? null, $filters['radius_miles'] ?? null);
+        $this->applyPools($query, $filters['pool_ids'] ?? null);
+        $this->applyStatuses($query, $filters['status_ids'] ?? null);
 
         return $query;
     }
@@ -94,6 +105,34 @@ class CandidateSearchService
                 ->whereDate('date', $date)
                 ->where('status', CandidateAvailabilityStatus::NotAvailable->value));
         }
+    }
+
+    /** @param  ?array<int, int|string>  $poolIds */
+    private function applyPools(Builder $query, ?array $poolIds): void
+    {
+        if (blank($poolIds)) {
+            return;
+        }
+
+        $query->whereHas('candidatePools', fn (Builder $q) => $q
+            ->whereIn('candidate_pools.id', $poolIds));
+    }
+
+    /**
+     * Matched against the candidate's current status only (latestStatus),
+     * not their full status history — a candidate who was once Live but has
+     * since moved on shouldn't still surface for a "Live" status filter.
+     *
+     * @param  ?array<int, int|string>  $statusIds
+     */
+    private function applyStatuses(Builder $query, ?array $statusIds): void
+    {
+        if (blank($statusIds)) {
+            return;
+        }
+
+        $query->whereHas('latestStatus', fn (Builder $q) => $q
+            ->whereIn('candidate_status_id', $statusIds));
     }
 
     private function applyLocation(Builder $query, ?float $lat, ?float $lng, ?float $radiusMiles): void

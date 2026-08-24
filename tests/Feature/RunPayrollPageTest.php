@@ -104,6 +104,20 @@ test('the confirm action does not dispatch for cancelled days or bookings outsid
     Queue::assertNotPushed(SendPayrollConfirmationEmail::class);
 });
 
+test('a requested booking is excluded from the table and does not trigger a confirmation email', function () {
+    Queue::fake();
+
+    $requested = createPayrollBooking($this->user, $this->jobTitle, $this->periodStart->toDateString());
+    $requested->update(['status' => BookingStatus::Requested]);
+    $requestedDay = $requested->dayPeriods()->first();
+
+    Livewire::test(RunPayroll::class)
+        ->assertCanNotSeeTableRecords([$requestedDay])
+        ->callTableAction('confirm');
+
+    Queue::assertNotPushed(SendPayrollConfirmationEmail::class);
+});
+
 test('the confirm button is enabled while a booking in the period is still upcoming', function () {
     createPayrollBooking($this->user, $this->jobTitle, $this->periodStart->toDateString());
 

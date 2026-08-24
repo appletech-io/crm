@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Models\Traits\BelongsToCompany;
+use App\Models\Traits\HasProviderExternalId;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
@@ -47,7 +48,7 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
     /** @use HasFactory<UserFactory> */
     use BelongsToCompany;
 
-    use HasFactory, HasRoles, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
+    use HasFactory, HasProviderExternalId, HasRoles, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
 
     /**
      * Get the attributes that should be cast.

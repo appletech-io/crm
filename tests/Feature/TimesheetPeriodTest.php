@@ -13,39 +13,39 @@ function companyWithFrequency(TimesheetFrequency $frequency, ?int $dayOfMonth = 
     ]);
 }
 
-test('weekly period runs saturday to friday and contains a mid-week date', function () {
+test('weekly period runs monday to sunday and contains a mid-week date', function () {
     $company = companyWithFrequency(TimesheetFrequency::Weekly);
 
     // Wednesday 2026-07-22.
     $period = TimesheetPeriod::containing($company, Carbon::parse('2026-07-22'));
 
-    expect($period['start']->toDateString())->toBe('2026-07-18') // Saturday
-        ->and($period['end']->toDateString())->toBe('2026-07-24'); // Friday
+    expect($period['start']->toDateString())->toBe('2026-07-20') // Monday
+        ->and($period['end']->toDateString())->toBe('2026-07-26'); // Sunday
 });
 
-test('weekly period containing the friday cutoff itself ends on that friday', function () {
+test('weekly period containing the sunday cutoff itself ends on that sunday', function () {
     $company = companyWithFrequency(TimesheetFrequency::Weekly);
 
-    $period = TimesheetPeriod::containing($company, Carbon::parse('2026-07-24'));
+    $period = TimesheetPeriod::containing($company, Carbon::parse('2026-07-26'));
 
-    expect($period['start']->toDateString())->toBe('2026-07-18')
-        ->and($period['end']->toDateString())->toBe('2026-07-24');
+    expect($period['start']->toDateString())->toBe('2026-07-20')
+        ->and($period['end']->toDateString())->toBe('2026-07-26');
 });
 
-test('weekly period containing the saturday start itself starts on that saturday', function () {
+test('weekly period containing the monday start itself starts on that monday', function () {
     $company = companyWithFrequency(TimesheetFrequency::Weekly);
 
-    $period = TimesheetPeriod::containing($company, Carbon::parse('2026-07-18'));
+    $period = TimesheetPeriod::containing($company, Carbon::parse('2026-07-20'));
 
-    expect($period['start']->toDateString())->toBe('2026-07-18')
-        ->and($period['end']->toDateString())->toBe('2026-07-24');
+    expect($period['start']->toDateString())->toBe('2026-07-20')
+        ->and($period['end']->toDateString())->toBe('2026-07-26');
 });
 
 test('biweekly periods form a stable 14 day grid where both weeks map to the same period', function () {
     $company = companyWithFrequency(TimesheetFrequency::Biweekly);
 
-    $firstWeekDate = Carbon::parse('2026-07-18'); // Saturday of week 1
-    $secondWeekDate = Carbon::parse('2026-07-23'); // Thursday of week 2 of the same block
+    $firstWeekDate = Carbon::parse('2026-07-20'); // Monday of week 1
+    $secondWeekDate = Carbon::parse('2026-07-30'); // Thursday of week 2 of the same block
 
     $periodA = TimesheetPeriod::containing($company, $firstWeekDate);
     $periodB = TimesheetPeriod::containing($company, $secondWeekDate);
@@ -60,7 +60,7 @@ test('biweekly periods form a stable 14 day grid where both weeks map to the sam
 test('biweekly periods do not overlap and follow directly on from each other', function () {
     $company = companyWithFrequency(TimesheetFrequency::Biweekly);
 
-    $period = TimesheetPeriod::containing($company, Carbon::parse('2026-07-18'));
+    $period = TimesheetPeriod::containing($company, Carbon::parse('2026-07-20'));
     $next = TimesheetPeriod::next($company, $period['start']);
 
     expect($next['start']->toDateString())->toBe($period['end']->copy()->addDay()->toDateString());
@@ -127,7 +127,7 @@ test('selectable dates between a range returns one cutoff date per overlapping w
         Carbon::parse('2026-07-31'),
     );
 
-    expect($dates)->toEqual(['2026-07-03', '2026-07-10', '2026-07-17', '2026-07-24', '2026-07-31']);
+    expect($dates)->toEqual(['2026-07-05', '2026-07-12', '2026-07-19', '2026-07-26']);
 });
 
 test('selectable dates between a range for a monthly client returns one date per month', function () {

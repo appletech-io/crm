@@ -3,10 +3,12 @@
 namespace App\Models;
 
 use App\Models\Traits\BelongsToCompany;
+use App\Models\Traits\HasProviderExternalId;
 use Database\Factories\ClientContactFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ClientContact extends Model
 {
@@ -14,6 +16,7 @@ class ClientContact extends Model
     use BelongsToCompany;
 
     use HasFactory;
+    use HasProviderExternalId;
 
     protected $guarded = [];
 
@@ -61,5 +64,10 @@ class ClientContact extends Model
     public function clientContactJobTitle(): BelongsTo
     {
         return $this->belongsTo(ClientContactJobTitle::class);
+    }
+
+    public function users(): HasMany
+    {
+        return $this->hasMany(User::class);
     }
 }

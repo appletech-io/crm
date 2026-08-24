@@ -5,6 +5,7 @@ use App\Enums\BookingStatus;
 use App\Enums\CandidateAvailabilityStatus;
 use App\Filament\Resources\HealthcareCandidates\Pages\ListHealthcareCandidates;
 use App\Models\CandidateCandidateStatus;
+use App\Models\CandidatePool;
 use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
 use App\Models\Client;
@@ -126,6 +127,47 @@ test('skills filter narrows results', function () {
         ->call('search')
         ->assertCanSeeTableRecords([$match])
         ->assertCanNotSeeTableRecords([$nonMatch]);
+});
+
+test('pools filter narrows results', function () {
+    $pool = CandidatePool::create([
+        'company_id' => $this->consultant->company_id,
+        'industry_id' => $this->industry->id,
+        'user_id' => $this->consultant->id,
+        'name' => 'Shortlist',
+    ]);
+
+    $match = makeHealthcareSearchCandidate();
+    $pool->candidatesOfType(HealthcareCandidate::class)->attach($match->id);
+
+    $nonMatch = makeHealthcareSearchCandidate();
+
+    Livewire::test(ListHealthcareCandidates::class)
+        ->fillForm(['pool_ids' => [$pool->id]])
+        ->set('activeSection', 'search')
+        ->call('search')
+        ->assertCanSeeTableRecords([$match])
+        ->assertCanNotSeeTableRecords([$nonMatch]);
+});
+
+test('the status filter is hidden and has no effect on the dedicated Search tab', function () {
+    $onboardingStatus = CandidateStatus::factory()->create([
+        'company_id' => $this->consultant->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Onboarding',
+    ]);
+
+    $liveCandidate = makeHealthcareSearchCandidate();
+
+    // Selecting Onboarding should have no effect here — status_ids is only
+    // ever applied on the All Candidates tab (see ListHealthcareCandidates::
+    // configureSearchTable()); the Search tab stays Live-only regardless.
+    Livewire::test(ListHealthcareCandidates::class)
+        ->fillForm(['status_ids' => [$onboardingStatus->id]])
+        ->set('activeSection', 'search')
+        ->assertFormFieldIsHidden('status_ids', 'form')
+        ->call('search')
+        ->assertCanSeeTableRecords([$liveCandidate]);
 });
 
 test('day filter excludes candidates booked on a selected day', function () {

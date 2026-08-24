@@ -4,6 +4,7 @@ namespace App\Filament\Resources\EducationVetting\Schemas;
 
 use App\Enums\DocumentType;
 use App\Enums\Education\KeyStage;
+use App\Enums\PaymentMethod;
 use App\Exceptions\Dbs\DbsUpdateServiceException;
 use App\Filament\Resources\EducationVetting\Pages\VettingWizard;
 use App\Filament\Widgets\CandidateAdditionalDocuments;
@@ -13,6 +14,7 @@ use App\Models\CandidateDocument;
 use App\Models\CandidateSkill;
 use App\Models\EducationCandidate;
 use App\Models\JobTitle;
+use App\Models\PaymentProvider;
 use App\Models\Qualification;
 use App\Services\Ai\NiNumberVerificationService;
 use App\Services\Ai\ProofOfAddressVerificationService;
@@ -62,6 +64,7 @@ class VettingSteps
 
         $fieldsByIndex = [
             0 => static::personalDetailsFields(),
+            1 => static::payRatesFields(),
             2 => static::skillsFields(),
             4 => static::securityChecksFields(),
             5 => static::traChecksFields(),
@@ -164,10 +167,49 @@ class VettingSteps
         return ['qualification_id', 'key_stages'];
     }
 
+    /** @return array<int, string> */
+    protected static function payRatesFields(): array
+    {
+        return ['payment_method', 'payment_provider_id', 'bank_account_number', 'bank_sort_code'];
+    }
+
     protected static function payRates(): Step
     {
         return Step::make('Pay Rates')
             ->schema([
+                Section::make('Payment Method')
+                    ->columns(2)
+                    ->schema([
+                        Select::make('payment_method')
+                            ->label('Payment Method')
+                            ->options(PaymentMethod::options())
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(fn (Set $set) => $set('payment_provider_id', null)),
+                        Select::make('payment_provider_id')
+                            ->label('Umbrella / Ltd Company')
+                            ->helperText('The umbrella/Ltd company this candidate is paid through.')
+                            ->options(fn (): array => PaymentProvider::query()
+                                ->where('company_id', Auth::user()->company_id)
+                                ->pluck('name', 'id')
+                                ->toArray()
+                            )
+                            ->required(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Umbrella->value)
+                            ->visible(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Umbrella->value)
+                            ->searchable(),
+                        TextInput::make('bank_account_number')
+                            ->label('Bank Account Number')
+                            ->maxLength(8)
+                            ->required(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Paye->value)
+                            ->visible(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Paye->value),
+                        TextInput::make('bank_sort_code')
+                            ->label('Sort Code')
+                            ->placeholder('00-00-00')
+                            ->maxLength(8)
+                            ->required(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Paye->value)
+                            ->visible(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Paye->value),
+                    ]),
+
                 Repeater::make('payRates')
                     ->relationship()
                     ->hiddenLabel()

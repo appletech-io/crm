@@ -111,7 +111,7 @@ class SendPayrollConfirmationEmail implements ShouldQueue
         $period = TimesheetPeriod::containing($this->client->company, Carbon::parse($this->periodStart));
 
         return BookingDay::query()
-            ->whereHas('booking', fn ($query) => $query->where('client_id', $this->client->id))
+            ->whereHas('booking', fn ($query) => $query->where('client_id', $this->client->id)->excludingRequests())
             ->whereBetween('date', [$period['start']->toDateString(), $period['end']->toDateString()])
             ->whereNull('cancelled_at')
             ->with(['booking.candidate', 'booking.jobTitle'])

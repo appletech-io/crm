@@ -22,6 +22,7 @@ class BookingDay extends Model
             'payroll_confirmation_sent_at' => 'datetime',
             'approved_at' => 'datetime',
             'disputed_at' => 'datetime',
+            'sent_to_provider_at' => 'datetime',
         ];
     }
 
@@ -55,8 +56,28 @@ class BookingDay extends Model
         };
     }
 
+    /**
+     * The client-facing charge rate that applies to this specific day,
+     * drawn from whichever of the booking's rate fields matches its period —
+     * an hourly rate for an Hours day, the half-day rate for an Am/Pm day,
+     * or the full day rate otherwise.
+     */
+    public function chargeRate(): ?float
+    {
+        return match ($this->period) {
+            BookingDayPeriod::Hours => $this->booking->hourly_charge_rate,
+            BookingDayPeriod::Am, BookingDayPeriod::Pm => $this->booking->half_day_charge_rate,
+            BookingDayPeriod::FullDay => $this->booking->day_charge_rate,
+        };
+    }
+
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
+    }
+
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by_user_id');
     }
 }

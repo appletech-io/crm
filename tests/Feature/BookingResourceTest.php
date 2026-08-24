@@ -775,6 +775,71 @@ test('the list page does not crash and flags the candidate as deleted when the c
     expect($booking->fresh()->candidate_id)->toBe($this->candidate->id);
 });
 
+test('a requested booking only appears on the requests tab, not the all tab', function () {
+    $requested = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'consultant_id' => $this->user->id,
+        'status' => BookingStatus::Requested,
+    ]);
+
+    $upcoming = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'consultant_id' => $this->user->id,
+        'status' => BookingStatus::Upcoming,
+    ]);
+
+    Livewire::test(ListBookings::class)
+        ->set('activeSection', 'all')
+        ->assertCanSeeTableRecords([$upcoming])
+        ->assertCanNotSeeTableRecords([$requested])
+        ->set('activeSection', 'requests')
+        ->assertCanSeeTableRecords([$requested])
+        ->assertCanNotSeeTableRecords([$upcoming]);
+});
+
+test('the excludingRequests scope filters out requested bookings but keeps every other status', function () {
+    $requested = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'status' => BookingStatus::Requested,
+    ]);
+
+    $upcoming = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'status' => BookingStatus::Upcoming,
+    ]);
+
+    $approved = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'status' => BookingStatus::Approved,
+    ]);
+
+    $visible = Booking::query()->excludingRequests()->pluck('id');
+
+    expect($visible)->toContain($upcoming->id)
+        ->toContain($approved->id)
+        ->not->toContain($requested->id);
+});
+
 test('the edit form does not crash and flags the candidate as deleted when the candidate is soft-deleted', function () {
     $booking = Booking::factory()->create([
         'company_id' => $this->user->company_id,

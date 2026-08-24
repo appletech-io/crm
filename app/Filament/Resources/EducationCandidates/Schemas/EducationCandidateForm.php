@@ -6,7 +6,9 @@ use App\Actions\References\ResendReferenceRequestEmail;
 use App\Enums\DocumentType;
 use App\Enums\Education\Availability;
 use App\Enums\Education\KeyStage;
+use App\Enums\Integration;
 use App\Enums\Nationality;
+use App\Enums\PaymentMethod;
 use App\Enums\ReferenceStatus;
 use App\Enums\ReferenceType;
 use App\Exceptions\Dbs\DbsUpdateServiceException;
@@ -20,6 +22,7 @@ use App\Models\CandidateReference;
 use App\Models\CandidateSkill;
 use App\Models\EducationCandidate;
 use App\Models\JobTitle;
+use App\Models\PaymentProvider;
 use App\Models\Qualification;
 use App\Models\User;
 use App\Services\Candidates\Document;
@@ -154,6 +157,46 @@ class EducationCandidateForm
                                                         ->toArray()
                                                     )
                                                     ->searchable(),
+                                                Select::make('payment_method')
+                                                    ->label('Payment Method')
+                                                    ->options(PaymentMethod::options())
+                                                    ->required()
+                                                    ->live()
+                                                    ->afterStateUpdated(fn (Set $set) => $set('payment_provider_id', null)),
+                                                Select::make('payment_provider_id')
+                                                    ->label('Umbrella / Ltd Company')
+                                                    ->helperText('The umbrella/Ltd company this candidate is paid through.')
+                                                    ->options(fn (): array => PaymentProvider::query()
+                                                        ->where('company_id', Auth::user()->company_id)
+                                                        ->pluck('name', 'id')
+                                                        ->toArray()
+                                                    )
+                                                    ->required(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Umbrella->value)
+                                                    ->visible(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Umbrella->value)
+                                                    ->searchable(),
+                                                TextInput::make('bank_account_number')
+                                                    ->label('Bank Account Number')
+                                                    ->maxLength(8)
+                                                    ->required(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Paye->value)
+                                                    ->visible(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Paye->value),
+                                                TextInput::make('bank_sort_code')
+                                                    ->label('Sort Code')
+                                                    ->placeholder('00-00-00')
+                                                    ->maxLength(8)
+                                                    ->required(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Paye->value)
+                                                    ->visible(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Paye->value),
+                                                TextInput::make('payroll_provider_id')
+                                                    ->label('Payroll Provider ID')
+                                                    ->helperText('This candidate\'s existing ID in the agency\'s payroll provider, if one already exists there.')
+                                                    ->hidden()
+                                                    ->dehydrated(false)
+                                                    ->afterStateHydrated(function (TextInput $component, ?EducationCandidate $record): void {
+                                                        $provider = Auth::user()->company->payroll_provider;
+
+                                                        if ($record && $provider instanceof Integration) {
+                                                            $component->state($record->providerExternalId($provider));
+                                                        }
+                                                    }),
                                             ]),
                                     ]),
 

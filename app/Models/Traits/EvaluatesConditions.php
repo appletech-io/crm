@@ -21,7 +21,7 @@ trait EvaluatesConditions
      *
      * @var array<int, string>
      */
-    private const TIME_BASED_OPERATORS = ['days_since_at_least', 'days_until_at_most'];
+    private const TIME_BASED_OPERATORS = ['days_since_at_least', 'days_until_at_most', 'in_future', 'is_past'];
 
     /**
      * Check whether the given record satisfies all of this model's conditions.
@@ -57,6 +57,8 @@ trait EvaluatesConditions
             'after' => $this->evaluateDateComparison($record, $field, $value, fn (CarbonInterface $a, CarbonInterface $b): bool => $a->gt($b)),
             'days_since_at_least' => $this->evaluateDaysSinceAtLeast($record, $field, $value),
             'days_until_at_most' => $this->evaluateDaysUntilAtMost($record, $field, $value),
+            'in_future' => $this->evaluateInFuture($record, $field),
+            'is_past' => $this->evaluateIsPast($record, $field),
             'blank' => $this->evaluateBlank($record, $field),
             default => $this->evaluateFilled($record, $field),
         };
@@ -169,6 +171,35 @@ trait EvaluatesConditions
         }
 
         return $fieldDate->lte(now()->addDays((int) $value));
+    }
+
+    /**
+     * True once the date held in $field is strictly after now — e.g. "dbs_
+     * expiry_date is in the future" to gate a status move on it not yet
+     * having lapsed. Unlike days_since_at_least/days_until_at_most this
+     * needs no value, so it pairs with a blank/filled-style UI. Included in
+     * TIME_BASED_OPERATORS since it can flip from true to false purely from
+     * elapsed time (the date expiring) with no record being saved.
+     */
+    private function evaluateInFuture(Model $record, string $field): bool
+    {
+        $fieldDate = $this->resolveDate(data_get($record, $field));
+
+        return $fieldDate !== null && $fieldDate->isFuture();
+    }
+
+    /**
+     * The mirror of evaluateInFuture() — true once the date held in $field
+     * is strictly before now, e.g. "dbs_expiry_date is in the past" to
+     * flag/act on something that's already lapsed. Also time-based: it can
+     * flip from false to true purely from elapsed time (the date arriving)
+     * with no record being saved.
+     */
+    private function evaluateIsPast(Model $record, string $field): bool
+    {
+        $fieldDate = $this->resolveDate(data_get($record, $field));
+
+        return $fieldDate !== null && $fieldDate->isPast();
     }
 
     private function resolveDate(mixed $value): ?CarbonInterface
