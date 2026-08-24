@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentMethod;
 use App\Models\Traits\BelongsToCompany;
 use App\Models\Traits\HasFieldSuggestions;
 use App\Models\Traits\HasProviderExternalId;
@@ -38,6 +39,7 @@ class HealthcareCandidate extends Model
         'average_rating' => 'float',
         'ratings_count' => 'integer',
         'available_from' => 'date',
+        'payment_method' => PaymentMethod::class,
         'compliance_completed_at' => 'datetime',
         'professional_registration_checked_at' => 'date',
         'overseas_police_clearance_check_date' => 'date',

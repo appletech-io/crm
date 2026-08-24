@@ -8,6 +8,7 @@ use App\Enums\Education\Availability;
 use App\Enums\Education\KeyStage;
 use App\Enums\Integration;
 use App\Enums\Nationality;
+use App\Enums\PaymentMethod;
 use App\Enums\ReferenceStatus;
 use App\Enums\ReferenceType;
 use App\Exceptions\Dbs\DbsUpdateServiceException;
@@ -156,15 +157,34 @@ class EducationCandidateForm
                                                         ->toArray()
                                                     )
                                                     ->searchable(),
+                                                Select::make('payment_method')
+                                                    ->label('Payment Method')
+                                                    ->options(PaymentMethod::options())
+                                                    ->required()
+                                                    ->live()
+                                                    ->afterStateUpdated(fn (Set $set) => $set('payment_provider_id', null)),
                                                 Select::make('payment_provider_id')
-                                                    ->label('Payment Provider')
-                                                    ->helperText('The umbrella/Ltd company this candidate is paid through, if any. Leave blank for standard PAYE.')
+                                                    ->label('Umbrella / Ltd Company')
+                                                    ->helperText('The umbrella/Ltd company this candidate is paid through.')
                                                     ->options(fn (): array => PaymentProvider::query()
                                                         ->where('company_id', Auth::user()->company_id)
                                                         ->pluck('name', 'id')
                                                         ->toArray()
                                                     )
+                                                    ->required(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Umbrella->value)
+                                                    ->visible(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Umbrella->value)
                                                     ->searchable(),
+                                                TextInput::make('bank_account_number')
+                                                    ->label('Bank Account Number')
+                                                    ->maxLength(8)
+                                                    ->required(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Paye->value)
+                                                    ->visible(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Paye->value),
+                                                TextInput::make('bank_sort_code')
+                                                    ->label('Sort Code')
+                                                    ->placeholder('00-00-00')
+                                                    ->maxLength(8)
+                                                    ->required(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Paye->value)
+                                                    ->visible(fn (Get $get): bool => $get('payment_method') === PaymentMethod::Paye->value),
                                                 TextInput::make('payroll_provider_id')
                                                     ->label('Payroll Provider ID')
                                                     ->helperText('This candidate\'s existing ID in the agency\'s payroll provider, if one already exists there.')

@@ -46,6 +46,14 @@ class UpsertCandidate
             'WorkerType' => 'Paye',
         ];
 
+        if (! $paymentProvider) {
+            // SortCode/AccountNumber are documented as "Only used if PAYE" —
+            // an umbrella/Ltd candidate is paid via their Company's own bank
+            // details instead, not the candidate's personal account.
+            $payload['AccountNumber'] = $candidate->bank_account_number;
+            $payload['SortCode'] = $candidate->bank_sort_code;
+        }
+
         if ($paymentProvider) {
             $payload['WorkerType'] = 'Umbrella Company';
             $payload['Company'] = [

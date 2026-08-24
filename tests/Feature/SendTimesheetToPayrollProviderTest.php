@@ -172,6 +172,38 @@ test('a candidate with a payment provider sends an umbrella company payload keye
         && $request['Company']['Name'] === 'Orbital');
 });
 
+test('a PAYE candidate sends their bank account number and sort code', function () {
+    Http::fake(['*' => Http::response(['HasErrors' => false, 'Errors' => []], 200)]);
+
+    $company = fakeEvertimeCompany();
+    $booking = makePayrollBooking($company, candidateOverrides: [
+        'bank_account_number' => '87654321',
+        'bank_sort_code' => '112233',
+    ]);
+
+    $booking->update(['status' => BookingStatus::Approved]);
+
+    Http::assertSent(fn ($request) => str_ends_with($request->url(), '/candidates')
+        && $request['WorkerType'] === 'Paye'
+        && $request['AccountNumber'] === '87654321'
+        && $request['SortCode'] === '112233'
+        && ! array_key_exists('Company', $request->data()));
+});
+
+test('an umbrella candidate does not send a personal bank account number or sort code', function () {
+    Http::fake(['*' => Http::response(['HasErrors' => false, 'Errors' => []], 200)]);
+
+    $company = fakeEvertimeCompany();
+    $paymentProvider = PaymentProvider::factory()->create(['company_id' => $company->id]);
+    $booking = makePayrollBooking($company, candidateOverrides: ['payment_provider_id' => $paymentProvider->id]);
+
+    $booking->update(['status' => BookingStatus::Approved]);
+
+    Http::assertSent(fn ($request) => str_ends_with($request->url(), '/candidates')
+        && ! array_key_exists('AccountNumber', $request->data())
+        && ! array_key_exists('SortCode', $request->data()));
+});
+
 test('a client with a manually entered external id has it reused instead of a generated one', function () {
     Http::fake(['*' => Http::response(['HasErrors' => false, 'Errors' => []], 200)]);
 

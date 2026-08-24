@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\DocumentType;
+use App\Enums\PaymentMethod;
 use App\Models\CandidateCandidateStatus;
 use App\Models\CandidateDocument;
 use App\Models\CandidateSkill;
@@ -9,6 +10,7 @@ use App\Models\Company;
 use App\Models\EducationCandidate;
 use App\Models\Industry;
 use App\Models\JobTitle;
+use App\Models\PaymentProvider;
 use App\Models\PayRate;
 use App\Services\Education\CandidateVettingRequirements;
 use App\Services\Education\DbsUpdateService;
@@ -33,6 +35,9 @@ function fullyCompliantCandidate(array $attributes = []): EducationCandidate
         'benedicts_law_issue_date' => now(),
         'right_to_work_type' => 'birth_certificate',
         'ni_number' => 'QQ123456C',
+        'payment_method' => PaymentMethod::Paye,
+        'bank_account_number' => '12345678',
+        'bank_sort_code' => '123456',
     ], $attributes));
 
     $skill = CandidateSkill::factory()->create([
@@ -251,6 +256,51 @@ test('pay rates check fails when no pay rate is recorded', function () {
 
     expect($checks['pay_rates']['complete'])->toBeFalse();
     expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('payment method check fails when no payment method has been set', function () {
+    $candidate = fullyCompliantCandidate(['payment_method' => null]);
+
+    $checks = CandidateVettingRequirements::for($candidate);
+
+    expect($checks['payment_method']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('payment method check fails for PAYE without bank account number or sort code', function () {
+    $candidate = fullyCompliantCandidate(['payment_method' => PaymentMethod::Paye, 'bank_account_number' => null, 'bank_sort_code' => null]);
+
+    $checks = CandidateVettingRequirements::for($candidate);
+
+    expect($checks['payment_method']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('payment method check passes for PAYE with both bank account number and sort code', function () {
+    $candidate = fullyCompliantCandidate(['payment_method' => PaymentMethod::Paye, 'bank_account_number' => '12345678', 'bank_sort_code' => '123456']);
+
+    $checks = CandidateVettingRequirements::for($candidate);
+
+    expect($checks['payment_method']['complete'])->toBeTrue();
+});
+
+test('payment method check fails for umbrella without a payment provider selected', function () {
+    $candidate = fullyCompliantCandidate(['payment_method' => PaymentMethod::Umbrella, 'payment_provider_id' => null]);
+
+    $checks = CandidateVettingRequirements::for($candidate);
+
+    expect($checks['payment_method']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('payment method check passes for umbrella with a payment provider selected', function () {
+    $candidate = fullyCompliantCandidate();
+    $paymentProvider = PaymentProvider::factory()->create(['company_id' => $candidate->company_id]);
+    $candidate->update(['payment_method' => PaymentMethod::Umbrella, 'payment_provider_id' => $paymentProvider->id]);
+
+    $checks = CandidateVettingRequirements::for($candidate->fresh());
+
+    expect($checks['payment_method']['complete'])->toBeTrue();
 });
 
 test('not barred check fails unless the barred list check is cleared', function () {

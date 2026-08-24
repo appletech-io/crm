@@ -76,6 +76,41 @@ test('the my bookings page renders for a logged in client contact', function () 
     Livewire::test(MyBookings::class)->assertSuccessful();
 });
 
+test('the charge rate column shows the rate matching each days period', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+
+    $booking = Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'day_charge_rate' => 200.00,
+        'half_day_charge_rate' => 110.00,
+        'hourly_charge_rate' => 25.00,
+    ]);
+
+    $fullDay = sentDayForClientPanel($booking, now()->toDateString(), ['period' => BookingDayPeriod::FullDay]);
+    $halfDay = sentDayForClientPanel($booking, now()->addDay()->toDateString(), ['period' => BookingDayPeriod::Am]);
+    $hoursDay = sentDayForClientPanel($booking, now()->addDays(2)->toDateString(), [
+        'period' => BookingDayPeriod::Hours,
+        'time_from' => '09:00:00',
+        'time_to' => '13:00:00',
+    ]);
+
+    expect($fullDay->chargeRate())->toBe(200.00)
+        ->and($halfDay->chargeRate())->toBe(110.00)
+        ->and($hoursDay->chargeRate())->toBe(25.00);
+
+    $this->actingAs($this->user);
+
+    Livewire::test(MyBookings::class)
+        ->assertSuccessful()
+        ->assertTableColumnStateSet('charge_rate', 200.00, $fullDay)
+        ->assertTableColumnStateSet('charge_rate', 110.00, $halfDay)
+        ->assertTableColumnStateSet('charge_rate', 25.00, $hoursDay);
+});
+
 test('it only shows bookings that have been sent for confirmation, scoped to this client', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
 

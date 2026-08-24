@@ -74,6 +74,11 @@ class MyBookings extends Page implements HasTable
                 TextColumn::make('period')
                     ->label('Session')
                     ->formatStateUsing(fn ($state): string => $state->label()),
+                TextColumn::make('charge_rate')
+                    ->label('Charge Rate')
+                    ->getStateUsing(fn (BookingDay $record): ?float => $record->chargeRate())
+                    ->money('GBP')
+                    ->placeholder('—'),
                 TextColumn::make('payroll_status')
                     ->label('Status')
                     ->badge()
