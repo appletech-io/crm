@@ -38,7 +38,7 @@ beforeEach(function () {
     }
 });
 
-test('the payroll provider id field on the client form is visible to an admin but hidden from a consultant', function () {
+test('the payroll provider id field on the client form is hidden from everyone, including an admin', function () {
     $client = Client::factory()->create([
         'company_id' => $this->company->id,
         'industry_id' => $this->industry->id,
@@ -47,7 +47,7 @@ test('the payroll provider id field on the client form is visible to an admin bu
 
     $this->actingAs($this->admin);
     Livewire::test(EditClient::class, ['record' => $client->getRouteKey()])
-        ->assertFormFieldIsVisible('payroll_provider_id');
+        ->assertFormFieldIsHidden('payroll_provider_id');
 
     $client->update(['consultant_id' => $this->consultant->id]);
 
@@ -75,12 +75,12 @@ test('a consultant saving the client form does not wipe an existing payroll prov
     expect($client->providerExternalId(Integration::Evertime))->toBe('PRE-EXISTING-1');
 });
 
-test('the payroll provider id field on the education candidate form is visible to an admin but hidden from a consultant', function () {
+test('the payroll provider id field on the education candidate form is hidden from everyone, including an admin', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
 
     $this->actingAs($this->admin);
     Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
-        ->assertFormFieldIsVisible('payroll_provider_id');
+        ->assertFormFieldIsHidden('payroll_provider_id');
 
     $this->actingAs($this->consultant);
     Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
@@ -101,7 +101,7 @@ test('a consultant saving the education candidate form does not wipe an existing
     expect($candidate->providerExternalId(Integration::Evertime))->toBe('PRE-EXISTING-2');
 });
 
-test('the payroll provider id field on the healthcare candidate form is visible to an admin but hidden from a consultant', function () {
+test('the payroll provider id field on the healthcare candidate form is hidden from everyone, including an admin', function () {
     $healthcareIndustry = Industry::factory()->create(['slug' => 'healthcare']);
     $this->company->industries()->attach($healthcareIndustry);
     Cache::put("user.{$this->admin->id}.active_industry", 'healthcare');
@@ -113,14 +113,14 @@ test('the payroll provider id field on the healthcare candidate form is visible 
 
     $this->actingAs($this->admin);
     Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
-        ->assertFormFieldIsVisible('payroll_provider_id');
+        ->assertFormFieldIsHidden('payroll_provider_id');
 
     $this->actingAs($this->consultant);
     Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
         ->assertFormFieldIsHidden('payroll_provider_id');
 });
 
-test('the payroll provider id field on the booking form is visible to an admin but hidden from a consultant', function () {
+test('the payroll provider id field on the booking form is hidden from everyone, including an admin', function () {
     $client = Client::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
     $jobTitle = JobTitle::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
@@ -137,7 +137,7 @@ test('the payroll provider id field on the booking form is visible to an admin b
 
     $this->actingAs($this->admin);
     Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
-        ->assertFormFieldIsVisible('payroll_provider_id');
+        ->assertFormFieldIsHidden('payroll_provider_id');
 
     $this->actingAs($this->consultant);
     Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
@@ -170,7 +170,7 @@ test('a consultant saving the booking form does not wipe an existing payroll pro
     expect($booking->providerExternalId(Integration::Evertime))->toBe('PRE-EXISTING-PLACEMENT');
 });
 
-test('the payroll provider id field on the user form is visible to an admin but hidden from a consultant', function () {
+test('the payroll provider id field on the user form is hidden, even from a site_admin', function () {
     // UserResource::canViewAny() is site_admin-only, not just admin — a
     // regular company admin can't reach this page at all.
     $siteAdmin = User::factory()->create(['company_id' => $this->company->id]);
@@ -180,7 +180,7 @@ test('the payroll provider id field on the user form is visible to an admin but 
 
     $this->actingAs($siteAdmin);
     Livewire::test(EditUser::class, ['record' => $target->getRouteKey()])
-        ->assertFormFieldIsVisible('payroll_provider_id');
+        ->assertFormFieldIsHidden('payroll_provider_id');
 
     $this->actingAs($this->consultant);
     Livewire::test(EditUser::class, ['record' => $target->getRouteKey()])
