@@ -183,7 +183,19 @@
             </div>
         @endforelse
 
-        <div wire:loading wire:target="send" class="flex justify-start">
+        @if ($moreResultsAvailable)
+            <div class="flex justify-start pl-8" wire:loading.remove wire:target="send, showMore">
+                <button
+                    type="button"
+                    wire:click="showMore"
+                    class="rounded-full border border-zinc-200 px-3 py-1.5 text-xs text-zinc-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
+                >
+                    {{ __('Show me more') }}
+                </button>
+            </div>
+        @endif
+
+        <div wire:loading wire:target="send, showMore" class="flex justify-start">
             <span class="mt-1 mr-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600/10 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-400">
                 <flux:icon.sparkles variant="micro" />
             </span>

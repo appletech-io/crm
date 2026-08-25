@@ -9,6 +9,7 @@ use App\Models\Industry;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 use Laravel\Ai\Tools\Request;
 
 beforeEach(function () {
@@ -122,6 +123,22 @@ test('it returns a plain message when nothing matches', function () {
     $result = (new SearchClients)->handle(new Request(['name' => 'Nonexistent']));
 
     expect($result)->toBe('No clients matched.');
+});
+
+test('it paginates results and reports how many more match', function () {
+    Client::factory()->count(51)->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => fn () => 'Paginated School '.Str::random(8),
+    ]);
+
+    $firstPage = (new SearchClients)->handle(new Request(['name' => 'Paginated School']));
+
+    expect($firstPage)->toContain('Showing 50 of 51 — 1 more match. Ask to see the next 50 to continue.');
+
+    $secondPage = (new SearchClients)->handle(new Request(['name' => 'Paginated School', 'offset' => 50]));
+
+    expect($secondPage)->not->toContain('more match');
 });
 
 test('it does not return clients from a different industry', function () {

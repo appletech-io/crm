@@ -1,8 +1,10 @@
 <?php
 
 use App\Ai\Tools\SearchCandidates;
+use App\Enums\PaymentMethod;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Models\CandidateCandidateStatus;
+use App\Models\CandidatePool;
 use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
 use App\Models\EducationCandidate;
@@ -145,4 +147,98 @@ test('it does not return candidates from a different company', function () {
     $result = (new SearchCandidates)->handle(new Request([]));
 
     expect($result)->toBe('No candidates matched.');
+});
+
+test('it paginates results and reports how many more match', function () {
+    $qualification = Qualification::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Paginated Qualification',
+    ]);
+
+    EducationCandidate::factory()->count(51)->create([
+        'company_id' => $this->user->company_id,
+        'qualification_id' => $qualification->id,
+    ]);
+
+    $firstPage = (new SearchCandidates)->handle(new Request(['qualification' => 'Paginated Qualification']));
+
+    expect($firstPage)->toContain('Showing 50 of 51 — 1 more match. Ask to see the next 50 to continue.');
+
+    $secondPage = (new SearchCandidates)->handle(new Request(['qualification' => 'Paginated Qualification', 'offset' => 50]));
+
+    expect($secondPage)->not->toContain('more match');
+});
+
+test('it filters by pool', function () {
+    $pool = CandidatePool::create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'user_id' => $this->user->id,
+        'name' => 'Shortlist',
+    ]);
+
+    $match = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'first_name' => 'Pooled',
+        'last_name' => 'Candidate',
+    ]);
+    $pool->candidatesOfType(EducationCandidate::class)->attach($match->id);
+
+    $nonMatch = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'first_name' => 'Unpooled',
+        'last_name' => 'Candidate',
+    ]);
+
+    $result = (new SearchCandidates)->handle(new Request(['pool' => 'Shortlist']));
+
+    expect($result)->toContain('Pooled Candidate')
+        ->and($result)->not->toContain('Unpooled Candidate');
+});
+
+test('it filters by payment method', function () {
+    $paye = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'first_name' => 'Paye',
+        'last_name' => 'Candidate',
+        'payment_method' => PaymentMethod::Paye,
+    ]);
+    $umbrella = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'first_name' => 'Umbrella',
+        'last_name' => 'Candidate',
+        'payment_method' => PaymentMethod::Umbrella,
+    ]);
+
+    $result = (new SearchCandidates)->handle(new Request(['payment_method' => 'umbrella']));
+
+    expect($result)->toContain('Umbrella Candidate')
+        ->and($result)->not->toContain('Paye Candidate');
+});
+
+test('a consultant only sees their own candidates', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+    $this->actingAs($consultant);
+    Cache::put("user.{$consultant->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$consultant->id}.active_industry_id", $this->industry->id);
+
+    $own = EducationCandidate::factory()->create([
+        'company_id' => $consultant->company_id,
+        'first_name' => 'Own',
+        'last_name' => 'Candidate',
+        'consultant_id' => $consultant->id,
+    ]);
+    $other = EducationCandidate::factory()->create([
+        'company_id' => $consultant->company_id,
+        'first_name' => 'Someone',
+        'last_name' => 'Elses',
+        'consultant_id' => $this->user->id,
+    ]);
+
+    $result = (new SearchCandidates)->handle(new Request([]));
+
+    expect($result)->toContain('Own Candidate')
+        ->and($result)->not->toContain('Someone Elses');
 });
