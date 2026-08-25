@@ -87,6 +87,24 @@ test('it links the candidate, client, and booking to their edit pages', function
         ->and($result)->toContain("[Booking #{$booking->id}]({$bookingUrl})");
 });
 
+test('it paginates results and reports how many more match', function () {
+    Booking::factory()->count(51)->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+
+    $firstPage = (new SearchBookings)->handle(new Request(['client_name' => $this->client->name]));
+
+    expect($firstPage)->toContain('Showing 50 of 51 — 1 more match. Ask to see the next 50 to continue.');
+
+    $secondPage = (new SearchBookings)->handle(new Request(['client_name' => $this->client->name, 'offset' => 50]));
+
+    expect($secondPage)->not->toContain('more match');
+});
+
 test('it returns a plain message when nothing matches', function () {
     $result = (new SearchBookings)->handle(new Request(['client_name' => 'Nonexistent Client']));
 

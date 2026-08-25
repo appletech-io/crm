@@ -382,10 +382,14 @@ class ListEducationCandidates extends ListRecords implements HasForms
                         default => 'danger',
                     })
                     ->sortable(),
+                TextColumn::make('postcode')
+                    ->label('Postcode')
+                    ->placeholder('—'),
                 TextColumn::make('availability_score')
                     ->label('Availability')
                     ->getStateUsing(fn (EducationCandidate $record): string => $this->availableDayCount($record, $weekStart).'/5 available')
-                    ->sortable(query: fn (Builder $query, string $direction): Builder => $this->orderByAvailability($query, $direction, $weekStart)),
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => $this->orderByAvailability($query, $direction, $weekStart))
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('distance')
                     ->label('Distance')
                     ->getStateUsing(function (EducationCandidate $record): ?string {

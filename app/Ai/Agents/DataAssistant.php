@@ -15,7 +15,9 @@ use App\Ai\Tools\VacancyMatches;
 use Laravel\Ai\Attributes\Model;
 use Laravel\Ai\Attributes\Provider;
 use Laravel\Ai\Attributes\Timeout;
+use Laravel\Ai\Concerns\RemembersConversations;
 use Laravel\Ai\Contracts\Agent;
+use Laravel\Ai\Contracts\Conversational;
 use Laravel\Ai\Contracts\HasTools;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Promptable;
@@ -24,9 +26,9 @@ use Stringable;
 #[Provider(Lab::OpenAI)]
 #[Model('gpt-4o')]
 #[Timeout(60)]
-class DataAssistant implements Agent, HasTools
+class DataAssistant implements Agent, Conversational, HasTools
 {
-    use Promptable;
+    use Promptable, RemembersConversations;
 
     public function instructions(): Stringable|string
     {
@@ -55,7 +57,12 @@ class DataAssistant implements Agent, HasTools
             'When a tool\'s result contains a Markdown link in the form [label](url), preserve it exactly — the same '.
             'label and the same URL — so the user can click through to that record; never paraphrase, drop, or alter '.
             'it. When a tool returns a Markdown bullet list (lines starting with "- "), keep that list structure in '.
-            'your reply rather than merging it into a paragraph.';
+            'your reply rather than merging it into a paragraph. '.
+            'search_bookings, search_clients, search_candidates, and search_vacancies are paginated: if a result '.
+            'ends with a note like "Showing 50 of 128 — 78 more match. Ask to see the next 50 to continue.", '.
+            'preserve that note verbatim at the end of your reply, exactly like a link. If the user then asks for '.
+            'more, the next batch, or similar, call the same tool again with the exact same filters and set '.
+            '"offset" to how many results have already been shown in this conversation for that search.';
     }
 
     protected function today(): string

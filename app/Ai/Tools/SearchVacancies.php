@@ -2,6 +2,7 @@
 
 namespace App\Ai\Tools;
 
+use App\Ai\Tools\Concerns\PaginatesResults;
 use App\Filament\Support\TodoLinkedRecord;
 use App\Models\Vacancy;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -11,10 +12,15 @@ use Stringable;
 
 class SearchVacancies implements Tool
 {
+    use PaginatesResults;
+
+    protected int $perPage = 50;
+
     public function description(): Stringable|string
     {
         return 'Search the current user\'s job vacancies by client name, job title, status, and/or region '.
-            '(matches the client\'s city, county, or postcode). Returns at most 20 matching vacancies.';
+            '(matches the client\'s city, county, or postcode). Returns at most 50 matching vacancies per page '.
+            '(use "offset" to page through more).';
     }
 
     public function schema(JsonSchema $schema): array
@@ -24,6 +30,7 @@ class SearchVacancies implements Tool
             'job_title' => $schema->string()->description('Match vacancies whose job title contains this text'),
             'status' => $schema->string()->description('Match vacancies whose status contains this text, e.g. "Open"'),
             'region' => $schema->string()->description('Match vacancies whose client city, county, or postcode contains this text'),
+            'offset' => $schema->integer()->description('Skip this many matching results, for pagination — omit or 0 for the first page'),
         ];
     }
 
@@ -52,12 +59,14 @@ class SearchVacancies implements Tool
                         ->orWhere('postcode', 'like', '%'.$request['region'].'%')
                 )
             ))
-            ->orderBy('title')
-            ->limit(20)
-            ->get();
+            ->orderBy('title');
+
+        $offset = $this->offset($request);
+        $total = $vacancies->count();
+        $vacancies = $vacancies->skip($offset)->limit($this->perPage)->get();
 
         if ($vacancies->isEmpty()) {
-            return 'No vacancies matched.';
+            return $offset > 0 ? 'No more vacancies matched.' : 'No vacancies matched.';
         }
 
         return $vacancies
@@ -78,6 +87,6 @@ class SearchVacancies implements Tool
                 return "- [{$vacancyLink['label']}]({$vacancyLink['url']}) — {$clientLabel} — {$vacancy->jobTitle?->name} — ".
                     "{$vacancy->jobStatus?->name} — {$vacancy->positions_available} position(s) — {$salary} — {$availability}";
             })
-            ->implode("\n");
+            ->implode("\n").$this->paginationFooter($vacancies->count(), $offset, $total);
     }
 }

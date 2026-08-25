@@ -3,6 +3,7 @@
 namespace App\Ai\Tools;
 
 use App\Ai\Tools\Concerns\MatchesCandidateName;
+use App\Ai\Tools\Concerns\PaginatesResults;
 use App\Enums\BookingStatus;
 use App\Filament\Support\TodoLinkedRecord;
 use App\Models\Booking;
@@ -16,12 +17,14 @@ use Stringable;
 
 class SearchBookings implements Tool
 {
-    use MatchesCandidateName;
+    use MatchesCandidateName, PaginatesResults;
+
+    protected int $perPage = 50;
 
     public function description(): Stringable|string
     {
         return 'Search the current user\'s bookings by client name, candidate name, status, region, and/or date '.
-            'range. Returns at most 20 matching bookings.';
+            'range. Returns at most 50 matching bookings per page (use "offset" to page through more).';
     }
 
     public function schema(JsonSchema $schema): array
@@ -33,6 +36,7 @@ class SearchBookings implements Tool
             'region' => $schema->string()->description('Match bookings for a client whose city, county, or postcode contains this text'),
             'from' => $schema->string()->description('Only bookings starting on or after this date, YYYY-MM-DD'),
             'to' => $schema->string()->description('Only bookings ending on or before this date, YYYY-MM-DD'),
+            'offset' => $schema->integer()->description('Skip this many matching results, for pagination — omit or 0 for the first page'),
         ];
     }
 
@@ -65,12 +69,14 @@ class SearchBookings implements Tool
             })
             ->when($request->filled('from'), fn ($query) => $query->where('start_date', '>=', $request['from']))
             ->when($request->filled('to'), fn ($query) => $query->where('end_date', '<=', $request['to']))
-            ->orderByDesc('start_date')
-            ->limit(20)
-            ->get();
+            ->orderByDesc('start_date');
+
+        $offset = $this->offset($request);
+        $total = $bookings->count();
+        $bookings = $bookings->skip($offset)->limit($this->perPage)->get();
 
         if ($bookings->isEmpty()) {
-            return 'No bookings matched.';
+            return $offset > 0 ? 'No more bookings matched.' : 'No bookings matched.';
         }
 
         return $bookings
@@ -87,6 +93,6 @@ class SearchBookings implements Tool
                 return "- {$dates} — {$booking->status->label()} — {$candidateName} as {$booking->jobTitle?->name} for ".
                     "{$clientLabel} — [{$bookingLink['label']}]({$bookingLink['url']})";
             })
-            ->implode("\n");
+            ->implode("\n").$this->paginationFooter($bookings->count(), $offset, $total);
     }
 }

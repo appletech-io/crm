@@ -2,6 +2,8 @@
 
 namespace App\Ai\Tools;
 
+use App\Ai\Tools\Concerns\PaginatesResults;
+use App\Enums\PaymentMethod;
 use App\Filament\Support\TodoLinkedRecord;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
@@ -19,11 +21,16 @@ use Stringable;
  */
 class SearchCandidates implements Tool
 {
+    use PaginatesResults;
+
+    protected int $perPage = 50;
+
     public function description(): Stringable|string
     {
         return 'Search the current user\'s candidates (for the currently active sector) by status, skill, '.
-            'qualification, and/or region. Returns at most 20 matching candidates with their name, status, and '.
-            'qualification only — no compliance or personal details, and never their matched location.';
+            'qualification, region, pool, and/or payment method. Returns at most 50 matching candidates per page '.
+            '(use "offset" to page through more) with their name, status, and qualification only — no compliance '.
+            'or personal details, and never their matched location.';
     }
 
     public function schema(JsonSchema $schema): array
@@ -33,6 +40,9 @@ class SearchCandidates implements Tool
             'skill' => $schema->string()->description('Match candidates who have a skill containing this text'),
             'qualification' => $schema->string()->description('Match candidates whose qualification contains this text'),
             'region' => $schema->string()->description('Match candidates whose city, county, or postcode contains this text'),
+            'pool' => $schema->string()->description('Match candidates in a pool whose name contains this text'),
+            'payment_method' => $schema->string()->description('Match candidates by payment method: "paye" or "umbrella"'),
+            'offset' => $schema->integer()->description('Skip this many matching results, for pagination — omit or 0 for the first page'),
         ];
     }
 
@@ -47,6 +57,7 @@ class SearchCandidates implements Tool
         $candidates = $candidateModel::query()
             ->select(['id', 'first_name', 'last_name', 'qualification_id'])
             ->with(['latestStatus.status', 'qualification'])
+            ->visibleToCurrentUser()
             ->when($request->filled('status'), fn ($query) => $query->whereHas(
                 'latestStatus.status',
                 fn ($q) => $q->where('name', 'like', '%'.$request['status'].'%')
@@ -64,12 +75,21 @@ class SearchCandidates implements Tool
                     ->orWhere('county', 'like', '%'.$request['region'].'%')
                     ->orWhere('postcode', 'like', '%'.$request['region'].'%')
             ))
-            ->orderBy('first_name')
-            ->limit(20)
-            ->get();
+            ->when($request->filled('pool'), fn ($query) => $query->whereHas(
+                'candidatePools',
+                fn ($q) => $q->where('name', 'like', '%'.$request['pool'].'%')
+            ))
+            ->when($request->filled('payment_method'), fn ($query) => $query->where(
+                'payment_method', PaymentMethod::tryFrom(strtolower((string) $request['payment_method']))
+            ))
+            ->orderBy('first_name');
+
+        $offset = $this->offset($request);
+        $total = $candidates->count();
+        $candidates = $candidates->skip($offset)->limit($this->perPage)->get();
 
         if ($candidates->isEmpty()) {
-            return 'No candidates matched.';
+            return $offset > 0 ? 'No more candidates matched.' : 'No candidates matched.';
         }
 
         return $candidates
@@ -80,6 +100,6 @@ class SearchCandidates implements Tool
 
                 return "- [{$link['label']}]({$link['url']}) — {$status} — {$qualification}";
             })
-            ->implode("\n");
+            ->implode("\n").$this->paginationFooter($candidates->count(), $offset, $total);
     }
 }

@@ -160,3 +160,99 @@ test('clearing the chat empties the message list', function () {
         ->call('clearChat')
         ->assertSet('messages', []);
 });
+
+test('a "show me more" prompt appears when a result says more results match', function () {
+    DataAssistant::fake(['- A\n- B\n\n_Showing 50 of 128 — 78 more match. Ask to see the next 50 to continue._']);
+
+    Livewire::test(AskAssistant::class)
+        ->set('prompt', 'Which candidates are Live?')
+        ->call('send')
+        ->assertSet('moreResultsAvailable', true)
+        ->assertSee('Show me more');
+});
+
+test('the "show me more" prompt does not appear when nothing more matches', function () {
+    DataAssistant::fake(['- A\n- B']);
+
+    Livewire::test(AskAssistant::class)
+        ->set('prompt', 'Which candidates are Live?')
+        ->call('send')
+        ->assertSet('moreResultsAvailable', false)
+        ->assertDontSee('Show me more');
+});
+
+test('clicking "show me more" continues the same conversation the agent already has context for', function () {
+    DataAssistant::fake([
+        '- A\n\n_Showing 50 of 128 — 78 more match. Ask to see the next 50 to continue._',
+        '- B\n\n_Showing 50 of 128 — 28 more match. Ask to see the next 50 to continue._',
+    ]);
+
+    Livewire::test(AskAssistant::class)
+        ->set('prompt', 'Which candidates are Live?')
+        ->call('send')
+        ->call('showMore')
+        ->assertSet('moreResultsAvailable', true);
+
+    DataAssistant::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'Show me more'));
+});
+
+test('clicking "show me more" stops offering more once nothing is left', function () {
+    DataAssistant::fake([
+        '- A\n\n_Showing 50 of 60 — 10 more match. Ask to see the next 50 to continue._',
+        '- B',
+    ]);
+
+    Livewire::test(AskAssistant::class)
+        ->set('prompt', 'Which candidates are Live?')
+        ->call('send')
+        ->call('showMore')
+        ->assertSet('moreResultsAvailable', false)
+        ->assertDontSeeHtml('wire:click="showMore"');
+});
+
+test('clearing the chat resets the "show me more" state', function () {
+    DataAssistant::fake(['- A\n\n_Showing 50 of 128 — 78 more match. Ask to see the next 50 to continue._']);
+
+    Livewire::test(AskAssistant::class)
+        ->set('prompt', 'Which candidates are Live?')
+        ->call('send')
+        ->call('clearChat')
+        ->assertSet('moreResultsAvailable', false)
+        ->assertSet('conversationId', null);
+});
+
+test('the conversation is continued across messages, not restarted each time', function () {
+    DataAssistant::fake(['First reply.', 'Second reply.']);
+
+    $component = Livewire::test(AskAssistant::class)
+        ->set('prompt', 'Which candidates are Live?')
+        ->call('send');
+
+    $conversationId = $component->get('conversationId');
+
+    expect($conversationId)->not->toBeNull();
+
+    $component
+        ->set('prompt', 'And which of those are in Manchester?')
+        ->call('send')
+        ->assertSet('conversationId', $conversationId);
+});
+
+test('a fresh conversation is started after clearing the chat', function () {
+    DataAssistant::fake(['First reply.', 'Second reply.']);
+
+    $component = Livewire::test(AskAssistant::class)
+        ->set('prompt', 'Which candidates are Live?')
+        ->call('send');
+
+    $firstConversationId = $component->get('conversationId');
+
+    $component
+        ->call('clearChat')
+        ->set('prompt', 'A brand new question')
+        ->call('send');
+
+    expect($component->get('conversationId'))
+        ->not->toBeNull()
+        ->not->toBe($firstConversationId);
+});

@@ -142,6 +142,27 @@ test('it links the vacancy and client to their edit pages', function () {
         ->and($result)->toContain("[Riverside School]({$clientUrl})");
 });
 
+test('it paginates results and reports how many more match', function () {
+    $client = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Paginated School',
+    ]);
+
+    Vacancy::factory()->count(51)->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $client->id,
+    ]);
+
+    $firstPage = (new SearchVacancies)->handle(new Request(['client_name' => 'Paginated School']));
+
+    expect($firstPage)->toContain('Showing 50 of 51 — 1 more match. Ask to see the next 50 to continue.');
+
+    $secondPage = (new SearchVacancies)->handle(new Request(['client_name' => 'Paginated School', 'offset' => 50]));
+
+    expect($secondPage)->not->toContain('more match');
+});
+
 test('it returns a plain message when nothing matches', function () {
     $result = (new SearchVacancies)->handle(new Request(['client_name' => 'Nonexistent']));
 

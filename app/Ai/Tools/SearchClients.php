@@ -2,6 +2,7 @@
 
 namespace App\Ai\Tools;
 
+use App\Ai\Tools\Concerns\PaginatesResults;
 use App\Filament\Support\TodoLinkedRecord;
 use App\Models\Client;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -11,10 +12,14 @@ use Stringable;
 
 class SearchClients implements Tool
 {
+    use PaginatesResults;
+
+    protected int $perPage = 50;
+
     public function description(): Stringable|string
     {
-        return 'Search the current user\'s clients by name, client type, and/or region. Returns at most 20 matching '.
-            'clients, with their type and main contact.';
+        return 'Search the current user\'s clients by name, client type, and/or region. Returns at most 50 '.
+            'matching clients per page (use "offset" to page through more), with their type and main contact.';
     }
 
     public function schema(JsonSchema $schema): array
@@ -23,6 +28,7 @@ class SearchClients implements Tool
             'name' => $schema->string()->description('Match clients whose name contains this text'),
             'type' => $schema->string()->description('Match clients whose client type contains this text'),
             'region' => $schema->string()->description('Match clients whose city, county, or postcode contains this text'),
+            'offset' => $schema->integer()->description('Skip this many matching results, for pagination — omit or 0 for the first page'),
         ];
     }
 
@@ -42,12 +48,14 @@ class SearchClients implements Tool
                     ->orWhere('county', 'like', '%'.$request['region'].'%')
                     ->orWhere('postcode', 'like', '%'.$request['region'].'%')
             ))
-            ->orderBy('name')
-            ->limit(20)
-            ->get();
+            ->orderBy('name');
+
+        $offset = $this->offset($request);
+        $total = $clients->count();
+        $clients = $clients->skip($offset)->limit($this->perPage)->get();
 
         if ($clients->isEmpty()) {
-            return 'No clients matched.';
+            return $offset > 0 ? 'No more clients matched.' : 'No clients matched.';
         }
 
         return $clients
@@ -58,6 +66,6 @@ class SearchClients implements Tool
 
                 return "- [{$link['label']}]({$link['url']}) — {$client->clientType?->name}".' — Main contact: '.$contactLabel;
             })
-            ->implode("\n");
+            ->implode("\n").$this->paginationFooter($clients->count(), $offset, $total);
     }
 }

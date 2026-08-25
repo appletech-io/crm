@@ -61,14 +61,8 @@ class ComplianceVettingTable extends TableWidget
 
     public function table(Table $table): Table
     {
-        $candidateModelClass = $this->candidateModelClass;
-
         return $table
-            ->query(fn (): Builder => $candidateModelClass::query()
-                ->whereHas('statuses.status', fn (Builder $query) => $query->where('name', 'Vetting'))
-                ->whereNull('compliance_completed_at')
-                ->whereRaw('coalesce(compliance_step, 1) between ? and ?', [$this->stepFrom, $this->stepTo])
-            )
+            ->query(fn (): Builder => $this->bucketQuery())
             ->heading($this->coloredHeading())
             ->columns([
                 TextColumn::make('first_name')
@@ -92,8 +86,18 @@ class ComplianceVettingTable extends TableWidget
     {
         return new HtmlString(Blade::render(
             '<x-filament::badge :color="$color">{{ $label }}</x-filament::badge>',
-            ['color' => $this->bucketColor, 'label' => $this->bucketHeading],
+            ['color' => $this->bucketColor, 'label' => "{$this->bucketHeading} ({$this->bucketQuery()->count()})"],
         ));
+    }
+
+    protected function bucketQuery(): Builder
+    {
+        $candidateModelClass = $this->candidateModelClass;
+
+        return $candidateModelClass::query()
+            ->whereHas('statuses.status', fn (Builder $query) => $query->where('name', 'Vetting'))
+            ->whereNull('compliance_completed_at')
+            ->whereRaw('coalesce(compliance_step, 1) between ? and ?', [$this->stepFrom, $this->stepTo]);
     }
 
     public function stepLabel(Model $candidate): string

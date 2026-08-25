@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Ai\Agents\DataAssistant;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -16,6 +17,15 @@ class AskAssistant extends Component
     public array $messages = [];
 
     public string $prompt = '';
+
+    /**
+     * The agent remembers conversation history itself (see DataAssistant's
+     * Conversational + RemembersConversations) — this just tracks which
+     * conversation to continue across Livewire requests.
+     */
+    public ?string $conversationId = null;
+
+    public bool $moreResultsAvailable = false;
 
     public function mount(): void
     {
@@ -139,13 +149,40 @@ class AskAssistant extends Component
         $this->messages[] = ['role' => 'user', 'content' => $prompt];
         $this->prompt = '';
 
-        try {
-            $response = (new DataAssistant)->prompt($prompt);
+        $this->askAssistant($prompt);
+    }
 
-            $this->messages[] = ['role' => 'assistant', 'content' => $response->text];
+    /**
+     * Asks for the next page of the last search — the agent can work out the
+     * right offset itself from the conversation history it already has.
+     */
+    public function showMore(): void
+    {
+        $this->messages[] = ['role' => 'user', 'content' => 'Show me more'];
+
+        $this->askAssistant('Show me more of the results from my last search.');
+    }
+
+    private function askAssistant(string $prompt): void
+    {
+        try {
+            $agent = new DataAssistant;
+
+            $agent = $this->conversationId
+                ? $agent->continue($this->conversationId, auth()->user())
+                : $agent->forUser(auth()->user());
+
+            $response = $agent->prompt($prompt);
+            $text = $response->text;
+
+            $this->conversationId = $response->conversationId;
+            $this->moreResultsAvailable = Str::contains($text, 'more match');
+
+            $this->messages[] = ['role' => 'assistant', 'content' => $text];
         } catch (Throwable $e) {
             report($e);
 
+            $this->moreResultsAvailable = false;
             $this->messages[] = ['role' => 'assistant', 'content' => 'Sorry, something went wrong answering that.'];
         }
 
@@ -155,6 +192,8 @@ class AskAssistant extends Component
     public function clearChat(): void
     {
         $this->messages = [];
+        $this->conversationId = null;
+        $this->moreResultsAvailable = false;
     }
 
     public function render()

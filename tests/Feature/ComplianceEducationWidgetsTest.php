@@ -256,6 +256,17 @@ test('the table heading is rendered as a badge in the buckets colour, matching t
         ->assertSeeHtml('Not Complete');
 });
 
+test('the table heading includes a count of how many candidates are in that bucket', function () {
+    $notComplete = EducationCandidate::factory()->create(['company_id' => $this->user->company_id, 'compliance_step' => 2]);
+    assignComplianceStatus($notComplete, $this->industry, $this->user->company_id, 'Vetting');
+
+    $mostlyComplete = EducationCandidate::factory()->create(['company_id' => $this->user->company_id, 'compliance_step' => 5]);
+    assignComplianceStatus($mostlyComplete, $this->industry, $this->user->company_id, 'Vetting');
+
+    Livewire::test(ComplianceVettingTable::class, notCompleteTableProperties())
+        ->assertSeeHtml('Not Complete (1)');
+});
+
 test('vetting buckets divide the total steps into three roughly equal ranges', function () {
     expect(ComplianceVettingTable::buckets(9))->toBe([
         ['from' => 1, 'to' => 3, 'heading' => 'Not Complete', 'color' => 'danger'],
