@@ -21,6 +21,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -93,12 +94,26 @@ class VacancyForm
                                         TextInput::make('salary_min')
                                             ->label('Salary (Min)')
                                             ->numeric()
-                                            ->prefix('£'),
+                                            ->prefix('£')
+                                            ->visible(fn (Get $get): bool => $get('employment_type') !== VacancyEmploymentType::Temp->value),
 
                                         TextInput::make('salary_max')
                                             ->label('Salary (Max)')
                                             ->numeric()
-                                            ->prefix('£'),
+                                            ->prefix('£')
+                                            ->visible(fn (Get $get): bool => $get('employment_type') !== VacancyEmploymentType::Temp->value),
+
+                                        TextInput::make('day_rate_min')
+                                            ->label('Day Rate (Min)')
+                                            ->numeric()
+                                            ->prefix('£')
+                                            ->visible(fn (Get $get): bool => $get('employment_type') === VacancyEmploymentType::Temp->value),
+
+                                        TextInput::make('day_rate_max')
+                                            ->label('Day Rate (Max)')
+                                            ->numeric()
+                                            ->prefix('£')
+                                            ->visible(fn (Get $get): bool => $get('employment_type') === VacancyEmploymentType::Temp->value),
 
                                         TextInput::make('positions_available')
                                             ->label('Positions Available')
@@ -114,6 +129,18 @@ class VacancyForm
                                             ->helperText('Temp roles are filled via a Booking and excluded from placement fee/margin reporting on this job.')
                                             ->native(false)
                                             ->live()
+                                            ->afterStateUpdated(function (Set $set, ?string $state): void {
+                                                // Clear whichever pay fields no longer apply so a
+                                                // leftover salary/day rate from before a type switch
+                                                // can't linger and confuse reporting for the new type.
+                                                if ($state === VacancyEmploymentType::Temp->value) {
+                                                    $set('salary_min', null);
+                                                    $set('salary_max', null);
+                                                } else {
+                                                    $set('day_rate_min', null);
+                                                    $set('day_rate_max', null);
+                                                }
+                                            })
                                             ->required(),
 
                                         TextInput::make('placement_fee_percentage')
@@ -153,6 +180,11 @@ class VacancyForm
                                             ->label('Accepts Applications')
                                             ->helperText('Whether the public application link below is currently open. Independent of the Status field above.')
                                             ->default(true),
+
+                                        DatePicker::make('listing_expires_at')
+                                            ->label('Listing Expiry')
+                                            ->helperText('When this vacancy should stop appearing on the public jobs feed. Leave blank to keep it listed indefinitely.')
+                                            ->native(false),
 
                                         TextInput::make('apply_url')
                                             ->label('Application Link')

@@ -41,13 +41,8 @@ class VacanciesTable
                     ->badge()
                     ->formatStateUsing(fn (VacancyEmploymentType $state): string => $state->label())
                     ->color(fn (VacancyEmploymentType $state): string => $state === VacancyEmploymentType::Temp ? 'warning' : 'gray'),
-                TextColumn::make('salary_min')
-                    ->label('Salary')
-                    ->money('GBP')
-                    ->placeholder('—'),
-                TextColumn::make('salary_max')
-                    ->label('to')
-                    ->money('GBP')
+                TextColumn::make('pay_range_label')
+                    ->label('Pay')
                     ->placeholder('—'),
                 TextColumn::make('positions_available')
                     ->label('Positions')

@@ -81,6 +81,34 @@ test('actualPlacementValue is null without a placement fee percentage', function
     expect($vacancy->actualPlacementValue())->toBeNull();
 });
 
+test('pay_range_label shows the salary range for a permanent vacancy', function () {
+    $vacancy = createPlacementVacancy(['salary_min' => 25000, 'salary_max' => 35000]);
+
+    expect($vacancy->pay_range_label)->toBe('£25,000 - £35,000/year');
+});
+
+test('pay_range_label shows the day rate range for a temp vacancy, ignoring any salary set', function () {
+    $vacancy = createPlacementVacancy([
+        'employment_type' => VacancyEmploymentType::Temp->value,
+        'salary_min' => 25000,
+        'salary_max' => 35000,
+        'day_rate_min' => 150,
+        'day_rate_max' => 200,
+    ]);
+
+    expect($vacancy->pay_range_label)->toBe('£150 - £200/day');
+});
+
+test('pay_range_label is null when the relevant pay fields are not set', function () {
+    $vacancy = createPlacementVacancy([
+        'employment_type' => VacancyEmploymentType::Temp->value,
+        'day_rate_min' => null,
+        'day_rate_max' => null,
+    ]);
+
+    expect($vacancy->pay_range_label)->toBeNull();
+});
+
 test('isFullyPlaced is true once placements meet positions available', function () {
     $vacancy = createPlacementVacancy(['positions_available' => 2]);
 

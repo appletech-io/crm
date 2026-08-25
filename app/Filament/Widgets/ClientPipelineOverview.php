@@ -42,13 +42,8 @@ class ClientPipelineOverview extends TableWidget
                     ->color(fn (Vacancy $record): string => $record->jobStatus?->color ?? 'gray'),
                 TextColumn::make('positions_available')
                     ->label('Positions'),
-                TextColumn::make('salary_min')
-                    ->label('Salary')
-                    ->money('GBP')
-                    ->placeholder('—'),
-                TextColumn::make('salary_max')
-                    ->label('to')
-                    ->money('GBP')
+                TextColumn::make('pay_range_label')
+                    ->label('Pay')
                     ->placeholder('—'),
                 TextColumn::make('placement_fee_percentage')
                     ->label('Fee %')
