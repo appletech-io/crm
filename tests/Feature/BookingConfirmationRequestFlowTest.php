@@ -181,9 +181,9 @@ test('opening a fresh request with no day periods yet auto-fills the schedule fr
         ->getRawState()['day_periods'];
 
     expect(array_values($dayPeriods))->toBe([
-        ['date' => '2026-09-01', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'dispute_reason' => null],
-        ['date' => '2026-09-02', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'dispute_reason' => null],
-        ['date' => '2026-09-03', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'dispute_reason' => null],
+        ['date' => '2026-09-01', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
+        ['date' => '2026-09-02', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
+        ['date' => '2026-09-03', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
     ]);
 });
 

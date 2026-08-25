@@ -5,6 +5,8 @@ namespace App\Filament\Resources\Bookings\Schemas;
 use App\Enums\BookingDayPeriod;
 use App\Enums\BookingStatus;
 use App\Enums\Integration;
+use App\Enums\PaymentMethod;
+use App\Filament\Forms\Components\DayScheduleCalendar;
 use App\Models\Booking;
 use App\Models\BookingDay;
 use App\Models\Client;
@@ -16,14 +18,12 @@ use App\Services\Booking\BookingOverlap;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Closure;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Hidden;
-use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\TimePicker;
-use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
@@ -172,20 +172,39 @@ class BookingForm
                     ->columnSpanFull()
                     ->visible(fn (Get $get): bool => filled($get('start_date')))
                     ->schema([
-                        Repeater::make('day_periods')
-                            ->hiddenLabel()
-                            ->addable(false)
-                            ->deletable(false)
-                            ->reorderable(false)
+                        CheckboxList::make('days_of_week')
+                            ->label('Repeat on')
+                            ->helperText('Only these weekdays are included when the schedule below is (re)generated from the date range — e.g. pick Thursday and Friday only for a booking that runs every Thursday and Friday between the start and end date.')
+                            ->options([
+                                '1' => 'Monday',
+                                '2' => 'Tuesday',
+                                '3' => 'Wednesday',
+                                '4' => 'Thursday',
+                                '5' => 'Friday',
+                                '6' => 'Saturday',
+                                '7' => 'Sunday',
+                            ])
+                            ->default(['1', '2', '3', '4', '5', '6', '7'])
+                            ->columns(7)
                             ->dehydrated(false)
-                            ->itemLabel(fn (array $state): ?string => filled($state['date'] ?? null)
-                                ? Carbon::parse($state['date'])->format('D j M Y')
-                                    .(($state['cancelled'] ?? false) ? ' (Cancelled)' : '')
-                                    .(($state['disputed'] ?? false) ? ' (Disputed)' : '')
-                                : null
-                            )
+                            ->live()
+                            ->afterStateUpdated(fn (Set $set, Get $get) => static::regenerateDayPeriods($set, $get)),
+                        DayScheduleCalendar::make('day_periods')
+                            ->hiddenLabel()
+                            ->dehydrated(false)
                             ->rule(function (Get $get, ?Booking $record): Closure {
                                 return function (string $attribute, mixed $value, Closure $fail) use ($get, $record): void {
+                                    $missingTimes = collect($value ?? [])
+                                        ->reject(fn (array $entry): bool => $entry['cancelled'] ?? false)
+                                        ->filter(fn (array $entry): bool => ($entry['period'] ?? null) === BookingDayPeriod::Hours->value)
+                                        ->filter(fn (array $entry): bool => blank($entry['time_from'] ?? null) || blank($entry['time_to'] ?? null));
+
+                                    if ($missingTimes->isNotEmpty()) {
+                                        $dates = $missingTimes->pluck('date')->map(fn (string $date): string => Carbon::parse($date)->format('jS M Y'))->implode(', ');
+
+                                        $fail("Enter a from and to time for these Hours days: {$dates}.");
+                                    }
+
                                     $candidateModelClass = Industry::candidateModelForSlug(active_industry() ?? '');
 
                                     if (! $candidateModelClass) {
@@ -218,37 +237,6 @@ class BookingForm
                                     }
                                 };
                             })
-                            ->schema([
-                                Hidden::make('date'),
-                                Select::make('period')
-                                    ->label('Session')
-                                    ->options(BookingDayPeriod::options())
-                                    ->required()
-                                    ->live(),
-                                TimePicker::make('time_from')
-                                    ->label('From')
-                                    ->seconds(false)
-                                    ->required(fn (Get $get): bool => $get('period') === BookingDayPeriod::Hours->value)
-                                    ->visible(fn (Get $get): bool => $get('period') === BookingDayPeriod::Hours->value),
-                                TimePicker::make('time_to')
-                                    ->label('To')
-                                    ->seconds(false)
-                                    ->required(fn (Get $get): bool => $get('period') === BookingDayPeriod::Hours->value)
-                                    ->visible(fn (Get $get): bool => $get('period') === BookingDayPeriod::Hours->value),
-                                Toggle::make('cancelled')
-                                    ->label('Cancelled')
-                                    ->live()
-                                    ->columnSpanFull(),
-                                Textarea::make('dispute_reason')
-                                    ->label('Dispute Reason')
-                                    ->helperText('Raised by the client when confirming this timesheet.')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->rows(2)
-                                    ->visible(fn (Get $get): bool => (bool) $get('disputed'))
-                                    ->columnSpanFull(),
-                            ])
-                            ->columns(3)
                             ->columnSpanFull(),
                     ]),
 
@@ -264,6 +252,7 @@ class BookingForm
                                     ->prefix('£')
                                     ->step(0.01)
                                     ->minValue(0)
+                                    ->live(onBlur: true)
                                     ->visible(fn (Get $get): bool => static::dayRateVisible($get)),
                                 TextInput::make('half_day_rate')
                                     ->label('Half Day Pay Rate')
@@ -272,6 +261,7 @@ class BookingForm
                                     ->prefix('£')
                                     ->step(0.01)
                                     ->minValue(0)
+                                    ->live(onBlur: true)
                                     ->visible(fn (Get $get): bool => static::halfDayRateVisible($get)),
                                 TextInput::make('hourly_rate')
                                     ->label('Hourly Pay Rate')
@@ -280,6 +270,7 @@ class BookingForm
                                     ->prefix('£')
                                     ->step(0.01)
                                     ->minValue(0)
+                                    ->live(onBlur: true)
                                     ->visible(fn (Get $get): bool => static::hourlyRateVisible($get)),
                             ]),
                         Grid::make(3)
@@ -292,6 +283,7 @@ class BookingForm
                                     ->prefix('£')
                                     ->step(0.01)
                                     ->minValue(0)
+                                    ->live(onBlur: true)
                                     ->visible(fn (Get $get): bool => static::dayRateVisible($get)),
                                 TextInput::make('half_day_charge_rate')
                                     ->label('Half Day Charge Rate')
@@ -301,6 +293,7 @@ class BookingForm
                                     ->prefix('£')
                                     ->step(0.01)
                                     ->minValue(0)
+                                    ->live(onBlur: true)
                                     ->visible(fn (Get $get): bool => static::halfDayRateVisible($get)),
                                 TextInput::make('hourly_charge_rate')
                                     ->label('Hourly Charge Rate')
@@ -310,9 +303,32 @@ class BookingForm
                                     ->prefix('£')
                                     ->step(0.01)
                                     ->minValue(0)
+                                    ->live(onBlur: true)
                                     ->visible(fn (Get $get): bool => static::hourlyRateVisible($get)),
                             ]),
                     ]),
+
+                Section::make('Margin Calculator')
+                    ->columnSpanFull()
+                    ->description('Calculated from the scheduled days below and the rates above.')
+                    ->schema([
+                        Placeholder::make('margin_payment_method')
+                            ->label('Payment Method')
+                            ->content(fn (Get $get): string => static::marginBreakdown($get)['paymentMethodLabel']),
+                        Placeholder::make('margin_oncosts')
+                            ->label('Employer Oncosts')
+                            ->content(fn (Get $get): string => static::marginBreakdown($get)['oncostsLabel']),
+                        Placeholder::make('margin_total_pay')
+                            ->label('Total Pay Cost')
+                            ->content(fn (Get $get): string => '£'.number_format(static::marginBreakdown($get)['totalPay'], 2)),
+                        Placeholder::make('margin_total_charge')
+                            ->label('Total Charge')
+                            ->content(fn (Get $get): string => '£'.number_format(static::marginBreakdown($get)['totalCharge'], 2)),
+                        Placeholder::make('margin_net')
+                            ->label('Net Margin')
+                            ->content(fn (Get $get): string => static::marginBreakdown($get)['marginLabel']),
+                    ])
+                    ->columns(3),
 
                 Section::make('Payroll Submission Failed')
                     ->columnSpanFull()
@@ -370,6 +386,122 @@ class BookingForm
             ->reject(fn (array $entry): bool => $entry['cancelled'] ?? false)
             ->pluck('period')
             ->filter();
+    }
+
+    /**
+     * Applied to the pay cost only for a PAYE candidate — this agency's
+     * standard approximation of employer's National Insurance and other
+     * statutory on-costs. An umbrella company candidate is invoiced as a
+     * single fee that already covers their own employment costs, so there's
+     * no additional on-cost to the agency on top of the pay rate for them.
+     */
+    private const PAYE_ONCOST_RATE = 0.15;
+
+    /**
+     * @return array{
+     *     paymentMethod: ?PaymentMethod,
+     *     paymentMethodLabel: string,
+     *     totalPay: float,
+     *     totalCharge: float,
+     *     oncosts: float,
+     *     oncostsLabel: string,
+     *     margin: float,
+     *     marginLabel: string,
+     * }
+     */
+    protected static function marginBreakdown(Get $get): array
+    {
+        $activeDays = collect($get('day_periods') ?? [])
+            ->reject(fn (array $entry): bool => $entry['cancelled'] ?? false);
+
+        $payRates = [
+            BookingDayPeriod::FullDay->value => (float) ($get('day_rate') ?? 0),
+            BookingDayPeriod::Am->value => (float) ($get('half_day_rate') ?? 0),
+            BookingDayPeriod::Pm->value => (float) ($get('half_day_rate') ?? 0),
+            BookingDayPeriod::Hours->value => (float) ($get('hourly_rate') ?? 0),
+        ];
+
+        $chargeRates = [
+            BookingDayPeriod::FullDay->value => (float) ($get('day_charge_rate') ?? 0),
+            BookingDayPeriod::Am->value => (float) ($get('half_day_charge_rate') ?? 0),
+            BookingDayPeriod::Pm->value => (float) ($get('half_day_charge_rate') ?? 0),
+            BookingDayPeriod::Hours->value => (float) ($get('hourly_charge_rate') ?? 0),
+        ];
+
+        $totalPay = 0.0;
+        $totalCharge = 0.0;
+
+        foreach ($activeDays as $entry) {
+            $period = $entry['period'] ?? null;
+
+            if (! $period) {
+                continue;
+            }
+
+            $units = $period === BookingDayPeriod::Hours->value
+                ? static::entryHours($entry)
+                : 1.0;
+
+            $totalPay += ($payRates[$period] ?? 0) * $units;
+            $totalCharge += ($chargeRates[$period] ?? 0) * $units;
+        }
+
+        $paymentMethod = static::candidatePaymentMethod($get('candidate_id'));
+        $oncosts = $paymentMethod === PaymentMethod::Paye ? round($totalPay * self::PAYE_ONCOST_RATE, 2) : 0.0;
+        $margin = round($totalCharge - $totalPay - $oncosts, 2);
+
+        $paymentMethodLabel = match ($paymentMethod) {
+            PaymentMethod::Paye => 'PAYE',
+            PaymentMethod::Umbrella => 'Umbrella',
+            null => 'Not set',
+        };
+
+        $oncostsLabel = match (true) {
+            $paymentMethod === PaymentMethod::Paye => '£'.number_format($oncosts, 2).' ('.(self::PAYE_ONCOST_RATE * 100).'% of pay, PAYE)',
+            $paymentMethod === PaymentMethod::Umbrella => '£0.00 (umbrella company invoices their own costs)',
+            default => '£0.00 (no payment method set on the candidate)',
+        };
+
+        $marginPercent = $totalCharge > 0 ? round(($margin / $totalCharge) * 100, 1) : 0.0;
+        $marginLabel = '£'.number_format($margin, 2)." ({$marginPercent}%)";
+
+        return [
+            'paymentMethod' => $paymentMethod,
+            'paymentMethodLabel' => $paymentMethodLabel,
+            'totalPay' => round($totalPay, 2),
+            'totalCharge' => round($totalCharge, 2),
+            'oncosts' => $oncosts,
+            'oncostsLabel' => $oncostsLabel,
+            'margin' => $margin,
+            'marginLabel' => $marginLabel,
+        ];
+    }
+
+    private static function entryHours(array $entry): float
+    {
+        $from = $entry['time_from'] ?? null;
+        $to = $entry['time_to'] ?? null;
+
+        if (! $from || ! $to) {
+            return 0.0;
+        }
+
+        return round(abs(Carbon::parse($from)->diffInMinutes(Carbon::parse($to))) / 60, 2);
+    }
+
+    private static function candidatePaymentMethod(mixed $candidateId): ?PaymentMethod
+    {
+        if (blank($candidateId)) {
+            return null;
+        }
+
+        $candidateModelClass = Industry::candidateModelForSlug(active_industry() ?? '');
+
+        if (! $candidateModelClass) {
+            return null;
+        }
+
+        return $candidateModelClass::find($candidateId)?->payment_method;
     }
 
     protected static function dayRateVisible(Get $get): bool
@@ -450,14 +582,22 @@ class BookingForm
 
     protected static function regenerateDayPeriods(Set $set, Get $get): void
     {
-        $set('day_periods', static::dayPeriodsForRange($get('start_date'), $get('end_date'), $get('day_periods') ?? []));
+        $set('day_periods', static::dayPeriodsForRange(
+            $get('start_date'),
+            $get('end_date'),
+            $get('day_periods') ?? [],
+            $get('days_of_week') ?? [],
+        ));
     }
 
     /**
      * @param  array<int, array<string, mixed>>  $existing
+     * @param  array<int, string|int>  $daysOfWeek  ISO weekday numbers (1 = Monday .. 7 = Sunday) to include.
+     *                                              An empty array means "no filter" — every day in the range —
+     *                                              so existing callers/bookings are unaffected.
      * @return array<int, array{date: string, period: string, time_from: ?string, time_to: ?string, cancelled: bool}>
      */
-    public static function dayPeriodsForRange(mixed $startDate, mixed $endDate, array $existing = []): array
+    public static function dayPeriodsForRange(mixed $startDate, mixed $endDate, array $existing = [], array $daysOfWeek = []): array
     {
         if (blank($startDate)) {
             return [];
@@ -469,19 +609,64 @@ class BookingForm
             ->filter(fn (array $entry): bool => filled($entry['date'] ?? null))
             ->keyBy('date');
 
+        $allowedWeekdays = collect($daysOfWeek)->map(fn (string|int $day): int => (int) $day);
+
         return collect(CarbonPeriod::create($startDate, $endDate))
+            ->when(
+                $allowedWeekdays->isNotEmpty(),
+                fn (Collection $dates) => $dates->filter(fn (Carbon $date): bool => $allowedWeekdays->contains($date->isoWeekday())),
+            )
             ->map(function (Carbon $date) use ($existingPeriods): array {
                 $existing = $existingPeriods->get($date->toDateString());
+
+                // Schools only operate on weekdays, so a freshly generated
+                // Saturday/Sunday defaults to N/A rather than a full day —
+                // it's still shown (and can be overridden) on the calendar.
+                $isWeekend = $date->isWeekend();
 
                 return [
                     'date' => $date->toDateString(),
                     'period' => $existing['period'] ?? BookingDayPeriod::FullDay->value,
                     'time_from' => $existing['time_from'] ?? null,
                     'time_to' => $existing['time_to'] ?? null,
-                    'cancelled' => $existing['cancelled'] ?? false,
+                    'cancelled' => $existing['cancelled'] ?? $isWeekend,
                 ];
             })
             ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $dayPeriods
+     * @return array<int, array<string, mixed>>
+     */
+    public static function withPeriodAppliedToSelected(array $dayPeriods, BookingDayPeriod $period): array
+    {
+        return collect($dayPeriods)
+            ->map(function (array $entry) use ($period): array {
+                if ($entry['selected'] ?? false) {
+                    $entry['period'] = $period->value;
+                }
+
+                return $entry;
+            })
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $dayPeriods
+     * @return array<int, array<string, mixed>>
+     */
+    public static function withCancelledAppliedToSelected(array $dayPeriods, bool $cancelled): array
+    {
+        return collect($dayPeriods)
+            ->map(function (array $entry) use ($cancelled): array {
+                if ($entry['selected'] ?? false) {
+                    $entry['cancelled'] = $cancelled;
+                }
+
+                return $entry;
+            })
             ->all();
     }
 

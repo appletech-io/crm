@@ -482,7 +482,7 @@ test('time from and time to are required when a day period is set to hours', fun
             'hourly_charge_rate' => 30,
         ])
         ->call('create')
-        ->assertHasFormErrors(['day_periods.0.time_from', 'day_periods.0.time_to']);
+        ->assertHasFormErrors(['day_periods']);
 });
 
 test('a booking can be created with an hours day recording time from, time to, and hourly rates', function () {
@@ -1362,8 +1362,8 @@ test('the create form is prefilled from a non-contiguous dates query array, skip
 
     expect(collect($test->instance()->form->getRawState()['day_periods'] ?? [])->values()->all())
         ->toBe([
-            ['date' => '2026-08-03', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'dispute_reason' => null],
-            ['date' => '2026-08-05', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'dispute_reason' => null],
+            ['date' => '2026-08-03', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
+            ['date' => '2026-08-05', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
         ]);
 });
 
@@ -1380,8 +1380,8 @@ test('the create form pre-fills am/pm day periods carried over from the candidat
 
     expect(collect($test->instance()->form->getRawState()['day_periods'] ?? [])->values()->all())
         ->toBe([
-            ['date' => '2026-08-03', 'period' => 'am', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'dispute_reason' => null],
-            ['date' => '2026-08-04', 'period' => 'pm', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'dispute_reason' => null],
+            ['date' => '2026-08-03', 'period' => 'am', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
+            ['date' => '2026-08-04', 'period' => 'pm', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
         ]);
 });
 
@@ -1396,8 +1396,8 @@ test('a date with no matching entry in the periods query array falls back to ful
 
     expect(collect($test->instance()->form->getRawState()['day_periods'] ?? [])->values()->all())
         ->toBe([
-            ['date' => '2026-08-03', 'period' => 'am', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'dispute_reason' => null],
-            ['date' => '2026-08-04', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'dispute_reason' => null],
+            ['date' => '2026-08-03', 'period' => 'am', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
+            ['date' => '2026-08-04', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false],
         ]);
 });
 
