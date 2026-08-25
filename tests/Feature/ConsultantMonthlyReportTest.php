@@ -1,5 +1,6 @@
 <?php
 
+use App\Ai\Agents\BdmCallCoachingAgent;
 use App\Ai\Agents\ConsultantMonthlyReportAgent;
 use App\Enums\ActivityType;
 use App\Enums\BookingDayPeriod;
@@ -56,11 +57,31 @@ function createReportBooking(
     return $booking;
 }
 
-test('only admins can access the page', function () {
+test('admins and consultants can access the page, but no one else', function () {
     expect(ConsultantMonthlyReport::canAccess())->toBeTrue();
 
     $this->actingAs($this->consultant);
+    expect(ConsultantMonthlyReport::canAccess())->toBeTrue();
+
+    $complianceOnly = User::factory()->create(['company_id' => $this->company->id]);
+    $complianceOnly->assignRole('compliance');
+    $this->actingAs($complianceOnly);
     expect(ConsultantMonthlyReport::canAccess())->toBeFalse();
+});
+
+test('a consultant always sees their own report regardless of the consultantId in the url', function () {
+    $otherConsultant = User::factory()->create(['company_id' => $this->company->id, 'name' => 'Someone Else']);
+    $otherConsultant->assignRole('consultant');
+
+    $this->actingAs($this->consultant);
+    Cache::put("user.{$this->consultant->id}.active_industry", 'education');
+    Cache::put("user.{$this->consultant->id}.active_industry_id", 1);
+
+    $page = Livewire::test(ConsultantMonthlyReport::class, ['consultantId' => $otherConsultant->id])
+        ->instance();
+
+    expect($page->consultantId)->toBe($this->consultant->id)
+        ->and($page->consultant()->id)->toBe($this->consultant->id);
 });
 
 test('it 404s without a valid consultant id', function () {
@@ -233,4 +254,143 @@ test('a failure generating the report falls back to a plain message', function (
     $page->loadSummary();
 
     expect($page->summary)->toBe('Performance report is temporarily unavailable.');
+});
+
+test('bdmCallActivities only includes BDM calls and calls to clients, for this consultant, within the period', function () {
+    $client = Client::factory()->create(['company_id' => $this->company->id, 'name' => 'Riverside School']);
+    $otherConsultant = User::factory()->create(['company_id' => $this->company->id]);
+
+    $bdmCall = ClientActivity::create([
+        'user_id' => $this->consultant->id,
+        'model_type' => Client::class,
+        'model_id' => $client->id,
+        'type' => ActivityType::BdmCall->value,
+        'note' => 'Pitched a new framework agreement',
+    ]);
+    $bdmCall->forceFill(['created_at' => now()->subDay()])->save();
+
+    ClientActivity::create([
+        'user_id' => $this->consultant->id,
+        'model_type' => Client::class,
+        'model_id' => $client->id,
+        'type' => ActivityType::Call->value,
+        'note' => 'Quick catch-up call',
+    ]);
+
+    // Wrong type — not a call.
+    ClientActivity::create([
+        'user_id' => $this->consultant->id,
+        'model_type' => Client::class,
+        'model_id' => $client->id,
+        'type' => ActivityType::Meeting->value,
+        'note' => 'On-site meeting',
+    ]);
+
+    // Wrong consultant.
+    ClientActivity::create([
+        'user_id' => $otherConsultant->id,
+        'model_type' => Client::class,
+        'model_id' => $client->id,
+        'type' => ActivityType::Call->value,
+        'note' => 'Not this consultant',
+    ]);
+
+    // A candidate call should never count — this is about client BD technique.
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    CandidateActivity::create([
+        'user_id' => $this->consultant->id,
+        'model_type' => EducationCandidate::class,
+        'model_id' => $candidate->id,
+        'type' => ActivityType::Call->value,
+        'note' => 'Candidate call, not a BDM call',
+    ]);
+
+    $calls = Livewire::test(ConsultantMonthlyReport::class, ['consultantId' => $this->consultant->id])
+        ->instance()
+        ->bdmCallActivities();
+
+    expect($calls)->toHaveCount(2)
+        ->and($calls->pluck('note'))->toContain('Pitched a new framework agreement', 'Quick catch-up call')
+        ->and($calls->first()['subject'])->toBe('Riverside School');
+});
+
+function logBdmCall(User $consultant, Client $client, string $note = 'Discussed upcoming vacancies'): void
+{
+    ClientActivity::create([
+        'user_id' => $consultant->id,
+        'model_type' => Client::class,
+        'model_id' => $client->id,
+        'type' => ActivityType::BdmCall->value,
+        'note' => $note,
+    ]);
+}
+
+test('the BDM coaching tab shows a loading placeholder until loadBdmSummary runs', function () {
+    logBdmCall($this->consultant, Client::factory()->create(['company_id' => $this->company->id]));
+    BdmCallCoachingAgent::fake(['Good detail on next steps, but log more calls overall.']);
+
+    Livewire::test(ConsultantMonthlyReport::class, ['consultantId' => $this->consultant->id])
+        ->call('setTab', 'bdm-calls')
+        ->assertSet('bdmSummary', null)
+        ->assertSee('Reviewing')
+        ->call('loadBdmSummary')
+        ->assertSet('bdmSummary', 'Good detail on next steps, but log more calls overall.')
+        ->assertSee('Good detail on next steps, but log more calls overall.');
+});
+
+test('the BDM coaching summary is cached', function () {
+    logBdmCall($this->consultant, Client::factory()->create(['company_id' => $this->company->id]));
+    BdmCallCoachingAgent::fake([
+        'First coaching note.',
+        'Second coaching note.',
+    ]);
+
+    $page = Livewire::test(ConsultantMonthlyReport::class, ['consultantId' => $this->consultant->id]);
+    $page->call('loadBdmSummary');
+
+    expect($page->get('bdmSummary'))->toBe('First coaching note.');
+
+    $page->call('loadBdmSummary');
+
+    expect($page->get('bdmSummary'))->toBe('First coaching note.');
+});
+
+test('switching months reloads the BDM coaching summary too', function () {
+    logBdmCall($this->consultant, Client::factory()->create(['company_id' => $this->company->id]));
+    BdmCallCoachingAgent::fake([
+        'One month coaching.',
+        'Three month coaching.',
+    ]);
+
+    Livewire::test(ConsultantMonthlyReport::class, ['consultantId' => $this->consultant->id])
+        ->call('loadBdmSummary')
+        ->assertSet('bdmSummary', 'One month coaching.')
+        ->call('setMonths', 3)
+        ->assertSet('bdmSummary', 'Three month coaching.');
+});
+
+test('a failure generating BDM coaching falls back to a plain message', function () {
+    logBdmCall($this->consultant, Client::factory()->create(['company_id' => $this->company->id]));
+    BdmCallCoachingAgent::fake(function () {
+        throw new Exception('provider unavailable');
+    });
+
+    $page = Livewire::test(ConsultantMonthlyReport::class, ['consultantId' => $this->consultant->id])->instance();
+    $page->loadBdmSummary();
+
+    expect($page->bdmSummary)->toBe('BDM call coaching is temporarily unavailable.');
+});
+
+test('BDM coaching says plainly when there is nothing to coach on, rather than inventing feedback', function () {
+    $page = Livewire::test(ConsultantMonthlyReport::class, ['consultantId' => $this->consultant->id])->instance();
+    $page->loadBdmSummary();
+
+    expect($page->bdmSummary)->toContain('nothing to coach on');
+});
+
+test('setTab only accepts the two known tabs', function () {
+    $component = Livewire::test(ConsultantMonthlyReport::class, ['consultantId' => $this->consultant->id]);
+
+    $component->call('setTab', 'bdm-calls')->assertSet('activeTab', 'bdm-calls');
+    $component->call('setTab', 'not-a-real-tab')->assertSet('activeTab', 'summary');
 });

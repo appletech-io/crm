@@ -53,11 +53,5 @@
         </div>
 
         {{ $this->content }}
-
-        <div class="flex justify-end">
-            <x-filament::link :href="$this->moreInfoUrl()">
-                View full breakdown
-            </x-filament::link>
-        </div>
     </div>
 </x-filament-widgets::widget>
