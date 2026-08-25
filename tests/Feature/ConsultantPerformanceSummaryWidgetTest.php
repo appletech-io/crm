@@ -2,7 +2,6 @@
 
 use App\Ai\Agents\PerformanceSummaryAgent;
 use App\Enums\BookingDayPeriod;
-use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Widgets\ConsultantPerformanceSummary;
 use App\Models\Booking;
 use App\Models\Client;
@@ -173,8 +172,41 @@ test('switching consultant as an admin reloads the summary for the new consultan
         ->assertSet('summary', 'Summary for consultant A.');
 });
 
-test('more info links to the bookings index', function () {
-    $url = Livewire::test(ConsultantPerformanceSummary::class)->instance()->moreInfoUrl();
+test('switching consultant dispatches an event so other dashboard widgets can follow the same selection', function () {
+    $consultantA = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultantA->assignRole('consultant');
 
-    expect($url)->toBe(BookingResource::getUrl('index'));
+    PerformanceSummaryAgent::fake(['Summary for consultant A.']);
+
+    Livewire::test(ConsultantPerformanceSummary::class)
+        ->set('consultantId', $consultantA->id)
+        ->assertDispatched('dashboard-consultant-changed', consultantId: $consultantA->id);
+});
+
+test('a non admin consultant always gets the monthly report link, pointing at their own id', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+
+    $this->actingAs($consultant);
+    Cache::put("user.{$consultant->id}.active_industry", 'education');
+    Cache::put("user.{$consultant->id}.active_industry_id", 1);
+
+    $component = Livewire::test(ConsultantPerformanceSummary::class)->instance();
+
+    expect($component->showMonthlyReportLink())->toBeTrue()
+        ->and($component->monthlyReportUrl())->toContain((string) $consultant->id);
+});
+
+test('an admin only gets the monthly report link once a specific consultant is selected', function () {
+    $consultantA = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultantA->assignRole('consultant');
+
+    $component = Livewire::test(ConsultantPerformanceSummary::class);
+
+    expect($component->instance()->showMonthlyReportLink())->toBeFalse();
+
+    $component->set('consultantId', $consultantA->id);
+
+    expect($component->instance()->showMonthlyReportLink())->toBeTrue()
+        ->and($component->instance()->monthlyReportUrl())->toContain((string) $consultantA->id);
 });

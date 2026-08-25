@@ -4,7 +4,6 @@ namespace App\Filament\Widgets;
 
 use App\Ai\Agents\PerformanceSummaryAgent;
 use App\Filament\Pages\ConsultantMonthlyReport;
-use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\Bookings\Widgets\BookingWeekStats;
 use App\Models\User;
 use App\Services\Reporting\ConsultantPerformanceSummary as PerformanceCalculator;
@@ -117,32 +116,34 @@ class ConsultantPerformanceSummary extends StatsOverviewWidget
     /**
      * An admin switching consultants makes the previous summary stale — go
      * back to the loading state and fetch the new one, rather than leaving
-     * the wrong consultant's narration on screen.
+     * the wrong consultant's narration on screen. This is the one dropdown
+     * for the whole dashboard, so other widgets that also filter by
+     * consultant (e.g. the calls/meetings KPI widget) are told to follow it.
      */
     public function updatedConsultantId(): void
     {
         $this->summary = null;
         $this->loadSummary();
-    }
 
-    public function moreInfoUrl(): string
-    {
-        return BookingResource::getUrl('index');
+        $this->dispatch('dashboard-consultant-changed', consultantId: $this->consultantId);
     }
 
     /**
-     * The monthly report is per-consultant, so it only makes sense — and is
-     * only offered — once an admin has narrowed the dashboard down to one
+     * The monthly report is per-consultant. A non-admin always has an
+     * implicit "consultant" (themselves), so it's always offered to them;
+     * an admin only gets it once they've narrowed the dashboard down to one
      * specific consultant, not while viewing "All Consultants".
      */
     public function showMonthlyReportLink(): bool
     {
-        return $this->isAdmin() && $this->consultantId !== null;
+        return ! $this->isAdmin() || $this->consultantId !== null;
     }
 
     public function monthlyReportUrl(): string
     {
-        return ConsultantMonthlyReport::getUrl(['consultantId' => $this->consultantId]);
+        return ConsultantMonthlyReport::getUrl([
+            'consultantId' => $this->isAdmin() ? $this->consultantId : Auth::id(),
+        ]);
     }
 
     /** @param  array{clients: int, candidates: int, gp: float, avgMargin: float, daysPlaced: int, rebookRate: ?float}  $stats */

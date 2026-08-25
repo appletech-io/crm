@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\ActivityType;
+use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Filament\Widgets\EducationConsultantKpiOverview;
 use App\Models\CandidateActivity;
 use App\Models\Client;
@@ -166,6 +167,24 @@ test('an admin can filter the stats down to a single consultant, and sees all by
     expect($component->instance()->monthStats()['calls'])->toBe(1);
 });
 
+test('it follows the dashboard-wide consultant selection dispatched by the performance summary widget', function () {
+    $consultantA = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultantA->assignRole('consultant');
+    $consultantB = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultantB->assignRole('consultant');
+
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+
+    logCandidateActivity($consultantA, $candidate, ActivityType::Call, Carbon::now()->startOfMonth()->toDateTimeString());
+    logCandidateActivity($consultantB, $candidate, ActivityType::Call, Carbon::now()->startOfMonth()->toDateTimeString());
+
+    $component = Livewire::test(EducationConsultantKpiOverview::class)
+        ->dispatch('dashboard-consultant-changed', consultantId: $consultantA->id)
+        ->assertSet('consultantId', $consultantA->id);
+
+    expect($component->instance()->monthStats()['calls'])->toBe(1);
+});
+
 test('activity from another company is never counted even when viewing all consultants', function () {
     $otherCompany = Company::factory()->create();
     $otherUser = User::factory()->create(['company_id' => $otherCompany->id]);
@@ -176,4 +195,175 @@ test('activity from another company is never counted even when viewing all consu
     $stats = Livewire::test(EducationConsultantKpiOverview::class)->instance()->monthStats();
 
     expect($stats['calls'])->toBe(0);
+});
+
+test('clicking the calls stat lists the teams calls when admin is viewing all consultants', function () {
+    $consultantA = User::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Ada Lovelace']);
+    $consultantA->assignRole('consultant');
+    $consultantB = User::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Bob Marley']);
+    $consultantB->assignRole('consultant');
+
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id, 'first_name' => 'Jane', 'last_name' => 'Doe']);
+
+    logCandidateActivity($consultantA, $candidate, ActivityType::Call, Carbon::now()->startOfMonth()->toDateTimeString());
+    logCandidateActivity($consultantB, $candidate, ActivityType::Call, Carbon::now()->startOfMonth()->toDateTimeString());
+
+    $activities = Livewire::test(EducationConsultantKpiOverview::class)
+        ->instance()
+        ->activitiesForModal(ActivityType::Call);
+
+    expect($activities)->toHaveCount(2)
+        ->and($activities->pluck('consultant'))->toContain('Ada Lovelace', 'Bob Marley');
+});
+
+test('the calls list only shows that consultants calls once one is selected', function () {
+    $consultantA = User::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Ada Lovelace']);
+    $consultantA->assignRole('consultant');
+    $consultantB = User::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Bob Marley']);
+    $consultantB->assignRole('consultant');
+
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+
+    logCandidateActivity($consultantA, $candidate, ActivityType::Call, Carbon::now()->startOfMonth()->toDateTimeString());
+    logCandidateActivity($consultantB, $candidate, ActivityType::Call, Carbon::now()->startOfMonth()->toDateTimeString());
+
+    $activities = Livewire::test(EducationConsultantKpiOverview::class)
+        ->set('consultantId', $consultantA->id)
+        ->instance()
+        ->activitiesForModal(ActivityType::Call);
+
+    expect($activities)->toHaveCount(1)
+        ->and($activities->first()['consultant'])->toBe('Ada Lovelace');
+});
+
+test('a non admin consultant only ever sees their own calls in the list', function () {
+    $consultantA = User::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Ada Lovelace']);
+    $consultantA->assignRole('consultant');
+    $consultantB = User::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Bob Marley']);
+    $consultantB->assignRole('consultant');
+
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+
+    logCandidateActivity($consultantA, $candidate, ActivityType::Call, Carbon::now()->startOfMonth()->toDateTimeString());
+    logCandidateActivity($consultantB, $candidate, ActivityType::Call, Carbon::now()->startOfMonth()->toDateTimeString());
+
+    $this->actingAs($consultantA);
+    Cache::put("user.{$consultantA->id}.active_industry", 'education');
+    Cache::put("user.{$consultantA->id}.active_industry_id", 1);
+
+    $activities = Livewire::test(EducationConsultantKpiOverview::class)
+        ->instance()
+        ->activitiesForModal(ActivityType::Call);
+
+    expect($activities)->toHaveCount(1)
+        ->and($activities->first()['consultant'])->toBe('Ada Lovelace');
+});
+
+test('the meetings list only shows meetings, not calls', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+
+    logCandidateActivity($this->user, $candidate, ActivityType::Call, Carbon::now()->startOfMonth()->toDateTimeString());
+    $meeting = CandidateActivity::create([
+        'user_id' => $this->user->id,
+        'model_type' => EducationCandidate::class,
+        'model_id' => $candidate->id,
+        'type' => ActivityType::Meeting->value,
+        'note' => 'Discussed availability for next term',
+    ]);
+    $meeting->forceFill(['created_at' => Carbon::now()->startOfMonth()])->save();
+
+    $activities = Livewire::test(EducationConsultantKpiOverview::class)
+        ->instance()
+        ->activitiesForModal(ActivityType::Meeting);
+
+    expect($activities)->toHaveCount(1)
+        ->and($activities->first()['note'])->toBe('Discussed availability for next term');
+});
+
+test('clicking a stat mounts the drilldown action without error', function () {
+    Livewire::test(EducationConsultantKpiOverview::class)
+        ->mountAction('viewActivities', ['type' => 'call'])
+        ->assertOk();
+});
+
+test('the completed applications list shows the whole teams candidates when admin is viewing all consultants', function () {
+    $consultantA = User::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Ada Lovelace']);
+    $consultantA->assignRole('consultant');
+    $consultantB = User::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Bob Marley']);
+    $consultantB->assignRole('consultant');
+
+    $candidateA = EducationCandidate::factory()->create(['company_id' => $this->company->id, 'consultant_id' => $consultantA->id, 'first_name' => 'Jane', 'last_name' => 'Doe']);
+    $candidateB = EducationCandidate::factory()->create(['company_id' => $this->company->id, 'consultant_id' => $consultantB->id, 'first_name' => 'John', 'last_name' => 'Smith']);
+
+    EducationApplication::factory()->create([
+        'education_candidate_id' => $candidateA->id,
+        'status' => 'completed',
+        'completed_at' => Carbon::now()->startOfMonth()->addDay(),
+    ]);
+    EducationApplication::factory()->create([
+        'education_candidate_id' => $candidateB->id,
+        'status' => 'completed',
+        'completed_at' => Carbon::now()->startOfMonth()->addDays(2),
+    ]);
+
+    $candidates = Livewire::test(EducationConsultantKpiOverview::class)
+        ->instance()
+        ->completedApplicationsForModal();
+
+    expect($candidates)->toHaveCount(2)
+        ->and($candidates->pluck('consultant'))->toContain('Ada Lovelace', 'Bob Marley')
+        ->and($candidates->pluck('name'))->toContain('Jane Doe', 'John Smith');
+});
+
+test('the completed applications list narrows to one consultant once selected', function () {
+    $consultantA = User::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Ada Lovelace']);
+    $consultantA->assignRole('consultant');
+    $consultantB = User::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Bob Marley']);
+    $consultantB->assignRole('consultant');
+
+    $candidateA = EducationCandidate::factory()->create(['company_id' => $this->company->id, 'consultant_id' => $consultantA->id]);
+    $candidateB = EducationCandidate::factory()->create(['company_id' => $this->company->id, 'consultant_id' => $consultantB->id]);
+
+    EducationApplication::factory()->create([
+        'education_candidate_id' => $candidateA->id,
+        'status' => 'completed',
+        'completed_at' => Carbon::now()->startOfMonth()->addDay(),
+    ]);
+    EducationApplication::factory()->create([
+        'education_candidate_id' => $candidateB->id,
+        'status' => 'completed',
+        'completed_at' => Carbon::now()->startOfMonth()->addDays(2),
+    ]);
+
+    $candidates = Livewire::test(EducationConsultantKpiOverview::class)
+        ->set('consultantId', $consultantA->id)
+        ->instance()
+        ->completedApplicationsForModal();
+
+    expect($candidates)->toHaveCount(1)
+        ->and($candidates->first()['consultant'])->toBe('Ada Lovelace');
+});
+
+test('the completed applications list links each candidate to their edit page', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id, 'consultant_id' => $this->user->id]);
+
+    EducationApplication::factory()->create([
+        'education_candidate_id' => $candidate->id,
+        'status' => 'completed',
+        'completed_at' => Carbon::now()->startOfMonth()->addDay(),
+    ]);
+
+    $candidates = Livewire::test(EducationConsultantKpiOverview::class)
+        ->instance()
+        ->completedApplicationsForModal();
+
+    expect($candidates->first()['url'])->toBe(
+        EducationCandidateResource::getUrl('edit', ['record' => $candidate])
+    );
+});
+
+test('clicking the applications stat mounts the drilldown action without error', function () {
+    Livewire::test(EducationConsultantKpiOverview::class)
+        ->mountAction('viewCompletedApplications')
+        ->assertOk();
 });
