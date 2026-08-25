@@ -144,6 +144,35 @@ test('a failure generating the summary is reported and a fallback message is sho
     expect($text)->toBe('Performance summary is temporarily unavailable.');
 });
 
+test('the summary shows a loading placeholder until loadSummary runs, then shows the real text', function () {
+    PerformanceSummaryAgent::fake(['This week went well.']);
+
+    Livewire::test(ConsultantPerformanceSummary::class)
+        ->assertSet('summary', null)
+        ->assertSee('Generating')
+        ->assertDontSee('This week went well.')
+        ->call('loadSummary')
+        ->assertSet('summary', 'This week went well.')
+        ->assertSee('This week went well.')
+        ->assertDontSee('Generating');
+});
+
+test('switching consultant as an admin reloads the summary for the new consultant', function () {
+    $consultantA = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultantA->assignRole('consultant');
+
+    PerformanceSummaryAgent::fake([
+        'Summary for everyone.',
+        'Summary for consultant A.',
+    ]);
+
+    Livewire::test(ConsultantPerformanceSummary::class)
+        ->call('loadSummary')
+        ->assertSet('summary', 'Summary for everyone.')
+        ->set('consultantId', $consultantA->id)
+        ->assertSet('summary', 'Summary for consultant A.');
+});
+
 test('more info links to the bookings index', function () {
     $url = Livewire::test(ConsultantPerformanceSummary::class)->instance()->moreInfoUrl();
 

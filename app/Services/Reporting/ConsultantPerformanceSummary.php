@@ -8,6 +8,7 @@ use App\Models\BookingDay;
 use App\Services\Booking\BookingDayPeriods;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * The same gross profit / days-placed / clients / candidates math as
@@ -24,6 +25,18 @@ class ConsultantPerformanceSummary
         $start = Carbon::parse($weekStart)->startOfWeek(Carbon::MONDAY);
         $end = $start->copy()->endOfWeek(Carbon::SUNDAY);
 
+        return self::forRange($consultantId, $start, $end);
+    }
+
+    /**
+     * Same figures as {@see self::forWeek()}, but for an arbitrary date
+     * range rather than one that's snapped to week boundaries — used for
+     * "last 1/3 months" period totals on the monthly report.
+     *
+     * @return array{clients: int, candidates: int, gp: float, avgMargin: float, daysPlaced: int}
+     */
+    public static function forRange(?int $consultantId, CarbonInterface $start, CarbonInterface $end): array
+    {
         $dayPeriods = BookingDay::query()
             ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
             ->whereNull('cancelled_at')
@@ -80,5 +93,31 @@ class ConsultantPerformanceSummary
         $nextWeekDays = self::forWeek($consultantId, Carbon::parse($weekStart)->addWeek())['daysPlaced'];
 
         return round(($nextWeekDays / $thisWeekDays) * 100, 1);
+    }
+
+    /**
+     * forWeek()'s figures for every week (Monday to Sunday) touching the
+     * given range, oldest first — the week-by-week table on the monthly
+     * report.
+     *
+     * @return Collection<int, array{weekStart: string, clients: int, candidates: int, gp: float, avgMargin: float, daysPlaced: int}>
+     */
+    public static function weeklyBreakdown(?int $consultantId, CarbonInterface $start, CarbonInterface $end): Collection
+    {
+        $weekStart = Carbon::parse($start)->startOfWeek(Carbon::MONDAY);
+        $lastWeekStart = Carbon::parse($end)->startOfWeek(Carbon::MONDAY);
+
+        $weeks = new Collection;
+
+        while ($weekStart->lte($lastWeekStart)) {
+            $weeks->push(array_merge(
+                ['weekStart' => $weekStart->toDateString()],
+                self::forWeek($consultantId, $weekStart),
+            ));
+
+            $weekStart = $weekStart->copy()->addWeek();
+        }
+
+        return $weeks;
     }
 }
