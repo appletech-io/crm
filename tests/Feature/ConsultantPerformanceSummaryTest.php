@@ -153,3 +153,47 @@ test('rebookRate is 0 when nothing has been booked next week yet', function () {
 
     expect($rate)->toBe(0.0);
 });
+
+test('forRange totals figures across an arbitrary date range, not just a calendar week', function () {
+    $client = Client::factory()->create(['company_id' => $this->company->id]);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $start = now()->subMonth()->startOfDay();
+    $end = now()->endOfDay();
+
+    createSummaryBooking($this->user, $client, $candidate, $this->jobTitle, $start->copy()->addDays(2)->toDateString(), [
+        'day_rate' => 100,
+        'day_charge_rate' => 150,
+    ]);
+    createSummaryBooking($this->user, $client, $candidate, $this->jobTitle, $end->copy()->subDay()->toDateString(), [
+        'day_rate' => 100,
+        'day_charge_rate' => 150,
+    ]);
+
+    // Outside the range entirely.
+    createSummaryBooking($this->user, $client, $candidate, $this->jobTitle, $start->copy()->subWeek()->toDateString());
+
+    $stats = ConsultantPerformanceSummary::forRange($this->user->id, $start, $end);
+
+    expect($stats['daysPlaced'])->toBe(2)
+        ->and($stats['gp'])->toBe(100.0);
+});
+
+test('weeklyBreakdown returns one row per calendar week touching the range, oldest first', function () {
+    $client = Client::factory()->create(['company_id' => $this->company->id]);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+
+    $firstMonday = now()->subWeeks(2)->startOfWeek(Carbon::MONDAY);
+    $lastMonday = now()->startOfWeek(Carbon::MONDAY);
+
+    createSummaryBooking($this->user, $client, $candidate, $this->jobTitle, $firstMonday->toDateString());
+    createSummaryBooking($this->user, $client, $candidate, $this->jobTitle, $lastMonday->toDateString());
+
+    $weeks = ConsultantPerformanceSummary::weeklyBreakdown($this->user->id, $firstMonday, $lastMonday);
+
+    expect($weeks)->toHaveCount(3)
+        ->and($weeks->first()['weekStart'])->toBe($firstMonday->toDateString())
+        ->and($weeks->first()['daysPlaced'])->toBe(1)
+        ->and($weeks->last()['weekStart'])->toBe($lastMonday->toDateString())
+        ->and($weeks->last()['daysPlaced'])->toBe(1)
+        ->and($weeks->get(1)['daysPlaced'])->toBe(0);
+});

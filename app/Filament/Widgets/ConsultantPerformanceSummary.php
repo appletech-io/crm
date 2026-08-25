@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Ai\Agents\PerformanceSummaryAgent;
+use App\Filament\Pages\ConsultantMonthlyReport;
 use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\Bookings\Widgets\BookingWeekStats;
 use App\Models\User;
@@ -28,6 +29,14 @@ class ConsultantPerformanceSummary extends StatsOverviewWidget
     protected static ?int $sort = 0;
 
     public ?int $consultantId = null;
+
+    /**
+     * Null until {@see self::loadSummary()} has run — the blade view uses
+     * this to show a loading state while the AI narration is fetched, since
+     * generating it can be slow enough that it shouldn't block the rest of
+     * the dashboard rendering.
+     */
+    public ?string $summary = null;
 
     public function isAdmin(): bool
     {
@@ -78,7 +87,7 @@ class ConsultantPerformanceSummary extends StatsOverviewWidget
 
     /**
      * The figures are computed fresh every render, but the AI narration of
-     * them is cached per consultant per week — regenerating it on every
+     * them is cached per consultant for 2 hours — regenerating it on every
      * dashboard view would be slow and needlessly expensive, and the
      * underlying numbers don't need to-the-minute freshness in prose form.
      */
@@ -90,14 +99,50 @@ class ConsultantPerformanceSummary extends StatsOverviewWidget
 
         return Cache::remember(
             "consultant-performance-summary:{$consultantId}:{$weekStart}",
-            now()->addHours(6),
+            now()->addHours(2),
             fn (): string => $this->generateSummary($consultantId, $stats),
         );
+    }
+
+    /**
+     * Called from the blade view via wire:init, so the AI narration loads
+     * in a separate round trip after the rest of the widget has already
+     * rendered, rather than blocking the whole dashboard on it.
+     */
+    public function loadSummary(): void
+    {
+        $this->summary = $this->summaryText();
+    }
+
+    /**
+     * An admin switching consultants makes the previous summary stale — go
+     * back to the loading state and fetch the new one, rather than leaving
+     * the wrong consultant's narration on screen.
+     */
+    public function updatedConsultantId(): void
+    {
+        $this->summary = null;
+        $this->loadSummary();
     }
 
     public function moreInfoUrl(): string
     {
         return BookingResource::getUrl('index');
+    }
+
+    /**
+     * The monthly report is per-consultant, so it only makes sense — and is
+     * only offered — once an admin has narrowed the dashboard down to one
+     * specific consultant, not while viewing "All Consultants".
+     */
+    public function showMonthlyReportLink(): bool
+    {
+        return $this->isAdmin() && $this->consultantId !== null;
+    }
+
+    public function monthlyReportUrl(): string
+    {
+        return ConsultantMonthlyReport::getUrl(['consultantId' => $this->consultantId]);
     }
 
     /** @param  array{clients: int, candidates: int, gp: float, avgMargin: float, daysPlaced: int, rebookRate: ?float}  $stats */

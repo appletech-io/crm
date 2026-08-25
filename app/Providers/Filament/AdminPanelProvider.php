@@ -9,6 +9,7 @@ use App\Filament\Pages\Analytics\VacanciesReport;
 use App\Filament\Pages\CandidateSettings;
 use App\Filament\Pages\ClientSettings;
 use App\Filament\Pages\ComplianceDashboard;
+use App\Filament\Pages\ConsultantMonthlyReport;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\Integrations\EvertimeIntegration;
 use App\Filament\Pages\Integrations\ListIntegrations;
@@ -106,6 +107,7 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 Dashboard::class,
                 ComplianceDashboard::class,
+                ConsultantMonthlyReport::class,
                 CandidateSettings::class,
                 ClientSettings::class,
                 JobSettings::class,
