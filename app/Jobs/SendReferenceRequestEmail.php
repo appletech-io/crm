@@ -81,7 +81,7 @@ class SendReferenceRequestEmail implements ShouldQueue
             );
 
             $candidate->activities()->create([
-                'user_id' => $candidate->consultant_id,
+                'user_id' => $sender?->id ?? $candidate->consultant_id,
                 'type' => ActivityType::Email->value,
                 'note' => 'Reference request sent',
                 'body' => "Reference request email sent to {$this->refereeName()} ({$this->reference->email})",
