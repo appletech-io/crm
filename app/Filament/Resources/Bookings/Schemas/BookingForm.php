@@ -737,6 +737,15 @@ class BookingForm
             $isCancelled = (bool) ($item['cancelled'] ?? false);
             $existing = $record->dayPeriods()->whereDate('date', $item['date'])->first();
 
+            // A day marked N/A that was never actually booked (e.g. a
+            // weekend on a schedule that only works weekdays) shouldn't
+            // leave a row behind at all. One that WAS booked and has since
+            // been cancelled keeps its row — cancelled, not deleted — so
+            // there's an audit trail of the change.
+            if ($isCancelled && ! $existing) {
+                continue;
+            }
+
             $attributes = [
                 'company_id' => $record->company_id,
                 'date' => $item['date'],
