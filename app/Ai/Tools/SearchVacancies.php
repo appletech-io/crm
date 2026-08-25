@@ -71,12 +71,7 @@ class SearchVacancies implements Tool
 
         return $vacancies
             ->map(function (Vacancy $vacancy): string {
-                $salary = match (true) {
-                    $vacancy->salary_min !== null && $vacancy->salary_max !== null => '£'.number_format($vacancy->salary_min).' - £'.number_format($vacancy->salary_max),
-                    $vacancy->salary_min !== null => 'From £'.number_format($vacancy->salary_min),
-                    $vacancy->salary_max !== null => 'Up to £'.number_format($vacancy->salary_max),
-                    default => 'No salary set',
-                };
+                $pay = $vacancy->pay_range_label ?? ($vacancy->isTemp() ? 'No day rate set' : 'No salary set');
 
                 $availability = $vacancy->open_for_applications ? 'Open for applications' : 'Closed for applications';
 
@@ -85,7 +80,7 @@ class SearchVacancies implements Tool
                 $clientLabel = $clientLink ? "[{$clientLink['label']}]({$clientLink['url']})" : 'Unknown client';
 
                 return "- [{$vacancyLink['label']}]({$vacancyLink['url']}) — {$clientLabel} — {$vacancy->jobTitle?->name} — ".
-                    "{$vacancy->jobStatus?->name} — {$vacancy->positions_available} position(s) — {$salary} — {$availability}";
+                    "{$vacancy->jobStatus?->name} — {$vacancy->positions_available} position(s) — {$pay} — {$availability}";
             })
             ->implode("\n").$this->paginationFooter($vacancies->count(), $offset, $total);
     }

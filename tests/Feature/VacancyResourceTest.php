@@ -856,6 +856,51 @@ test('a temp vacancy persists its cover start and end dates', function () {
         ->and($vacancy->end_date->toDateString())->toBe('2026-09-05');
 });
 
+test('the salary fields are hidden for a temp vacancy and the day rate fields are hidden for a permanent one', function () {
+    Livewire::test(CreateVacancy::class)
+        ->assertFormFieldIsVisible('salary_min')
+        ->assertFormFieldIsVisible('salary_max')
+        ->assertFormFieldIsHidden('day_rate_min')
+        ->assertFormFieldIsHidden('day_rate_max')
+        ->set('data.employment_type', VacancyEmploymentType::Temp->value)
+        ->assertFormFieldIsHidden('salary_min')
+        ->assertFormFieldIsHidden('salary_max')
+        ->assertFormFieldIsVisible('day_rate_min')
+        ->assertFormFieldIsVisible('day_rate_max');
+});
+
+test('switching a vacancy to temp clears any salary already entered, and switching back clears the day rate', function () {
+    Livewire::test(CreateVacancy::class)
+        ->fillForm(['salary_min' => 25000, 'salary_max' => 35000])
+        ->set('data.employment_type', VacancyEmploymentType::Temp->value)
+        ->assertFormSet(['salary_min' => null, 'salary_max' => null])
+        ->fillForm(['day_rate_min' => 150, 'day_rate_max' => 200])
+        ->set('data.employment_type', VacancyEmploymentType::Permanent->value)
+        ->assertFormSet(['day_rate_min' => null, 'day_rate_max' => null]);
+});
+
+test('a temp vacancy persists its day rate range', function () {
+    Livewire::test(CreateVacancy::class)
+        ->fillForm([
+            'client_id' => $this->client->id,
+            'job_title_id' => $this->jobTitle->id,
+            'job_status_id' => $this->jobStatus->id,
+            'title' => 'Supply Teacher',
+            'employment_type' => VacancyEmploymentType::Temp->value,
+            'day_rate_min' => 150,
+            'day_rate_max' => 200,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $vacancy = Vacancy::where('title', 'Supply Teacher')->first();
+
+    expect($vacancy->day_rate_min)->toBe(150.0)
+        ->and($vacancy->day_rate_max)->toBe(200.0)
+        ->and($vacancy->salary_min)->toBeNull()
+        ->and($vacancy->salary_max)->toBeNull();
+});
+
 test('the create booking action is hidden for a permanent vacancy even if the applicant is shortlisted', function () {
     $vacancy = Vacancy::factory()->create([
         'company_id' => $this->company->id,

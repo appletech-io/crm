@@ -36,10 +36,13 @@ class Vacancy extends Model
         return [
             'salary_min' => Money::class,
             'salary_max' => Money::class,
+            'day_rate_min' => Money::class,
+            'day_rate_max' => Money::class,
             'positions_available' => 'integer',
             'employment_type' => VacancyEmploymentType::class,
             'start_date' => 'date',
             'end_date' => 'date',
+            'listing_expires_at' => 'date',
             'placement_fee_percentage' => 'float',
             'open_for_applications' => 'boolean',
             'filled_at' => 'datetime',
@@ -181,6 +184,31 @@ class Vacancy extends Model
     }
 
     /**
+     * A human-readable pay range for display — day rate for a Temp role
+     * (filled via a Booking, so it's never used in salary-based placement
+     * fee/margin figures), salary for everything else. Kept as a single
+     * accessor so every list/report showing "pay" for a vacancy reads the
+     * right field for its type without duplicating the type check.
+     */
+    protected function payRangeLabel(): Attribute
+    {
+        return Attribute::make(
+            get: function (): ?string {
+                [$min, $max, $suffix] = $this->isTemp()
+                    ? [$this->day_rate_min, $this->day_rate_max, '/day']
+                    : [$this->salary_min, $this->salary_max, '/year'];
+
+                return match (true) {
+                    $min !== null && $max !== null => '£'.number_format($min).' - £'.number_format($max).$suffix,
+                    $min !== null => 'From £'.number_format($min).$suffix,
+                    $max !== null => 'Up to £'.number_format($max).$suffix,
+                    default => null,
+                };
+            },
+        );
+    }
+
+    /**
      * A rough placement-fee estimate for this vacancy, used to give the
      * client's Pipeline tab a sense of deal size — the midpoint of the
      * salary range (or whichever bound is set) times the fee percentage,
@@ -231,6 +259,21 @@ class Vacancy extends Model
         }
 
         return $salaries->sum() * ($this->placement_fee_percentage / 100);
+    }
+
+    /**
+     * Vacancies fit to appear on the public jobs feed/website — open for
+     * applications and not past their listing expiry (or with no expiry set
+     * at all, meaning it's listed indefinitely).
+     */
+    public function scopePubliclyListed(Builder $query): Builder
+    {
+        return $query
+            ->where('open_for_applications', true)
+            ->where(function (Builder $query): void {
+                $query->whereNull('listing_expires_at')
+                    ->orWhereDate('listing_expires_at', '>=', now()->toDateString());
+            });
     }
 
     public function scopeVisibleToCurrentUser(Builder $query): Builder
