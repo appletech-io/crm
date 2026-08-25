@@ -557,6 +557,66 @@ test('a booking can be created with custom am/pm day periods', function () {
     ]);
 });
 
+test('a day submitted as N/A with no existing booking day does not create a row at all', function () {
+    Livewire::test(CreateBooking::class)
+        ->fillForm([
+            'client_id' => $this->client->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
+            'job_title_id' => $this->jobTitle->id,
+            'start_date' => '2026-08-03',
+            'end_date' => '2026-08-04',
+            'day_charge_rate' => 320,
+        ])
+        ->fillForm([
+            'day_periods' => [
+                ['date' => '2026-08-03', 'period' => 'full_day', 'cancelled' => false],
+                ['date' => '2026-08-04', 'period' => 'full_day', 'cancelled' => true],
+            ],
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $booking = Booking::first();
+
+    expect($booking->dayPeriods()->count())->toBe(1)
+        ->and($booking->dayPeriods()->whereDate('date', '2026-08-03')->exists())->toBeTrue()
+        ->and($booking->dayPeriods()->whereDate('date', '2026-08-04')->exists())->toBeFalse();
+});
+
+test('a day that was already booked keeps its row when later marked N/A, cancelled rather than deleted', function () {
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'start_date' => '2026-08-03',
+        'end_date' => '2026-08-03',
+        'day_charge_rate' => 320,
+    ]);
+
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-03',
+        'period' => 'full_day',
+    ]);
+
+    Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+        ->fillForm([
+            'day_periods' => [
+                ['date' => '2026-08-03', 'period' => 'full_day', 'cancelled' => true],
+            ],
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $dayPeriod = $booking->dayPeriods()->whereDate('date', '2026-08-03')->first();
+
+    expect($dayPeriod)->not->toBeNull()
+        ->and($dayPeriod->isCancelled())->toBeTrue();
+});
+
 test('edit page renders with the new fields', function () {
     $booking = Booking::factory()->create([
         'company_id' => $this->user->company_id,
@@ -1483,6 +1543,75 @@ test('creating a booking for a different candidate on the same dates does not fa
         ])
         ->call('create')
         ->assertHasNoFormErrors();
+});
+
+test('a booking can leave weekdays blank as N/A, and another booking can then be created around those blank days for the same candidate', function () {
+    Livewire::test(CreateBooking::class)
+        ->fillForm([
+            'client_id' => $this->client->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
+            'job_title_id' => $this->jobTitle->id,
+            'start_date' => '2026-08-03', // Monday
+            'end_date' => '2026-08-07', // Friday
+            'day_charge_rate' => 320,
+        ])
+        ->fillForm([
+            'day_periods' => [
+                ['date' => '2026-08-03', 'period' => 'full_day', 'cancelled' => true], // Monday, blank
+                ['date' => '2026-08-04', 'period' => 'full_day', 'cancelled' => true], // Tuesday, blank
+                ['date' => '2026-08-05', 'period' => 'full_day', 'cancelled' => true], // Wednesday, blank
+                ['date' => '2026-08-06', 'period' => 'full_day', 'cancelled' => false], // Thursday
+                ['date' => '2026-08-07', 'period' => 'full_day', 'cancelled' => false], // Friday
+            ],
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    expect(Booking::count())->toBe(1);
+
+    $firstBooking = Booking::first();
+
+    // The blank Monday/Tuesday/Wednesday never had a booking day to begin
+    // with, so no row should exist for them at all.
+    expect($firstBooking->dayPeriods()->count())->toBe(2)
+        ->and($firstBooking->dayPeriods()->whereDate('date', '2026-08-03')->exists())->toBeFalse()
+        ->and($firstBooking->dayPeriods()->whereDate('date', '2026-08-04')->exists())->toBeFalse()
+        ->and($firstBooking->dayPeriods()->whereDate('date', '2026-08-05')->exists())->toBeFalse()
+        ->and($firstBooking->dayPeriods()->whereDate('date', '2026-08-06')->exists())->toBeTrue()
+        ->and($firstBooking->dayPeriods()->whereDate('date', '2026-08-07')->exists())->toBeTrue();
+
+    // A second booking for the SAME candidate covering exactly those blank
+    // days should not be treated as an overlap, since nothing was ever
+    // booked on them.
+    Livewire::test(CreateBooking::class)
+        ->fillForm([
+            'client_id' => $this->client->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
+            'job_title_id' => $this->jobTitle->id,
+            'start_date' => '2026-08-03',
+            'end_date' => '2026-08-05',
+            'day_charge_rate' => 280,
+        ])
+        ->fillForm([
+            'day_periods' => [
+                ['date' => '2026-08-03', 'period' => 'full_day', 'cancelled' => false],
+                ['date' => '2026-08-04', 'period' => 'full_day', 'cancelled' => false],
+                ['date' => '2026-08-05', 'period' => 'full_day', 'cancelled' => false],
+            ],
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    expect(Booking::count())->toBe(2);
+
+    $secondBooking = Booking::latest('id')->first();
+
+    expect($secondBooking->dayPeriods()->count())->toBe(3)
+        ->and($secondBooking->dayPeriods()->whereDate('date', '2026-08-03')->exists())->toBeTrue()
+        ->and($secondBooking->dayPeriods()->whereDate('date', '2026-08-04')->exists())->toBeTrue()
+        ->and($secondBooking->dayPeriods()->whereDate('date', '2026-08-05')->exists())->toBeTrue();
 });
 
 test('am and pm bookings on the same day for the same candidate do not conflict', function () {
