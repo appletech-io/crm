@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\PortalAccounts\Tables;
 
+use App\Filament\Support\CandidateSummaryAction;
+use App\Filament\Support\ClientSummaryAction;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use App\Models\User;
@@ -41,6 +43,10 @@ class PortalAccountsTable
                     }),
             ])
             ->recordActions([
+                CandidateSummaryAction::make(fn (User $record) => $record->candidate instanceof EducationCandidate || $record->candidate instanceof HealthcareCandidate
+                    ? $record->candidate
+                    : null),
+                ClientSummaryAction::make(fn (User $record) => $record->client()),
                 Action::make('resetPassword')
                     ->label('Reset Password')
                     ->icon('heroicon-o-key')

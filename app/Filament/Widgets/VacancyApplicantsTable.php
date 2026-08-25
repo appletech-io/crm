@@ -8,6 +8,7 @@ use App\Enums\ActivityType;
 use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Filament\Resources\HealthcareCandidates\HealthcareCandidateResource;
+use App\Filament\Support\CandidateSummaryAction;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use App\Models\Vacancy;
@@ -167,6 +168,7 @@ class VacancyApplicantsTable extends TableWidget
                         'job_title_id' => $this->record->job_title_id,
                         'dates' => $this->coverDates(),
                     ])),
+                CandidateSummaryAction::make(fn (VacancyApplication $record) => $record->candidate),
                 Action::make('viewCandidate')
                     ->label('View')
                     ->icon('heroicon-o-eye')

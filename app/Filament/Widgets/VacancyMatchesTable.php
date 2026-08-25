@@ -5,6 +5,7 @@ namespace App\Filament\Widgets;
 use App\Enums\ActivityType;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Filament\Resources\HealthcareCandidates\HealthcareCandidateResource;
+use App\Filament\Support\CandidateSummaryAction;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use App\Models\Vacancy;
@@ -118,6 +119,7 @@ class VacancyMatchesTable extends TableWidget
                             ->title('Candidate marked as placed')
                             ->send();
                     }),
+                CandidateSummaryAction::make(fn (VacancyCandidateMatch $record) => $record->candidate),
                 Action::make('viewCandidate')
                     ->label('View')
                     ->icon('heroicon-o-eye')

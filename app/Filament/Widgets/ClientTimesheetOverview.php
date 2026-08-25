@@ -4,6 +4,7 @@ namespace App\Filament\Widgets;
 
 use App\Filament\Concerns\HasTimesheetPeriodNavigation;
 use App\Filament\Resources\Bookings\BookingResource;
+use App\Filament\Support\CandidateSummaryAction;
 use App\Models\BookingDay;
 use App\Models\Client;
 use App\Models\Company;
@@ -61,6 +62,9 @@ class ClientTimesheetOverview extends BaseWidget
                         'disputed' => 'danger',
                         default => 'gray',
                     }),
+            ])
+            ->recordActions([
+                CandidateSummaryAction::make(fn (BookingDay $record) => $record->booking?->candidate),
             ])
             ->headerActions([
                 ...$this->periodNavigationActions(),

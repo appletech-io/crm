@@ -4,6 +4,7 @@ namespace App\Filament\Widgets;
 
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Filament\Resources\HealthcareCandidates\HealthcareCandidateResource;
+use App\Filament\Support\CandidateSummaryAction;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use App\Models\Vacancy;
@@ -61,6 +62,7 @@ class VacancyPlacementsTable extends TableWidget
                     ])
                     ->fillForm(fn (VacancyPlacement $record): array => ['actual_salary' => $record->actual_salary])
                     ->action(fn (VacancyPlacement $record, array $data): bool => $record->update(['actual_salary' => $data['actual_salary']])),
+                CandidateSummaryAction::make(fn (VacancyPlacement $record) => $record->candidate),
                 Action::make('viewCandidate')
                     ->label('View')
                     ->icon('heroicon-o-eye')
