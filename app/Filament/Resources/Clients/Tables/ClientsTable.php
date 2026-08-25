@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Clients\Tables;
 
 use App\Enums\EmailTemplateAudience;
+use App\Filament\Support\ClientSummaryAction;
 use App\Filament\Support\SendCustomEmailAction;
 use App\Models\User;
 use Filament\Actions\BulkActionGroup;
@@ -55,6 +56,7 @@ class ClientsTable
                 TrashedFilter::make(),
             ])
             ->recordActions([
+                ClientSummaryAction::make(),
                 SendCustomEmailAction::record(EmailTemplateAudience::Client),
                 EditAction::make(),
             ])

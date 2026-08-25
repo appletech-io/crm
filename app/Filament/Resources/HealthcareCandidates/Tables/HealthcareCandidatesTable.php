@@ -4,6 +4,7 @@ namespace App\Filament\Resources\HealthcareCandidates\Tables;
 
 use App\Enums\EmailTemplateAudience;
 use App\Filament\Support\AddToCandidatePoolAction;
+use App\Filament\Support\CandidateSummaryAction;
 use App\Filament\Support\ExportCandidatesCsvAction;
 use App\Filament\Support\SendCustomEmailAction;
 use App\Models\CandidateSkill;
@@ -129,6 +130,7 @@ class HealthcareCandidatesTable
                 TrashedFilter::make(),
             ])
             ->recordActions([
+                CandidateSummaryAction::make(),
                 SendCustomEmailAction::record(EmailTemplateAudience::Candidate),
                 EditAction::make(),
             ])

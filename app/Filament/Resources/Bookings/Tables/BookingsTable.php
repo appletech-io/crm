@@ -4,6 +4,8 @@ namespace App\Filament\Resources\Bookings\Tables;
 
 use App\Enums\BookingStatus;
 use App\Filament\Resources\Bookings\BookingFilters;
+use App\Filament\Support\CandidateSummaryAction;
+use App\Filament\Support\ClientSummaryAction;
 use App\Models\Booking;
 use App\Models\Industry;
 use Filament\Actions\BulkActionGroup;
@@ -80,6 +82,8 @@ class BookingsTable
                 TrashedFilter::make(),
             ])
             ->recordActions([
+                ClientSummaryAction::make(fn (Booking $record) => $record->client),
+                CandidateSummaryAction::make(fn (Booking $record) => $record->candidate()->withTrashed()->first()),
                 EditAction::make(),
             ])
             ->toolbarActions([
