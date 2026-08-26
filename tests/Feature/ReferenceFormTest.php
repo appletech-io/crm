@@ -2,10 +2,12 @@
 
 use App\Enums\ReferenceStatus;
 use App\Models\CandidateReference;
+use App\Models\Company;
 use App\Models\EducationCandidate;
 use App\Models\User;
 use App\Services\ReferenceAccessSession;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 function makeVerifiedReference(array $attributes = []): CandidateReference
@@ -54,6 +56,58 @@ test('it renders the agency form with dates and the safeguarding question', func
         ->assertSee('Worked From')
         ->assertSee('safeguarding, child protection or disciplinary')
         ->assertDontSee('Recommendations and engagement');
+});
+
+test('the safeguarding question names the candidates own company, not a hardcoded one', function () {
+    $company = Company::factory()->create(['trading_name' => 'Bright Path Recruitment']);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $company->id]);
+
+    $reference = $candidate->references()->create([
+        'type' => 'agency',
+        'first_name' => 'Ref',
+        'last_name' => 'Eree',
+        'email' => 'referee@example.com',
+        'consent_to_contact' => true,
+        'contact_now' => true,
+        'status' => ReferenceStatus::Contacted,
+        'token' => 'the-token-'.uniqid(),
+        'expires_on' => now()->addDays(7),
+    ]);
+    ReferenceAccessSession::markVerified($reference->token);
+
+    Livewire::test('reference.reference-form', ['token' => $reference->token])
+        ->assertSuccessful()
+        ->assertSee('Please inform Bright Path Recruitment of any safeguarding')
+        ->assertDontSee('Applebough');
+});
+
+test('the page layout shows the candidates own company logo, not the default', function () {
+    // A full HTTP request, not Livewire::test(), because the surrounding
+    // layout (where the logo lives) is only rendered as part of the real
+    // page response — a component test only returns the component's own
+    // markup, never the layout it's wrapped in.
+    Storage::fake('local');
+    Storage::disk('local')->put('company-logos/acme.png', 'fake logo contents');
+    $company = Company::factory()->create(['logo' => 'company-logos/acme.png']);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $company->id]);
+
+    $reference = $candidate->references()->create([
+        'type' => 'professional',
+        'first_name' => 'Ref',
+        'last_name' => 'Eree',
+        'email' => 'referee@example.com',
+        'consent_to_contact' => true,
+        'contact_now' => true,
+        'status' => ReferenceStatus::Contacted,
+        'token' => 'the-token-'.uniqid(),
+        'expires_on' => now()->addDays(7),
+    ]);
+    ReferenceAccessSession::markVerified($reference->token);
+
+    $this->get(route('reference.form', ['token' => $reference->token]))
+        ->assertOk()
+        ->assertSee(route('company.logo', $company), false)
+        ->assertDontSee(asset('images/appletech.png'), false);
 });
 
 test('it renders the academic form with only the dates', function () {

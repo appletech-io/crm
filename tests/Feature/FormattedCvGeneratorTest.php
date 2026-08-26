@@ -78,6 +78,21 @@ test('running generation again updates the same row rather than creating a dupli
     expect(FormattedCv::where('candidate_type', EducationCandidate::class)->where('candidate_id', $this->candidate->id)->count())->toBe(1);
 });
 
+test('the cv logo uses the candidates own company logo when one is uploaded, falling back to the default otherwise', function () {
+    $method = new ReflectionMethod(FormattedCvGenerator::class, 'logoDataUri');
+    $method->setAccessible(true);
+
+    $default = $method->invoke(app(FormattedCvGenerator::class), $this->candidate);
+    expect($default)->toBe('data:image/png;base64,'.base64_encode(file_get_contents(public_path('images/appletech.png'))));
+
+    $contents = file_get_contents(base_path('public/images/appletech.png'));
+    Storage::disk('local')->put('company-logos/acme.png', $contents);
+    $this->company->update(['logo' => 'company-logos/acme.png']);
+
+    $custom = $method->invoke(app(FormattedCvGenerator::class), $this->candidate->fresh());
+    expect($custom)->toBe('data:image/png;base64,'.base64_encode($contents));
+});
+
 test('regeneratePdf re-renders the pdf from the currently saved content without re-parsing', function () {
     CvParser::fake(fn () => ['firstName' => 'Jane', 'lastName' => 'Doe']);
 

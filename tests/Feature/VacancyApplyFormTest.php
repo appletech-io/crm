@@ -246,6 +246,41 @@ test('applying end to end for an education vacancy creates a basic candidate wit
     expect($candidate->vacancyApplications()->where('vacancy_id', $vacancy->id)->exists())->toBeTrue();
 });
 
+test('applying to a client-less temp vacancy still creates a candidate against the vacancy\'s own company and industry', function () {
+    $company = Company::factory()->create();
+    $industry = Industry::factory()->create(['slug' => 'education']);
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $company->id,
+        'client_id' => null,
+        'industry_id' => $industry->id,
+        'employment_type' => 'temp',
+    ]);
+
+    Livewire::test('vacancy.apply-form', ['vacancy' => $vacancy])
+        ->call('skipCv')
+        ->set('first_name', 'Jane')
+        ->set('last_name', 'Doe')
+        ->set('email', 'jane.doe@example.com')
+        ->set('phone', '07123456789')
+        ->set('address', '1 Test Street')
+        ->set('city', 'London')
+        ->set('postcode', 'SW1A 1AA')
+        ->call('savePersonalDetails')
+        ->assertHasNoErrors()
+        ->assertSet('step', 3)
+        ->set('employmentHistories.0.company_name', 'Oakwood Primary')
+        ->set('employmentHistories.0.job_title', 'Class Teacher')
+        ->set('employmentHistories.0.worked_from', '2020-09-01')
+        ->call('saveEmploymentHistory')
+        ->assertHasNoErrors()
+        ->assertSet('step', 4);
+
+    $candidate = EducationCandidate::where('email', 'jane.doe@example.com')->first();
+
+    expect($candidate)->not->toBeNull();
+    expect($candidate->company_id)->toBe($company->id);
+});
+
 test('applying to a healthcare vacancy creates a healthcare candidate, proving the industry resolution is generic', function () {
     $vacancy = createVacancyFor('healthcare');
 

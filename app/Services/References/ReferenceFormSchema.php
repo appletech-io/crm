@@ -33,7 +33,7 @@ class ReferenceFormSchema
     ];
 
     /** @return array<int, array{heading: ?string, fields: array<int, array<string, mixed>>}> */
-    public static function sectionsFor(ReferenceType $type): array
+    public static function sectionsFor(ReferenceType $type, string $companyName): array
     {
         return match ($type) {
             ReferenceType::Agency => [
@@ -42,7 +42,7 @@ class ReferenceFormSchema
                     'fields' => [
                         self::dateField('worked_from', 'Worked From'),
                         self::dateField('worked_to', 'Worked To'),
-                        self::radioField('safeguarding_issues', 'Please inform Applebough Education of any safeguarding, child protection or disciplinary issues relating to this candidate', self::YES_NO_OPTIONS),
+                        self::radioField('safeguarding_issues', "Please inform {$companyName} of any safeguarding, child protection or disciplinary issues relating to this candidate", self::YES_NO_OPTIONS),
                         self::textareaField('safeguarding_details', 'Please provide details', showWhen: ['safeguarding_issues', 'yes']),
                     ],
                 ],
@@ -73,7 +73,7 @@ class ReferenceFormSchema
                     'fields' => [
                         self::dateField('worked_from', 'Worked From'),
                         self::dateField('worked_to', 'Worked To'),
-                        self::radioField('safeguarding_issues', 'Please inform Applebough Education of any safeguarding, child protection or disciplinary issues relating to this candidate', self::YES_NO_OPTIONS),
+                        self::radioField('safeguarding_issues', "Please inform {$companyName} of any safeguarding, child protection or disciplinary issues relating to this candidate", self::YES_NO_OPTIONS),
                         self::textareaField('safeguarding_details', 'Please provide details', showWhen: ['safeguarding_issues', 'yes']),
                     ],
                 ],
@@ -118,12 +118,17 @@ class ReferenceFormSchema
         return $type !== ReferenceType::Character;
     }
 
-    /** @return array<string, array<int, string>> */
+    /**
+     * The company name only ever affects a field's label text, never its
+     * validation rules, so this doesn't need the real one from the caller.
+     *
+     * @return array<string, array<int, string>>
+     */
     public static function rulesFor(ReferenceType $type): array
     {
         $rules = [];
 
-        foreach (self::sectionsFor($type) as $section) {
+        foreach (self::sectionsFor($type, '') as $section) {
             foreach ($section['fields'] as $field) {
                 $rules["answers.{$field['key']}"] = self::rulesForField($field);
             }
@@ -133,11 +138,11 @@ class ReferenceFormSchema
     }
 
     /** @return array<string, string> */
-    public static function attributeNamesFor(ReferenceType $type): array
+    public static function attributeNamesFor(ReferenceType $type, string $companyName): array
     {
         $names = [];
 
-        foreach (self::sectionsFor($type) as $section) {
+        foreach (self::sectionsFor($type, $companyName) as $section) {
             foreach ($section['fields'] as $field) {
                 $names["answers.{$field['key']}"] = $field['label'];
             }

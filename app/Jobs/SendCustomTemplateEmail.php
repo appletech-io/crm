@@ -77,7 +77,7 @@ class SendCustomTemplateEmail implements ShouldQueue
             // below, so it still renders normally when viewed back in the CRM.
             $embeddedImages = EmailBodyImages::embedInline($body);
 
-            $attachments = [EmailFooter::logoAttachment(), ...$embeddedImages['attachments']];
+            $attachments = [EmailFooter::logoAttachment($company), ...$embeddedImages['attachments']];
 
             foreach ($this->adHocAttachments as $path) {
                 if (! $disk->exists($path)) {

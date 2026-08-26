@@ -48,7 +48,15 @@ new #[Layout('layouts.application')] class extends Component
     #[Computed]
     public function sections(): array
     {
-        return ReferenceFormSchema::sectionsFor($this->reference->type);
+        return ReferenceFormSchema::sectionsFor($this->reference->type, $this->companyName);
+    }
+
+    #[Computed]
+    public function companyName(): string
+    {
+        $company = $this->reference->candidate?->company;
+
+        return $company?->trading_name ?: config('app.name');
     }
 
     #[Computed]
@@ -92,7 +100,7 @@ new #[Layout('layouts.application')] class extends Component
         }
 
         $rules = ReferenceFormSchema::rulesFor($this->reference->type);
-        $attributes = ReferenceFormSchema::attributeNamesFor($this->reference->type);
+        $attributes = ReferenceFormSchema::attributeNamesFor($this->reference->type, $this->companyName);
 
         $rules['answers.confirm_name'] = ['required', 'string', 'max:255'];
         $attributes['answers.confirm_name'] = 'name';

@@ -92,6 +92,32 @@ test('a non-admin consultant can directly open another consultants candidate edi
         ->assertSuccessful();
 });
 
+test('the My Candidates toggle filters to only the current users own candidates, and is visible to non-admins too', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+
+    $ownCandidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'consultant_id' => $consultant->id,
+    ]);
+
+    $otherConsultantCandidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'consultant_id' => $this->user->id,
+    ]);
+
+    $this->actingAs($consultant);
+    Cache::put("user.{$consultant->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$consultant->id}.active_industry_id", $this->industry->id);
+
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'all')
+        ->assertTableFilterVisible('my_candidates')
+        ->filterTable('my_candidates', true)
+        ->assertCanSeeTableRecords([$ownCandidate])
+        ->assertCanNotSeeTableRecords([$otherConsultantCandidate]);
+});
+
 test('the consultant filter is only visible to admins', function () {
     $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
     $consultant->assignRole('consultant');

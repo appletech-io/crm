@@ -132,7 +132,7 @@
 </head>
 <body>
     <header>
-        <img src="{{ public_path('images/applebough.png') }}" alt="{{ config('app.name') }}">
+        <img src="{{ $logoDataUri }}" alt="{{ config('app.name') }}">
     </header>
 
     <footer>

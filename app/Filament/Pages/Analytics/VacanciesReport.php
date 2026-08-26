@@ -83,7 +83,7 @@ class VacanciesReport extends Page implements HasTable
             ->query(Vacancy::query()->forActiveIndustry()->with(['client', 'jobTitle', 'jobStatus', 'consultant']))
             ->columns([
                 TextColumn::make('jobTitle.name')->label('Role')->searchable()->sortable(),
-                TextColumn::make('client.name')->label('Client')->searchable()->sortable(),
+                TextColumn::make('client.name')->label('Client')->placeholder('General cover')->searchable()->sortable(),
                 TextColumn::make('consultant.name')->label('Consultant')->searchable()->sortable(),
                 TextColumn::make('jobStatus.name')->label('Status')->badge()->color(fn (Vacancy $record): ?string => $record->jobStatus?->color),
                 TextColumn::make('employment_type')->label('Type')->badge()->formatStateUsing(fn (VacancyEmploymentType $state): string => $state->label())->color(fn (VacancyEmploymentType $state): string => $state === VacancyEmploymentType::Temp ? 'warning' : 'gray'),

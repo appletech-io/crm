@@ -6,6 +6,8 @@ use App\Filament\Resources\Companies\Pages\EditCompany;
 use App\Models\Company;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -68,6 +70,23 @@ test('legal details can be saved via the edit page', function () {
     expect($fresh->trading_name)->toBe('Applebough Recruitment')
         ->and($fresh->legal_name)->toBe('Applebough Group Ltd')
         ->and($fresh->company_number)->toBe('12345678');
+});
+
+test('a logo can be uploaded via the edit page', function () {
+    Storage::fake('local');
+
+    $company = Company::factory()->create(['email_provider' => EmailProvider::Mailgun]);
+    $file = UploadedFile::fake()->image('logo.png');
+
+    Livewire::test(EditCompany::class, ['record' => $company->getRouteKey()])
+        ->fillForm(['logo' => $file])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $fresh = $company->fresh();
+
+    expect($fresh->logo)->not->toBeNull();
+    Storage::disk('local')->assertExists($fresh->logo);
 });
 
 test('a company defaults to weekly timesheet frequency', function () {

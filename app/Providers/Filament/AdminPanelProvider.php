@@ -139,7 +139,10 @@ class AdminPanelProvider extends PanelProvider
                 EnsureAccountSetupIsComplete::class,
                 SetActiveIndustry::class,
             ])
-            ->brandLogo(asset('images/applebough.png'))
+            // Only resolvable once a user is authenticated — the login
+            // screen itself, reached before we know who's signing in, still
+            // shows the platform's own default logo.
+            ->brandLogo(fn (): string => auth()->user()?->company?->logoUrl() ?? asset('images/appletech.png'))
             // ->brandLogoDarkMode(asset('images/logo-dark.svg'))
             ->brandLogoHeight('3rem')
             // ->favicon(asset('images/logo-icon.svg'))

@@ -28,13 +28,13 @@ class MatchCandidatesToVacancy implements ShouldQueue
 
     public function handle(CandidateMatcher $matcher): void
     {
-        $vacancy = Vacancy::with(['client', 'skills', 'jobTitle'])->find($this->vacancyId);
+        $vacancy = Vacancy::with(['client', 'industry', 'skills', 'jobTitle'])->find($this->vacancyId);
 
-        if (! $vacancy || ! $vacancy->client) {
+        if (! $vacancy) {
             return;
         }
 
-        $candidateModelClass = Industry::candidateModelForSlug($vacancy->client->industry->slug);
+        $candidateModelClass = Industry::candidateModelForSlug($vacancy->industry->slug);
 
         if (! $candidateModelClass) {
             return;

@@ -1,3 +1,9 @@
+<?php
+    // Resolved from the route's {token} rather than passed in by the
+    // Livewire component wrapped in this layout — see
+    // PublicApplicationCompanyResolver for why.
+    $logoUrl = \App\Services\PublicApplicationCompanyResolver::forToken(request()->route('token'))?->logoUrl();
+?>
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
@@ -21,7 +27,7 @@
             <div class="flex w-4/5 {{ $maxWidth ?? 'max-w-2xl' }} flex-col gap-2">
                 <a href="{{ route('home') }}" class="flex flex-col items-center gap-2 font-medium" wire:navigate>
                     <span class="flex mb-1 items-center justify-center rounded-md">
-                        <img src="{{ asset('images/applebough.png') }}" class="h-16 w-auto">
+                        <img src="{{ $logoUrl ?? asset('images/appletech.png') }}" class="h-16 w-auto">
                     </span>
                     <span class="sr-only">{{ config('app.name', 'Laravel') }}</span>
                 </a>

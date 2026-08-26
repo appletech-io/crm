@@ -28,6 +28,7 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -327,6 +328,9 @@ class BookingForm
                         Placeholder::make('margin_net')
                             ->label('Net Margin')
                             ->content(fn (Get $get): string => static::marginBreakdown($get)['marginLabel']),
+                        View::make('filament.forms.components.margin-daily-breakdown')
+                            ->viewData(fn (Get $get): array => ['rows' => static::dailyBreakdown($get)])
+                            ->columnSpanFull(),
                     ])
                     ->columns(3),
 
@@ -411,40 +415,10 @@ class BookingForm
      */
     protected static function marginBreakdown(Get $get): array
     {
-        $activeDays = collect($get('day_periods') ?? [])
-            ->reject(fn (array $entry): bool => $entry['cancelled'] ?? false);
+        $dayAmounts = static::activeDayAmounts($get);
 
-        $payRates = [
-            BookingDayPeriod::FullDay->value => (float) ($get('day_rate') ?? 0),
-            BookingDayPeriod::Am->value => (float) ($get('half_day_rate') ?? 0),
-            BookingDayPeriod::Pm->value => (float) ($get('half_day_rate') ?? 0),
-            BookingDayPeriod::Hours->value => (float) ($get('hourly_rate') ?? 0),
-        ];
-
-        $chargeRates = [
-            BookingDayPeriod::FullDay->value => (float) ($get('day_charge_rate') ?? 0),
-            BookingDayPeriod::Am->value => (float) ($get('half_day_charge_rate') ?? 0),
-            BookingDayPeriod::Pm->value => (float) ($get('half_day_charge_rate') ?? 0),
-            BookingDayPeriod::Hours->value => (float) ($get('hourly_charge_rate') ?? 0),
-        ];
-
-        $totalPay = 0.0;
-        $totalCharge = 0.0;
-
-        foreach ($activeDays as $entry) {
-            $period = $entry['period'] ?? null;
-
-            if (! $period) {
-                continue;
-            }
-
-            $units = $period === BookingDayPeriod::Hours->value
-                ? static::entryHours($entry)
-                : 1.0;
-
-            $totalPay += ($payRates[$period] ?? 0) * $units;
-            $totalCharge += ($chargeRates[$period] ?? 0) * $units;
-        }
+        $totalPay = $dayAmounts->sum('pay');
+        $totalCharge = $dayAmounts->sum('charge');
 
         $paymentMethod = static::candidatePaymentMethod($get('candidate_id'));
         $oncosts = $paymentMethod === PaymentMethod::Paye ? round($totalPay * self::PAYE_ONCOST_RATE, 2) : 0.0;
@@ -475,6 +449,72 @@ class BookingForm
             'margin' => $margin,
             'marginLabel' => $marginLabel,
         ];
+    }
+
+    /** @return Collection<int, array{date: ?string, period: string, pay: float, charge: float}> */
+    private static function activeDayAmounts(Get $get): Collection
+    {
+        $payRates = [
+            BookingDayPeriod::FullDay->value => (float) ($get('day_rate') ?? 0),
+            BookingDayPeriod::Am->value => (float) ($get('half_day_rate') ?? 0),
+            BookingDayPeriod::Pm->value => (float) ($get('half_day_rate') ?? 0),
+            BookingDayPeriod::Hours->value => (float) ($get('hourly_rate') ?? 0),
+        ];
+
+        $chargeRates = [
+            BookingDayPeriod::FullDay->value => (float) ($get('day_charge_rate') ?? 0),
+            BookingDayPeriod::Am->value => (float) ($get('half_day_charge_rate') ?? 0),
+            BookingDayPeriod::Pm->value => (float) ($get('half_day_charge_rate') ?? 0),
+            BookingDayPeriod::Hours->value => (float) ($get('hourly_charge_rate') ?? 0),
+        ];
+
+        return collect($get('day_periods') ?? [])
+            ->reject(fn (array $entry): bool => $entry['cancelled'] ?? false)
+            ->filter(fn (array $entry): bool => filled($entry['period'] ?? null))
+            ->map(function (array $entry) use ($payRates, $chargeRates): array {
+                $period = $entry['period'];
+                $units = $period === BookingDayPeriod::Hours->value
+                    ? static::entryHours($entry)
+                    : 1.0;
+
+                return [
+                    'date' => $entry['date'] ?? null,
+                    'period' => $period,
+                    'pay' => ($payRates[$period] ?? 0) * $units,
+                    'charge' => ($chargeRates[$period] ?? 0) * $units,
+                ];
+            })
+            ->values();
+    }
+
+    /** @return array<int, array{date: string, periodLabel: string, payLabel: string, chargeLabel: string, marginLabel: string}> */
+    protected static function dailyBreakdown(Get $get): array
+    {
+        $paymentMethod = static::candidatePaymentMethod($get('candidate_id'));
+
+        $periodLabels = [
+            BookingDayPeriod::FullDay->value => 'Full Day',
+            BookingDayPeriod::Am->value => 'AM',
+            BookingDayPeriod::Pm->value => 'PM',
+            BookingDayPeriod::Hours->value => 'Hours',
+        ];
+
+        return static::activeDayAmounts($get)
+            ->sortBy('date')
+            ->map(function (array $day) use ($paymentMethod, $periodLabels): array {
+                $oncost = $paymentMethod === PaymentMethod::Paye ? round($day['pay'] * self::PAYE_ONCOST_RATE, 2) : 0.0;
+                $margin = round($day['charge'] - $day['pay'] - $oncost, 2);
+
+                return [
+                    'date' => $day['date'] ? Carbon::parse($day['date'])->format('D j M Y') : 'Unknown date',
+                    'periodLabel' => $periodLabels[$day['period']] ?? $day['period'],
+                    'payLabel' => '£'.number_format($day['pay'], 2),
+                    'chargeLabel' => '£'.number_format($day['charge'], 2),
+                    'marginLabel' => '£'.number_format($margin, 2),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private static function entryHours(array $entry): float

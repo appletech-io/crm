@@ -501,6 +501,35 @@ test('client, job title, status and title are required', function () {
         ->assertHasFormErrors(['client_id', 'job_title_id', 'job_status_id', 'title']);
 });
 
+test('client is required for a permanent vacancy but not for a temp vacancy', function () {
+    Livewire::test(CreateVacancy::class)
+        ->fillForm([
+            'client_id' => null,
+            'job_title_id' => $this->jobTitle->id,
+            'job_status_id' => $this->jobStatus->id,
+            'title' => 'Year 3 Class Teacher',
+            'employment_type' => VacancyEmploymentType::Permanent->value,
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['client_id']);
+
+    Livewire::test(CreateVacancy::class)
+        ->fillForm([
+            'client_id' => null,
+            'job_title_id' => $this->jobTitle->id,
+            'job_status_id' => $this->jobStatus->id,
+            'title' => 'General Supply Cover',
+            'employment_type' => VacancyEmploymentType::Temp->value,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $vacancy = Vacancy::where('title', 'General Supply Cover')->first();
+
+    expect($vacancy->client_id)->toBeNull()
+        ->and($vacancy->industry_id)->toBe($this->industry->id);
+});
+
 test('skills can be attached to a vacancy and persist', function () {
     $skillA = CandidateSkill::factory()->create([
         'company_id' => $this->company->id,
@@ -591,6 +620,20 @@ test('a vacancy for a client in a different industry is not visible', function (
     Livewire::test(ListVacancies::class)
         ->assertCanSeeTableRecords([$mine])
         ->assertCanNotSeeTableRecords([$otherIndustryVacancy]);
+});
+
+test('a client-less temp vacancy still shows up in its own industry\'s list', function () {
+    $generalCover = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => null,
+        'industry_id' => $this->industry->id,
+        'job_title_id' => $this->jobTitle->id,
+        'consultant_id' => $this->user->id,
+        'employment_type' => VacancyEmploymentType::Temp,
+    ]);
+
+    Livewire::test(ListVacancies::class)
+        ->assertCanSeeTableRecords([$generalCover]);
 });
 
 test('a vacancy defaults to permanent employment type', function () {

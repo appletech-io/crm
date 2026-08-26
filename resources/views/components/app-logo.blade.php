@@ -5,7 +5,7 @@
 @if($sidebar)
     <a href="{{ route('dashboard') }}" wire:navigate>
         <img
-            src="{{ asset('images/applebough.png') }}"
+            src="{{ asset('images/appletech.png') }}"
             alt="{{ config('app.name') }}"
             class="w-36 h-auto object-contain"
         />
@@ -14,7 +14,7 @@
     <flux:brand {{ $attributes }}>
         <x-slot name="logo">
             <img
-                src="{{ asset('images/applebough.png') }}"
+                src="{{ asset('images/appletech.png') }}"
                 alt="{{ config('app.name') }}"
                 class="w-36 h-auto object-contain"
             />

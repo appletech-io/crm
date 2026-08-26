@@ -3,6 +3,7 @@
 use App\Models\Company;
 use App\Models\User;
 use App\Services\Mail\EmailFooter;
+use Illuminate\Support\Facades\Storage;
 
 test('it includes the consultants name, job title, mobile and email when a consultant is given', function () {
     $company = Company::factory()->create(['phone' => '0121 827 4646', 'website' => 'www.applebough.co.uk']);
@@ -24,12 +25,27 @@ test('it includes the consultants name, job title, mobile and email when a consu
         ->toContain('cid:applebough-logo');
 });
 
-test('the logo attachment points at the real logo file with the matching content id', function () {
-    $attachment = EmailFooter::logoAttachment();
+test('the logo attachment uses the default logo file for a company with none uploaded', function () {
+    $company = Company::factory()->create(['logo' => null]);
 
-    expect($attachment['path'])->toEndWith('images/applebough.png')
-        ->and(file_exists($attachment['path']))->toBeTrue()
+    $attachment = EmailFooter::logoAttachment($company);
+
+    expect($attachment['content'])->toBe(file_get_contents(public_path('images/appletech.png')))
+        ->and($attachment['mimeType'])->toBe('image/png')
         ->and($attachment['inline'])->toBeTrue()
+        ->and($attachment['contentId'])->toBe('applebough-logo');
+});
+
+test('the logo attachment uses the companys own uploaded logo when it has one', function () {
+    Storage::fake('local');
+    $contents = file_get_contents(public_path('images/appletech.png'));
+    Storage::disk('local')->put('company-logos/acme.png', $contents);
+
+    $company = Company::factory()->create(['logo' => 'company-logos/acme.png']);
+
+    $attachment = EmailFooter::logoAttachment($company);
+
+    expect($attachment['content'])->toBe($contents)
         ->and($attachment['contentId'])->toBe('applebough-logo');
 });
 

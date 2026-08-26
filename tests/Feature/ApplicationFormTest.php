@@ -70,6 +70,26 @@ test('form renders step 1 for valid pending application', function () {
         ->assertSee('Upload Your CV');
 });
 
+test('the page layout shows the candidates own company logo, not the default', function () {
+    // A full HTTP request, not Livewire::test(), because the surrounding
+    // layout (where the logo lives) is only rendered as part of the real
+    // page response — a component test only returns the component's own
+    // markup, never the layout it's wrapped in.
+    Storage::disk('local')->put('company-logos/acme.png', 'fake logo contents');
+    $company = Company::factory()->create(['logo' => 'company-logos/acme.png']);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $company->id]);
+    $application = EducationApplication::factory()->create([
+        'education_candidate_id' => $candidate->id,
+        'status' => 'pending',
+    ]);
+    ApplicationAccessSession::markVerified($application->token);
+
+    $this->get(route('application.form', ['token' => $application->token]))
+        ->assertOk()
+        ->assertSee(route('company.logo', $company), false)
+        ->assertDontSee(asset('images/appletech.png'), false);
+});
+
 test('mount aborts 404 for unknown token', function () {
     Livewire::test('application.application-form', ['token' => 'invalid-token'])
         ->assertStatus(404);
@@ -1796,6 +1816,21 @@ test('toggleReferenceCollapsed expands and collapses a reference', function () {
         ->assertSet('references.0.collapsed', true)
         ->call('toggleReferenceCollapsed', 0)
         ->assertSet('references.0.collapsed', false);
+});
+
+test('the reference consent checkbox names the candidates own company, not a hardcoded one', function () {
+    $company = Company::factory()->create(['trading_name' => 'Bright Path Recruitment']);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $company->id]);
+    $application = EducationApplication::factory()->create([
+        'education_candidate_id' => $candidate->id,
+        'status' => 'pending',
+    ]);
+    ApplicationAccessSession::markVerified($application->token);
+
+    Livewire::test('application.application-form', ['token' => $application->token])
+        ->set('currentStep', 9)
+        ->assertSee('I hereby authorise Bright Path Recruitment to contact the referees')
+        ->assertDontSee('Applebough');
 });
 
 test('removeReference deletes an already-saved reference from the database', function () {

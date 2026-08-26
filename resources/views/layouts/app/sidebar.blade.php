@@ -8,7 +8,7 @@
             <flux:sidebar.header class="py-3">
                 <a href="{{ route('dashboard') }}" wire:navigate>
                     <img
-                        src="{{ asset('images/applebough.png') }}"
+                        src="{{ asset('images/appletech.png') }}"
                         alt="{{ config('app.name') }}"
                         class="w-36 h-auto object-contain"
                     />

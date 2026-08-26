@@ -6,6 +6,7 @@ use App\Enums\EmailProvider;
 use App\Enums\TimesheetFrequency;
 use App\Models\Company;
 use App\Models\Industry;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
@@ -24,6 +25,13 @@ class CompanyForm
                     ->schema([
                         TextInput::make('name')
                             ->required()
+                            ->columnSpanFull(),
+                        FileUpload::make('logo')
+                            ->label('Logo')
+                            ->image()
+                            ->disk(config('filesystems.default'))
+                            ->directory('company-logos')
+                            ->helperText('Shown on this company\'s login screen, portal, emails, CVs, and booking confirmations. Falls back to the default logo until one is uploaded.')
                             ->columnSpanFull(),
                         TextInput::make('phone')
                             ->label('Phone Number')

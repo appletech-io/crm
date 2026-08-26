@@ -84,8 +84,8 @@ test('the pdf merges in the dbs front, back, and safeguarding certificate when p
         'path' => 'placeholder/dbs-back.png',
     ]);
 
-    Storage::disk('local')->put('placeholder/dbs-front.png', file_get_contents(base_path('public/images/applebough.png')));
-    Storage::disk('local')->put('placeholder/dbs-back.png', file_get_contents(base_path('public/images/applebough.png')));
+    Storage::disk('local')->put('placeholder/dbs-front.png', file_get_contents(base_path('public/images/appletech.png')));
+    Storage::disk('local')->put('placeholder/dbs-back.png', file_get_contents(base_path('public/images/appletech.png')));
 
     $path = app(BookingConfirmationPdfService::class)->generate($this->booking);
 
@@ -114,8 +114,8 @@ test('the pdf merges in stored documents that live on a non-local default filesy
         'path' => 'placeholder/dbs-back.png',
     ]);
 
-    Storage::disk('s3')->put('placeholder/dbs-front.png', file_get_contents(base_path('public/images/applebough.png')));
-    Storage::disk('s3')->put('placeholder/dbs-back.png', file_get_contents(base_path('public/images/applebough.png')));
+    Storage::disk('s3')->put('placeholder/dbs-front.png', file_get_contents(base_path('public/images/appletech.png')));
+    Storage::disk('s3')->put('placeholder/dbs-back.png', file_get_contents(base_path('public/images/appletech.png')));
 
     $path = app(BookingConfirmationPdfService::class)->generate($this->booking);
 
@@ -142,7 +142,7 @@ test('the candidate photo is embedded on the summary page rather than appended a
         'path' => 'placeholder/photo.png',
     ]);
 
-    Storage::disk('local')->put('placeholder/photo.png', file_get_contents(base_path('public/images/applebough.png')));
+    Storage::disk('local')->put('placeholder/photo.png', file_get_contents(base_path('public/images/appletech.png')));
 
     $path = app(BookingConfirmationPdfService::class)->generate($this->booking);
 
@@ -165,7 +165,7 @@ test('the candidate photo is embedded when it lives on a non-local default files
         'path' => 'placeholder/photo.png',
     ]);
 
-    Storage::disk('s3')->put('placeholder/photo.png', file_get_contents(base_path('public/images/applebough.png')));
+    Storage::disk('s3')->put('placeholder/photo.png', file_get_contents(base_path('public/images/appletech.png')));
 
     $method = new ReflectionMethod(BookingConfirmationPdfService::class, 'photoDataUri');
     $method->setAccessible(true);
@@ -175,12 +175,35 @@ test('the candidate photo is embedded when it lives on a non-local default files
     expect($dataUri)->toStartWith('data:image/png;base64,');
 });
 
+test('the booking logo falls back to the default logo when the company has none uploaded', function () {
+    $method = new ReflectionMethod(BookingConfirmationPdfService::class, 'logoDataUri');
+    $method->setAccessible(true);
+
+    $dataUri = $method->invoke(app(BookingConfirmationPdfService::class), $this->booking);
+
+    expect($dataUri)->toBe('data:image/png;base64,'.base64_encode(file_get_contents(public_path('images/appletech.png'))));
+});
+
+test('the booking logo uses the companys own uploaded logo when it has one', function () {
+    $contents = file_get_contents(base_path('public/images/appletech.png'));
+    Storage::disk('local')->put('company-logos/acme.png', $contents);
+    $this->company->update(['logo' => 'company-logos/acme.png']);
+
+    $method = new ReflectionMethod(BookingConfirmationPdfService::class, 'logoDataUri');
+    $method->setAccessible(true);
+
+    $dataUri = $method->invoke(app(BookingConfirmationPdfService::class), $this->booking->fresh());
+
+    expect($dataUri)->toBe('data:image/png;base64,'.base64_encode($contents));
+});
+
 test('the booking confirmation view renders the candidate photo when present and omits it when absent', function () {
     $viewData = [
         'booking' => $this->booking,
         'candidate' => $this->candidate,
         'checks' => collect(),
         'bookingDates' => collect(),
+        'logoDataUri' => 'data:image/png;base64,Zm9v',
     ];
 
     $withoutPhoto = view('pdfs.booking-confirmation', [...$viewData, 'photoDataUri' => null])->render();
@@ -225,6 +248,7 @@ test('the pdf includes a booking dates table with the charge rate and, for hours
         'checks' => collect(),
         'bookingDates' => $rows,
         'photoDataUri' => null,
+        'logoDataUri' => 'data:image/png;base64,Zm9v',
     ])->render();
 
     expect($html)->toContain('Booking Date(s)')
@@ -254,6 +278,7 @@ test('a full day booking with no recorded start time defaults to 08:30 on the pd
         'checks' => collect(),
         'bookingDates' => $rows,
         'photoDataUri' => null,
+        'logoDataUri' => 'data:image/png;base64,Zm9v',
     ])->render();
 
     expect($html)->toContain('08:30');
@@ -302,6 +327,7 @@ test('a cancelled day shows as cancelled with no rate in the breakdown and pdf',
         'checks' => collect(),
         'bookingDates' => $rows,
         'photoDataUri' => null,
+        'logoDataUri' => 'data:image/png;base64,Zm9v',
     ])->render();
 
     expect($html)->toContain('Cancelled')
@@ -315,6 +341,7 @@ test('the pdf view never renders a pay rates section, only the booking dates cha
         'checks' => collect(),
         'bookingDates' => collect(),
         'photoDataUri' => null,
+        'logoDataUri' => 'data:image/png;base64,Zm9v',
     ])->render();
 
     expect($html)->not->toContain('Pay Rates')

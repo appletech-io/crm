@@ -26,6 +26,7 @@ class BookingConfirmationPdfService
             'checks' => collect($this->checks($candidate)),
             'bookingDates' => BookingDayPeriods::rows($booking, 'charge'),
             'photoDataUri' => $this->photoDataUri($candidate),
+            'logoDataUri' => $this->logoDataUri($booking),
         ])->render();
 
         $summaryPdf = Pdf::loadHTML($html)->output();
@@ -35,6 +36,16 @@ class BookingConfirmationPdfService
         $filename = "booking-{$booking->id}-confirmation.pdf";
 
         return Document::putGenerated($merged, $candidate, $filename, 'bookings');
+    }
+
+    protected function logoDataUri(Booking $booking): string
+    {
+        $company = $booking->company;
+
+        $contents = $company ? $company->logoContents() : file_get_contents(public_path('images/appletech.png'));
+        $mimeType = $company ? $company->logoMimeType() : 'image/png';
+
+        return "data:{$mimeType};base64,".base64_encode($contents);
     }
 
     protected function photoDataUri(EducationCandidate $candidate): ?string

@@ -48,7 +48,8 @@ class VacancyForm
                                                 ->pluck('name', 'id')
                                                 ->toArray()
                                             )
-                                            ->required()
+                                            ->required(fn (Get $get): bool => $get('employment_type') !== VacancyEmploymentType::Temp->value)
+                                            ->helperText('Optional for a temp vacancy covering general availability rather than a specific client.')
                                             ->searchable()
                                             ->preload(),
 

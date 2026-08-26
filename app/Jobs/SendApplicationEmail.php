@@ -79,7 +79,7 @@ class SendApplicationEmail implements ShouldQueue
                 subject: $this->replacePlaceholders($template->subject ?? '', $replacements),
                 body: $this->replacePlaceholders($template->body ?? '', $replacements).EmailFooter::render($this->candidate->company, $sender),
                 from: $sender?->email ?? $creator?->email ?? $this->candidate->company->defaultFromEmail(),
-                attachments: [EmailFooter::logoAttachment()],
+                attachments: [EmailFooter::logoAttachment($this->candidate->company)],
             );
 
             $this->candidate->activities()->create([

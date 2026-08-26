@@ -6,6 +6,7 @@ use App\Models\Industry;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -29,6 +30,17 @@ test('a user with no active industry cannot access the page', function () {
     // 403 — which the app's global exception handler turns into a redirect
     // back to a panel the user can actually use, rather than a dead-end page.
     $this->actingAs($user)->get('/crm/ask-assistant')->assertRedirect('/crm');
+});
+
+test('the page shows the logged-in users own company logo, not the default', function () {
+    Storage::fake('local');
+    Storage::disk('local')->put('company-logos/acme.png', 'fake logo contents');
+    $this->user->company->update(['logo' => 'company-logos/acme.png']);
+
+    $this->get('/crm/ask-assistant')
+        ->assertOk()
+        ->assertSee(route('company.logo', $this->user->company), false)
+        ->assertDontSee(asset('images/appletech.png'), false);
 });
 
 test('the page renders with the suggested prompts visible', function () {

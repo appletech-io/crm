@@ -29,16 +29,19 @@ class EmailFooter
      * (e.g. asset()) because that URL only resolves publicly if APP_URL is a
      * real internet-reachable domain — it silently breaks in local/staging
      * environments using a .test/internal hostname, and email clients can't
-     * be relied on to fetch remote images at all anyway.
+     * be relied on to fetch remote images at all anyway. Sent as raw content
+     * rather than a path since a company's uploaded logo lives on whatever
+     * filesystems.default disk is configured (S3 in production), not a
+     * local file.
      *
-     * @return array{name: string, path: string, mimeType: string, inline: bool, contentId: string}
+     * @return array{name: string, content: string, mimeType: string, inline: bool, contentId: string}
      */
-    public static function logoAttachment(): array
+    public static function logoAttachment(Company $company): array
     {
         return [
-            'name' => 'applebough-logo.png',
-            'path' => public_path('images/applebough.png'),
-            'mimeType' => 'image/png',
+            'name' => 'logo.png',
+            'content' => $company->logoContents(),
+            'mimeType' => $company->logoMimeType(),
             'inline' => true,
             'contentId' => self::LOGO_CONTENT_ID,
         ];
