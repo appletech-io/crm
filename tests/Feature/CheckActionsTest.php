@@ -1441,3 +1441,43 @@ test('the user observer re-checks actions for a candidate when their user accoun
         ->and($todo->name)->toBe('Chase candidate documents')
         ->and($todo->user_id)->toBe($this->consultant->id);
 });
+
+test('changing a candidates status re-checks actions immediately, without the candidate itself being saved', function () {
+    // ChangeCandidateStatusAction (and anywhere else a status is assigned)
+    // only ever touches the candidate_candidate_statuses table — it never
+    // calls save()/touch() on the candidate itself, so
+    // EducationCandidateObserver's own saved() hook never fires here.
+    // CandidateCandidateStatusObserver has to re-run CheckActions itself.
+    $live = CandidateStatus::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Live',
+    ]);
+
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'consultant_id' => $this->consultant->id,
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => EducationCandidate::class,
+        'conditions' => [
+            ['field' => 'current_status', 'operator' => 'equals', 'value' => 'Live'],
+        ],
+        'todo_name' => 'Welcome Call your new candidate',
+    ]);
+
+    expect(TodoItem::where('model_type', EducationCandidate::class)->where('model_id', $candidate->id)->exists())->toBeFalse();
+
+    // Mirrors exactly what ChangeCandidateStatusAction does — no save() or
+    // touch() on $candidate anywhere in this test.
+    $candidate->statuses()->create(['candidate_status_id' => $live->id]);
+
+    $todo = TodoItem::where('model_type', EducationCandidate::class)->where('model_id', $candidate->id)->first();
+
+    expect($todo)->not->toBeNull()
+        ->and($todo->name)->toBe('Welcome Call your new candidate')
+        ->and($todo->user_id)->toBe($this->consultant->id);
+});

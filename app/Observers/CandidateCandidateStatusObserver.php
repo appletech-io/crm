@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Actions\Automations\CheckActions;
 use App\Actions\Jobs\CheckJobStatusAutomations;
 use App\Models\CandidateCandidateStatus;
 use App\Models\VacancyPlacement;
@@ -18,6 +19,15 @@ class CandidateCandidateStatusObserver
      */
     public function created(CandidateCandidateStatus $status): void
     {
+        // The candidate's own Actions (e.g. "Welcome email - Live
+        // candidates") key off current_status, which only changes here —
+        // not via a save() on the candidate itself. Without this, they'd
+        // only ever fire by accident, whenever the candidate's record next
+        // happens to be saved for an unrelated reason.
+        if ($status->model) {
+            CheckActions::run($status->model);
+        }
+
         VacancyPlacement::query()
             ->where('candidate_type', $status->model_type)
             ->where('candidate_id', $status->model_id)
