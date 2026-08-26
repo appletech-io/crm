@@ -409,7 +409,7 @@ class ListEducationCandidates extends ListRecords implements HasForms
                     ->visible(fn (): bool => $this->searchLat !== null),
                 ...$this->dayColumns($weekStart),
             ])
-            ->paginated([10, 25, 50])
+            ->paginated([10, 25, 50, 100, 250, 500, 'all'])
             ->emptyStateHeading('No candidates match your search');
     }
 
