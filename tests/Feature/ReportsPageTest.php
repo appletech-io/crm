@@ -22,6 +22,14 @@ test('an admin can access the reports page', function () {
     expect(Reports::canAccess())->toBeTrue();
 });
 
+test('a site admin cannot access the reports page', function () {
+    $siteAdmin = User::factory()->create();
+    $siteAdmin->assignRole('site_admin');
+    $this->actingAs($siteAdmin);
+
+    expect(Reports::canAccess())->toBeFalse();
+});
+
 test('a non-admin cannot access the reports page', function () {
     $consultant = User::factory()->create();
     $consultant->assignRole('consultant');

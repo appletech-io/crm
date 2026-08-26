@@ -39,6 +39,15 @@ test('a consultant cannot access the evertime integration page', function () {
     expect(EvertimeIntegration::canAccess())->toBeFalse();
 });
 
+test('a site admin cannot access the integrations pages (a company-less account has no integrations to configure)', function () {
+    $siteAdmin = User::factory()->create(['company_id' => null]);
+    $siteAdmin->assignRole('site_admin');
+    $this->actingAs($siteAdmin);
+
+    expect(ListIntegrations::canAccess())->toBeFalse()
+        ->and(EvertimeIntegration::canAccess())->toBeFalse();
+});
+
 test('saving the evertime connection form persists it to the company and enables the provider', function () {
     $this->actingAs($this->admin);
 

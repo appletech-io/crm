@@ -50,7 +50,7 @@ class Reports extends BaseDashboard
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->isAdmin() ?? false;
+        return auth()->user()?->hasRole('admin') ?? false;
     }
 
     public function getTitle(): string

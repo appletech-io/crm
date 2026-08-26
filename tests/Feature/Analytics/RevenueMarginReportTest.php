@@ -24,6 +24,14 @@ test('an admin can access the revenue report', function () {
     expect(RevenueMarginReport::canAccess())->toBeTrue();
 });
 
+test('a site admin cannot access the revenue report', function () {
+    $siteAdmin = User::factory()->create();
+    $siteAdmin->assignRole('site_admin');
+    $this->actingAs($siteAdmin);
+
+    expect(RevenueMarginReport::canAccess())->toBeFalse();
+});
+
 test('a non-admin cannot access the revenue report', function () {
     $consultant = User::factory()->create();
     $consultant->assignRole('consultant');

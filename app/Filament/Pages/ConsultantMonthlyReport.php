@@ -54,7 +54,7 @@ class ConsultantMonthlyReport extends Page
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->isAdmin() || auth()->user()?->hasRole('consultant');
+        return auth()->user()?->hasRole('admin') || auth()->user()?->hasRole('consultant');
     }
 
     public function mount(): void

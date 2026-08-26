@@ -23,6 +23,16 @@ test('an admin can access the compliance dashboard page', function () {
     Livewire::test(ComplianceDashboard::class)->assertSuccessful();
 });
 
+test('a site admin cannot access the compliance dashboard page', function () {
+    $siteAdmin = User::factory()->create();
+    $siteAdmin->assignRole('site_admin');
+    $this->actingAs($siteAdmin);
+    Cache::put("user.{$siteAdmin->id}.active_industry", 'education');
+    Cache::put("user.{$siteAdmin->id}.active_industry_id", 1);
+
+    expect(ComplianceDashboard::canAccess())->toBeFalse();
+});
+
 test('a non-admin consultant cannot access the compliance dashboard page', function () {
     $consultant = User::factory()->create();
     $consultant->assignRole('consultant');

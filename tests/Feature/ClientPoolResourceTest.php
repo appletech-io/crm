@@ -121,7 +121,7 @@ test('client pools resource is hidden from the main navigation', function () {
 });
 
 test('client settings page shows a client pools stat linking to the resource', function () {
-    $user = actingAsClientPoolUser('consultant');
+    $user = actingAsClientPoolUser('admin');
     ClientPool::factory()->count(2)->create([
         'company_id' => $this->company->id,
         'industry_id' => $this->industry->id,
