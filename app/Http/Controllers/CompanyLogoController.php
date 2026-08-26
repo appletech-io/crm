@@ -13,4 +13,11 @@ class CompanyLogoController extends Controller
             ->header('Content-Type', $company->logoMimeType())
             ->header('Cache-Control', 'public, max-age=86400');
     }
+
+    public function favicon(Company $company): Response
+    {
+        return response($company->faviconContents())
+            ->header('Content-Type', 'image/png')
+            ->header('Cache-Control', 'public, max-age=86400');
+    }
 }

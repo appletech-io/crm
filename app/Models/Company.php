@@ -6,6 +6,7 @@ use App\Enums\EmailProvider;
 use App\Enums\Integration;
 use App\Enums\TimesheetFrequency;
 use App\Http\Controllers\CompanyLogoController;
+use App\Services\Images\FaviconRenderer;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
 use App\Services\Payroll\Contracts\PayrollTimesheetProvider;
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
 class Company extends Model
@@ -141,6 +143,37 @@ class Company extends Model
         }
 
         return Storage::disk(config('filesystems.default'))->mimeType($this->logo) ?: 'image/png';
+    }
+
+    /**
+     * A browser-tab favicon needs to be square, but an uploaded logo rarely
+     * is — falls back to the platform's own pre-squared default rather than
+     * routing through {@see FaviconRenderer} for a company with no logo of
+     * its own, since that default never changes and doesn't need computing
+     * on every request.
+     */
+    public function faviconUrl(): string
+    {
+        return $this->hasStoredLogo() ? route('company.logo.favicon', $this) : asset('images/appletech-favicon.png');
+    }
+
+    /**
+     * The logo padded onto a transparent square canvas so it isn't
+     * stretched to fill a browser's (square) favicon slot — see
+     * FaviconRenderer. Cached forever under the logo's own storage path, so
+     * a re-upload (always a fresh, randomly-named file) naturally busts the
+     * cache without any explicit invalidation needed. Base64-encoded before
+     * caching since the cache store here is a MySQL table whose `value`
+     * column rejects raw binary (invalid-UTF8/NUL-byte) content.
+     */
+    public function faviconContents(): string
+    {
+        $encoded = Cache::rememberForever(
+            "favicon:{$this->logo}",
+            fn (): string => base64_encode(FaviconRenderer::render($this->logoContents())),
+        );
+
+        return base64_decode($encoded);
     }
 
     private function hasStoredLogo(): bool

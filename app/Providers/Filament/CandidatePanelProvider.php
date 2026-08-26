@@ -32,7 +32,7 @@ class CandidatePanelProvider extends PanelProvider
             ])
             ->brandLogo(asset('favicon.svg'))
             ->brandLogoHeight('3rem')
-            ->favicon(asset('favicon.svg'))
+            ->favicon(fn (): string => auth()->user()?->company?->faviconUrl() ?? asset('images/appletech-favicon.png'))
             ->discoverResources(in: app_path('Filament/EducationCandidate/Resources'), for: 'App\Filament\EducationCandidate\Resources')
             ->discoverPages(in: app_path('Filament/EducationCandidate/Pages'), for: 'App\Filament\EducationCandidate\Pages')
             ->discoverWidgets(in: app_path('Filament/EducationCandidate/Widgets'), for: 'App\Filament\EducationCandidate\Widgets')

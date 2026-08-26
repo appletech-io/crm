@@ -29,6 +29,12 @@ class CompanyForm
                         FileUpload::make('logo')
                             ->label('Logo')
                             ->image()
+                            // Excludes SVG deliberately — it's the one
+                            // "image" format that can embed executable
+                            // script, and this file gets served back
+                            // directly (as a favicon, in emails, etc.)
+                            // without any sanitisation.
+                            ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
                             ->disk(config('filesystems.default'))
                             ->directory('company-logos')
                             ->helperText('Shown on this company\'s login screen, portal, emails, CVs, and booking confirmations. Falls back to the default logo until one is uploaded.')

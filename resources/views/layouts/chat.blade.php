@@ -1,7 +1,11 @@
+<?php
+    $company = auth()->user()?->company;
+    $companyLogoUrl = $company?->logoUrl();
+?>
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
     <head>
-        @include('partials.head')
+        @include('partials.head', ['faviconUrl' => $company?->faviconUrl()])
     </head>
     <body class="h-screen overflow-hidden bg-linear-to-b from-zinc-50 to-zinc-100 antialiased dark:from-neutral-950 dark:to-neutral-900">
         <div class="flex h-full flex-col">
@@ -14,7 +18,7 @@
                     {{ __('Back to CRM') }}
                 </a>
 
-                <img src="{{ auth()->user()?->company?->logoUrl() ?? asset('images/appletech.png') }}" class="h-7 w-auto" alt="{{ config('app.name') }}">
+                <img src="{{ $companyLogoUrl ?? asset('images/appletech.png') }}" class="h-7 w-auto" alt="{{ config('app.name') }}">
             </header>
 
             <main class="flex flex-1 items-center justify-center overflow-hidden px-4 pb-6 md:px-8">
