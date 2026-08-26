@@ -77,7 +77,7 @@ class SearchVacancies implements Tool
 
                 $vacancyLink = TodoLinkedRecord::vacancyLink($vacancy);
                 $clientLink = $vacancy->client ? TodoLinkedRecord::clientLink($vacancy->client) : null;
-                $clientLabel = $clientLink ? "[{$clientLink['label']}]({$clientLink['url']})" : 'Unknown client';
+                $clientLabel = $clientLink ? "[{$clientLink['label']}]({$clientLink['url']})" : 'General cover (no specific client)';
 
                 return "- [{$vacancyLink['label']}]({$vacancyLink['url']}) — {$clientLabel} — {$vacancy->jobTitle?->name} — ".
                     "{$vacancy->jobStatus?->name} — {$vacancy->positions_available} position(s) — {$pay} — {$availability}";

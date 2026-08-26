@@ -77,7 +77,7 @@ class SendReferenceRequestEmail implements ShouldQueue
                 subject: $this->replacePlaceholders($template->subject ?? '', $replacements),
                 body: $this->replacePlaceholders($template->body ?? '', $replacements).EmailFooter::render($candidate->company, $sender),
                 from: $sender?->email ?? $candidate->company->defaultFromEmail(),
-                attachments: [EmailFooter::logoAttachment()],
+                attachments: [EmailFooter::logoAttachment($candidate->company)],
             );
 
             $candidate->activities()->create([

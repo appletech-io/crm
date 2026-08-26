@@ -60,7 +60,7 @@
 
     {{-- Step 9: References --}}
     @if ($currentStep === 9)
-        @include('components.application.application-form-steps.references')
+        @include('components.application.application-form-steps.references', ['companyName' => $this->employmentBusinessName])
     @endif
 
     {{-- Step 10: Document requirements --}}

@@ -140,7 +140,7 @@
 
                     <flux:checkbox
                         wire:model="references.{{ $index }}.consent_to_contact"
-                        :label="__('I hereby authorise Applebough Education to contact the referees named in my application and to disclose relevant information about my employment, experience, and suitability for work in education for the purpose of obtaining references and completing safeguarding and compliance checks.')"
+                        :label="__('I hereby authorise :companyName to contact the referees named in my application and to disclose relevant information about my employment, experience, and suitability for work in education for the purpose of obtaining references and completing safeguarding and compliance checks.', ['companyName' => $companyName])"
                         :description="__('I acknowledge that this consent is required to progress my application and understand that my information will be processed securely and in accordance with applicable data protection laws. (*)')"
                     />
 

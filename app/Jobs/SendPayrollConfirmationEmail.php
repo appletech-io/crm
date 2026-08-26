@@ -78,7 +78,7 @@ class SendPayrollConfirmationEmail implements ShouldQueue
                 subject: $this->replacePlaceholders($template->subject ?? '', $replacements),
                 body: $this->replacePlaceholders($template->body ?? '', $replacements).EmailFooter::render($this->client->company, $sender),
                 from: $sender?->email ?? $this->client->company->defaultFromEmail(),
-                attachments: [EmailFooter::logoAttachment()],
+                attachments: [EmailFooter::logoAttachment($this->client->company)],
             );
 
             $dayPeriods->each->update(['payroll_confirmation_sent_at' => now()]);

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\EmailProvider;
 use App\Enums\Integration;
 use App\Enums\TimesheetFrequency;
+use App\Http\Controllers\CompanyLogoController;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
 use App\Services\Payroll\Contracts\PayrollTimesheetProvider;
@@ -14,6 +15,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class Company extends Model
 {
@@ -102,5 +104,47 @@ class Company extends Model
     public function industries(): BelongsToMany
     {
         return $this->belongsToMany(Industry::class, 'company_industry');
+    }
+
+    /**
+     * The browser-facing URL for this company's logo — served through
+     * {@see CompanyLogoController} rather than a
+     * direct disk URL, since the uploaded file lives on whatever
+     * filesystems.default disk is configured (S3 in production), which
+     * isn't necessarily publicly readable. Falls back to the platform's own
+     * default logo for a company that hasn't uploaded one of their own, or
+     * whose recorded logo path doesn't actually exist on disk (e.g. an
+     * upload that failed partway) — checked here rather than trusting the
+     * `logo` column alone, since a stale/bad path must never crash whatever
+     * is trying to display it.
+     */
+    public function logoUrl(): string
+    {
+        return $this->hasStoredLogo() ? route('company.logo', $this) : asset('images/appletech.png');
+    }
+
+    /**
+     * Raw image bytes, for embedding directly in emails and generated PDFs
+     * (which can't rely on a request-time HTTP fetch of logoUrl()).
+     */
+    public function logoContents(): string
+    {
+        return $this->hasStoredLogo()
+            ? Storage::disk(config('filesystems.default'))->get($this->logo)
+            : file_get_contents(public_path('images/appletech.png'));
+    }
+
+    public function logoMimeType(): string
+    {
+        if (! $this->hasStoredLogo()) {
+            return 'image/png';
+        }
+
+        return Storage::disk(config('filesystems.default'))->mimeType($this->logo) ?: 'image/png';
+    }
+
+    private function hasStoredLogo(): bool
+    {
+        return filled($this->logo) && Storage::disk(config('filesystems.default'))->exists($this->logo);
     }
 }

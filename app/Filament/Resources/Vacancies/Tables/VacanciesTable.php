@@ -22,6 +22,7 @@ class VacanciesTable
             ->columns([
                 TextColumn::make('client.name')
                     ->label('Client')
+                    ->placeholder('General cover')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('title')

@@ -456,17 +456,17 @@ new #[Layout('layouts.application', ['maxWidth' => 'max-w-4xl'])] class extends 
 
     private function candidateModelClass(): string
     {
-        return Industry::candidateModelForSlug($this->vacancy->client->industry->slug);
+        return Industry::candidateModelForSlug($this->vacancy->industry->slug);
     }
 
     private function companyId(): int
     {
-        return $this->vacancy->client->company_id;
+        return $this->vacancy->company_id;
     }
 
     private function industryId(): int
     {
-        return $this->vacancy->client->industry_id;
+        return $this->vacancy->industry_id;
     }
 };
 

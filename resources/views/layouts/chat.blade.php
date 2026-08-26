@@ -14,7 +14,7 @@
                     {{ __('Back to CRM') }}
                 </a>
 
-                <img src="{{ asset('images/applebough.png') }}" class="h-7 w-auto" alt="{{ config('app.name') }}">
+                <img src="{{ auth()->user()?->company?->logoUrl() ?? asset('images/appletech.png') }}" class="h-7 w-auto" alt="{{ config('app.name') }}">
             </header>
 
             <main class="flex flex-1 items-center justify-center overflow-hidden px-4 pb-6 md:px-8">

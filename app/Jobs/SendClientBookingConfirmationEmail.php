@@ -69,7 +69,7 @@ class SendClientBookingConfirmationEmail implements ShouldQueue
                 subject: $this->replacePlaceholders($template->subject ?? '', $replacements),
                 body: $this->replacePlaceholders($template->body ?? '', $replacements).EmailFooter::render($client->company, $sender),
                 from: $sender?->email ?? $client->company->defaultFromEmail(),
-                attachments: [EmailFooter::logoAttachment()],
+                attachments: [EmailFooter::logoAttachment($client->company)],
             );
 
             $client->activities()->create([

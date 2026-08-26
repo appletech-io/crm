@@ -31,7 +31,7 @@ class ClientPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Green,
             ])
-            ->brandLogo(asset('images/applebough.png'))
+            ->brandLogo(fn (): string => auth()->user()?->company?->logoUrl() ?? asset('images/appletech.png'))
             ->brandLogoHeight('3rem')
             ->favicon(asset('favicon.svg'))
             ->renderHook(

@@ -166,3 +166,21 @@ test('matching a vacancy that no longer exists by the time the job runs is a no-
 
     expect(VacancyCandidateMatch::where('vacancy_id', $vacancyId)->exists())->toBeFalse();
 });
+
+test('a client-less temp vacancy still matches on skills, just without a location signal', function () {
+    $generalCoverVacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => null,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    $skill = CandidateSkill::factory()->create(['company_id' => $this->company->id]);
+    $generalCoverVacancy->skills()->attach($skill->id);
+
+    $goodMatch = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $goodMatch->skills()->attach($skill->id);
+
+    MatchCandidatesToVacancy::dispatchSync($generalCoverVacancy->id);
+
+    expect(VacancyCandidateMatch::where('vacancy_id', $generalCoverVacancy->id)->where('candidate_id', $goodMatch->id)->value('score'))->toBe(100);
+});

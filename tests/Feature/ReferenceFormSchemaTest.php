@@ -4,7 +4,7 @@ use App\Enums\ReferenceType;
 use App\Services\References\ReferenceFormSchema;
 
 test('agency asks for dates worked and a safeguarding question with a conditional detail field', function () {
-    $sections = ReferenceFormSchema::sectionsFor(ReferenceType::Agency);
+    $sections = ReferenceFormSchema::sectionsFor(ReferenceType::Agency, 'Acme Recruitment');
     $keys = collect($sections)->flatMap(fn (array $section) => collect($section['fields'])->pluck('key'));
 
     expect($keys->all())->toBe(['worked_from', 'worked_to', 'safeguarding_issues', 'safeguarding_details']);
@@ -14,14 +14,14 @@ test('agency asks for dates worked and a safeguarding question with a conditiona
 });
 
 test('academic only asks for dates', function () {
-    $sections = ReferenceFormSchema::sectionsFor(ReferenceType::Academic);
+    $sections = ReferenceFormSchema::sectionsFor(ReferenceType::Academic, 'Acme Recruitment');
     $keys = collect($sections)->flatMap(fn (array $section) => collect($section['fields'])->pluck('key'));
 
     expect($keys->all())->toBe(['worked_from', 'worked_to']);
 });
 
 test('character asks for dates and a suitability question with a conditional detail field when not suitable', function () {
-    $sections = ReferenceFormSchema::sectionsFor(ReferenceType::Character);
+    $sections = ReferenceFormSchema::sectionsFor(ReferenceType::Character, 'Acme Recruitment');
     $keys = collect($sections)->flatMap(fn (array $section) => collect($section['fields'])->pluck('key'));
 
     expect($keys->all())->toBe(['worked_from', 'worked_to', 'suitable_for_role', 'suitability_details']);
@@ -31,7 +31,7 @@ test('character asks for dates and a suitability question with a conditional det
 });
 
 test('professional includes dates worked, the safeguarding question, the recommendation grid, the rating grid, and free text questions', function () {
-    $sections = ReferenceFormSchema::sectionsFor(ReferenceType::Professional);
+    $sections = ReferenceFormSchema::sectionsFor(ReferenceType::Professional, 'Acme Recruitment');
     $headings = collect($sections)->pluck('heading')->all();
 
     expect($headings)->toBe([null, 'Recommendations and engagement', 'Please rate the above named candidate in the following categories', null]);
@@ -59,7 +59,7 @@ test('professional includes dates worked, the safeguarding question, the recomme
 });
 
 test('professional recommendation and rating fields offer an N/A option', function () {
-    $sections = ReferenceFormSchema::sectionsFor(ReferenceType::Professional);
+    $sections = ReferenceFormSchema::sectionsFor(ReferenceType::Professional, 'Acme Recruitment');
 
     $recommendField = $sections[1]['fields'][0];
     expect($recommendField['options'])->toBe(['yes' => 'Yes', 'no' => 'No', 'na' => 'N/A']);
@@ -80,6 +80,24 @@ test('employment breaks is the only optional field on the professional form', fu
 
     expect($rules['answers.employment_breaks'])->toContain('nullable');
     expect($rules['answers.capacity_known'])->toContain('required');
+});
+
+test('the safeguarding question names the actual company, not a hardcoded one', function () {
+    $agencySections = ReferenceFormSchema::sectionsFor(ReferenceType::Agency, 'Bright Path Recruitment');
+    $agencyField = collect($agencySections[0]['fields'])->firstWhere('key', 'safeguarding_issues');
+
+    expect($agencyField['label'])->toBe('Please inform Bright Path Recruitment of any safeguarding, child protection or disciplinary issues relating to this candidate');
+
+    $professionalSections = ReferenceFormSchema::sectionsFor(ReferenceType::Professional, 'Bright Path Recruitment');
+    $professionalField = collect($professionalSections[0]['fields'])->firstWhere('key', 'safeguarding_issues');
+
+    expect($professionalField['label'])->toBe('Please inform Bright Path Recruitment of any safeguarding, child protection or disciplinary issues relating to this candidate');
+});
+
+test('attributeNamesFor uses the given company name in the safeguarding attribute label', function () {
+    $names = ReferenceFormSchema::attributeNamesFor(ReferenceType::Agency, 'Bright Path Recruitment');
+
+    expect($names['answers.safeguarding_issues'])->toBe('Please inform Bright Path Recruitment of any safeguarding, child protection or disciplinary issues relating to this candidate');
 });
 
 test('only character skips the position and organisation confirmation fields', function () {

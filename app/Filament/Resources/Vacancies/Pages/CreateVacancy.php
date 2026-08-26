@@ -39,6 +39,7 @@ class CreateVacancy extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['consultant_id'] = auth()->id();
+        $data['industry_id'] = active_industry_id();
         $data['slug'] = Vacancy::generateUniqueSlug($data['title']);
 
         return $data;

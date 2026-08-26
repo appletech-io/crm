@@ -121,9 +121,9 @@ class VacancyMatches implements Tool
 
                 $vacancyLink = TodoLinkedRecord::vacancyLink($vacancy);
                 $clientLink = $vacancy->client ? TodoLinkedRecord::clientLink($vacancy->client) : null;
-                $clientLabel = $clientLink ? "[{$clientLink['label']}]({$clientLink['url']})" : 'an unknown client';
+                $clientPhrase = $clientLink ? "at [{$clientLink['label']}]({$clientLink['url']})" : '(general cover, no specific client)';
 
-                return "- [{$vacancyLink['label']}]({$vacancyLink['url']}) at {$clientLabel} — ".
+                return "- [{$vacancyLink['label']}]({$vacancyLink['url']}) {$clientPhrase} — ".
                     "{$match->score}% match (matched {$match->created_at->diffForHumans()})";
             })
             ->implode("\n");

@@ -91,18 +91,21 @@ class FormattedCvGenerator
         return $tempPath;
     }
 
-    private function logoDataUri(): string
+    private function logoDataUri(Model $candidate): string
     {
-        $contents = file_get_contents(public_path('images/applebough.png'));
+        $company = $candidate->company;
 
-        return 'data:image/png;base64,'.base64_encode($contents);
+        $contents = $company ? $company->logoContents() : file_get_contents(public_path('images/appletech.png'));
+        $mimeType = $company ? $company->logoMimeType() : 'image/png';
+
+        return "data:{$mimeType};base64,".base64_encode($contents);
     }
 
     private function generatePdf(string $contentHtml, Model $candidate, CandidateDocument $cvDocument): string
     {
         $html = view('pdfs.formatted-cv', [
             'contentHtml' => $contentHtml,
-            'logoDataUri' => $this->logoDataUri(),
+            'logoDataUri' => $this->logoDataUri($candidate),
         ])->render();
 
         $pdf = Pdf::loadHTML($html)->output();

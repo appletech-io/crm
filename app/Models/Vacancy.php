@@ -99,6 +99,11 @@ class Vacancy extends Model
         return $this->belongsTo(Client::class);
     }
 
+    public function industry(): BelongsTo
+    {
+        return $this->belongsTo(Industry::class);
+    }
+
     public function jobTitle(): BelongsTo
     {
         return $this->belongsTo(JobTitle::class);
@@ -287,13 +292,8 @@ class Vacancy extends Model
         return $query->where('consultant_id', auth()->id());
     }
 
-    /**
-     * A vacancy has no industry_id of its own — its industry is inferred
-     * from the client it belongs to, the same way Booking infers its
-     * industry from the candidate model it's booked for.
-     */
     public function scopeForActiveIndustry(Builder $query): Builder
     {
-        return $query->whereHas('client', fn (Builder $q) => $q->where('industry_id', active_industry_id()));
+        return $query->where('industry_id', active_industry_id());
     }
 }
