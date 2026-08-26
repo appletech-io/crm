@@ -34,7 +34,7 @@ class EvertimeIntegration extends Page
 
     public static function canAccess(): bool
     {
-        return Auth::user()?->isAdmin() ?? false;
+        return Auth::user()?->hasRole('admin') ?? false;
     }
 
     public function mount(): void

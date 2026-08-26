@@ -67,6 +67,11 @@ test('admins and consultants can access the page, but no one else', function () 
     $complianceOnly->assignRole('compliance');
     $this->actingAs($complianceOnly);
     expect(ConsultantMonthlyReport::canAccess())->toBeFalse();
+
+    $siteAdmin = User::factory()->create();
+    $siteAdmin->assignRole('site_admin');
+    $this->actingAs($siteAdmin);
+    expect(ConsultantMonthlyReport::canAccess())->toBeFalse();
 });
 
 test('a consultant always sees their own report regardless of the consultantId in the url', function () {

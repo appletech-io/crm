@@ -20,7 +20,7 @@ class JobSettings extends Page
 
     public static function canAccess(): bool
     {
-        return active_industry() !== null;
+        return active_industry() !== null && (auth()->user()?->hasRole('admin') ?? false);
     }
 
     public function getWidgets(): array

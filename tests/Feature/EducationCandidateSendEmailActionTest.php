@@ -184,6 +184,32 @@ test('the bulk action is also available on the search tab', function () {
     Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->recipient->is($candidate));
 });
 
+test('the bulk action queues an email for every candidate in a large selection spanning several pages worth of results', function () {
+    Bus::fake();
+
+    $candidates = EducationCandidate::factory()->count(60)->create([
+        'company_id' => $this->user->company_id,
+        'email' => fn (): string => fake()->unique()->safeEmail(),
+    ]);
+
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'all')
+        ->callTableBulkAction('sendEmail', $candidates, data: ['email_template_id' => $this->template->id])
+        ->assertNotified('Queued 60 email(s)');
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class, 60);
+});
+
+test('the pagination options include large page sizes and "all", so a big candidate pool can be viewed and selected at once', function () {
+    $options = Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'all')
+        ->instance()
+        ->getTable()
+        ->getPaginationPageOptions();
+
+    expect($options)->toContain(100, 250, 500, 'all');
+});
+
 test('the row action can send an ad-hoc email with no saved template', function () {
     Bus::fake();
 

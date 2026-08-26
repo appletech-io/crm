@@ -39,7 +39,7 @@ class VacanciesReport extends Page implements HasTable
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->isAdmin() ?? false;
+        return auth()->user()?->hasRole('admin') ?? false;
     }
 
     /** @return array<string, int|string> */

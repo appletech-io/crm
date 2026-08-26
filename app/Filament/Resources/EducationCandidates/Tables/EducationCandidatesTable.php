@@ -30,6 +30,7 @@ class EducationCandidatesTable
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query->with('statuses.status'))
+            ->paginated([10, 25, 50, 100, 250, 500, 'all'])
             ->columns([
                 TextColumn::make('first_name')
                     ->label('First Name')

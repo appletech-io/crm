@@ -21,7 +21,7 @@ class ListIntegrations extends Page
 
     public static function canAccess(): bool
     {
-        return Auth::user()?->isAdmin() ?? false;
+        return Auth::user()?->hasRole('admin') ?? false;
     }
 
     /** @return array<int, array{provider: Integration, url: string, connected: bool}> */
