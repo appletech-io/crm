@@ -40,7 +40,8 @@ test('the page shows the logged-in users own company logo, not the default', fun
     $this->get('/crm/ask-assistant')
         ->assertOk()
         ->assertSee(route('company.logo', $this->user->company), false)
-        ->assertDontSee(asset('images/appletech.png'), false);
+        ->assertDontSee(asset('images/appletech.png'), false)
+        ->assertSee('<link rel="icon" href="'.route('company.logo.favicon', $this->user->company).'">', false);
 });
 
 test('the page renders with the suggested prompts visible', function () {

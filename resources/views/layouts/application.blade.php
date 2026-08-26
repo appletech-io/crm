@@ -2,12 +2,13 @@
     // Resolved from the route's {token} rather than passed in by the
     // Livewire component wrapped in this layout — see
     // PublicApplicationCompanyResolver for why.
-    $logoUrl = \App\Services\PublicApplicationCompanyResolver::forToken(request()->route('token'))?->logoUrl();
+    $applicationCompany = \App\Services\PublicApplicationCompanyResolver::forToken(request()->route('token'));
+    $logoUrl = $applicationCompany?->logoUrl();
 ?>
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
-        @include('partials.head')
+        @include('partials.head', ['faviconUrl' => $applicationCompany?->faviconUrl()])
     </head>
     <body class="min-h-screen bg-white antialiased dark:bg-linear-to-b dark:from-neutral-950 dark:to-neutral-900">
         <flux:button

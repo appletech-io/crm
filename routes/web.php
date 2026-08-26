@@ -52,5 +52,6 @@ Route::livewire('/vacancy/{vacancy:slug}', 'vacancy.apply-form')->name('vacancy.
 // screen and portal page, not one-off user content, so it needs a
 // permanent, freely-cacheable URL rather than a short-lived signed one.
 Route::get('/company-logo/{company}', [CompanyLogoController::class, 'show'])->name('company.logo');
+Route::get('/company-logo/{company}/favicon', [CompanyLogoController::class, 'favicon'])->name('company.logo.favicon');
 
 require __DIR__.'/settings.php';

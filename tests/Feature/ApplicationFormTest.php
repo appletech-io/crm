@@ -87,7 +87,8 @@ test('the page layout shows the candidates own company logo, not the default', f
     $this->get(route('application.form', ['token' => $application->token]))
         ->assertOk()
         ->assertSee(route('company.logo', $company), false)
-        ->assertDontSee(asset('images/appletech.png'), false);
+        ->assertDontSee(asset('images/appletech.png'), false)
+        ->assertSee('<link rel="icon" href="'.route('company.logo.favicon', $company).'">', false);
 });
 
 test('mount aborts 404 for unknown token', function () {

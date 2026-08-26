@@ -20,7 +20,8 @@ test('the admin panel shows the logged-in users own company logo, not the defaul
     $this->get('/crm')
         ->assertOk()
         ->assertSee(route('company.logo', $company), false)
-        ->assertDontSee(asset('images/appletech.png'), false);
+        ->assertDontSee(asset('images/appletech.png'), false)
+        ->assertSee('<link rel="icon" href="'.route('company.logo.favicon', $company).'" />', false);
 });
 
 test('the admin panel shows the default logo for a company with none uploaded', function () {
@@ -33,7 +34,20 @@ test('the admin panel shows the default logo for a company with none uploaded', 
 
     $this->get('/crm')
         ->assertOk()
-        ->assertSee(asset('images/appletech.png'), false);
+        ->assertSee(asset('images/appletech.png'), false)
+        ->assertSee('<link rel="icon" href="'.asset('images/appletech-favicon.png').'" />', false);
+});
+
+test('a company-less admin sees the platform default logo, not a stale favicon asset', function () {
+    $this->seed(RoleSeeder::class);
+
+    $user = User::factory()->create(['company_id' => null]);
+    $user->assignRole('admin');
+    $this->actingAs($user);
+
+    $this->get('/crm')
+        ->assertOk()
+        ->assertSee('<link rel="icon" href="'.asset('images/appletech-favicon.png').'" />', false);
 });
 
 test('the client portal shows the logged-in client contacts own company logo', function () {
@@ -51,5 +65,6 @@ test('the client portal shows the logged-in client contacts own company logo', f
     $this->get('/client/my-bookings')
         ->assertOk()
         ->assertSee(route('company.logo', $company), false)
-        ->assertDontSee(asset('images/appletech.png'), false);
+        ->assertDontSee(asset('images/appletech.png'), false)
+        ->assertSee('<link rel="icon" href="'.route('company.logo.favicon', $company).'" />', false);
 });

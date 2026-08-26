@@ -33,7 +33,7 @@ class ClientPanelProvider extends PanelProvider
             ])
             ->brandLogo(fn (): string => auth()->user()?->company?->logoUrl() ?? asset('images/appletech.png'))
             ->brandLogoHeight('3rem')
-            ->favicon(asset('favicon.svg'))
+            ->favicon(fn (): string => auth()->user()?->company?->faviconUrl() ?? asset('images/appletech-favicon.png'))
             ->renderHook(
                 PanelsRenderHook::TOPBAR_START,
                 fn () => view('filament.client-portal-header'),

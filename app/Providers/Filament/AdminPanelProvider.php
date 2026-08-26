@@ -145,8 +145,7 @@ class AdminPanelProvider extends PanelProvider
             ->brandLogo(fn (): string => auth()->user()?->company?->logoUrl() ?? asset('images/appletech.png'))
             // ->brandLogoDarkMode(asset('images/logo-dark.svg'))
             ->brandLogoHeight('3rem')
-            // ->favicon(asset('images/logo-icon.svg'))
-            ->favicon(asset('favicon.svg'))
+            ->favicon(fn (): string => auth()->user()?->company?->faviconUrl() ?? asset('images/appletech-favicon.png'))
             ->renderHook(
                 PanelsRenderHook::HEAD_END,
                 fn () => new HtmlString("
