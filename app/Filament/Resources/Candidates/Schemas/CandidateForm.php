@@ -11,6 +11,7 @@ use App\Filament\Widgets\CandidateAvailabilityCalendar;
 use App\Filament\Widgets\CandidateDocumentManager;
 use App\Jobs\GenerateFormattedCv;
 use App\Models\Candidate;
+use App\Models\CandidateDocument;
 use App\Models\CandidateReference;
 use App\Models\CandidateSkill;
 use App\Models\JobTitle;
@@ -25,13 +26,17 @@ use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Actions;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Html;
+use Filament\Schemas\Components\Image;
 use Filament\Schemas\Components\Livewire as LivewireComponent;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Components\Text;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
@@ -41,6 +46,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
 
 class CandidateForm
 {
@@ -60,45 +66,78 @@ class CandidateForm
 
                         Tab::make('Personal Details')
                             ->schema([
-                                Section::make('Personal Details')
-                                    ->columns(2)
+                                Grid::make(3)
                                     ->schema([
-                                        Select::make('title')
-                                            ->options([
-                                                'Mr' => 'Mr',
-                                                'Mrs' => 'Mrs',
-                                                'Miss' => 'Miss',
-                                                'Ms' => 'Ms',
-                                                'Dr' => 'Dr',
-                                                'Prof' => 'Prof',
-                                            ])
-                                            ->placeholder('Please select…'),
-                                        TextInput::make('first_name')
-                                            ->required()
-                                            ->maxLength(255),
-                                        TextInput::make('last_name')
-                                            ->required()
-                                            ->maxLength(255),
-                                        Select::make('job_title_id')
-                                            ->label('Job Title')
-                                            ->options(fn (): array => JobTitle::query()
-                                                ->where('company_id', Auth::user()->company_id)
-                                                ->where('industry_id', active_industry_id())
-                                                ->orderBy('name')
-                                                ->pluck('name', 'id')
-                                                ->toArray()
-                                            )
-                                            ->searchable()
-                                            ->helperText('Determines which compliance items this candidate is required to complete.'),
-                                        Select::make('consultant_id')
-                                            ->label('Consultant')
-                                            ->options(fn (): array => User::role('consultant')
-                                                ->whereHas('industries', fn ($query) => $query->where('industries.id', active_industry_id()))
-                                                ->orderBy('name')
-                                                ->pluck('name', 'id')
-                                                ->toArray()
-                                            )
-                                            ->searchable(),
+                                        Section::make('Photo')
+                                            ->schema([
+                                                Text::make('No photo uploaded.')
+                                                    ->color('gray')
+                                                    ->visible(fn (?Candidate $record): bool => ! static::document($record, DocumentType::Photo)),
+                                                Image::make(
+                                                    url: fn (?Candidate $record): ?string => static::documentUrl($record, DocumentType::Photo),
+                                                    alt: 'Candidate photo',
+                                                )
+                                                    ->imageHeight(160)
+                                                    ->imageWidth(160)
+                                                    ->alignCenter()
+                                                    ->visible(fn (?Candidate $record): bool => (bool) static::document($record, DocumentType::Photo)),
+                                                TextEntry::make('average_rating')
+                                                    ->hiddenLabel()
+                                                    ->getStateUsing(fn (?Candidate $record): string => $record?->average_rating !== null
+                                                        ? number_format($record->average_rating, 1)." ★ ({$record->ratings_count} ".Str::plural('rating', $record->ratings_count).')'
+                                                        : 'Not yet rated')
+                                                    ->badge()
+                                                    ->color(fn (?Candidate $record): string => match (true) {
+                                                        $record?->average_rating === null => 'gray',
+                                                        $record->average_rating >= 4 => 'success',
+                                                        $record->average_rating >= 3 => 'warning',
+                                                        default => 'danger',
+                                                    })
+                                                    ->alignCenter()
+                                                    ->visible(fn (?Candidate $record): bool => $record !== null),
+                                            ]),
+
+                                        Section::make('Personal Details')
+                                            ->columnSpan(2)
+                                            ->columns(2)
+                                            ->schema([
+                                                Select::make('title')
+                                                    ->options([
+                                                        'Mr' => 'Mr',
+                                                        'Mrs' => 'Mrs',
+                                                        'Miss' => 'Miss',
+                                                        'Ms' => 'Ms',
+                                                        'Dr' => 'Dr',
+                                                        'Prof' => 'Prof',
+                                                    ])
+                                                    ->placeholder('Please select…'),
+                                                TextInput::make('first_name')
+                                                    ->required()
+                                                    ->maxLength(255),
+                                                TextInput::make('last_name')
+                                                    ->required()
+                                                    ->maxLength(255),
+                                                Select::make('job_title_id')
+                                                    ->label('Job Title')
+                                                    ->options(fn (): array => JobTitle::query()
+                                                        ->where('company_id', Auth::user()->company_id)
+                                                        ->where('industry_id', active_industry_id())
+                                                        ->orderBy('name')
+                                                        ->pluck('name', 'id')
+                                                        ->toArray()
+                                                    )
+                                                    ->searchable()
+                                                    ->helperText('Determines which compliance items this candidate is required to complete.'),
+                                                Select::make('consultant_id')
+                                                    ->label('Consultant')
+                                                    ->options(fn (): array => User::role('consultant')
+                                                        ->whereHas('industries', fn ($query) => $query->where('industries.id', active_industry_id()))
+                                                        ->orderBy('name')
+                                                        ->pluck('name', 'id')
+                                                        ->toArray()
+                                                    )
+                                                    ->searchable(),
+                                            ]),
                                     ]),
 
                                 Section::make('Contact Details')
@@ -620,5 +659,19 @@ class CandidateForm
                     ])
                     ->columnSpanFull(),
             ]);
+    }
+
+    protected static function document(?Candidate $record, DocumentType $documentType): ?CandidateDocument
+    {
+        return $record?->documents()->where('document_type', $documentType)->first();
+    }
+
+    protected static function documentUrl(?Candidate $record, DocumentType $documentType): ?string
+    {
+        $document = static::document($record, $documentType);
+
+        return $document
+            ? Document::viewUrl($document->path)
+            : null;
     }
 }
