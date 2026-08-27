@@ -2,7 +2,9 @@
 
 use App\Ai\Tools\SearchCandidates;
 use App\Enums\PaymentMethod;
+use App\Filament\Resources\Candidates\CandidateResource;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
+use App\Models\Candidate;
 use App\Models\CandidateCandidateStatus;
 use App\Models\CandidatePool;
 use App\Models\CandidateSkill;
@@ -57,6 +59,36 @@ test('it returns candidates matching the status filter', function () {
     expect($result)->toContain('Jane Doe')
         ->and($result)->toContain('Live')
         ->and($result)->toContain('PGCE');
+});
+
+test('it works for the generic candidate model too, which has no qualification concept', function () {
+    $genericIndustry = Industry::factory()->create(['slug' => 'generic']);
+    Cache::put("user.{$this->user->id}.active_industry", $genericIndustry->slug);
+    Cache::put("user.{$this->user->id}.active_industry_id", $genericIndustry->id);
+
+    $candidate = Candidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $genericIndustry->id,
+        'first_name' => 'Robin',
+        'last_name' => 'Shaw',
+    ]);
+
+    $status = CandidateStatus::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $genericIndustry->id,
+        'name' => 'Live',
+    ]);
+    CandidateCandidateStatus::create([
+        'model_type' => Candidate::class,
+        'model_id' => $candidate->id,
+        'candidate_status_id' => $status->id,
+    ]);
+
+    $result = (new SearchCandidates)->handle(new Request(['status' => 'Live']));
+
+    expect($result)->toContain('Robin Shaw')
+        ->and($result)->toContain('Live')
+        ->and($result)->toContain(CandidateResource::getUrl('edit', ['record' => $candidate]));
 });
 
 test('it filters by skill', function () {

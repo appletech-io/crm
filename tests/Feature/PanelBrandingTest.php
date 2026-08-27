@@ -50,6 +50,28 @@ test('a company-less admin sees the platform default logo, not a stale favicon a
         ->assertSee('<link rel="icon" href="'.asset('images/appletech-favicon.png').'" />', false);
 });
 
+test('the sector selector shows the logged-in users own company logo, not the default', function () {
+    $this->seed(RoleSeeder::class);
+
+    Storage::fake('local');
+    Storage::disk('local')->put('company-logos/acme.png', 'fake logo contents');
+    $company = Company::factory()->create(['logo' => 'company-logos/acme.png']);
+    $user = User::factory()->create(['company_id' => $company->id]);
+    $user->assignRole('admin');
+    $this->actingAs($user);
+
+    $this->get(route('sector.select'))
+        ->assertOk()
+        ->assertSee(route('company.logo', $company), false)
+        ->assertDontSee(asset('images/appletech.png'), false);
+});
+
+test('the login page shows no logo at all, since there is no user to resolve a company from yet', function () {
+    $this->get(route('login'))
+        ->assertOk()
+        ->assertDontSee(asset('images/appletech.png'), false);
+});
+
 test('the client portal shows the logged-in client contacts own company logo', function () {
     $this->seed(RoleSeeder::class);
 

@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Enums\ActivityType;
 use App\Models\Client;
+use App\Models\ClientContact;
 use App\Models\EducationCandidate;
 use App\Models\EmailTemplate;
 use App\Models\HealthcareCandidate;
@@ -45,6 +46,13 @@ class SendCustomTemplateEmail implements ShouldQueue
         public readonly ?MarketingCampaign $campaign = null,
         /** @var array<int, string> */
         public readonly array $adHocAttachments = [],
+        /**
+         * Overrides which contact a Client recipient's email goes to — used
+         * by campaign sends targeting specific client job titles, where a
+         * client can have several matching contacts rather than just the one
+         * booking contact.
+         */
+        public readonly ?ClientContact $contact = null,
     ) {}
 
     /**
@@ -52,7 +60,7 @@ class SendCustomTemplateEmail implements ShouldQueue
      */
     public function handle(): void
     {
-        $contact = $this->recipient instanceof Client ? $this->recipient->bookingContact() : null;
+        $contact = $this->contact ?? ($this->recipient instanceof Client ? $this->recipient->bookingContact() : null);
         $email = $this->recipient instanceof Client ? $contact?->email : $this->recipient->email;
 
         if (blank($email)) {

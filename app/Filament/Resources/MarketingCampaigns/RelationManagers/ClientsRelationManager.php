@@ -2,7 +2,10 @@
 
 namespace App\Filament\Resources\MarketingCampaigns\RelationManagers;
 
+use App\Filament\Support\SendCustomEmailAction;
+use App\Models\Client;
 use App\Models\ClientPool;
+use App\Models\MarketingCampaign;
 use Filament\Actions\Action;
 use Filament\Actions\AttachAction;
 use Filament\Actions\BulkActionGroup;
@@ -42,6 +45,33 @@ class ClientsRelationManager extends RelationManager
                     ->label('Client Type'),
                 TextColumn::make('city')
                     ->searchable(),
+                TextColumn::make('contact_match')
+                    ->label('Contact Match')
+                    ->badge()
+                    ->state(function (Client $record): string {
+                        /** @var MarketingCampaign $campaign */
+                        $campaign = $this->getOwnerRecord();
+
+                        return SendCustomEmailAction::campaignContactStatus($record, $campaign);
+                    })
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'matched' => 'Has matching contact',
+                        'fallback' => 'No match — uses main contact',
+                        'none' => 'No contact available',
+                        default => '—',
+                    })
+                    ->color(fn (string $state): string => match ($state) {
+                        'matched' => 'success',
+                        'fallback' => 'warning',
+                        'none' => 'danger',
+                        default => 'gray',
+                    })
+                    ->visible(function (): bool {
+                        /** @var MarketingCampaign $campaign */
+                        $campaign = $this->getOwnerRecord();
+
+                        return filled($campaign->client_job_titles);
+                    }),
             ])
             ->headerActions([
                 AttachAction::make()

@@ -22,6 +22,13 @@ class MarketingCampaign extends Model
 
     protected $guarded = [];
 
+    protected function casts(): array
+    {
+        return [
+            'client_job_titles' => 'array',
+        ];
+    }
+
     public function industry(): BelongsTo
     {
         return $this->belongsTo(Industry::class);

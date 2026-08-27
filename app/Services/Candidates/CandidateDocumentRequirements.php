@@ -2,6 +2,7 @@
 
 namespace App\Services\Candidates;
 
+use App\Enums\ComplianceItemDataType;
 use App\Models\Candidate;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
@@ -112,7 +113,7 @@ class CandidateDocumentRequirements
             }
         }
 
-        return collect($definitions)
+        $rows = collect($definitions)
             ->map(function (array $definition, string $key) use ($existing): array {
                 $document = $existing->get($key);
 
@@ -124,7 +125,44 @@ class CandidateDocumentRequirements
                     'path' => $document?->path,
                     'url' => $definition['url'] ?? null,
                 ];
-            })
+            });
+
+        // A generic Candidate's document-type Compliance Item fields (e.g.
+        // "Right to Work: Document Upload") are folded into this same list
+        // — one page for every document the candidate needs to provide,
+        // rather than splitting fixed documents and compliance documents
+        // across two separate pages. These are backed by
+        // CandidateComplianceValue, not CandidateDocument, so they're
+        // resolved and merged in separately rather than through $existing
+        // above — see CandidateDocumentManager's upload/remove handling for
+        // the "compliance_field_{id}" document_type convention this relies on.
+        if ($candidate instanceof Candidate) {
+            $rows = $rows->merge(static::complianceDocumentRows($candidate));
+        }
+
+        return $rows->all();
+    }
+
+    /** @return array<string, array{document_type: string, label: string, description: string, uploaded: bool, path: ?string, url: ?string}> */
+    private static function complianceDocumentRows(Candidate $candidate): array
+    {
+        return collect(ComplianceRequirements::for($candidate))
+            ->flatMap(fn (array $check) => collect($check['fields'])
+                ->filter(fn (array $fieldCheck): bool => $fieldCheck['field']->data_type === ComplianceItemDataType::Document)
+                ->mapWithKeys(function (array $fieldCheck) use ($check): array {
+                    $field = $fieldCheck['field'];
+                    $value = $fieldCheck['value'];
+                    $key = "compliance_field_{$field->id}";
+
+                    return [$key => [
+                        'document_type' => $key,
+                        'label' => "{$check['item']->name}: {$field->name}",
+                        'description' => $field->description ?? '',
+                        'uploaded' => filled($value?->document_path),
+                        'path' => $value?->document_path,
+                        'url' => null,
+                    ]];
+                }))
             ->all();
     }
 }

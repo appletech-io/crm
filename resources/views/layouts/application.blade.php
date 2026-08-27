@@ -1,8 +1,9 @@
 <?php
-    // Resolved from the route's {token} rather than passed in by the
-    // Livewire component wrapped in this layout — see
+    // Resolved from the route's {token} or {vacancy} rather than passed in
+    // by the Livewire component wrapped in this layout — see
     // PublicApplicationCompanyResolver for why.
-    $applicationCompany = \App\Services\PublicApplicationCompanyResolver::forToken(request()->route('token'));
+    $applicationCompany = \App\Services\PublicApplicationCompanyResolver::forToken(request()->route('token'))
+        ?? \App\Services\PublicApplicationCompanyResolver::forVacancy(request()->route('vacancy'));
     $logoUrl = $applicationCompany?->logoUrl();
 ?>
 <!DOCTYPE html>

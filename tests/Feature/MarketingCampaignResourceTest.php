@@ -3,6 +3,7 @@
 use App\Filament\Resources\MarketingCampaigns\Pages\CreateMarketingCampaign;
 use App\Filament\Resources\MarketingCampaigns\Pages\EditMarketingCampaign;
 use App\Filament\Resources\MarketingCampaigns\Pages\ListMarketingCampaigns;
+use App\Models\ClientContactJobTitle;
 use App\Models\Company;
 use App\Models\Industry;
 use App\Models\MarketingCampaign;
@@ -44,6 +45,31 @@ test('can create a marketing campaign', function () {
         ->and($campaign->company_id)->toBe($this->company->id)
         ->and($campaign->industry_id)->toBe($this->industry->id)
         ->and($campaign->description)->toBe('Promoting the spring open day');
+});
+
+test('can set client job titles to target when creating a campaign', function () {
+    $senco = ClientContactJobTitle::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'SENCO',
+    ]);
+    $headteacher = ClientContactJobTitle::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Headteacher',
+    ]);
+
+    Livewire::test(CreateMarketingCampaign::class)
+        ->fillForm([
+            'name' => 'Spring Open Day',
+            'client_job_titles' => [$senco->id, $headteacher->id],
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $campaign = MarketingCampaign::where('name', 'Spring Open Day')->first();
+
+    expect($campaign->client_job_titles)->toEqualCanonicalizing([$senco->id, $headteacher->id]);
 });
 
 test('edit page renders', function () {

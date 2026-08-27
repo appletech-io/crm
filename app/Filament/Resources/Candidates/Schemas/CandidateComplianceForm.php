@@ -11,18 +11,26 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Component;
-use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Wizard;
+use Filament\Schemas\Components\Wizard\Step;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\HtmlString;
 
 /**
- * Builds the compliance-filling form for a Candidate — one Section per
- * Compliance Item their job title requires, containing one field per that
- * item's Compliance Item Fields, each field's type driven by its own
- * data_type. There's no fixed shape (unlike HealthcareVettingSteps/
+ * Builds the compliance-filling form for a Candidate — a dynamic Wizard with
+ * one Step per Compliance Item their job title requires, containing one
+ * field per that item's Compliance Item Fields, each field's type driven by
+ * its own data_type. There's no fixed shape (unlike HealthcareVettingSteps/
  * VettingSteps): a field maps to a CandidateComplianceValue row, not a
  * column on the candidate itself, so schema building and value
  * hydration/saving are kept together here to agree on the "field_{id}"
  * field-naming convention between them.
+ *
+ * The Wizard here is a plain embedded component (not the page-level
+ * HasWizard pattern EducationVetting/HealthcareVetting use) — it's just a
+ * step-by-step way to present a dynamic set of items, not a dedicated
+ * sign-off flow, so it submits via whichever page it's embedded in.
  *
  * Used both as the "Compliance" tab on the staff-facing CandidateResource
  * form and as the candidate's own self-service portal page
@@ -33,20 +41,47 @@ class CandidateComplianceForm
 {
     public static function configure(Schema $schema, Candidate $record): Schema
     {
-        return $schema->components(static::sectionsFor($record));
+        return $schema->components(static::stepsFor($record));
     }
 
     /** @return array<int, Component> */
-    public static function sectionsFor(Candidate $record): array
+    public static function stepsFor(Candidate $record): array
     {
-        return collect(ComplianceRequirements::for($record))
-            ->map(fn (array $check): Component => Section::make($check['item']->name)
+        $checks = ComplianceRequirements::for($record);
+
+        if ($checks === []) {
+            return [];
+        }
+
+        $steps = collect($checks)
+            ->map(fn (array $check): Step => Step::make($check['item']->name)
                 ->description($check['item']->description)
                 ->schema(collect($check['fields'])
                     ->map(fn (array $fieldCheck): Component => static::fieldFor($fieldCheck['field']))
                     ->all()))
             ->values()
             ->all();
+
+        return [
+            Wizard::make($steps)
+                // A plain Wizard::make() renders nothing at all in its last
+                // step's footer unless a submit action is explicitly given —
+                // without this, reaching the final step showed an empty
+                // footer with no way to save. wire:click="save" rather than
+                // a Filament Action object, since this form is shared by
+                // three different page types (two EditRecord pages and a
+                // plain self-service Page) that each already expose their
+                // own working `save()` method — this works identically
+                // against all three without needing page-specific wiring.
+                ->submitAction(new HtmlString(Blade::render(
+                    <<<'BLADE'
+                        <x-filament::button type="button" wire:click="save" wire:loading.attr="disabled">
+                            Save
+                        </x-filament::button>
+                        BLADE
+                )))
+                ->columnSpanFull(),
+        ];
     }
 
     private static function fieldFor(ComplianceItemField $field): Component
