@@ -63,6 +63,24 @@ test('list page renders and shows candidates for the active industry only', func
         ->assertCanNotSeeTableRecords([$otherCandidate]);
 });
 
+test('the list shows a candidate\'s average rating, and "Not yet rated" for one with none', function () {
+    $rated = Candidate::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'average_rating' => 4.5,
+        'ratings_count' => 2,
+    ]);
+    $unrated = Candidate::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    Livewire::test(ListCandidates::class)
+        ->assertCanSeeTableRecords([$rated, $unrated])
+        ->assertSee('4.5 ★ (2)')
+        ->assertSee('Not yet rated');
+});
+
 test('staff can create a candidate, which stamps company, industry, and consultant', function () {
     Livewire::test(CreateCandidate::class)
         ->fillForm([
@@ -196,6 +214,37 @@ test('the edit page renders with all tabs, including widgets that need an existi
 
     Livewire::test(EditCandidate::class, ['record' => $candidate->getRouteKey()])
         ->assertSuccessful();
+});
+
+test('the Personal Details tab shows a placeholder photo and "Not yet rated" when neither exist', function () {
+    $candidate = Candidate::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    Livewire::test(EditCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertSee('No photo uploaded.')
+        ->assertSee('Not yet rated');
+});
+
+test('the Personal Details tab shows the candidate\'s photo and average rating when both exist', function () {
+    Storage::fake('local');
+    Storage::disk('local')->put('candidate-documents/photo.jpg', 'fake image contents');
+
+    $candidate = Candidate::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'average_rating' => 4.5,
+        'ratings_count' => 2,
+    ]);
+    $candidate->documents()->create([
+        'document_type' => 'photo',
+        'path' => 'candidate-documents/photo.jpg',
+    ]);
+
+    Livewire::test(EditCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertDontSee('No photo uploaded.')
+        ->assertSee('4.5 ★ (2 ratings)');
 });
 
 test('skills and pools can be attached via the Availability & Skills tab', function () {
