@@ -34,7 +34,7 @@ class CandidateComplianceTable
                     ->label('Compliance')
                     ->badge()
                     ->state(function (Candidate $record): string {
-                        $checks = ComplianceRequirements::for($record);
+                        $checks = ComplianceRequirements::forJobTitle($record, $record->jobTitle);
                         $complete = collect($checks)->filter(fn (array $check): bool => $check['complete'])->count();
 
                         return "{$complete} / ".count($checks).' complete';
@@ -66,7 +66,7 @@ class CandidateComplianceTable
         return (clone $query)
             ->with('jobTitle')
             ->get()
-            ->reject(fn (Candidate $candidate): bool => ComplianceRequirements::isComplete($candidate))
+            ->reject(fn (Candidate $candidate): bool => ComplianceRequirements::isCompleteForJobTitle($candidate, $candidate->jobTitle))
             ->pluck('id')
             ->all();
     }

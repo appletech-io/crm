@@ -7,7 +7,9 @@ use App\Filament\Resources\ComplianceItems\Pages\EditComplianceItem;
 use App\Filament\Resources\ComplianceItems\Pages\ListComplianceItems;
 use App\Filament\Resources\ComplianceItems\Schemas\ComplianceItemForm;
 use App\Filament\Resources\ComplianceItems\Tables\ComplianceItemsTable;
+use App\Models\Candidate;
 use App\Models\ComplianceItem;
+use App\Models\Industry;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -34,9 +36,14 @@ class ComplianceItemResource extends Resource
 
     protected static ?string $modelLabel = 'Compliance Item';
 
+    /**
+     * Compliance Items are the configurable-requirements system for a
+     * generic Candidate only — see ComplianceSettings::canAccess().
+     */
     public static function canViewAny(): bool
     {
-        return active_industry() !== null && auth()->user()?->hasAnyRole(['admin', 'site_admin']);
+        return Industry::candidateModelForSlug(active_industry() ?? '') === Candidate::class
+            && auth()->user()?->hasAnyRole(['admin', 'site_admin']);
     }
 
     public static function form(Schema $schema): Schema

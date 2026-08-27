@@ -61,3 +61,30 @@ test('the candidate can see the wizard step for a required compliance item and s
     expect($this->candidate->complianceValues()->where('compliance_item_field_id', $field->id)->first()->text_value)
         ->toBe('DBS-1234');
 });
+
+test('the candidate can see and fill out a compliance item that is not attached to their own job title', function () {
+    $otherJobTitle = JobTitle::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+    $item = ComplianceItem::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Safeguarding',
+    ]);
+    $field = ComplianceItemField::factory()->create(['compliance_item_id' => $item->id, 'data_type' => 'text', 'name' => 'Certificate Number']);
+    $otherJobTitle->complianceItems()->attach($item->id, [
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    Livewire::test(Compliance::class)
+        ->assertSuccessful()
+        ->assertSee('Safeguarding')
+        ->assertSee('Certificate Number')
+        ->fillForm(["field_{$field->id}" => 'SAFE-9999'])
+        ->call('save');
+
+    expect($this->candidate->complianceValues()->where('compliance_item_field_id', $field->id)->first()->text_value)
+        ->toBe('SAFE-9999');
+});

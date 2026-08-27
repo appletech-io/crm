@@ -130,3 +130,45 @@ test('staff can upload a document-type compliance field from the Candidates edit
     expect($value)->not->toBeNull()
         ->and($value->document_path)->not->toBeNull();
 });
+
+test('a document-type compliance field not attached to the candidate\'s own job title still merges into the Documents page', function () {
+    $otherJobTitle = JobTitle::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+    $otherItem = ComplianceItem::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Safeguarding',
+    ]);
+    $otherField = ComplianceItemField::factory()->create([
+        'compliance_item_id' => $otherItem->id,
+        'data_type' => 'document',
+        'name' => 'Certificate',
+    ]);
+    $otherJobTitle->complianceItems()->attach($otherItem->id, [
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    $user = User::factory()->create([
+        'company_id' => $this->company->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => Candidate::class,
+    ]);
+    $user->assignRole('candidate');
+    $user->industries()->attach($this->industry);
+    $this->actingAs($user);
+
+    $file = UploadedFile::fake()->create('cert.pdf', 100, 'application/pdf');
+
+    Livewire::test(Documents::class)
+        ->assertSee('Safeguarding: Certificate')
+        ->callAction(
+            TestAction::make('upload')->table(record: "compliance_field_{$otherField->id}"),
+            data: ['file' => $file],
+        )
+        ->assertHasNoActionErrors();
+
+    $value = $this->candidate->complianceValues()->where('compliance_item_field_id', $otherField->id)->first();
+
+    expect($value)->not->toBeNull()
+        ->and($value->document_path)->not->toBeNull();
+});

@@ -39,12 +39,12 @@ class CandidatesTable
                     ->label('Compliance')
                     ->badge()
                     ->state(function (Candidate $record): string {
-                        $checks = ComplianceRequirements::for($record);
+                        $checks = ComplianceRequirements::forJobTitle($record, $record->jobTitle);
                         $complete = collect($checks)->filter(fn (array $check): bool => $check['complete'])->count();
 
                         return "{$complete} / ".count($checks).' complete';
                     })
-                    ->color(fn (Candidate $record): string => ComplianceRequirements::isComplete($record) ? 'success' : 'warning'),
+                    ->color(fn (Candidate $record): string => ComplianceRequirements::isCompleteForJobTitle($record, $record->jobTitle) ? 'success' : 'warning'),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

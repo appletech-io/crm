@@ -4,7 +4,9 @@ namespace App\Filament\Resources\ComplianceItemJobTitles;
 
 use App\Filament\Resources\ComplianceItemJobTitles\Pages\ListComplianceItemJobTitles;
 use App\Filament\Resources\ComplianceItemJobTitles\Tables\ComplianceItemJobTitlesTable;
+use App\Models\Candidate;
 use App\Models\ComplianceItem;
+use App\Models\Industry;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Support\Icons\Heroicon;
@@ -28,9 +30,14 @@ class ComplianceItemJobTitleResource extends Resource
 
     protected static ?string $modelLabel = 'Required Job Title';
 
+    /**
+     * Compliance Items are the configurable-requirements system for a
+     * generic Candidate only — see ComplianceSettings::canAccess().
+     */
     public static function canViewAny(): bool
     {
-        return active_industry() !== null && auth()->user()?->hasAnyRole(['admin', 'site_admin']);
+        return Industry::candidateModelForSlug(active_industry() ?? '') === Candidate::class
+            && auth()->user()?->hasAnyRole(['admin', 'site_admin']);
     }
 
     public static function table(Table $table): Table

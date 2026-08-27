@@ -3,6 +3,8 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Widgets\ComplianceSettingsOverview;
+use App\Models\Candidate;
+use App\Models\Industry;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 
@@ -18,9 +20,17 @@ class ComplianceSettings extends Page
 
     protected static ?int $navigationSort = 13;
 
+    /**
+     * Compliance Items are the configurable-requirements system for a
+     * generic Candidate only — Education/Healthcare candidates' vetting
+     * requirements are fixed model columns instead (CandidateVettingRequirements
+     * / HealthcareVettingRequirements), so this page has nothing to
+     * configure for those industries.
+     */
     public static function canAccess(): bool
     {
-        return active_industry() !== null && (auth()->user()?->hasRole('admin') ?? false);
+        return Industry::candidateModelForSlug(active_industry() ?? '') === Candidate::class
+            && (auth()->user()?->hasRole('admin') ?? false);
     }
 
     public function getWidgets(): array
