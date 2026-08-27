@@ -19,9 +19,10 @@ use Illuminate\Support\HtmlString;
 
 /**
  * Builds the compliance-filling form for a Candidate — a dynamic Wizard with
- * one Step per Compliance Item their job title requires, containing one
- * field per that item's Compliance Item Fields, each field's type driven by
- * its own data_type. There's no fixed shape (unlike HealthcareVettingSteps/
+ * one Step per Compliance Item that exists for their company/industry
+ * (independent of job title — see ComplianceRequirements::for()), containing
+ * one field per that item's Compliance Item Fields, each field's type driven
+ * by its own data_type. There's no fixed shape (unlike HealthcareVettingSteps/
  * VettingSteps): a field maps to a CandidateComplianceValue row, not a
  * column on the candidate itself, so schema building and value
  * hydration/saving are kept together here to agree on the "field_{id}"

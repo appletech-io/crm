@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\ComplianceItemDataType;
+use App\Filament\Resources\ComplianceItems\ComplianceItemResource;
 use App\Filament\Resources\ComplianceItems\Pages\CreateComplianceItem;
 use App\Filament\Resources\ComplianceItems\Pages\EditComplianceItem;
 use App\Filament\Resources\ComplianceItems\Pages\ListComplianceItems;
@@ -17,7 +18,10 @@ beforeEach(function () {
     $this->seed(RoleSeeder::class);
 
     $this->company = Company::factory()->create();
-    $this->industry = Industry::factory()->create();
+    // 'generic' is the slug this session wired to Candidate::class in
+    // Industry::$candidateModelMap — canViewAny() on this resource is
+    // keyed off that mapping, not a fixed slug name.
+    $this->industry = Industry::factory()->create(['slug' => 'generic']);
     $this->company->industries()->attach($this->industry);
 
     $this->user = User::factory()->create(['company_id' => $this->company->id]);
@@ -32,6 +36,16 @@ beforeEach(function () {
 test('list page renders', function () {
     Livewire::test(ListComplianceItems::class)
         ->assertSuccessful();
+});
+
+test('this resource is not visible for the education or healthcare industries', function () {
+    $educationIndustry = Industry::factory()->create(['slug' => 'education']);
+    Cache::put("user.{$this->user->id}.active_industry", $educationIndustry->slug);
+    Cache::put("user.{$this->user->id}.active_industry_id", $educationIndustry->id);
+
+    expect(ComplianceItemResource::canViewAny())->toBeFalse();
+
+    $this->get('/crm/compliance-items')->assertRedirect('/crm');
 });
 
 test('non-admin cannot access compliance items resource', function () {

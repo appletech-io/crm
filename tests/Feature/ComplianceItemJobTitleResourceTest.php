@@ -1,7 +1,10 @@
 <?php
 
+use App\Filament\Resources\ComplianceItemJobTitles\ComplianceItemJobTitleResource;
 use App\Filament\Resources\ComplianceItemJobTitles\Pages\ListComplianceItemJobTitles;
+use App\Models\Candidate;
 use App\Models\ComplianceItem;
+use App\Models\ComplianceItemField;
 use App\Models\Industry;
 use App\Models\JobTitle;
 use App\Models\User;
@@ -16,9 +19,22 @@ beforeEach(function () {
     $this->user->assignRole('admin');
     $this->actingAs($this->user);
 
-    $this->industry = Industry::factory()->create();
+    // 'generic' is the slug this session wired to Candidate::class in
+    // Industry::$candidateModelMap — canViewAny() on this resource is
+    // keyed off that mapping, not a fixed slug name.
+    $this->industry = Industry::factory()->create(['slug' => 'generic']);
     Cache::put("user.{$this->user->id}.active_industry", $this->industry->slug);
     Cache::put("user.{$this->user->id}.active_industry_id", $this->industry->id);
+});
+
+test('this resource is not visible for the education or healthcare industries', function () {
+    $educationIndustry = Industry::factory()->create(['slug' => 'education']);
+    Cache::put("user.{$this->user->id}.active_industry", $educationIndustry->slug);
+    Cache::put("user.{$this->user->id}.active_industry_id", $educationIndustry->id);
+
+    expect(ComplianceItemJobTitleResource::canViewAny())->toBeFalse();
+
+    $this->get('/crm/compliance-item-job-titles')->assertRedirect('/crm');
 });
 
 test('a non admin cannot view the required job titles list', function () {
@@ -159,4 +175,36 @@ test('deselecting a job title removes it from the required list', function () {
         ->assertHasNoActionErrors();
 
     expect($item->jobTitles()->pluck('job_titles.id')->all())->toBe([$carer->id]);
+});
+
+test('deselecting a job title does not touch any candidate\'s already-filled compliance values, since compliance is independent of job title', function () {
+    $item = ComplianceItem::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+    ]);
+    $field = ComplianceItemField::factory()->create(['compliance_item_id' => $item->id, 'data_type' => 'text']);
+
+    $carer = JobTitle::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+    ]);
+    $item->jobTitles()->attach($carer->id, [
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    $candidate = Candidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'job_title_id' => $carer->id,
+    ]);
+    $candidate->complianceValues()->create(['compliance_item_field_id' => $field->id, 'text_value' => 'still here']);
+
+    Livewire::test(ListComplianceItemJobTitles::class)
+        ->mountAction(TestAction::make('manageRequiredJobTitles')->table($item))
+        ->set('mountedActions.0.data.job_title_ids', [])
+        ->callMountedAction()
+        ->assertHasNoActionErrors();
+
+    expect($candidate->complianceValues()->count())->toBe(1);
 });

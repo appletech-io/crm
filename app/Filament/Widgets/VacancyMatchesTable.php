@@ -12,6 +12,7 @@ use App\Models\Vacancy;
 use App\Models\VacancyApplication;
 use App\Models\VacancyCandidateMatch;
 use App\Models\VacancyPlacement;
+use App\Services\Booking\BookingEligibility;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -97,6 +98,18 @@ class VacancyMatchesTable extends TableWidget
                             ->required(),
                     ])
                     ->action(function (VacancyCandidateMatch $record, array $data): void {
+                        $reason = BookingEligibility::disallowedJobTitleReason($record->candidate, $this->record->job_title_id);
+
+                        if ($reason) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Cannot mark as placed')
+                                ->body($reason)
+                                ->send();
+
+                            return;
+                        }
+
                         VacancyPlacement::create([
                             'vacancy_id' => $this->record->id,
                             'candidate_type' => $record->candidate_type,

@@ -14,6 +14,7 @@ use App\Models\HealthcareCandidate;
 use App\Models\Vacancy;
 use App\Models\VacancyApplication;
 use App\Models\VacancyPlacement;
+use App\Services\Booking\BookingEligibility;
 use Carbon\CarbonPeriod;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
@@ -135,6 +136,18 @@ class VacancyApplicantsTable extends TableWidget
                             ->required(),
                     ])
                     ->action(function (VacancyApplication $record, array $data): void {
+                        $reason = BookingEligibility::disallowedJobTitleReason($record->candidate, $this->record->job_title_id);
+
+                        if ($reason) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Cannot mark as placed')
+                                ->body($reason)
+                                ->send();
+
+                            return;
+                        }
+
                         VacancyPlacement::create([
                             'vacancy_id' => $this->record->id,
                             'candidate_type' => $record->candidate_type,

@@ -3,6 +3,7 @@
 namespace App\Filament\Support;
 
 use App\Enums\Education\Availability;
+use App\Models\Candidate;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use App\Services\Candidates\ComplianceRequirements;
@@ -197,13 +198,13 @@ class CandidateSummaryAction
 
     /**
      * The generic Candidate model has no fixed DBS/Right to Work concept —
-     * its requirements are whatever Compliance Items its job title has
-     * assigned (see ComplianceRequirements), so this renders an overall
-     * count and an outstanding-items list instead of the fixed badges above.
+     * shown here scoped to its own assigned job title (its "target role"),
+     * same as the Candidates list badge — see ComplianceRequirements.
      */
     private static function genericComplianceSchema(Model $candidate): Section
     {
-        $checks = ComplianceRequirements::for($candidate);
+        /** @var Candidate $candidate */
+        $checks = ComplianceRequirements::forJobTitle($candidate, $candidate->jobTitle);
         $total = count($checks);
         $met = collect($checks)->where('complete', true)->count();
         $outstanding = collect($checks)
