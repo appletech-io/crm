@@ -3,11 +3,13 @@
 namespace App\Filament\Support;
 
 use App\Filament\Resources\Bookings\BookingResource;
+use App\Filament\Resources\Candidates\CandidateResource;
 use App\Filament\Resources\Clients\ClientResource;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Filament\Resources\HealthcareCandidates\HealthcareCandidateResource;
 use App\Filament\Resources\Vacancies\VacancyResource;
 use App\Models\Booking;
+use App\Models\Candidate;
 use App\Models\CandidateReference;
 use App\Models\Client;
 use App\Models\EducationApplication;
@@ -89,6 +91,7 @@ class TodoLinkedRecord
         return match (true) {
             $candidate instanceof EducationCandidate => EducationCandidateResource::getUrl('edit', ['record' => $candidate]),
             $candidate instanceof HealthcareCandidate => HealthcareCandidateResource::getUrl('edit', ['record' => $candidate]),
+            $candidate instanceof Candidate => CandidateResource::getUrl('edit', ['record' => $candidate]),
             default => null,
         };
     }

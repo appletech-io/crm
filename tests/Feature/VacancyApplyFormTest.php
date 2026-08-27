@@ -46,6 +46,21 @@ function createVacancyFor(string $industrySlug, array $vacancyAttributes = []): 
     ], $vacancyAttributes));
 }
 
+test('the page layout shows the vacancy\'s own company logo, not the default', function () {
+    // A full HTTP request, not Livewire::test(), because the surrounding
+    // layout (where the logo lives) is only rendered as part of the real
+    // page response — a component test only returns the component's own
+    // markup, never the layout it's wrapped in.
+    Storage::disk('local')->put('company-logos/acme.png', 'fake logo contents');
+    $vacancy = createVacancyFor('education');
+    $vacancy->company->update(['logo' => 'company-logos/acme.png']);
+
+    $this->get(route('vacancy.apply', $vacancy))
+        ->assertOk()
+        ->assertSee(route('company.logo', $vacancy->company), false)
+        ->assertDontSee(asset('images/appletech.png'), false);
+});
+
 test('a closed vacancy shows an applications closed message instead of the form', function () {
     $vacancy = createVacancyFor('education', ['open_for_applications' => false]);
 

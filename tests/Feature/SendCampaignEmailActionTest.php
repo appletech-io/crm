@@ -5,6 +5,7 @@ use App\Filament\Resources\MarketingCampaigns\Pages\EditMarketingCampaign;
 use App\Jobs\SendCustomTemplateEmail;
 use App\Models\Client;
 use App\Models\ClientContact;
+use App\Models\ClientContactJobTitle;
 use App\Models\EmailTemplate;
 use App\Models\Industry;
 use App\Models\MarketingCampaign;
@@ -125,4 +126,85 @@ test('only clients attached to the campaign receive the email, not every client'
 
     Bus::assertDispatched(SendCustomTemplateEmail::class, 1);
     Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->recipient->is($inCampaign));
+});
+
+test('when the campaign has client job titles, it emails every matching contact per client instead of just the booking contact', function () {
+    Bus::fake();
+
+    $senco = ClientContactJobTitle::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id]);
+    $headteacher = ClientContactJobTitle::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id]);
+    $this->campaign->update(['client_job_titles' => [$senco->id, $headteacher->id]]);
+
+    $client = Client::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id]);
+    $sencoContact = ClientContact::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $client->id,
+        'client_contact_job_title_id' => $senco->id,
+        'email' => 'senco@school.test',
+    ]);
+    $headteacherContact = ClientContact::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $client->id,
+        'client_contact_job_title_id' => $headteacher->id,
+        'main_contact' => true,
+        'email' => 'head@school.test',
+    ]);
+    ClientContact::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $client->id,
+        'email' => 'other@school.test',
+    ]);
+    $this->campaign->clients()->attach($client);
+
+    Livewire::test(EditMarketingCampaign::class, ['record' => $this->campaign->getRouteKey()])
+        ->callAction('sendCampaignEmail', data: [
+            'mode' => 'template',
+            'email_template_id' => $this->template->id,
+        ]);
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class, 2);
+    Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->contact?->is($sencoContact));
+    Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->contact?->is($headteacherContact));
+});
+
+test('a client with no contact matching the campaign job titles falls back to its main contact', function () {
+    Bus::fake();
+
+    $senco = ClientContactJobTitle::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id]);
+    $this->campaign->update(['client_job_titles' => [$senco->id]]);
+
+    $client = makeCampaignClientWithContact();
+    $mainContact = $client->mainContact;
+    $this->campaign->clients()->attach($client);
+
+    Livewire::test(EditMarketingCampaign::class, ['record' => $this->campaign->getRouteKey()])
+        ->callAction('sendCampaignEmail', data: [
+            'mode' => 'template',
+            'email_template_id' => $this->template->id,
+        ]);
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->contact?->is($mainContact));
+});
+
+test('a client with no contact matching the campaign job titles and no main contact is skipped', function () {
+    Bus::fake();
+
+    $senco = ClientContactJobTitle::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id]);
+    $this->campaign->update(['client_job_titles' => [$senco->id]]);
+
+    $client = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'No Match Ltd',
+    ]);
+    $this->campaign->clients()->attach($client);
+
+    Livewire::test(EditMarketingCampaign::class, ['record' => $this->campaign->getRouteKey()])
+        ->callAction('sendCampaignEmail', data: [
+            'mode' => 'template',
+            'email_template_id' => $this->template->id,
+        ])
+        ->assertNotified('Queued 0 email(s). Skipped 1 (no contact email on file): No Match Ltd');
+
+    Bus::assertNotDispatched(SendCustomTemplateEmail::class);
 });

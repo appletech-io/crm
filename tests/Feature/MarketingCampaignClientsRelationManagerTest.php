@@ -3,6 +3,8 @@
 use App\Filament\Resources\MarketingCampaigns\Pages\EditMarketingCampaign;
 use App\Filament\Resources\MarketingCampaigns\RelationManagers\ClientsRelationManager;
 use App\Models\Client;
+use App\Models\ClientContact;
+use App\Models\ClientContactJobTitle;
 use App\Models\ClientPool;
 use App\Models\Company;
 use App\Models\Industry;
@@ -97,6 +99,49 @@ test('add from pool is idempotent when run twice', function () {
         ->callAction(TestAction::make('addFromPool')->table(), data: ['client_pool_id' => $pool->id]);
 
     expect($this->campaign->clients()->count())->toBe(1);
+});
+
+test('the contact match column is hidden when the campaign has no client job titles set', function () {
+    $client = Client::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+    $this->campaign->clients()->attach($client);
+
+    Livewire::test(ClientsRelationManager::class, [
+        'ownerRecord' => $this->campaign,
+        'pageClass' => EditMarketingCampaign::class,
+    ])->assertTableColumnHidden('contact_match');
+});
+
+test('the contact match column breaks down which clients have, lack, or fall back on a job title contact', function () {
+    $senco = ClientContactJobTitle::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+    $this->campaign->update(['client_job_titles' => [$senco->id]]);
+
+    $matched = Client::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id, 'name' => 'Matched School']);
+    ClientContact::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $matched->id,
+        'client_contact_job_title_id' => $senco->id,
+        'email' => 'senco@matched.test',
+    ]);
+
+    $fallback = Client::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id, 'name' => 'Fallback School']);
+    ClientContact::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $fallback->id,
+        'main_contact' => true,
+        'email' => 'head@fallback.test',
+    ]);
+
+    $none = Client::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id, 'name' => 'No Contact School']);
+
+    $this->campaign->clients()->attach([$matched->id, $fallback->id, $none->id]);
+
+    Livewire::test(ClientsRelationManager::class, [
+        'ownerRecord' => $this->campaign,
+        'pageClass' => EditMarketingCampaign::class,
+    ])
+        ->assertTableColumnStateSet('contact_match', 'matched', $matched)
+        ->assertTableColumnStateSet('contact_match', 'fallback', $fallback)
+        ->assertTableColumnStateSet('contact_match', 'none', $none);
 });
 
 test('add from pool only offers pools the current user can see', function () {

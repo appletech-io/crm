@@ -2,6 +2,7 @@
 
 use App\Enums\CandidateAvailabilityStatus;
 use App\Filament\EducationCandidate\Pages\Availability;
+use App\Models\Candidate;
 use App\Models\Company;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
@@ -40,6 +41,21 @@ test('a candidate can set their own availability', function () {
     $this->actingAs($user);
 
     Livewire::test(Availability::class)
+        ->call('setAvailabilityStatus', '2026-08-10', CandidateAvailabilityStatus::AvailablePm->value);
+
+    $candidate = $user->candidate;
+    $availability = $candidate->availabilities()->whereDate('date', '2026-08-10')->first();
+
+    expect($availability)->not->toBeNull();
+    expect($availability->status)->toBe(CandidateAvailabilityStatus::AvailablePm);
+});
+
+test('a generic candidate can access and set their own availability too', function () {
+    $user = makeAvailabilityCandidateUser(Candidate::class);
+    $this->actingAs($user);
+
+    Livewire::test(Availability::class)
+        ->assertSuccessful()
         ->call('setAvailabilityStatus', '2026-08-10', CandidateAvailabilityStatus::AvailablePm->value);
 
     $candidate = $user->candidate;

@@ -121,26 +121,38 @@ class SendCustomEmailAction
             ->action(function (array $data) use ($campaign): void {
                 $template = static::templateFromData($data);
 
-                [$sendable, $skipped] = $campaign->clients->partition(
-                    fn (Client $client): bool => filled(static::resolveRecipient($client)['email'])
-                );
+                $sent = 0;
+                $skippedNames = [];
 
-                $sendable->each(fn (Client $client) => SendCustomTemplateEmail::dispatch(
-                    $template,
-                    $client,
-                    auth()->id(),
-                    $data['adhoc_subject'] ?? null,
-                    $data['adhoc_body'] ?? null,
-                    $campaign,
-                    $data['adhoc_attachments'] ?? [],
-                ));
+                foreach ($campaign->clients as $client) {
+                    $contacts = static::campaignRecipients($client, $campaign);
 
-                $title = "Queued {$sendable->count()} email(s)";
+                    if ($contacts->isEmpty()) {
+                        $skippedNames[] = $client->name ?? '';
 
-                if ($skipped->isNotEmpty()) {
-                    $names = $skipped->map(fn (Client $client): string => $client->name ?? '')->implode(', ');
+                        continue;
+                    }
 
-                    $title .= ". Skipped {$skipped->count()} (no contact email on file): {$names}";
+                    $contacts->each(function (ClientContact $contact) use ($template, $client, $data, $campaign) {
+                        SendCustomTemplateEmail::dispatch(
+                            $template,
+                            $client,
+                            auth()->id(),
+                            $data['adhoc_subject'] ?? null,
+                            $data['adhoc_body'] ?? null,
+                            $campaign,
+                            $data['adhoc_attachments'] ?? [],
+                            $contact,
+                        );
+                    });
+
+                    $sent += $contacts->count();
+                }
+
+                $title = "Queued {$sent} email(s)";
+
+                if ($skippedNames !== []) {
+                    $title .= ('. Skipped '.count($skippedNames).' (no contact email on file): '.implode(', ', $skippedNames));
                 }
 
                 Notification::make()->title($title)->send();
@@ -265,5 +277,63 @@ class SendCustomEmailAction
         }
 
         return ['email' => $record->email, 'contact' => null];
+    }
+
+    /**
+     * Whether a client on a campaign has a contact matching its selected job
+     * titles, is relying on the main-contact fallback, or has no usable
+     * contact at all — surfaced on the campaign's Clients tab so staff can
+     * see which schools need a contact added before sending. 'not_targeted'
+     * means the campaign has no job titles set, so this distinction doesn't
+     * apply.
+     */
+    public static function campaignContactStatus(Client $client, MarketingCampaign $campaign): string
+    {
+        if (blank($campaign->client_job_titles)) {
+            return 'not_targeted';
+        }
+
+        $hasMatch = $client->contacts()
+            ->whereIn('client_contact_job_title_id', $campaign->client_job_titles)
+            ->whereNotNull('email')
+            ->exists();
+
+        if ($hasMatch) {
+            return 'matched';
+        }
+
+        return filled($client->mainContact?->email) ? 'fallback' : 'none';
+    }
+
+    /**
+     * When the campaign has client job titles set, every contact at the
+     * client holding one of those job titles receives the email — a school
+     * can have several (e.g. Headteacher and SENCO both selected). A client
+     * with no contact matching any of those titles falls back to its main
+     * contact rather than being skipped. With no job titles set at all,
+     * falls back to today's single booking-contact behavior.
+     *
+     * @return \Illuminate\Support\Collection<int, ClientContact>
+     */
+    private static function campaignRecipients(Client $client, MarketingCampaign $campaign): \Illuminate\Support\Collection
+    {
+        if (filled($campaign->client_job_titles)) {
+            $contacts = $client->contacts()
+                ->whereIn('client_contact_job_title_id', $campaign->client_job_titles)
+                ->whereNotNull('email')
+                ->get();
+
+            if ($contacts->isNotEmpty()) {
+                return $contacts;
+            }
+
+            $mainContact = $client->mainContact;
+
+            return filled($mainContact?->email) ? collect([$mainContact]) : collect();
+        }
+
+        $contact = $client->bookingContact();
+
+        return filled($contact?->email) ? collect([$contact]) : collect();
     }
 }

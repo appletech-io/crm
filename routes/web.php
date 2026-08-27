@@ -27,7 +27,6 @@ Route::post('/impersonate/stop', [ImpersonationController::class, 'stop'])
 // Exposed to public routes for application verification
 Route::livewire('/application/{token}', 'application.verify-application')->name('application.verify');
 Route::livewire('/application/{token}/form', 'application.application-form')->name('application.form');
-
 Route::livewire('/application/healthcare/{token}', 'application.healthcare-verify-application')->name('application.healthcare.verify');
 Route::livewire('/application/healthcare/{token}/form', 'application.healthcare-application-form')->name('application.healthcare.form');
 

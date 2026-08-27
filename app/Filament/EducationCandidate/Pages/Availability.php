@@ -3,6 +3,7 @@
 namespace App\Filament\EducationCandidate\Pages;
 
 use App\Filament\Concerns\HasCandidateAvailabilityTable;
+use App\Models\Candidate;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use BackedEnum;
@@ -30,9 +31,9 @@ class Availability extends Page implements HasTable
         $this->initializeAvailabilityWeek();
     }
 
-    protected function availabilityCandidate(): EducationCandidate|HealthcareCandidate|null
+    protected function availabilityCandidate(): EducationCandidate|HealthcareCandidate|Candidate|null
     {
-        /** @var EducationCandidate|HealthcareCandidate|null $candidate */
+        /** @var EducationCandidate|HealthcareCandidate|Candidate|null $candidate */
         $candidate = auth()->user()->candidate;
 
         return $candidate;

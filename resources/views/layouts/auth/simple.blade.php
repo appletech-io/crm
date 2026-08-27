@@ -1,3 +1,11 @@
+<?php
+    // auth()->user() is only ever populated here once a user is fully
+    // logged in (sector-selector, confirm-password, verify-email) — every
+    // other page sharing this layout (login, forgot/reset-password, the 2FA
+    // challenge) runs before that, so $logoUrl stays null and falls back to
+    // the platform default, same as AdminPanelProvider's ->brandLogo().
+    $logoUrl = auth()->user()?->company?->logoUrl();
+?>
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
     <head>
@@ -8,7 +16,11 @@
             <div class="flex w-full max-w-sm flex-col gap-2">
                 <a href="{{ route('home') }}" class="flex flex-col items-center gap-2 font-medium" wire:navigate>
                     <span class="flex mb-1 items-center justify-center rounded-md">
-                        <x-app-logo-icon class="size-9 fill-current text-black dark:text-white" />
+                        @if ($logoUrl)
+                            <img src="{{ $logoUrl }}" class="h-12 w-auto">
+                        @else
+                            <x-app-logo-icon class="size-9 fill-current text-black dark:text-white" />
+                        @endif
                     </span>
                     <span class="sr-only">{{ config('app.name', 'Laravel') }}</span>
                 </a>

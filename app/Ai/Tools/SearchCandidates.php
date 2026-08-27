@@ -5,10 +5,9 @@ namespace App\Ai\Tools;
 use App\Ai\Tools\Concerns\PaginatesResults;
 use App\Enums\PaymentMethod;
 use App\Filament\Support\TodoLinkedRecord;
-use App\Models\EducationCandidate;
-use App\Models\HealthcareCandidate;
 use App\Models\Industry;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\Database\Eloquent\Model;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
 use Stringable;
@@ -54,9 +53,15 @@ class SearchCandidates implements Tool
             return 'No active sector is selected, so candidates cannot be searched right now.';
         }
 
+        // "Qualification" and "payment method" are Education/Healthcare-only
+        // concepts — the generic Candidate model has neither column nor
+        // relation, so every reference to them here must be conditional on
+        // the resolved model actually supporting them.
+        $supportsQualification = method_exists($candidateModel, 'qualification');
+
         $candidates = $candidateModel::query()
-            ->select(['id', 'first_name', 'last_name', 'qualification_id'])
-            ->with(['latestStatus.status', 'qualification'])
+            ->select(array_filter(['id', 'first_name', 'last_name', $supportsQualification ? 'qualification_id' : null]))
+            ->with(array_filter(['latestStatus.status', $supportsQualification ? 'qualification' : null]))
             ->visibleToCurrentUser()
             ->when($request->filled('status'), fn ($query) => $query->whereHas(
                 'latestStatus.status',
@@ -66,7 +71,7 @@ class SearchCandidates implements Tool
                 'skills',
                 fn ($q) => $q->where('name', 'like', '%'.$request['skill'].'%')
             ))
-            ->when($request->filled('qualification'), fn ($query) => $query->whereHas(
+            ->when($supportsQualification && $request->filled('qualification'), fn ($query) => $query->whereHas(
                 'qualification',
                 fn ($q) => $q->where('name', 'like', '%'.$request['qualification'].'%')
             ))
@@ -79,7 +84,7 @@ class SearchCandidates implements Tool
                 'candidatePools',
                 fn ($q) => $q->where('name', 'like', '%'.$request['pool'].'%')
             ))
-            ->when($request->filled('payment_method'), fn ($query) => $query->where(
+            ->when($supportsQualification && $request->filled('payment_method'), fn ($query) => $query->where(
                 'payment_method', PaymentMethod::tryFrom(strtolower((string) $request['payment_method']))
             ))
             ->orderBy('first_name');
@@ -93,12 +98,14 @@ class SearchCandidates implements Tool
         }
 
         return $candidates
-            ->map(function (EducationCandidate|HealthcareCandidate $candidate): string {
+            ->map(function (Model $candidate) use ($supportsQualification): string {
                 $link = TodoLinkedRecord::candidateLink($candidate);
                 $status = $candidate->latestStatus?->status?->name ?? 'No status';
-                $qualification = $candidate->qualification?->name ?? 'No qualification set';
+                $qualification = $supportsQualification ? ($candidate->qualification?->name ?? 'No qualification set') : null;
 
-                return "- [{$link['label']}]({$link['url']}) — {$status} — {$qualification}";
+                $summary = "- [{$link['label']}]({$link['url']}) — {$status}";
+
+                return $qualification ? "{$summary} — {$qualification}" : $summary;
             })
             ->implode("\n").$this->paginationFooter($candidates->count(), $offset, $total);
     }

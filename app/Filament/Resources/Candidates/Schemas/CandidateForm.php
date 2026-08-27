@@ -616,7 +616,7 @@ class CandidateForm
                             ]),
 
                         Tab::make('Compliance')
-                            ->schema(fn (?Candidate $record): array => $record ? CandidateComplianceForm::sectionsFor($record) : []),
+                            ->schema(fn (?Candidate $record): array => $record ? CandidateComplianceForm::stepsFor($record) : []),
                     ])
                     ->columnSpanFull(),
             ]);

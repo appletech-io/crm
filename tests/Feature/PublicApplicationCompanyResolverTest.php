@@ -5,6 +5,7 @@ use App\Models\EducationApplication;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareApplication;
 use App\Models\HealthcareCandidate;
+use App\Models\Vacancy;
 use App\Services\PublicApplicationCompanyResolver;
 
 test('it returns null for a blank token', function () {
@@ -63,6 +64,21 @@ test('it resolves the company from a reference token', function () {
     ]);
 
     $resolved = PublicApplicationCompanyResolver::forToken($reference->token);
+
+    expect($resolved)->not->toBeNull()
+        ->and($resolved->id)->toBe($company->id);
+});
+
+test('it returns null when there is no vacancy to resolve from', function () {
+    expect(PublicApplicationCompanyResolver::forVacancy(null))->toBeNull()
+        ->and(PublicApplicationCompanyResolver::forVacancy('not-a-vacancy'))->toBeNull();
+});
+
+test('it resolves the company from a vacancy', function () {
+    $company = Company::factory()->create();
+    $vacancy = Vacancy::factory()->create(['company_id' => $company->id]);
+
+    $resolved = PublicApplicationCompanyResolver::forVacancy($vacancy);
 
     expect($resolved)->not->toBeNull()
         ->and($resolved->id)->toBe($company->id);

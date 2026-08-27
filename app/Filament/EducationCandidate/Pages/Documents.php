@@ -5,6 +5,7 @@ namespace App\Filament\EducationCandidate\Pages;
 use App\Enums\DocumentType;
 use App\Filament\Concerns\HasAdditionalDocuments;
 use App\Jobs\GenerateFormattedCv;
+use App\Models\CandidateComplianceValue;
 use App\Services\Candidates\CandidateDocumentRequirements;
 use App\Services\Candidates\Document;
 use Filament\Actions\Action;
@@ -175,6 +176,12 @@ class Documents extends Page implements HasTable
     {
         $candidate = $this->candidate();
 
+        if (str_starts_with($documentType, 'compliance_field_')) {
+            $this->uploadComplianceDocument($candidate, $documentType, $file);
+
+            return;
+        }
+
         $path = Document::upload($file, $candidate, $documentType);
 
         $existing = $candidate->documents()->where('document_type', $documentType)->first();
@@ -206,15 +213,66 @@ class Documents extends Page implements HasTable
             ->send();
     }
 
+    /**
+     * A document-type Compliance Item field, merged into this same list by
+     * CandidateDocumentRequirements — belongs on CandidateComplianceValue,
+     * not CandidateDocument, so it's saved the same way
+     * CandidateComplianceForm::saveValues() would for a Document field.
+     */
+    private function uploadComplianceDocument(Model $candidate, string $documentType, TemporaryUploadedFile $file): void
+    {
+        $fieldId = (int) str_replace('compliance_field_', '', $documentType);
+        $path = Document::upload($file, $candidate, $documentType);
+
+        CandidateComplianceValue::updateOrCreate(
+            ['candidate_id' => $candidate->id, 'compliance_item_field_id' => $fieldId],
+            ['document_path' => $path, 'document_name' => basename($path), 'completed_at' => now()],
+        );
+
+        $this->resetTable();
+
+        Notification::make()
+            ->success()
+            ->title('Document uploaded')
+            ->send();
+    }
+
     private function removeDocument(string $documentType): void
     {
         $candidate = $this->candidate();
+
+        if (str_starts_with($documentType, 'compliance_field_')) {
+            $this->removeComplianceDocument($candidate, $documentType);
+
+            return;
+        }
 
         $document = $candidate->documents()->where('document_type', $documentType)->first();
 
         if ($document) {
             Storage::disk(config('filesystems.default'))->delete($document->path);
             $document->delete();
+        }
+
+        $this->resetTable();
+
+        Notification::make()
+            ->success()
+            ->title('Document removed')
+            ->send();
+    }
+
+    private function removeComplianceDocument(Model $candidate, string $documentType): void
+    {
+        $fieldId = (int) str_replace('compliance_field_', '', $documentType);
+
+        $value = CandidateComplianceValue::where('candidate_id', $candidate->id)
+            ->where('compliance_item_field_id', $fieldId)
+            ->first();
+
+        if ($value?->document_path) {
+            Storage::disk(config('filesystems.default'))->delete($value->document_path);
+            $value->update(['document_path' => null, 'document_name' => null, 'completed_at' => null]);
         }
 
         $this->resetTable();
