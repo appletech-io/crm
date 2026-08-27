@@ -235,6 +235,34 @@ test('professional registration check fails unless body, number, and checked dat
     expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
 });
 
+test('overseas clearance check is complete when the candidate never lived overseas', function () {
+    $candidate = fullyCompliantHealthcareCandidate([
+        'lived_overseas_six_months' => 'no',
+        'overseas_police_clearance_check' => null,
+    ]);
+
+    expect(CandidateVettingRequirements::for($candidate)['overseas_clearance']['complete'])->toBeTrue();
+});
+
+test('overseas clearance check fails when applicable and not cleared', function () {
+    $candidate = fullyCompliantHealthcareCandidate([
+        'lived_overseas_six_months' => 'yes',
+        'overseas_police_clearance_check' => 'no',
+    ]);
+
+    expect(CandidateVettingRequirements::for($candidate)['overseas_clearance']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('overseas clearance check passes when applicable and cleared', function () {
+    $candidate = fullyCompliantHealthcareCandidate([
+        'lived_overseas_six_months' => 'yes',
+        'overseas_police_clearance_check' => 'yes',
+    ]);
+
+    expect(CandidateVettingRequirements::for($candidate)['overseas_clearance']['complete'])->toBeTrue();
+});
+
 test('reference check fails when there is neither a confirmed reference nor a reference document', function () {
     $candidate = fullyCompliantHealthcareCandidate();
     $candidate->documents()->where('document_type', DocumentType::Reference)->delete();

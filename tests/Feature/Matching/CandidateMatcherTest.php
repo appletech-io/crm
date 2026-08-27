@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Candidate;
 use App\Models\CandidateSkill;
 use App\Models\Client;
 use App\Models\Company;
@@ -81,6 +82,32 @@ test('location proximity scorer returns null when either side is missing coordin
     $scorer = new LocationProximityScorer;
 
     expect($scorer->score($candidate, $vacancy->fresh('client')))->toBeNull();
+});
+
+test('location proximity scorer also has a signal for the generic candidate model, now that it has lat/long', function () {
+    $company = Company::factory()->create();
+    $industry = Industry::factory()->create(['slug' => 'it']);
+    $client = Client::factory()->create([
+        'company_id' => $company->id,
+        'industry_id' => $industry->id,
+        'postcode' => null,
+        'latitude' => 51.5074,
+        'longitude' => -0.1278,
+    ]);
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $company->id,
+        'client_id' => $client->id,
+    ]);
+    $candidate = Candidate::factory()->create([
+        'company_id' => $company->id,
+        'industry_id' => $industry->id,
+        'latitude' => 51.5074,
+        'longitude' => -0.1278,
+    ]);
+
+    $scorer = new LocationProximityScorer;
+
+    expect($scorer->score($candidate, $vacancy->fresh('client')))->toBe(1.0);
 });
 
 test('job title match scorer returns the word-overlap fraction between the vacancy and the candidate\'s most recent job title', function () {

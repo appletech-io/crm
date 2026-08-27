@@ -2,14 +2,18 @@
 
 use App\Enums\ActivityType;
 use App\Enums\DocumentType;
+use App\Models\Candidate;
+use App\Models\CandidateApplication;
 use App\Models\CandidateStatus;
 use App\Models\Industry;
 use App\Models\Vacancy;
 use App\Models\VacancyApplication;
+use App\Models\User;
 use App\Services\Ai\CvParserService;
 use App\Services\Candidates\Document;
 use App\Services\Matching\CandidateMatcher;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -74,6 +78,13 @@ new #[Layout('layouts.application', ['maxWidth' => 'max-w-4xl'])] class extends 
     public bool $isReturningCandidate = false;
 
     public bool $alreadyApplied = false;
+
+    /**
+     * Only ever true for the generic Candidate model — Education/Healthcare
+     * candidates don't get a portal account from this form at all, they get
+     * one from their own token-based application/verify flow instead.
+     */
+    public bool $hasPortalAccess = false;
 
     public function mount(Vacancy $vacancy): void
     {
@@ -338,7 +349,26 @@ new #[Layout('layouts.application', ['maxWidth' => 'max-w-4xl'])] class extends 
                     ...$basicDetails,
                     'company_id' => $companyId,
                     'email' => $this->email,
+                    // job_title_id doesn't exist on Education/HealthcareCandidate
+                    // — only the generic Candidate model uses it, to resolve
+                    // which Compliance Items apply (see ComplianceRequirements).
+                    ...($candidateModelClass === Candidate::class ? [
+                        'industry_id' => $this->industryId(),
+                        'job_title_id' => $this->vacancy->job_title_id,
+                    ] : []),
                 ]);
+            }
+
+            if ($candidate instanceof Candidate && $this->vacancy->job_title_id) {
+                CandidateApplication::updateOrCreate([
+                    'candidate_id' => $candidate->id,
+                    'job_title_id' => $this->vacancy->job_title_id,
+                ], [
+                    'company_id' => $companyId,
+                    'token' => Str::random(40),
+                ]);
+
+                $this->grantCandidatePortalAccess($candidate);
             }
 
             if ($this->cv) {
@@ -403,6 +433,36 @@ new #[Layout('layouts.application', ['maxWidth' => 'max-w-4xl'])] class extends 
                 'contacted' => false,
             ]);
         });
+    }
+
+    /**
+     * Unlike Education/Healthcare (whose own token-based application flow
+     * has the candidate set their own password as its final step), this
+     * form has no such step — reusing it as-is means a generic Candidate
+     * never chooses a password here. A random one is generated instead and
+     * they're logged straight in, exactly the pattern already used for
+     * client contact portal accounts (see CreateClientContactPortalAccount)
+     * — they can reset it later via the normal "forgot password" flow.
+     */
+    private function grantCandidatePortalAccess(Candidate $candidate): void
+    {
+        $user = User::updateOrCreate(
+            ['email' => $candidate->email],
+            [
+                'name' => trim("{$candidate->first_name} {$candidate->last_name}"),
+                'password' => Str::password(16),
+                'company_id' => $candidate->company_id,
+                'candidate_id' => $candidate->id,
+                'candidate_type' => $candidate::class,
+            ]
+        );
+
+        $user->industries()->syncWithoutDetaching([$candidate->industry_id]);
+        $user->assignRole('candidate');
+
+        Auth::login($user);
+
+        $this->hasPortalAccess = true;
     }
 
     /** @return array<int, array{id: null, company_name: string, job_title: string, worked_from: ?string, worked_to: ?string, collapsed: bool}> */
@@ -697,6 +757,15 @@ new #[Layout('layouts.application', ['maxWidth' => 'max-w-4xl'])] class extends 
                         <flux:subheading>
                             Thanks for applying for {{ $vacancy->title }}, we'll be in touch.
                         </flux:subheading>
+                    @endif
+
+                    @if ($hasPortalAccess)
+                        <flux:subheading>
+                            We've set up a portal account for you to complete any remaining compliance requirements.
+                        </flux:subheading>
+                        <flux:button href="/candidate" variant="primary" class="mt-2">
+                            Go to your portal
+                        </flux:button>
                     @endif
                 @endif
             </div>

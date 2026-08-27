@@ -23,6 +23,7 @@ use App\Services\Payroll\Evertime\Requests\UpsertClientContact;
 use App\Services\Payroll\Evertime\Requests\UpsertClientLocation;
 use App\Services\Payroll\Evertime\Requests\UpsertConsultant;
 use App\Services\Payroll\Evertime\Requests\UpsertPlacement;
+use App\Services\Payroll\Exceptions\PayrollProviderException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
@@ -205,6 +206,22 @@ class EvertimeProvider implements PayrollTimesheetProvider
 
     private function candidateId(Model $candidate): string
     {
+        // Candidate models outside Education/Healthcare (e.g. the generic
+        // Candidate) don't carry the payroll-specific fields Evertime needs
+        // (NI number, date of birth, bank details) or the
+        // HasProviderExternalId trait — surfaced as a normal payroll
+        // failure (recorded/logged by SendTimesheetToPayrollProvider)
+        // rather than an uncaught error, since a company can have payroll
+        // integration configured for a sector that isn't payroll-ready yet.
+        if (! method_exists($candidate, 'resolveProviderExternalId')) {
+            $candidateClass = $candidate::class;
+
+            throw new PayrollProviderException(
+                "Candidate #{$candidate->id} ({$candidateClass}) does not support payroll provider integration.",
+                ["Candidate #{$candidate->id} does not support payroll provider integration."],
+            );
+        }
+
         $prefix = $candidate instanceof EducationCandidate ? 'EDU' : 'HC';
 
         return $candidate->resolveProviderExternalId(

@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Filament\Concerns\HasCandidateAvailabilityTable;
+use App\Models\Candidate;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use Filament\Tables\Table;
@@ -14,15 +15,15 @@ class CandidateAvailabilityCalendar extends TableWidget
 
     protected int|string|array $columnSpan = 'full';
 
-    public EducationCandidate|HealthcareCandidate|null $record = null;
+    public EducationCandidate|HealthcareCandidate|Candidate|null $record = null;
 
-    public function mount(EducationCandidate|HealthcareCandidate|null $record = null): void
+    public function mount(EducationCandidate|HealthcareCandidate|Candidate|null $record = null): void
     {
         $this->record = $record;
         $this->initializeAvailabilityWeek();
     }
 
-    protected function availabilityCandidate(): EducationCandidate|HealthcareCandidate|null
+    protected function availabilityCandidate(): EducationCandidate|HealthcareCandidate|Candidate|null
     {
         return $this->record;
     }

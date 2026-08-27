@@ -49,6 +49,13 @@ class CandidatesReport extends Page implements HasTable
         return $industry ? Industry::candidateModelForSlug($industry) : null;
     }
 
+    private function candidateModelSupportsBookings(): bool
+    {
+        $modelClass = $this->candidateModelClass();
+
+        return $modelClass && method_exists($modelClass, 'bookings');
+    }
+
     /** @return array<string, int|string> */
     public function stats(): array
     {
@@ -59,7 +66,7 @@ class CandidatesReport extends Page implements HasTable
         }
 
         $total = (clone $query)->count();
-        $placed = (clone $query)->has('bookings')->count();
+        $placed = $this->candidateModelSupportsBookings() ? (clone $query)->has('bookings')->count() : 0;
 
         return [
             'Candidates' => $total,
@@ -72,21 +79,28 @@ class CandidatesReport extends Page implements HasTable
     {
         /** @var class-string<Model>|null $modelClass */
         $modelClass = $this->candidateModelClass();
+        $supportsBookings = $this->candidateModelSupportsBookings();
 
         $query = $modelClass
             ? $modelClass::query()->visibleToCurrentUser()
             : EducationCandidate::query()->whereRaw('1 = 0');
 
+        $query->with(['consultant', 'latestStatus.status']);
+
+        if ($supportsBookings) {
+            $query->withCount('bookings');
+        }
+
         return $table
-            ->query($query->with(['consultant', 'latestStatus.status'])->withCount('bookings'))
+            ->query($query)
             ->columns([
                 TextColumn::make('first_name')->label('First name')->searchable()->sortable(),
                 TextColumn::make('last_name')->label('Last name')->searchable()->sortable(),
                 TextColumn::make('consultant.name')->label('Consultant')->searchable()->sortable(),
                 TextColumn::make('latestStatus.status.name')->label('Current status')->badge()->color(fn ($record): ?string => $record->latestStatus?->status?->color),
                 TextColumn::make('created_at')->label('Registered')->date()->sortable(),
-                TextColumn::make('bookings_count')->label('Bookings')->alignEnd()->sortable(),
-                IconColumn::make('is_placed')->label('Placed')->state(fn ($record): bool => $record->bookings_count > 0)->boolean(),
+                TextColumn::make('bookings_count')->label('Bookings')->alignEnd()->sortable()->visible($supportsBookings),
+                IconColumn::make('is_placed')->label('Placed')->state(fn ($record): bool => $record->bookings_count > 0)->boolean()->visible($supportsBookings),
             ])
             ->filters([
                 Filter::make('registered')

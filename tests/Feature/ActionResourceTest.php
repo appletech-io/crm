@@ -6,6 +6,7 @@ use App\Filament\Resources\Actions\Pages\EditAction;
 use App\Filament\Resources\Actions\Pages\ListActions;
 use App\Models\Action;
 use App\Models\Booking;
+use App\Models\Candidate;
 use App\Models\CandidateReference;
 use App\Models\CandidateStatus;
 use App\Models\Client;
@@ -237,6 +238,35 @@ test('model type options include client, booking, vacancy, candidate reference a
                 && array_key_exists(EducationCandidate::class, $options)
                 && ! array_key_exists(HealthcareCandidate::class, $options);
         });
+});
+
+test('a condition field valid for the generic candidate model is accepted, once field suggestions are available for it', function () {
+    $genericIndustry = Industry::factory()->create(['slug' => 'generic']);
+    $this->company->industries()->attach($genericIndustry);
+    $this->user->industries()->attach($genericIndustry);
+    Cache::put("user.{$this->user->id}.active_industry", $genericIndustry->slug);
+    Cache::put("user.{$this->user->id}.active_industry_id", $genericIndustry->id);
+
+    Livewire::test(CreateAction::class)
+        ->assertFormFieldExists('model_type', function ($field): bool {
+            return array_key_exists(Candidate::class, $field->getOptions());
+        })
+        ->fillForm([
+            'name' => 'Valid candidate condition',
+            'model_type' => Candidate::class,
+            'conditions' => [
+                'item-1' => ['field' => 'current_status', 'operator' => 'filled'],
+            ],
+            'wants_todo' => true,
+            'todo_name' => 'x',
+            'todo_priority' => 'medium',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $action = Action::where('name', 'Valid candidate condition')->first();
+
+    expect($action->conditions)->toBe([['field' => 'current_status', 'operator' => 'filled']]);
 });
 
 test('a condition field valid for vacancy is accepted', function () {

@@ -89,15 +89,25 @@ class ConsultantPerformanceSummary extends StatsOverviewWidget
      * them is cached per consultant for 2 hours — regenerating it on every
      * dashboard view would be slow and needlessly expensive, and the
      * underlying numbers don't need to-the-minute freshness in prose form.
+     *
+     * The cache key must include company and active industry — when
+     * $consultantId is null ("All Consultants"), the underlying figures are
+     * scoped by Booking::scopeForActiveIndustry() to the viewer's own
+     * company/sector, so the cached narration has to be scoped the same way.
+     * Without this, one company's "All Consultants" summary could be served
+     * to a different company (or a different sector of the same company)
+     * viewing the same calendar week.
      */
     public function summaryText(): string
     {
         $consultantId = $this->activeConsultantId();
         $stats = $this->weekStats();
         $weekStart = Carbon::now()->startOfWeek(Carbon::MONDAY)->toDateString();
+        $companyId = Auth::user()?->company_id;
+        $industryId = active_industry_id();
 
         return Cache::remember(
-            "consultant-performance-summary:{$consultantId}:{$weekStart}",
+            "consultant-performance-summary:{$companyId}:{$industryId}:{$consultantId}:{$weekStart}",
             now()->addHours(2),
             fn (): string => $this->generateSummary($consultantId, $stats),
         );

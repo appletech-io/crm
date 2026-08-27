@@ -4,6 +4,7 @@ namespace App\Services\Candidates;
 
 use App\Enums\CandidateAvailabilityStatus;
 use App\Models\BookingDay;
+use App\Models\Candidate;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use Carbon\CarbonPeriod;
@@ -20,7 +21,7 @@ class CandidateWeeklyAvailability
      *
      * @return array<int, array{date: string, day_label: string, status: ?string, editable: bool}>
      */
-    public static function forWeek(EducationCandidate|HealthcareCandidate $candidate, Carbon $weekStart): array
+    public static function forWeek(EducationCandidate|HealthcareCandidate|Candidate $candidate, Carbon $weekStart): array
     {
         $start = $weekStart->copy()->startOfWeek(Carbon::MONDAY);
         $end = $start->copy()->endOfWeek(Carbon::SUNDAY);
@@ -52,7 +53,7 @@ class CandidateWeeklyAvailability
     }
 
     /** @return Collection<int, string> */
-    protected static function bookedDates(EducationCandidate|HealthcareCandidate $candidate, Carbon $start, Carbon $end): Collection
+    protected static function bookedDates(EducationCandidate|HealthcareCandidate|Candidate $candidate, Carbon $start, Carbon $end): Collection
     {
         return BookingDay::query()
             ->whereHas('booking', fn ($query) => $query

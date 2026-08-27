@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Pages\Analytics\CandidatesReport;
+use App\Models\Candidate;
 use App\Models\EducationCandidate;
 use App\Models\Industry;
 use App\Models\User;
@@ -60,6 +61,27 @@ test('it renders successfully and counts candidates and placements for the activ
     $company = $admin->company;
 
     EducationCandidate::factory()->count(2)->create(['company_id' => $company->id]);
+
+    $component = Livewire::test(CandidatesReport::class)->assertSuccessful();
+
+    $stats = $component->instance()->stats();
+
+    expect($stats['Candidates'])->toBe(2)
+        ->and($stats['Placed'])->toBe(0);
+});
+
+test('it renders successfully for a generic candidate model that has no bookings relation', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+
+    $industry = Industry::factory()->create(['slug' => 'it']);
+    Cache::put("user.{$admin->id}.active_industry", 'it');
+    Cache::put("user.{$admin->id}.active_industry_id", $industry->id);
+
+    $company = $admin->company;
+
+    Candidate::factory()->count(2)->create(['company_id' => $company->id, 'industry_id' => $industry->id]);
 
     $component = Livewire::test(CandidatesReport::class)->assertSuccessful();
 

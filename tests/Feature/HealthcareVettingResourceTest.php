@@ -112,6 +112,34 @@ test('the right to work document expiry date section shows for visa and passport
     expect($html)->toContain('Right to Work Document');
 });
 
+test('the security checks step shows a "nothing required" message when no section applies', function () {
+    // "Overseas Police Clearance"/"Right to Work Document" aren't safe to
+    // assert absent here — both also appear as requirement labels in the
+    // Confirm step's checklist, which Filament's Wizard keeps in the DOM
+    // for every step at once. The "nothing required" message text itself
+    // is unique, so that's what's asserted instead.
+    $candidate = HealthcareCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'right_to_work_type' => 'birth_certificate',
+        'lived_overseas_six_months' => 'no',
+    ]);
+    assignHealthcareVettingStatus($candidate, $this->industry, $this->user->company_id);
+
+    $html = Livewire::test(HealthcareVettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->toContain('No security checks are required for this candidate');
+
+    $candidate->update(['lived_overseas_six_months' => 'yes']);
+
+    $html = Livewire::test(HealthcareVettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->html();
+
+    expect($html)->not->toContain('No security checks are required for this candidate');
+});
+
 test('healthcare vetting wizard can save the right to work expiry date for a passport candidate', function () {
     $candidate = HealthcareCandidate::factory()->create([
         'company_id' => $this->user->company_id,

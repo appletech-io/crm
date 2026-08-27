@@ -484,6 +484,10 @@ class HealthcareVettingSteps
                     ->color('danger')
                     ->visible(fn (?HealthcareCandidate $record): bool => (bool) $record?->dnuCandidate()),
 
+                Text::make('No security checks are required for this candidate — they haven\'t lived overseas for 6+ months, and their right to work isn\'t established via a passport or visa.')
+                    ->color('gray')
+                    ->visible(fn (?HealthcareCandidate $record): bool => static::hasNoSecurityChecksRequired($record)),
+
                 Section::make('Overseas Police Clearance')
                     ->schema([
                         Select::make('overseas_police_clearance_check')
@@ -519,6 +523,17 @@ class HealthcareVettingSteps
                     ->columns(2)
                     ->visible(fn (?HealthcareCandidate $record): bool => in_array($record?->right_to_work_type, ['visa', 'passport'], true)),
             ]);
+    }
+
+    /**
+     * True when none of this step's sections have anything to show — the
+     * candidate hasn't lived overseas, and their right to work isn't via a
+     * passport or visa (e.g. it's a birth certificate, which needs neither).
+     */
+    private static function hasNoSecurityChecksRequired(?HealthcareCandidate $record): bool
+    {
+        return $record?->lived_overseas_six_months !== 'yes'
+            && ! in_array($record?->right_to_work_type, ['visa', 'passport'], true);
     }
 
     /** @return array<int, string> */

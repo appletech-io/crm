@@ -192,6 +192,7 @@ class BookingForm
                             ->afterStateUpdated(fn (Set $set, Get $get) => static::regenerateDayPeriods($set, $get)),
                         DayScheduleCalendar::make('day_periods')
                             ->hiddenLabel()
+                            ->live()
                             ->dehydrated(false)
                             ->rule(function (Get $get, ?Booking $record): Closure {
                                 return function (string $attribute, mixed $value, Closure $fail) use ($get, $record): void {

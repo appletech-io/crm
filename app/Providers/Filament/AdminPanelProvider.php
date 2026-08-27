@@ -9,6 +9,7 @@ use App\Filament\Pages\Analytics\VacanciesReport;
 use App\Filament\Pages\CandidateSettings;
 use App\Filament\Pages\ClientSettings;
 use App\Filament\Pages\ComplianceDashboard;
+use App\Filament\Pages\ComplianceSettings;
 use App\Filament\Pages\ConsultantMonthlyReport;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\Integrations\EvertimeIntegration;
@@ -20,6 +21,7 @@ use App\Filament\Resources\EducationCandidates\Pages\EditEducationCandidate;
 use App\Filament\Resources\HealthcareCandidates\Pages\EditHealthcareCandidate;
 use App\Http\Middleware\EnsureAccountSetupIsComplete;
 use App\Http\Middleware\SetActiveIndustry;
+use App\Models\Industry;
 use Filament\Actions\Action;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -71,7 +73,11 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->userMenuItems([
                 Action::make('switch_sector')
-                    ->label('Switch Sector')
+                    ->label(function (): string {
+                        $industryName = Industry::find(active_industry_id())?->name;
+
+                        return $industryName ? "Switch Sector ({$industryName})" : 'Switch Sector';
+                    })
                     ->icon('heroicon-o-arrows-right-left')
                     ->url(fn () => route('sector.select')),
                 Action::make('account_security')
@@ -111,6 +117,7 @@ class AdminPanelProvider extends PanelProvider
                 CandidateSettings::class,
                 ClientSettings::class,
                 JobSettings::class,
+                ComplianceSettings::class,
                 ListIntegrations::class,
                 EvertimeIntegration::class,
                 RunPayroll::class,
