@@ -15,10 +15,21 @@ class Industry extends Model
 
     protected $guarded = [];
 
-    /** @var array<string, class-string<Model>|null> */
+    /**
+     * 'generic' is a placeholder slug — any sector that doesn't need
+     * Education/Healthcare's bespoke vetting just needs its own entry here
+     * pointing at Candidate::class (or more than one entry can share it), no
+     * new candidate model/resource/vetting stack required. See
+     * App\Services\Candidates\ComplianceRequirements for how that model's
+     * compliance requirements are resolved instead of hardcoded fields.
+     *
+     * @var array<string, class-string<Model>|null>
+     */
     protected static array $candidateModelMap = [
         'education' => EducationCandidate::class,
         'healthcare' => HealthcareCandidate::class,
+        'generic' => Candidate::class,
+        'it' => Candidate::class,
     ];
 
     /** @return class-string<Model>|null */

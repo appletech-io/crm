@@ -197,6 +197,50 @@ test('a non admin consultant always gets the monthly report link, pointing at th
         ->and($component->monthlyReportUrl())->toContain((string) $consultant->id);
 });
 
+test('the cached summary does not leak between different companies viewing "All Consultants" for the same week', function () {
+    PerformanceSummaryAgent::fake([
+        'Summary for company A.',
+        'Summary for company B.',
+    ]);
+
+    // This company (set up in beforeEach) generates its "All Consultants"
+    // summary first.
+    Livewire::test(ConsultantPerformanceSummary::class)
+        ->call('loadSummary')
+        ->assertSet('summary', 'Summary for company A.');
+
+    // A completely different company/admin, viewing the same calendar week,
+    // must get its own summary — not company A's cached text — since the
+    // cache key must be scoped by company (and industry).
+    $otherCompanyAdmin = User::factory()->create();
+    $otherCompanyAdmin->assignRole('admin');
+    $this->actingAs($otherCompanyAdmin);
+    Cache::put("user.{$otherCompanyAdmin->id}.active_industry", 'education');
+    Cache::put("user.{$otherCompanyAdmin->id}.active_industry_id", 1);
+
+    Livewire::test(ConsultantPerformanceSummary::class)
+        ->call('loadSummary')
+        ->assertSet('summary', 'Summary for company B.');
+});
+
+test('the cached summary does not leak between sectors of the same company for the same week', function () {
+    PerformanceSummaryAgent::fake([
+        'Summary for education.',
+        'Summary for healthcare.',
+    ]);
+
+    Livewire::test(ConsultantPerformanceSummary::class)
+        ->call('loadSummary')
+        ->assertSet('summary', 'Summary for education.');
+
+    Cache::put("user.{$this->user->id}.active_industry", 'healthcare');
+    Cache::put("user.{$this->user->id}.active_industry_id", 2);
+
+    Livewire::test(ConsultantPerformanceSummary::class)
+        ->call('loadSummary')
+        ->assertSet('summary', 'Summary for healthcare.');
+});
+
 test('an admin only gets the monthly report link once a specific consultant is selected', function () {
     $consultantA = User::factory()->create(['company_id' => $this->user->company_id]);
     $consultantA->assignRole('consultant');

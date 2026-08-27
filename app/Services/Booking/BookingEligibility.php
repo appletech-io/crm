@@ -5,9 +5,8 @@ namespace App\Services\Booking;
 use App\Enums\BookingDayPeriod;
 use App\Enums\CandidateAvailabilityStatus;
 use App\Models\CandidateAvailability;
-use App\Models\EducationCandidate;
-use App\Models\HealthcareCandidate;
 use App\Models\JobTitle;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
 class BookingEligibility
@@ -17,9 +16,14 @@ class BookingEligibility
      * title, no qualification set, or the qualification has no configured
      * restrictions yet (an unconfigured allowed-list means unrestricted, not
      * blocked). Otherwise the reason to show in the form error.
+     *
+     * Duck-typed on Model rather than EducationCandidate|HealthcareCandidate
+     * so this stays callable for any resolved candidate model — a candidate
+     * model with no qualification_id column (e.g. the generic Candidate)
+     * simply has no restriction to enforce.
      */
     public static function disallowedJobTitleReason(
-        EducationCandidate|HealthcareCandidate|null $candidate,
+        ?Model $candidate,
         ?int $jobTitleId,
     ): ?string {
         if (! $candidate || ! $jobTitleId || ! $candidate->qualification_id) {

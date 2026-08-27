@@ -69,6 +69,11 @@ class CandidateVettingRequirements
                 'description' => 'Payment method is set to PAYE (with bank account number and sort code), or an umbrella/Ltd company has been selected.',
                 'complete' => static::paymentMethodComplete($candidate),
             ],
+            'overseas_clearance' => [
+                'label' => 'Overseas Police Clearance',
+                'description' => 'Candidate has been cleared for overseas police checks, if applicable.',
+                'complete' => $candidate->lived_overseas_six_months !== 'yes' || $candidate->overseas_police_clearance_check === 'yes',
+            ],
             'proof_of_address' => [
                 'label' => 'Proof of Address',
                 'description' => 'Uploaded proof of address matches the candidate\'s stored address.',

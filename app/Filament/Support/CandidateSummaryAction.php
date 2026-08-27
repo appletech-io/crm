@@ -5,6 +5,7 @@ namespace App\Filament\Support;
 use App\Enums\Education\Availability;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
+use App\Services\Candidates\ComplianceRequirements;
 use App\Services\Education\CandidateVettingRequirements as EducationVettingRequirements;
 use App\Services\Healthcare\CandidateVettingRequirements as HealthcareVettingRequirements;
 use Carbon\CarbonInterface;
@@ -46,7 +47,7 @@ class CandidateSummaryAction
 
     public static function make(?Closure $resolveUsing = null): Action
     {
-        $resolveCandidate = $resolveUsing ?? fn (EducationCandidate|HealthcareCandidate $record): Model => $record;
+        $resolveCandidate = $resolveUsing ?? fn (Model $record): Model => $record;
 
         return Action::make('viewCandidateSummary')
             ->label('Quick view')
@@ -70,7 +71,7 @@ class CandidateSummaryAction
     }
 
     /** @return array<int, Component> */
-    private static function schema(EducationCandidate|HealthcareCandidate $candidate): array
+    private static function schema(Model $candidate): array
     {
         $data = self::overviewData($candidate);
 
@@ -107,7 +108,7 @@ class CandidateSummaryAction
      *     last_booking_date: ?string,
      * }
      */
-    public static function overviewData(EducationCandidate|HealthcareCandidate $candidate): array
+    public static function overviewData(Model $candidate): array
     {
         $status = $candidate->latestStatus?->status;
 
@@ -133,7 +134,7 @@ class CandidateSummaryAction
     }
 
     /** @return array<int, Component> */
-    private static function typeSpecificEntries(EducationCandidate|HealthcareCandidate $candidate): array
+    private static function typeSpecificEntries(Model $candidate): array
     {
         if ($candidate instanceof EducationCandidate) {
             return [
@@ -145,22 +146,35 @@ class CandidateSummaryAction
             ];
         }
 
+        if ($candidate instanceof HealthcareCandidate) {
+            return [
+                TextEntry::make('care_settings')
+                    ->label('Care Settings')
+                    ->state(collect($candidate->care_settings ?? [])->implode(', ') ?: null)
+                    ->placeholder('—'),
+                TextEntry::make('professional_registration')
+                    ->label('Professional Registration')
+                    ->state($candidate->professional_registration_body && $candidate->professional_registration_number
+                        ? "{$candidate->professional_registration_body} ({$candidate->professional_registration_number})"
+                        : null)
+                    ->placeholder('—'),
+            ];
+        }
+
         return [
-            TextEntry::make('care_settings')
-                ->label('Care Settings')
-                ->state(collect($candidate->care_settings ?? [])->implode(', ') ?: null)
-                ->placeholder('—'),
-            TextEntry::make('professional_registration')
-                ->label('Professional Registration')
-                ->state($candidate->professional_registration_body && $candidate->professional_registration_number
-                    ? "{$candidate->professional_registration_body} ({$candidate->professional_registration_number})"
-                    : null)
+            TextEntry::make('job_title')
+                ->label('Job Title')
+                ->state($candidate->jobTitle?->name)
                 ->placeholder('—'),
         ];
     }
 
-    private static function complianceSchema(EducationCandidate|HealthcareCandidate $candidate): Section
+    private static function complianceSchema(Model $candidate): Section
     {
+        if (! $candidate instanceof EducationCandidate && ! $candidate instanceof HealthcareCandidate) {
+            return self::genericComplianceSchema($candidate);
+        }
+
         $data = self::complianceData($candidate);
 
         return Section::make('Compliance')
@@ -178,6 +192,36 @@ class CandidateSummaryAction
                     ->state($data['outstanding'] ?: null)
                     ->placeholder('Nothing outstanding')
                     ->columnSpanFull(),
+            ]);
+    }
+
+    /**
+     * The generic Candidate model has no fixed DBS/Right to Work concept —
+     * its requirements are whatever Compliance Items its job title has
+     * assigned (see ComplianceRequirements), so this renders an overall
+     * count and an outstanding-items list instead of the fixed badges above.
+     */
+    private static function genericComplianceSchema(Model $candidate): Section
+    {
+        $checks = ComplianceRequirements::for($candidate);
+        $total = count($checks);
+        $met = collect($checks)->where('complete', true)->count();
+        $outstanding = collect($checks)
+            ->reject(fn (array $check): bool => $check['complete'])
+            ->map(fn (array $check): string => $check['item']->name)
+            ->implode(', ');
+
+        return Section::make('Compliance')
+            ->schema([
+                TextEntry::make('compliance_status')
+                    ->label('Overall')
+                    ->badge()
+                    ->state("{$met}/{$total} requirements met")
+                    ->color($met === $total ? 'success' : 'danger'),
+                TextEntry::make('outstanding')
+                    ->label('Outstanding')
+                    ->state($outstanding ?: null)
+                    ->placeholder('Nothing outstanding'),
             ]);
     }
 

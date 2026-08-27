@@ -2,6 +2,8 @@
 
 use App\Ai\Agents\CvParser;
 use App\Enums\DocumentType;
+use App\Models\Candidate;
+use App\Models\CandidateApplication;
 use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
 use App\Models\Client;
@@ -9,8 +11,11 @@ use App\Models\Company;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use App\Models\Industry;
+use App\Models\JobTitle;
+use App\Models\User;
 use App\Models\Vacancy;
 use App\Services\Ai\CvParserService;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -297,6 +302,73 @@ test('applying to a healthcare vacancy creates a healthcare candidate, proving t
 
     expect(HealthcareCandidate::where('email', 'sam.carter@example.com')->exists())->toBeTrue();
     expect(EducationCandidate::where('email', 'sam.carter@example.com')->exists())->toBeFalse();
+});
+
+test('applying to a vacancy for the generic industry creates a Candidate, a CandidateApplication, and a portal login', function () {
+    $this->seed(RoleSeeder::class);
+
+    $company = Company::factory()->create();
+    $industry = Industry::factory()->create(['slug' => 'generic']);
+    $jobTitle = JobTitle::factory()->create(['company_id' => $company->id, 'industry_id' => $industry->id]);
+    $client = Client::factory()->create(['company_id' => $company->id, 'industry_id' => $industry->id]);
+
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $company->id,
+        'client_id' => $client->id,
+        'job_title_id' => $jobTitle->id,
+    ]);
+
+    Livewire::test('vacancy.apply-form', ['vacancy' => $vacancy])
+        ->call('skipCv')
+        ->set('first_name', 'Robin')
+        ->set('last_name', 'Shaw')
+        ->set('email', 'robin.shaw@example.com')
+        ->call('savePersonalDetails')
+        ->assertHasNoErrors()
+        ->call('saveEmploymentHistory')
+        ->assertHasNoErrors()
+        ->assertSet('step', 4)
+        ->assertSee('Go to your portal');
+
+    $candidate = Candidate::where('email', 'robin.shaw@example.com')->first();
+
+    expect($candidate)->not->toBeNull()
+        ->and($candidate->company_id)->toBe($company->id)
+        ->and($candidate->industry_id)->toBe($industry->id)
+        ->and($candidate->job_title_id)->toBe($jobTitle->id);
+
+    $application = CandidateApplication::where('candidate_id', $candidate->id)->first();
+    expect($application)->not->toBeNull()
+        ->and($application->job_title_id)->toBe($jobTitle->id)
+        ->and($application->company_id)->toBe($company->id);
+
+    $user = User::where('email', 'robin.shaw@example.com')->first();
+    expect($user)->not->toBeNull()
+        ->and($user->candidate_id)->toBe($candidate->id)
+        ->and($user->candidate_type)->toBe(Candidate::class)
+        ->and($user->hasRole('candidate'))->toBeTrue()
+        ->and($user->industries()->where('industries.id', $industry->id)->exists())->toBeTrue();
+
+    $this->assertAuthenticatedAs($user);
+});
+
+test('applying for education does not create a portal login the way the generic candidate path does', function () {
+    $vacancy = createVacancyFor('education');
+
+    Livewire::test('vacancy.apply-form', ['vacancy' => $vacancy])
+        ->call('skipCv')
+        ->set('first_name', 'Jamie')
+        ->set('last_name', 'Fox')
+        ->set('email', 'jamie.fox@example.com')
+        ->call('savePersonalDetails')
+        ->assertHasNoErrors()
+        ->call('saveEmploymentHistory')
+        ->assertHasNoErrors()
+        ->assertSet('step', 4)
+        ->assertDontSee('Go to your portal');
+
+    expect(User::where('email', 'jamie.fox@example.com')->exists())->toBeFalse();
+    $this->assertGuest();
 });
 
 test('applying sets a match score on the resulting application when the candidate already has the vacancy\'s required skills', function () {

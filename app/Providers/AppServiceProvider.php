@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Booking;
+use App\Models\Candidate;
 use App\Models\CandidateCandidateStatus;
 use App\Models\CandidateReference;
 use App\Models\Client;
@@ -14,6 +15,7 @@ use App\Models\Vacancy;
 use App\Models\VacancyPlacement;
 use App\Observers\BookingObserver;
 use App\Observers\CandidateCandidateStatusObserver;
+use App\Observers\CandidateObserver;
 use App\Observers\CandidateReferenceObserver;
 use App\Observers\ClientContactObserver;
 use App\Observers\ClientObserver;
@@ -50,6 +52,7 @@ class AppServiceProvider extends ServiceProvider
 
         EducationCandidate::observe(EducationCandidateObserver::class);
         HealthcareCandidate::observe(HealthcareCandidateObserver::class);
+        Candidate::observe(CandidateObserver::class);
         Client::observe(ClientObserver::class);
         ClientContact::observe(ClientContactObserver::class);
         Booking::observe(BookingObserver::class);

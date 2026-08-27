@@ -2,6 +2,7 @@
 
 namespace App\Services\Candidates;
 
+use App\Models\Candidate;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use Illuminate\Database\Eloquent\Model;
@@ -60,49 +61,55 @@ class CandidateDocumentRequirements
             'description' => 'A document confirming your National Insurance number.',
         ];
 
-        match ($candidate->right_to_work_type) {
-            'birth_certificate' => $definitions['birth_certificate'] = [
-                'label' => 'Birth Certificate',
-                'description' => 'Your birth certificate, as proof of your right to work.',
-            ],
-            'passport' => $definitions['passport'] = [
-                'label' => 'Passport',
-                'description' => 'Your passport, as proof of your right to work.',
-            ],
-            default => null,
-        };
+        // DBS/right-to-work isn't a fixed concept for the generic Candidate
+        // model — that's exactly what the configurable Compliance Items
+        // system covers for it instead, so this whole block (and the
+        // has_dbs/has_naric columns it reads) doesn't apply.
+        if (! $candidate instanceof Candidate) {
+            match ($candidate->right_to_work_type) {
+                'birth_certificate' => $definitions['birth_certificate'] = [
+                    'label' => 'Birth Certificate',
+                    'description' => 'Your birth certificate, as proof of your right to work.',
+                ],
+                'passport' => $definitions['passport'] = [
+                    'label' => 'Passport',
+                    'description' => 'Your passport, as proof of your right to work.',
+                ],
+                default => null,
+            };
 
-        $definitions['dbs_front'] = [
-            'label' => 'DBS (Front)',
-            'description' => 'The front of your DBS certificate or update service check.',
-        ];
-
-        $definitions['dbs_back'] = [
-            'label' => 'DBS (Back)',
-            'description' => 'The back of your DBS certificate or update service check.',
-        ];
-
-        if ($candidate->has_dbs === 'no') {
-            $definitions['proof_of_address_2'] = [
-                'label' => 'Proof of Address 2',
-                'description' => 'A second, different proof of address, since you do not currently have a DBS.',
+            $definitions['dbs_front'] = [
+                'label' => 'DBS (Front)',
+                'description' => 'The front of your DBS certificate or update service check.',
             ];
 
-            if ($includeGetDbsAction) {
-                // Prepended so it's the first, most obvious row when a DBS is still needed.
-                $definitions = ['get_dbs' => [
-                    'label' => 'Get your DBS',
-                    'description' => 'You told us you do not currently have a DBS. Apply for one, then come back and upload it above.',
-                    'url' => self::GET_DBS_URL,
-                ]] + $definitions;
+            $definitions['dbs_back'] = [
+                'label' => 'DBS (Back)',
+                'description' => 'The back of your DBS certificate or update service check.',
+            ];
+
+            if ($candidate->has_dbs === 'no') {
+                $definitions['proof_of_address_2'] = [
+                    'label' => 'Proof of Address 2',
+                    'description' => 'A second, different proof of address, since you do not currently have a DBS.',
+                ];
+
+                if ($includeGetDbsAction) {
+                    // Prepended so it's the first, most obvious row when a DBS is still needed.
+                    $definitions = ['get_dbs' => [
+                        'label' => 'Get your DBS',
+                        'description' => 'You told us you do not currently have a DBS. Apply for one, then come back and upload it above.',
+                        'url' => self::GET_DBS_URL,
+                    ]] + $definitions;
+                }
             }
-        }
 
-        if ($candidate->has_naric === 'yes') {
-            $definitions['uk_naric'] = [
-                'label' => 'UK NARIC',
-                'description' => 'Your UK NARIC statement of comparability.',
-            ];
+            if ($candidate->has_naric === 'yes') {
+                $definitions['uk_naric'] = [
+                    'label' => 'UK NARIC',
+                    'description' => 'Your UK NARIC statement of comparability.',
+                ];
+            }
         }
 
         return collect($definitions)

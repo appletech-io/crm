@@ -3,6 +3,7 @@
 namespace App\Filament\Concerns;
 
 use App\Enums\CandidateAvailabilityStatus;
+use App\Models\Candidate;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use App\Services\Candidates\CandidateWeeklyAvailability;
@@ -16,7 +17,7 @@ trait HasCandidateAvailabilityTable
 {
     public string $weekStart;
 
-    abstract protected function availabilityCandidate(): EducationCandidate|HealthcareCandidate|null;
+    abstract protected function availabilityCandidate(): EducationCandidate|HealthcareCandidate|Candidate|null;
 
     protected function initializeAvailabilityWeek(): void
     {

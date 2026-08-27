@@ -233,8 +233,14 @@ class ConsultantMonthlyReport extends Page
 
         $weekAnchor = Carbon::now()->startOfWeek(Carbon::MONDAY)->toDateString();
 
+        // periodStats()/weeklyBreakdown() are scoped by active_industry() via
+        // Booking::scopeForActiveIndustry() — a multi-sector company viewing
+        // the same consultant's report from a different active sector within
+        // the cache window must not be served the other sector's figures.
+        $industryId = active_industry_id();
+
         return Cache::remember(
-            "consultant-monthly-report:{$consultantId}:{$months}:{$weekAnchor}",
+            "consultant-monthly-report:{$consultantId}:{$industryId}:{$months}:{$weekAnchor}",
             now()->addHours(2),
             fn (): string => $this->promptAgent($consultantName, $months, $stats, $weeks, $activityCounts),
         );
