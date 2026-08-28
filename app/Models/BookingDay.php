@@ -71,6 +71,20 @@ class BookingDay extends Model
         };
     }
 
+    /**
+     * The candidate-facing pay rate for this specific day — the same
+     * period-based lookup as chargeRate(), just against the booking's pay
+     * rate fields instead of its charge rate fields.
+     */
+    public function payRate(): ?float
+    {
+        return match ($this->period) {
+            BookingDayPeriod::Hours => $this->booking->hourly_rate,
+            BookingDayPeriod::Am, BookingDayPeriod::Pm => $this->booking->half_day_rate,
+            BookingDayPeriod::FullDay => $this->booking->day_rate,
+        };
+    }
+
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);

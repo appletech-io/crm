@@ -5,7 +5,9 @@ use App\Enums\BookingDayPeriod;
 use App\Filament\Widgets\ConsultantPerformanceSummary;
 use App\Models\Booking;
 use App\Models\Client;
+use App\Models\ConsultantKpiTarget;
 use App\Models\EducationCandidate;
+use App\Models\Industry;
 use App\Models\JobTitle;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
@@ -239,6 +241,134 @@ test('the cached summary does not leak between sectors of the same company for t
     Livewire::test(ConsultantPerformanceSummary::class)
         ->call('loadSummary')
         ->assertSet('summary', 'Summary for healthcare.');
+});
+
+test('a stat is colored green when this week\'s actual meets or exceeds the consultant\'s target', function () {
+    $industry = Industry::factory()->create(['slug' => 'education']);
+    Cache::put("user.{$this->user->id}.active_industry_id", $industry->id);
+
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+    ConsultantKpiTarget::factory()->create([
+        'user_id' => $consultant->id,
+        'industry_id' => $industry->id,
+        'gp_target' => 40,
+    ]);
+
+    $client = Client::factory()->create(['company_id' => $this->company->id]);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+
+    createWidgetBooking($consultant, $client, $candidate, $this->jobTitle, $monday->toDateString(), [
+        'day_rate' => 100,
+        'day_charge_rate' => 150,
+    ]);
+
+    Livewire::test(ConsultantPerformanceSummary::class)
+        ->set('consultantId', $consultant->id)
+        ->assertSeeHtml('fi-color-success');
+});
+
+test('a stat is colored amber between 80% and 100% of the consultant\'s target', function () {
+    $industry = Industry::factory()->create(['slug' => 'education']);
+    Cache::put("user.{$this->user->id}.active_industry_id", $industry->id);
+
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+    ConsultantKpiTarget::factory()->create([
+        'user_id' => $consultant->id,
+        'industry_id' => $industry->id,
+        'gp_target' => 60,
+    ]);
+
+    $client = Client::factory()->create(['company_id' => $this->company->id]);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+
+    createWidgetBooking($consultant, $client, $candidate, $this->jobTitle, $monday->toDateString(), [
+        'day_rate' => 100,
+        'day_charge_rate' => 150,
+    ]);
+
+    Livewire::test(ConsultantPerformanceSummary::class)
+        ->set('consultantId', $consultant->id)
+        ->assertSeeHtml('fi-color-warning');
+});
+
+test('a stat is colored red below 80% of the consultant\'s target', function () {
+    $industry = Industry::factory()->create(['slug' => 'education']);
+    Cache::put("user.{$this->user->id}.active_industry_id", $industry->id);
+
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+    ConsultantKpiTarget::factory()->create([
+        'user_id' => $consultant->id,
+        'industry_id' => $industry->id,
+        'gp_target' => 1000,
+    ]);
+
+    $client = Client::factory()->create(['company_id' => $this->company->id]);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+
+    createWidgetBooking($consultant, $client, $candidate, $this->jobTitle, $monday->toDateString(), [
+        'day_rate' => 100,
+        'day_charge_rate' => 150,
+    ]);
+
+    Livewire::test(ConsultantPerformanceSummary::class)
+        ->set('consultantId', $consultant->id)
+        ->assertSeeHtml('fi-color-danger');
+});
+
+test('stats are never colored while viewing "All Consultants", even if the only consultant has a target', function () {
+    $industry = Industry::factory()->create(['slug' => 'education']);
+    Cache::put("user.{$this->user->id}.active_industry_id", $industry->id);
+
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+    ConsultantKpiTarget::factory()->create([
+        'user_id' => $consultant->id,
+        'industry_id' => $industry->id,
+        'gp_target' => 40,
+    ]);
+
+    $client = Client::factory()->create(['company_id' => $this->company->id]);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+
+    createWidgetBooking($consultant, $client, $candidate, $this->jobTitle, $monday->toDateString(), [
+        'day_rate' => 100,
+        'day_charge_rate' => 150,
+    ]);
+
+    Livewire::test(ConsultantPerformanceSummary::class)
+        ->assertDontSeeHtml('fi-color-success')
+        ->assertDontSeeHtml('fi-color-warning')
+        ->assertDontSeeHtml('fi-color-danger');
+});
+
+test('stats are uncolored when the selected consultant has no KPI target set for the active industry', function () {
+    $industry = Industry::factory()->create(['slug' => 'education']);
+    Cache::put("user.{$this->user->id}.active_industry_id", $industry->id);
+
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+
+    $client = Client::factory()->create(['company_id' => $this->company->id]);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+
+    createWidgetBooking($consultant, $client, $candidate, $this->jobTitle, $monday->toDateString(), [
+        'day_rate' => 100,
+        'day_charge_rate' => 150,
+    ]);
+
+    Livewire::test(ConsultantPerformanceSummary::class)
+        ->set('consultantId', $consultant->id)
+        ->assertDontSeeHtml('fi-color-success')
+        ->assertDontSeeHtml('fi-color-warning')
+        ->assertDontSeeHtml('fi-color-danger');
 });
 
 test('an admin only gets the monthly report link once a specific consultant is selected', function () {

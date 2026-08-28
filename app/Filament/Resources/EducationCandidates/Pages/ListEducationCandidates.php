@@ -450,7 +450,7 @@ class ListEducationCandidates extends ListRecords implements HasForms
      * The candidate's availability status for this date, from the
      * "availabilities" and "bookings.dayPeriods" relations already eager
      * loaded by configureSearchTable() — an active booking always wins over
-     * whatever's stored, mirroring CandidateWeeklyAvailability. A null
+     * whatever's stored, mirroring CandidateMonthlyAvailability. A null
      * result means no availability has been recorded for that day at all.
      */
     private function availabilityStatusFor(EducationCandidate $record, CarbonImmutable $date): ?string

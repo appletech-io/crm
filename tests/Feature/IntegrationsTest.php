@@ -154,6 +154,37 @@ test('a payment provider can be created from the overview widget, including its 
         ->and($paymentProvider->providerExternalId(Integration::Evertime))->toBe('EVERTIME-EXISTING-42');
 });
 
+test('a payment provider\'s contact and financial details can be set from the overview widget', function () {
+    $this->actingAs($this->admin);
+
+    Livewire::test(PaymentProvidersOverview::class)
+        ->callAction(TestAction::make('create')->table(), data: [
+            'name' => 'Orbital',
+            'contact_first_name' => 'Priya',
+            'contact_last_name' => 'Nair',
+            'contact_phone' => '01206555444',
+            'email' => 'accounts@orbital.test',
+            'phone' => '01206555000',
+            'company_reg_number' => 'AB123456',
+            'vat_reg_number' => 'GB123456789',
+            'utr' => '1234567890',
+            'bank_name' => 'Orbital Bank',
+            'bank_account_name' => 'Orbital',
+            'bank_account_number' => '12345678',
+            'bank_sort_code' => '123456',
+        ]);
+
+    $paymentProvider = PaymentProvider::where('name', 'Orbital')->first();
+
+    expect($paymentProvider->contact_first_name)->toBe('Priya')
+        ->and($paymentProvider->contact_last_name)->toBe('Nair')
+        ->and($paymentProvider->company_reg_number)->toBe('AB123456')
+        ->and($paymentProvider->vat_reg_number)->toBe('GB123456789')
+        ->and($paymentProvider->utr)->toBe('1234567890')
+        ->and($paymentProvider->bank_account_number)->toBe('12345678')
+        ->and($paymentProvider->bank_sort_code)->toBe('123456');
+});
+
 test('a payment provider can be edited from the overview widget', function () {
     $this->actingAs($this->admin);
 

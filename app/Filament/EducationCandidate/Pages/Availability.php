@@ -2,21 +2,17 @@
 
 namespace App\Filament\EducationCandidate\Pages;
 
-use App\Filament\Concerns\HasCandidateAvailabilityTable;
+use App\Filament\Concerns\HasCandidateAvailabilityCalendar;
 use App\Models\Candidate;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use BackedEnum;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
-use Filament\Tables\Concerns\InteractsWithTable;
-use Filament\Tables\Contracts\HasTable;
-use Filament\Tables\Table;
 
-class Availability extends Page implements HasTable
+class Availability extends Page
 {
-    use HasCandidateAvailabilityTable;
-    use InteractsWithTable;
+    use HasCandidateAvailabilityCalendar;
 
     protected string $view = 'filament.candidate.pages.availability';
 
@@ -28,7 +24,7 @@ class Availability extends Page implements HasTable
 
     public function mount(): void
     {
-        $this->initializeAvailabilityWeek();
+        $this->initializeAvailabilityMonth();
     }
 
     protected function availabilityCandidate(): EducationCandidate|HealthcareCandidate|Candidate|null
@@ -37,10 +33,5 @@ class Availability extends Page implements HasTable
         $candidate = auth()->user()->candidate;
 
         return $candidate;
-    }
-
-    public function table(Table $table): Table
-    {
-        return $this->configureAvailabilityTable($table);
     }
 }

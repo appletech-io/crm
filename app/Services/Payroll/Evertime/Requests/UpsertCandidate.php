@@ -58,18 +58,29 @@ class UpsertCandidate
             $payload['WorkerType'] = 'Umbrella Company';
             $payload['Company'] = [
                 'CompanyId' => $paymentProviderId,
-                // Fields Evertime requires to create a brand-new Company
-                // (VatCode, DefaultCurrency, CompanyRegNumber for en-GB
-                // agencies) beyond what payment_providers stores are
-                // defaulted here — a genuinely new umbrella company with no
-                // pre-existing external ID may be rejected by Evertime for
-                // missing CompanyRegNumber, in which case it needs creating
-                // in Evertime's own UI first and its ID pasted in here.
                 'Type' => 'Umbrella',
-                'MainContact' => $paymentProvider->name,
+                // Mandatory — "Must contain a forename and surname". Falls
+                // back to the company name for a payment provider that
+                // predates these contact fields, rather than sending a
+                // blank string Evertime would reject outright.
+                'MainContact' => trim("{$paymentProvider->contact_first_name} {$paymentProvider->contact_last_name}") ?: $paymentProvider->name,
+                'MainContactPhoneNumber' => $paymentProvider->contact_phone,
                 'CommunicationMethod' => 'Email',
                 'VatCode' => 'Standard',
                 'Name' => $paymentProvider->name,
+                // Required by Evertime for a new en-GB company — a genuinely
+                // new umbrella company left without one may be rejected, in
+                // which case it needs creating in Evertime's own UI first
+                // and its ID pasted in here instead.
+                'CompanyRegNumber' => $paymentProvider->company_reg_number,
+                'VatRegNumber' => $paymentProvider->vat_reg_number,
+                'Utr' => $paymentProvider->utr,
+                'AccountName' => $paymentProvider->bank_account_name,
+                'AccountNumber' => $paymentProvider->bank_account_number,
+                'SortCode' => $paymentProvider->bank_sort_code,
+                'BankName' => $paymentProvider->bank_name,
+                'Email' => $paymentProvider->email,
+                'PhoneNumber' => $paymentProvider->phone,
                 'DefaultCurrency' => 'GBP',
                 'Address' => [
                     'AddressLine1' => $paymentProvider->address_1,

@@ -1,3 +1,3 @@
 <x-filament-panels::page>
-    {{ $this->table }}
+    @include('filament.components.candidate-availability-calendar')
 </x-filament-panels::page>

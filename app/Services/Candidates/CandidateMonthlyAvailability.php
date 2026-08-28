@@ -11,20 +11,20 @@ use Carbon\CarbonPeriod;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
-class CandidateWeeklyAvailability
+class CandidateMonthlyAvailability
 {
     /**
-     * Builds one row per day (Monday to Sunday) for the week containing
-     * $weekStart. A day the candidate already has an active booking on is
-     * forced to "Booked" regardless of anything stored for that date — the
+     * Builds one row per day of the calendar month containing $monthStart. A
+     * day the candidate already has an active booking on is forced to
+     * "Booked" regardless of anything stored for that date — the
      * candidate/consultant can't override a real booking here.
      *
-     * @return array<int, array{date: string, day_label: string, status: ?string, editable: bool}>
+     * @return array<int, array{date: string, status: ?string, editable: bool}>
      */
-    public static function forWeek(EducationCandidate|HealthcareCandidate|Candidate $candidate, Carbon $weekStart): array
+    public static function forMonth(EducationCandidate|HealthcareCandidate|Candidate $candidate, Carbon $monthStart): array
     {
-        $start = $weekStart->copy()->startOfWeek(Carbon::MONDAY);
-        $end = $start->copy()->endOfWeek(Carbon::SUNDAY);
+        $start = $monthStart->copy()->startOfMonth();
+        $end = $start->copy()->endOfMonth();
 
         $stored = $candidate->availabilities()
             ->whereDate('date', '>=', $start->toDateString())
@@ -41,7 +41,6 @@ class CandidateWeeklyAvailability
 
                 return [
                     'date' => $dateString,
-                    'day_label' => $date->format('l, j M Y'),
                     'status' => $isBooked
                         ? CandidateAvailabilityStatus::Booked->value
                         : $stored->get($dateString)?->status?->value,
