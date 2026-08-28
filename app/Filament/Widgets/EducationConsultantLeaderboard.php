@@ -24,10 +24,16 @@ class EducationConsultantLeaderboard extends Widget
         $this->selectedMonth = Carbon::now()->format('Y-m');
     }
 
-    /** @return array<string, string> */
+    /**
+     * The current month, the 11 before it, and 3 ahead of it — so a
+     * consultant's already-booked days for upcoming weeks can be checked in
+     * advance, not just reported on after the fact.
+     *
+     * @return array<string, string>
+     */
     public function monthOptions(): array
     {
-        return collect(range(0, 11))
+        return collect(range(-3, 11))
             ->mapWithKeys(function (int $i): array {
                 $date = Carbon::now()->startOfMonth()->subMonths($i);
 
@@ -87,23 +93,33 @@ class EducationConsultantLeaderboard extends Widget
 
         return $consultants
             ->map(function (User $consultant) use ($weeks, $bookings, $referenceWeek): array {
-                $consultantBookings = $bookings->where('consultant_id', $consultant->id);
+                // A single booking can span many days across many weeks, so
+                // every metric here counts booking DAYS, not bookings — each
+                // day carries its own parent booking's created_at, since
+                // that's what determines whether that specific day was
+                // booked in advance of the week it falls in.
+                $days = $bookings->where('consultant_id', $consultant->id)
+                    ->flatMap(fn (Booking $booking): Collection => $booking->dayPeriods
+                        ->map(fn (BookingDay $dayPeriod): array => [
+                            'date' => $dayPeriod->date,
+                            'bookedAt' => $booking->created_at,
+                        ]));
 
-                $weekData = $weeks->mapWithKeys(function (Carbon $weekStart) use ($consultantBookings): array {
+                $weekData = $weeks->mapWithKeys(function (Carbon $weekStart) use ($days): array {
                     $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
                     $nextWeekStart = $weekStart->copy()->addWeek();
                     $nextWeekEnd = $nextWeekStart->copy()->endOfWeek(Carbon::SUNDAY);
 
-                    $start = $consultantBookings
-                        ->filter(fn (Booking $booking): bool => $booking->created_at->lt($weekStart))
+                    $thisWeekDays = $days->filter(fn (array $day): bool => $day['date']->betweenIncluded($weekStart, $weekEnd));
+
+                    $current = $thisWeekDays->count();
+
+                    $start = $thisWeekDays
+                        ->filter(fn (array $day): bool => $day['bookedAt']->lt($weekStart))
                         ->count();
 
-                    $current = $consultantBookings
-                        ->filter(fn (Booking $booking): bool => $this->bookingRunsBetween($booking, $weekStart, $weekEnd))
-                        ->count();
-
-                    $nextWeek = $consultantBookings
-                        ->filter(fn (Booking $booking): bool => $this->bookingRunsBetween($booking, $nextWeekStart, $nextWeekEnd))
+                    $nextWeek = $days
+                        ->filter(fn (array $day): bool => $day['date']->betweenIncluded($nextWeekStart, $nextWeekEnd))
                         ->count();
 
                     return [$weekStart->toDateString() => [
@@ -121,10 +137,5 @@ class EducationConsultantLeaderboard extends Widget
             })
             ->sortByDesc('rankValue')
             ->values();
-    }
-
-    private function bookingRunsBetween(Booking $booking, Carbon $start, Carbon $end): bool
-    {
-        return $booking->dayPeriods->contains(fn (BookingDay $dayPeriod): bool => $dayPeriod->date->betweenIncluded($start, $end));
     }
 }
