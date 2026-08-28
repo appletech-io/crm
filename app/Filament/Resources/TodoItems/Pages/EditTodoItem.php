@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\TodoItems\Pages;
 
 use App\Filament\Resources\TodoItems\TodoItemResource;
-use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 
 class EditTodoItem extends EditRecord
@@ -12,8 +11,6 @@ class EditTodoItem extends EditRecord
 
     protected function getHeaderActions(): array
     {
-        return [
-            DeleteAction::make(),
-        ];
+        return [];
     }
 }

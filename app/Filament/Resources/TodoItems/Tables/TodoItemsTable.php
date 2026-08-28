@@ -6,8 +6,6 @@ use App\Enums\TodoPriority;
 use App\Filament\Resources\TodoItems\Schemas\TodoItemForm;
 use App\Models\TodoItem;
 use Filament\Actions\Action;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -50,11 +48,15 @@ class TodoItemsTable
             ->filters([
                 SelectFilter::make('priority')
                     ->options(TodoPriority::options()),
+                // Outstanding by default — a completed to-do should have to be
+                // deliberately surfaced via this filter, not clutter the list
+                // every time it's opened.
                 TernaryFilter::make('completed_at')
                     ->label('Completed')
                     ->nullable()
                     ->trueLabel('Completed')
-                    ->falseLabel('Outstanding'),
+                    ->falseLabel('Outstanding')
+                    ->default(false),
             ])
             ->recordActions([
                 Action::make('toggleComplete')
@@ -65,11 +67,6 @@ class TodoItemsTable
                         'completed_at' => $record->isComplete() ? null : now(),
                     ])),
                 EditAction::make(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
             ]);
     }
 }
