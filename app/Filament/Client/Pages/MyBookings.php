@@ -3,6 +3,7 @@
 namespace App\Filament\Client\Pages;
 
 use App\Filament\Concerns\HasTimesheetPeriodNavigation;
+use App\Filament\Support\RequestCandidateBookingAction;
 use App\Models\Booking;
 use App\Models\BookingDay;
 use App\Models\Client;
@@ -19,6 +20,7 @@ use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 
 class MyBookings extends Page implements HasTable
@@ -91,6 +93,9 @@ class MyBookings extends Page implements HasTable
                     }),
             ])
             ->recordActions([
+                RequestCandidateBookingAction::make('rebook', 'Rebook', fn (BookingDay $record): Model => $record->booking->candidate)
+                    ->color('gray')
+                    ->labeledFrom('md'),
                 ActionGroup::make([
                     Action::make('approveDay')
                         ->label('Approve this day')

@@ -5,6 +5,7 @@ namespace App\Observers;
 use App\Actions\Automations\CheckActions;
 use App\Actions\Candidates\CheckCandidateStatusAutomations;
 use App\Jobs\GeocodeEducationCandidate;
+use App\Jobs\SyncPayrollProviderRecord;
 use App\Models\EducationCandidate;
 
 class EducationCandidateObserver
@@ -16,6 +17,8 @@ class EducationCandidateObserver
         }
 
         CheckActions::run($candidate);
+
+        SyncPayrollProviderRecord::dispatch($candidate);
     }
 
     public function updated(EducationCandidate $candidate): void

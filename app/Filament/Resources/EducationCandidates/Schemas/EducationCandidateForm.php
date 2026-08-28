@@ -12,6 +12,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\ReferenceStatus;
 use App\Enums\ReferenceType;
 use App\Exceptions\Dbs\DbsUpdateServiceException;
+use App\Filament\Concerns\HasPayrollProviderErrorAlert;
 use App\Filament\Resources\EducationVetting\VettingResource;
 use App\Filament\Widgets\CandidateActivityTimeline;
 use App\Filament\Widgets\CandidateAvailabilityCalendar;
@@ -61,6 +62,8 @@ use Illuminate\Support\Str;
 
 class EducationCandidateForm
 {
+    use HasPayrollProviderErrorAlert;
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
@@ -217,6 +220,25 @@ class EducationCandidateForm
                                             // all, and that shouldn't hide an ID that already exists.
                                             ->getStateUsing(fn (?EducationCandidate $record): ?string => $record?->providerExternalId(Integration::Evertime))
                                             ->placeholder('Not yet synced'),
+                                    ]),
+
+                                Section::make('Payroll Submission Failed')
+                                    ->columnSpanFull()
+                                    ->icon('heroicon-o-exclamation-triangle')
+                                    ->iconColor('danger')
+                                    ->visible(fn (?EducationCandidate $record): bool => $record && static::currentProviderErrors($record)->isNotEmpty())
+                                    ->schema([
+                                        Textarea::make('payroll_provider_errors')
+                                            ->hiddenLabel()
+                                            ->disabled()
+                                            ->dehydrated(false)
+                                            ->rows(3)
+                                            ->columnSpanFull()
+                                            ->afterStateHydrated(function (Textarea $component, ?EducationCandidate $record): void {
+                                                if ($record) {
+                                                    $component->state(static::currentProviderErrors($record)->implode("\n"));
+                                                }
+                                            }),
                                     ]),
 
                                 Section::make('Contact Details')

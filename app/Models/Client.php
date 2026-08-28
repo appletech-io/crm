@@ -154,4 +154,9 @@ class Client extends Model
     {
         return $this->hasMany(Vacancy::class);
     }
+
+    public function providerErrors(): HasMany
+    {
+        return $this->hasMany(ProviderError::class);
+    }
 }

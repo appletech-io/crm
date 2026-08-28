@@ -2,13 +2,16 @@
 
 namespace App\Filament\Resources\CompanyUsers\Schemas;
 
+use App\Filament\Concerns\HasPayrollProviderErrorAlert;
 use App\Filament\Resources\CompanyUsers\CompanyUserResource;
 use App\Models\Industry;
 use App\Models\User;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
@@ -18,6 +21,8 @@ use Illuminate\Support\Facades\Auth;
 
 class CompanyUserForm
 {
+    use HasPayrollProviderErrorAlert;
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
@@ -114,6 +119,29 @@ class CompanyUserForm
                                     // can work Education and/or Healthcare, never more.
                                     ->maxItems(fn (): int => self::companySectorCount())
                                     ->columnSpanFull(),
+                            ]),
+
+                        Tab::make('Payroll')
+                            ->visible(fn (?User $record): bool => $record?->hasRole('consultant') ?? false)
+                            ->schema([
+                                Section::make('Payroll Submission Failed')
+                                    ->columnSpanFull()
+                                    ->icon('heroicon-o-exclamation-triangle')
+                                    ->iconColor('danger')
+                                    ->visible(fn (?User $record): bool => $record && static::currentProviderErrors($record)->isNotEmpty())
+                                    ->schema([
+                                        Textarea::make('payroll_provider_errors')
+                                            ->hiddenLabel()
+                                            ->disabled()
+                                            ->dehydrated(false)
+                                            ->rows(3)
+                                            ->columnSpanFull()
+                                            ->afterStateHydrated(function (Textarea $component, ?User $record): void {
+                                                if ($record) {
+                                                    $component->state(static::currentProviderErrors($record)->implode("\n"));
+                                                }
+                                            }),
+                                    ]),
                             ]),
                     ])
                     ->columnSpanFull(),

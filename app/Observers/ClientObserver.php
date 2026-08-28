@@ -5,6 +5,7 @@ namespace App\Observers;
 use App\Actions\Automations\CheckActions;
 use App\Actions\Clients\EnsureClientCandidatePool;
 use App\Jobs\GeocodeClient;
+use App\Jobs\SyncPayrollProviderRecord;
 use App\Models\Client;
 
 class ClientObserver
@@ -21,6 +22,8 @@ class ClientObserver
         }
 
         CheckActions::run($client);
+
+        SyncPayrollProviderRecord::dispatch($client);
     }
 
     public function deleted(Client $client): void

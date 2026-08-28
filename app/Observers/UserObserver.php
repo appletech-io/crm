@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Actions\Automations\CheckActions;
 use App\Actions\Candidates\CheckCandidateStatusAutomations;
+use App\Jobs\SyncPayrollProviderRecord;
 use App\Models\User;
 
 class UserObserver
@@ -17,6 +18,20 @@ class UserObserver
     {
         if ($user->wasChanged('candidate_id')) {
             $this->checkAutomations($user);
+        }
+    }
+
+    /**
+     * Only consultants are ever registered with the payroll provider — a
+     * role assigned separately via syncRoles()/assignRole() (a pivot-table
+     * write, not a save on this model) won't re-trigger this on its own, so
+     * a brand new consultant's very first sync may wait until their next
+     * unrelated save. The booking-approval sync remains as a safety net.
+     */
+    public function saved(User $user): void
+    {
+        if ($user->hasRole('consultant')) {
+            SyncPayrollProviderRecord::dispatch($user);
         }
     }
 

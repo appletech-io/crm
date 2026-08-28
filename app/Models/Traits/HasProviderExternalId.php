@@ -8,12 +8,12 @@ use Closure;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 /**
- * Lets a model (Client, EducationCandidate, HealthcareCandidate, PaymentProvider)
- * be referenced under a payroll provider's own ID scheme. An admin can pre-empt
- * this by typing the provider's real pre-existing ID into the record's edit
- * form before this app ever pushes the record — resolveProviderExternalId()
- * always prefers whatever's stored over generating a new one, and never
- * overwrites a stored value once set.
+ * Lets a model (Client, EducationCandidate, HealthcareCandidate, Candidate,
+ * PaymentProvider) be referenced under a payroll provider's own ID scheme.
+ * An admin can pre-empt this by typing the provider's real pre-existing ID
+ * into the record's edit form before this app ever pushes the record —
+ * resolveProviderExternalId() always prefers whatever's stored over
+ * generating a new one, and never overwrites a stored value once set.
  */
 trait HasProviderExternalId
 {
