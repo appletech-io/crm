@@ -51,6 +51,30 @@ function addLeaderboardDayPeriod(Booking $booking, string $date, array $attribut
     ], $attributes));
 }
 
+test('month options include the current month, 11 months back, and 3 months ahead', function () {
+    $options = Livewire::test(EducationConsultantLeaderboard::class)->instance()->monthOptions();
+
+    $currentMonth = Carbon::now()->startOfMonth();
+
+    expect($options)->toHaveKey($currentMonth->format('Y-m'))
+        ->and($options)->toHaveKey($currentMonth->copy()->subMonths(11)->format('Y-m'))
+        ->and($options)->toHaveKey($currentMonth->copy()->addMonths(3)->format('Y-m'))
+        ->and($options)->not->toHaveKey($currentMonth->copy()->subMonths(12)->format('Y-m'))
+        ->and($options)->not->toHaveKey($currentMonth->copy()->addMonths(4)->format('Y-m'));
+});
+
+test('a future month can be selected and shows its own weeks', function () {
+    $component = Livewire::test(EducationConsultantLeaderboard::class);
+    $futureMonth = Carbon::now()->addMonths(2)->format('Y-m');
+
+    $component->set('selectedMonth', $futureMonth);
+
+    $monthStart = Carbon::createFromFormat('Y-m-d', $futureMonth.'-01')->startOfMonth();
+
+    expect($component->instance()->weeks())->not->toBeEmpty()
+        ->and($component->instance()->weeks()->first()->lte($monthStart))->toBeTrue();
+});
+
 test('weeks returns complete monday-sunday weeks that overlap the selected month, never split at the boundary', function () {
     $component = Livewire::test(EducationConsultantLeaderboard::class);
     $component->set('selectedMonth', '2026-06');
@@ -68,7 +92,7 @@ test('weeks returns complete monday-sunday weeks that overlap the selected month
         ->and($weeks->last()->copy()->addWeek()->gt($monthEnd))->toBeTrue();
 });
 
-test('it computes bookings created before the week, on for the week, and already on for next week', function () {
+test('it computes bookings booked in advance for the week, on for the week, and already on for next week', function () {
     $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
     $consultant->assignRole('consultant');
 
@@ -80,22 +104,77 @@ test('it computes bookings created before the week, on for the week, and already
     $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
     $nextWeekStart = $weekStart->copy()->addWeek();
 
-    // Created before this week starts: counts towards "start".
-    createBookingCreatedAt($consultant, $this->client, $this->candidate, $this->jobTitle, $weekStart->copy()->subDay()->toDateTimeString());
+    // Booked before this week started, and scheduled to run during it:
+    // counts towards both "start" (booked in advance) and "current".
+    $advanceBooking = createBookingCreatedAt($consultant, $this->client, $this->candidate, $this->jobTitle, $weekStart->copy()->subWeek()->toDateTimeString());
+    addLeaderboardDayPeriod($advanceBooking, $weekStart->toDateString());
 
-    // Scheduled to run during this week: counts towards "current".
-    $thisWeekBooking = createBookingCreatedAt($consultant, $this->client, $this->candidate, $this->jobTitle, $weekStart->copy()->subWeek()->toDateTimeString());
-    addLeaderboardDayPeriod($thisWeekBooking, $weekEnd->toDateString());
+    // Booked after this week already started, but still scheduled to run
+    // during it: counts towards "current" only, not "start".
+    $lastMinuteBooking = createBookingCreatedAt($consultant, $this->client, $this->candidate, $this->jobTitle, $weekStart->copy()->addDay()->toDateTimeString());
+    addLeaderboardDayPeriod($lastMinuteBooking, $weekEnd->toDateString());
 
-    // Scheduled to run next week: counts towards "nextWeek" only.
+    // Booked before this week started, but scheduled to run next week
+    // instead: must not count towards this week's "start" or "current",
+    // only "nextWeek".
     $nextWeekBooking = createBookingCreatedAt($consultant, $this->client, $this->candidate, $this->jobTitle, $weekStart->copy()->subWeek()->toDateTimeString());
     addLeaderboardDayPeriod($nextWeekBooking, $nextWeekStart->toDateString());
 
     $row = $component->instance()->leaderboard()->firstWhere('consultant.id', $consultant->id);
     $weekData = $row['weeks']->get($weekStart->toDateString());
 
-    expect($weekData['start'])->toBe(3)
-        ->and($weekData['current'])->toBe(1)
+    expect($weekData['start'])->toBe(1)
+        ->and($weekData['current'])->toBe(2)
+        ->and($weekData['nextWeek'])->toBe(1);
+});
+
+test('a single booking spanning multiple days in the same week counts once per day, not once per booking', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+
+    $component = Livewire::test(EducationConsultantLeaderboard::class);
+    $component->set('selectedMonth', '2026-06');
+
+    $weeks = $component->instance()->weeks();
+    $weekStart = $weeks[1];
+
+    // One booking, booked before the week started, with three day-periods
+    // all falling inside the same week.
+    $booking = createBookingCreatedAt($consultant, $this->client, $this->candidate, $this->jobTitle, $weekStart->copy()->subWeek()->toDateTimeString());
+    addLeaderboardDayPeriod($booking, $weekStart->toDateString());
+    addLeaderboardDayPeriod($booking, $weekStart->copy()->addDay()->toDateString());
+    addLeaderboardDayPeriod($booking, $weekStart->copy()->addDays(2)->toDateString());
+
+    $row = $component->instance()->leaderboard()->firstWhere('consultant.id', $consultant->id);
+    $weekData = $row['weeks']->get($weekStart->toDateString());
+
+    expect($weekData['current'])->toBe(3)
+        ->and($weekData['start'])->toBe(3);
+});
+
+test('a single booking spanning two weeks contributes separately to each week its days fall in', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+
+    $component = Livewire::test(EducationConsultantLeaderboard::class);
+    $component->set('selectedMonth', '2026-06');
+
+    $weeks = $component->instance()->weeks();
+    $weekStart = $weeks[1];
+    $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
+    $nextWeekStart = $weekStart->copy()->addWeek();
+
+    // One booking, with two day-periods in $weekStart's week and one day-
+    // period the following week.
+    $booking = createBookingCreatedAt($consultant, $this->client, $this->candidate, $this->jobTitle, $weekStart->copy()->subWeek()->toDateTimeString());
+    addLeaderboardDayPeriod($booking, $weekEnd->copy()->subDay()->toDateString());
+    addLeaderboardDayPeriod($booking, $weekEnd->toDateString());
+    addLeaderboardDayPeriod($booking, $nextWeekStart->toDateString());
+
+    $row = $component->instance()->leaderboard()->firstWhere('consultant.id', $consultant->id);
+    $weekData = $row['weeks']->get($weekStart->toDateString());
+
+    expect($weekData['current'])->toBe(2)
         ->and($weekData['nextWeek'])->toBe(1);
 });
 
@@ -151,4 +230,56 @@ test('isCurrentWeek correctly identifies the week containing today', function ()
 
 test('the widget renders successfully', function () {
     Livewire::test(EducationConsultantLeaderboard::class)->assertSuccessful();
+});
+
+test('the next-week rebook figure is only rendered for the current week column, not other weeks', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+
+    $component = Livewire::test(EducationConsultantLeaderboard::class);
+    $instance = $component->instance();
+
+    $currentWeekStart = Carbon::now()->startOfWeek(Carbon::MONDAY);
+    $otherWeekStart = $instance->weeks()->first(fn (Carbon $week): bool => ! $instance->isCurrentWeek($week));
+
+    // A booking scheduled for the week after $otherWeekStart gives that
+    // (non-current) week column a nonzero "nextWeek" value in the
+    // underlying data — it must still not be rendered.
+    $otherWeekBooking = createBookingCreatedAt($consultant, $this->client, $this->candidate, $this->jobTitle, $otherWeekStart->copy()->subWeek()->toDateTimeString());
+    addLeaderboardDayPeriod($otherWeekBooking, $otherWeekStart->copy()->addWeek()->toDateString());
+
+    // A booking scheduled for the week after the current week — this one
+    // must be rendered, since it's the current week's column.
+    $currentWeekBooking = createBookingCreatedAt($consultant, $this->client, $this->candidate, $this->jobTitle, $currentWeekStart->copy()->subWeek()->toDateTimeString());
+    addLeaderboardDayPeriod($currentWeekBooking, $currentWeekStart->copy()->addWeek()->toDateString());
+
+    $html = Livewire::test(EducationConsultantLeaderboard::class)->html();
+
+    expect(substr_count($html, 'Booking days already on for next week'))->toBe(1);
+});
+
+test('the before-this-week figure is only rendered for the current week column, not other weeks', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+
+    $component = Livewire::test(EducationConsultantLeaderboard::class);
+    $instance = $component->instance();
+
+    $currentWeekStart = Carbon::now()->startOfWeek(Carbon::MONDAY);
+    $otherWeekStart = $instance->weeks()->first(fn (Carbon $week): bool => ! $instance->isCurrentWeek($week));
+
+    // Booked before $otherWeekStart and scheduled to run during it — gives
+    // that (non-current) week column a nonzero "start" value in the
+    // underlying data; it must still not be rendered.
+    $otherWeekBooking = createBookingCreatedAt($consultant, $this->client, $this->candidate, $this->jobTitle, $otherWeekStart->copy()->subDay()->toDateTimeString());
+    addLeaderboardDayPeriod($otherWeekBooking, $otherWeekStart->toDateString());
+
+    // Booked before the current week and scheduled to run during it — this
+    // one must be rendered, since it's the current week's column.
+    $currentWeekBooking = createBookingCreatedAt($consultant, $this->client, $this->candidate, $this->jobTitle, $currentWeekStart->copy()->subDay()->toDateTimeString());
+    addLeaderboardDayPeriod($currentWeekBooking, $currentWeekStart->toDateString());
+
+    $html = Livewire::test(EducationConsultantLeaderboard::class)->html();
+
+    expect(substr_count($html, "This week's booking days that were booked in advance, before the week started"))->toBe(1);
 });

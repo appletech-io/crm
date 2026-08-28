@@ -1,7 +1,7 @@
 <x-filament-widgets::widget>
     <x-filament::section heading="Consultant Leaderboard">
         <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
-            <span style="font-size: 0.75rem; opacity: 0.6;">Before this week &nbsp;&middot;&nbsp; <span style="font-weight: 700; opacity: 1;">This week</span> &nbsp;&middot;&nbsp; Next week</span>
+            <span style="font-size: 0.75rem; opacity: 0.6;"><span style="font-weight: 700; opacity: 1;">This week</span> &nbsp;&middot;&nbsp; Before/next week shown for the current week only</span>
 
             <div style="width: 100%; max-width: 220px;">
                 <x-filament::input.wrapper>
@@ -48,9 +48,13 @@
                                     style="padding: 0.5rem; white-space: nowrap; {{ $this->isCurrentWeek($week) ? 'background-color: rgba(22, 163, 74, 0.06);' : '' }}"
                                 >
                                     <div style="display: flex; align-items: baseline; gap: 0.625rem;">
-                                        <span style="font-size: 0.75rem; opacity: 0.6;" title="Bookings created before this week">{{ $cell['start'] }}</span>
-                                        <span style="font-size: 1.25rem; font-weight: 700;" title="Bookings on for this week">{{ $cell['current'] }}</span>
-                                        <span style="font-size: 0.75rem; opacity: 0.6;" title="Bookings already on for next week">&rarr; {{ $cell['nextWeek'] }}</span>
+                                        @if ($this->isCurrentWeek($week))
+                                            <span style="font-size: 0.75rem; opacity: 0.6;" title="This week's booking days that were booked in advance, before the week started">{{ $cell['start'] }}</span>
+                                        @endif
+                                        <span style="font-size: 1.25rem; font-weight: 700;" title="Booking days on for this week">{{ $cell['current'] }}</span>
+                                        @if ($this->isCurrentWeek($week))
+                                            <span style="font-size: 0.75rem; opacity: 0.6;" title="Booking days already on for next week">&rarr; {{ $cell['nextWeek'] }}</span>
+                                        @endif
                                     </div>
                                 </td>
                             @endforeach
