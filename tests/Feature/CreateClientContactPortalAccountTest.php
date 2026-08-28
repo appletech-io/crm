@@ -98,6 +98,39 @@ test('a blank email is required when portal access is enabled so no contact is s
         ->assertHasFormErrors(['contacts.item-1.email' => 'required']);
 });
 
+/**
+ * Regression test: the contacts repeater collapses each row by default, and
+ * the email field previously rendered as a native type="email" input. A
+ * malformed legacy email (this codebase has real examples from an old
+ * import) sitting in a collapsed row can't be focused by the browser's own
+ * constraint check, so it silently blocks saving the whole client with an
+ * inscrutable "not focusable" browser error instead of a normal, visible
+ * validation message. The field is forced back to type="text" so Livewire's
+ * own ->email() rule is what catches this — still rejected, but as a real,
+ * actionable form error rather than a browser-level dead end.
+ */
+test('a malformed email on an existing contact is caught by a normal validation error, not a native browser block', function () {
+    $contact = ClientContact::factory()->create([
+        'client_id' => $this->client->id,
+        'company_id' => $this->client->company_id,
+        'email' => 'not a valid email',
+    ]);
+
+    Livewire::test(EditClient::class, ['record' => $this->client->getRouteKey()])
+        ->fillForm([
+            'contacts' => [
+                'item-1' => [
+                    'id' => $contact->id,
+                    'first_name' => $contact->first_name,
+                    'last_name' => $contact->last_name,
+                    'email' => 'not a valid email',
+                ],
+            ],
+        ])
+        ->call('save')
+        ->assertHasFormErrors(['contacts.item-1.email' => 'email']);
+});
+
 test('an email colliding with an existing user does not create a duplicate and does not block the contact from saving', function () {
     Bus::fake();
 

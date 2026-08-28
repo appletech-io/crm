@@ -320,6 +320,15 @@ class ClientForm
                                             ->maxLength(255),
                                         TextInput::make('email')
                                             ->email()
+                                            // This repeater collapses each contact by default, so a
+                                            // malformed legacy email (e.g. from an old import) sitting
+                                            // in a collapsed row can't be focused by the browser's own
+                                            // type="email" constraint check — it just blocks saving
+                                            // the whole client with an inscrutable error. Forcing the
+                                            // input back to type="text" keeps ->email()'s validation
+                                            // rule (so Livewire still catches and reports it, expanding
+                                            // the offending row) without the native browser check.
+                                            ->extraInputAttributes(['type' => 'text'])
                                             ->maxLength(255)
                                             // Only bites on a brand new contact — an already-saved one
                                             // can be edited freely even without an email, since the
