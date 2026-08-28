@@ -2,11 +2,14 @@
 
 namespace App\Filament\Resources\CompanyUsers;
 
+use App\Filament\Resources\CompanyUsers\Pages\EditCompanyUser;
 use App\Filament\Resources\CompanyUsers\Pages\ListCompanyUsers;
+use App\Filament\Resources\CompanyUsers\Schemas\CompanyUserForm;
 use App\Filament\Resources\CompanyUsers\Tables\CompanyUsersTable;
 use App\Models\User;
 use BackedEnum;
 use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -44,6 +47,11 @@ class CompanyUserResource extends Resource
         return auth()->user()?->hasRole('admin') ?? false;
     }
 
+    public static function form(Schema $schema): Schema
+    {
+        return CompanyUserForm::configure($schema);
+    }
+
     public static function table(Table $table): Table
     {
         return CompanyUsersTable::configure($table);
@@ -70,6 +78,7 @@ class CompanyUserResource extends Resource
     {
         return [
             'index' => ListCompanyUsers::route('/'),
+            'edit' => EditCompanyUser::route('/{record}/edit'),
         ];
     }
 }

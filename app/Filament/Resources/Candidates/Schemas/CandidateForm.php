@@ -647,7 +647,7 @@ class CandidateForm
                                 ])->columnSpanFull(),
                             ]),
 
-                        Tab::make('Weekly Availability')
+                        Tab::make('Availability')
                             ->schema([
                                 LivewireComponent::make(CandidateAvailabilityCalendar::class)
                                     ->key('candidate-availability-calendar')

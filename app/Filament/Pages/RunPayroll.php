@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Enums\BookingStatus;
 use App\Filament\Concerns\HasTimesheetPeriodNavigation;
 use App\Filament\Resources\Bookings\BookingResource;
+use App\Filament\Support\ExportPayrollCsvAction;
 use App\Jobs\SendPayrollConfirmationEmail;
 use App\Models\Booking;
 use App\Models\BookingDay;
@@ -102,6 +103,13 @@ class RunPayroll extends Page implements HasTable
             ])
             ->headerActions([
                 ...$this->periodNavigationActions(),
+                // Shown for every company, even one with a payroll provider
+                // (e.g. Evertime) already configured — useful as a manual
+                // backup/cross-check alongside the automatic sync.
+                ExportPayrollCsvAction::header(
+                    fn () => $this->dayPeriodsQuery()->get(),
+                    fn () => $this->currentPeriod(),
+                ),
                 Action::make('confirm')
                     ->label(fn (): string => $this->hasAnyConfirmationBeenSent() ? 'Resend' : 'Confirm')
                     ->icon('heroicon-o-paper-airplane')

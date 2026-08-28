@@ -5,8 +5,10 @@ namespace App\Filament\Widgets;
 use App\Ai\Agents\PerformanceSummaryAgent;
 use App\Filament\Pages\ConsultantMonthlyReport;
 use App\Filament\Resources\Bookings\Widgets\BookingWeekStats;
+use App\Models\ConsultantKpiTarget;
 use App\Models\User;
 use App\Services\Reporting\ConsultantPerformanceSummary as PerformanceCalculator;
+use App\Services\Reporting\KpiStatus;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Carbon;
@@ -55,15 +57,45 @@ class ConsultantPerformanceSummary extends StatsOverviewWidget
     protected function getStats(): array
     {
         $stats = $this->weekStats();
+        $target = $this->activeKpiTarget();
 
         return [
-            Stat::make('Gross Profit', '£'.number_format($stats['gp'], 2)),
-            Stat::make('Candidate Days Out', $stats['daysPlaced']),
-            Stat::make('Working Candidates', $stats['candidates']),
-            Stat::make('Clients Booked', $stats['clients']),
+            Stat::make('Gross Profit', '£'.number_format($stats['gp'], 2))
+                ->description($target?->gp_target !== null ? 'Target: £'.number_format($target->gp_target, 2) : null)
+                ->color(KpiStatus::for($stats['gp'], $target?->gp_target)),
+            Stat::make('Candidate Days Out', $stats['daysPlaced'])
+                ->description($target?->candidate_days_target !== null ? "Target: {$target->candidate_days_target}" : null)
+                ->color(KpiStatus::for($stats['daysPlaced'], $target?->candidate_days_target)),
+            Stat::make('Working Candidates', $stats['candidates'])
+                ->description($target?->working_candidates_target !== null ? "Target: {$target->working_candidates_target}" : null)
+                ->color(KpiStatus::for($stats['candidates'], $target?->working_candidates_target)),
+            Stat::make('Clients Booked', $stats['clients'])
+                ->description($target?->clients_booked_target !== null ? "Target: {$target->clients_booked_target}" : null)
+                ->color(KpiStatus::for($stats['clients'], $target?->clients_booked_target)),
             Stat::make('Rebook Rate', $stats['rebookRate'] !== null ? number_format($stats['rebookRate'], 1).'%' : '—')
-                ->description('Next week vs this week'),
+                ->description($target?->rebook_rate_target !== null
+                    ? 'Next week vs this week — Target: '.number_format($target->rebook_rate_target, 1).'%'
+                    : 'Next week vs this week')
+                ->color(KpiStatus::for($stats['rebookRate'], $target?->rebook_rate_target)),
         ];
+    }
+
+    /**
+     * Null while viewing "All Consultants" (no single consultant's target
+     * makes sense against an aggregate) or when that consultant simply has
+     * no target set for the active industry yet — either way, KpiStatus::for()
+     * already treats a null target as "no color", so every stat above just
+     * falls back to today's plain, uncolored styling.
+     */
+    private function activeKpiTarget(): ?ConsultantKpiTarget
+    {
+        $consultantId = $this->activeConsultantId();
+
+        if (! $consultantId) {
+            return null;
+        }
+
+        return User::find($consultantId)?->kpiTargetFor(active_industry_id());
     }
 
     /** @return int | array<string, ?int> | null */

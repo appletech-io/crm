@@ -8,6 +8,7 @@ use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Support\Carbon;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -88,4 +89,35 @@ test('it works the same way for a healthcare candidate portal login', function (
     $candidate = $user->candidate;
     expect($candidate->availabilities()->whereDate('date', '2026-08-10')->first()->status)
         ->toBe(CandidateAvailabilityStatus::NotAvailable);
+});
+
+test('month navigation moves the displayed month forward and back', function () {
+    $user = makeAvailabilityCandidateUser();
+    $this->actingAs($user);
+
+    $component = Livewire::test(Availability::class);
+
+    $initialMonthStart = $component->get('monthStart');
+
+    $component->call('goToNextMonth');
+    expect($component->get('monthStart'))->toBe(Carbon::parse($initialMonthStart)->addMonthNoOverflow()->toDateString());
+
+    $component->call('goToPreviousMonth');
+    expect($component->get('monthStart'))->toBe($initialMonthStart);
+});
+
+test('a candidate can select multiple days and bulk apply a status', function () {
+    $user = makeAvailabilityCandidateUser();
+    $this->actingAs($user);
+
+    Livewire::test(Availability::class)
+        ->call('toggleDaySelection', '2026-08-10')
+        ->call('toggleDaySelection', '2026-08-11')
+        ->assertSet('selectedDates', ['2026-08-10', '2026-08-11'])
+        ->call('applyAvailabilityStatus', CandidateAvailabilityStatus::Available->value)
+        ->assertSet('selectedDates', []);
+
+    $candidate = $user->candidate;
+    expect($candidate->availabilities()->whereDate('date', '2026-08-10')->first()->status)->toBe(CandidateAvailabilityStatus::Available);
+    expect($candidate->availabilities()->whereDate('date', '2026-08-11')->first()->status)->toBe(CandidateAvailabilityStatus::Available);
 });

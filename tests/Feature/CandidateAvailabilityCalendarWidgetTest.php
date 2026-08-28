@@ -86,16 +86,47 @@ test('a booked day cannot be overridden even if submitted directly', function ()
     expect($this->candidate->availabilities()->whereDate('date', '2026-08-10')->exists())->toBeFalse();
 });
 
-test('week navigation moves the displayed week forward and back', function () {
+test('month navigation moves the displayed month forward and back', function () {
     $component = Livewire::test(CandidateAvailabilityCalendar::class, ['record' => $this->candidate]);
 
-    $initialWeekStart = $component->get('weekStart');
+    $initialMonthStart = $component->get('monthStart');
 
-    $component->call('goToNextWeek');
-    expect($component->get('weekStart'))->toBe(Carbon::parse($initialWeekStart)->addWeek()->toDateString());
+    $component->call('goToNextMonth');
+    expect($component->get('monthStart'))->toBe(Carbon::parse($initialMonthStart)->addMonthNoOverflow()->toDateString());
 
-    $component->call('goToPreviousWeek');
-    expect($component->get('weekStart'))->toBe($initialWeekStart);
+    $component->call('goToPreviousMonth');
+    expect($component->get('monthStart'))->toBe($initialMonthStart);
+});
+
+test('a consultant can select multiple days and bulk apply a status', function () {
+    Livewire::test(CandidateAvailabilityCalendar::class, ['record' => $this->candidate])
+        ->call('toggleDaySelection', '2026-08-10')
+        ->call('toggleDaySelection', '2026-08-11')
+        ->assertSet('selectedDates', ['2026-08-10', '2026-08-11'])
+        ->call('applyAvailabilityStatus', CandidateAvailabilityStatus::AvailablePm->value)
+        ->assertSet('selectedDates', []);
+
+    expect($this->candidate->availabilities()->whereDate('date', '2026-08-10')->first()->status)->toBe(CandidateAvailabilityStatus::AvailablePm);
+    expect($this->candidate->availabilities()->whereDate('date', '2026-08-11')->first()->status)->toBe(CandidateAvailabilityStatus::AvailablePm);
+});
+
+test('a booked day is never included when selecting all days', function () {
+    $client = Client::factory()->create(['company_id' => $this->user->company_id]);
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-10',
+        'period' => 'full_day',
+    ]);
+
+    Livewire::test(CandidateAvailabilityCalendar::class, ['record' => $this->candidate])
+        ->call('selectAllDays')
+        ->assertSet('selectedDates', fn (array $dates): bool => ! in_array('2026-08-10', $dates, true));
 });
 
 test('the booked status is never offered as a selectable option', function () {
@@ -103,8 +134,8 @@ test('the booked status is never offered as a selectable option', function () {
     expect(CandidateAvailabilityStatus::options())->toHaveKey(CandidateAvailabilityStatus::Booked->value);
 });
 
-test('the edit page renders the weekly availability tab', function () {
+test('the edit page renders the availability tab', function () {
     Livewire::test(EditEducationCandidate::class, ['record' => $this->candidate->getRouteKey()])
         ->assertSuccessful()
-        ->assertSee('Weekly Availability');
+        ->assertSee('Availability');
 });

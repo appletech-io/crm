@@ -22,6 +22,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Livewire as LivewireComponent;
@@ -277,6 +278,20 @@ class ClientForm
                                                     $component->state($record->providerExternalId($provider));
                                                 }
                                             }),
+                                    ]),
+
+                                Section::make('Payroll')
+                                    ->visible(fn (?Client $record): bool => $record !== null)
+                                    ->schema([
+                                        // Shown regardless of whether the company currently has
+                                        // Evertime enabled as its active payroll_provider — a
+                                        // client can already have a synced/manually-entered ID
+                                        // from before that toggle changed, or before it's set at
+                                        // all, and that shouldn't hide an ID that already exists.
+                                        TextEntry::make('payroll_provider_id_display')
+                                            ->label('Payroll Provider ID')
+                                            ->getStateUsing(fn (?Client $record): ?string => $record?->providerExternalId(Integration::Evertime))
+                                            ->placeholder('Not yet synced'),
                                     ]),
 
                             ]),

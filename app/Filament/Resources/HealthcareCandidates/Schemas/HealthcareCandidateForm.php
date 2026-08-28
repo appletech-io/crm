@@ -193,6 +193,25 @@ class HealthcareCandidateForm
                                             ]),
                                     ]),
 
+                                Section::make('Payroll')
+                                    ->columns(2)
+                                    ->visible(fn (?HealthcareCandidate $record): bool => $record !== null)
+                                    ->schema([
+                                        TextEntry::make('umbrella_company_display')
+                                            ->label('Umbrella / Ltd Company')
+                                            ->getStateUsing(fn (?HealthcareCandidate $record): ?string => $record?->paymentProvider?->name)
+                                            ->placeholder('—'),
+                                        TextEntry::make('payroll_provider_id_display')
+                                            ->label('Payroll Provider ID')
+                                            // Shown regardless of whether the company currently has
+                                            // Evertime enabled as its active payroll_provider — a
+                                            // candidate can already have a synced/manually-entered ID
+                                            // from before that toggle changed, or before it's set at
+                                            // all, and that shouldn't hide an ID that already exists.
+                                            ->getStateUsing(fn (?HealthcareCandidate $record): ?string => $record?->providerExternalId(Integration::Evertime))
+                                            ->placeholder('Not yet synced'),
+                                    ]),
+
                                 Section::make('Contact Details')
                                     ->columns(2)
                                     ->schema([
@@ -522,7 +541,7 @@ class HealthcareCandidateForm
                                 ])->columnSpanFull(),
                             ]),
 
-                        Tab::make('Weekly Availability')
+                        Tab::make('Availability')
                             ->schema([
                                 LivewireComponent::make(CandidateAvailabilityCalendar::class)
                                     ->key('candidate-availability-calendar')
