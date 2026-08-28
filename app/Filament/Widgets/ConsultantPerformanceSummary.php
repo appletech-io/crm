@@ -59,25 +59,57 @@ class ConsultantPerformanceSummary extends StatsOverviewWidget
         $stats = $this->weekStats();
         $target = $this->activeKpiTarget();
 
+        $gpStatus = KpiStatus::for($stats['gp'], $target?->gp_target);
+        $daysStatus = KpiStatus::for($stats['daysPlaced'], $target?->candidate_days_target);
+        $candidatesStatus = KpiStatus::for($stats['candidates'], $target?->working_candidates_target);
+        $clientsStatus = KpiStatus::for($stats['clients'], $target?->clients_booked_target);
+        $rebookStatus = KpiStatus::for($stats['rebookRate'], $target?->rebook_rate_target);
+
         return [
             Stat::make('Gross Profit', '£'.number_format($stats['gp'], 2))
                 ->description($target?->gp_target !== null ? 'Target: £'.number_format($target->gp_target, 2) : null)
-                ->color(KpiStatus::for($stats['gp'], $target?->gp_target)),
+                ->color($gpStatus)
+                ->extraAttributes(static::statBackgroundAttributes($gpStatus)),
             Stat::make('Candidate Days Out', $stats['daysPlaced'])
                 ->description($target?->candidate_days_target !== null ? "Target: {$target->candidate_days_target}" : null)
-                ->color(KpiStatus::for($stats['daysPlaced'], $target?->candidate_days_target)),
+                ->color($daysStatus)
+                ->extraAttributes(static::statBackgroundAttributes($daysStatus)),
             Stat::make('Working Candidates', $stats['candidates'])
                 ->description($target?->working_candidates_target !== null ? "Target: {$target->working_candidates_target}" : null)
-                ->color(KpiStatus::for($stats['candidates'], $target?->working_candidates_target)),
+                ->color($candidatesStatus)
+                ->extraAttributes(static::statBackgroundAttributes($candidatesStatus)),
             Stat::make('Clients Booked', $stats['clients'])
                 ->description($target?->clients_booked_target !== null ? "Target: {$target->clients_booked_target}" : null)
-                ->color(KpiStatus::for($stats['clients'], $target?->clients_booked_target)),
+                ->color($clientsStatus)
+                ->extraAttributes(static::statBackgroundAttributes($clientsStatus)),
             Stat::make('Rebook Rate', $stats['rebookRate'] !== null ? number_format($stats['rebookRate'], 1).'%' : '—')
                 ->description($target?->rebook_rate_target !== null
                     ? 'Next week vs this week — Target: '.number_format($target->rebook_rate_target, 1).'%'
                     : 'Next week vs this week')
-                ->color(KpiStatus::for($stats['rebookRate'], $target?->rebook_rate_target)),
+                ->color($rebookStatus)
+                ->extraAttributes(static::statBackgroundAttributes($rebookStatus)),
         ];
+    }
+
+    /**
+     * Stat::color() only tints the description text (see
+     * stats-overview-widget/stat.blade.php), not the card itself — this
+     * fills in the rest of the card's background with the same RAG colour,
+     * via extraAttributes() on the outer element, using Filament's own
+     * success/warning/danger theme colours so it matches dark mode for free.
+     *
+     * @return array<string, string>
+     */
+    private static function statBackgroundAttributes(?string $status): array
+    {
+        $classes = match ($status) {
+            'success' => 'bg-success-50 dark:bg-success-500/10',
+            'warning' => 'bg-warning-50 dark:bg-warning-500/10',
+            'danger' => 'bg-danger-50 dark:bg-danger-500/10',
+            default => null,
+        };
+
+        return $classes === null ? [] : ['class' => $classes];
     }
 
     /**

@@ -266,7 +266,8 @@ test('a stat is colored green when this week\'s actual meets or exceeds the cons
 
     Livewire::test(ConsultantPerformanceSummary::class)
         ->set('consultantId', $consultant->id)
-        ->assertSeeHtml('fi-color-success');
+        ->assertSeeHtml('fi-color-success')
+        ->assertSeeHtml('bg-success-50');
 });
 
 test('a stat is colored amber between 80% and 100% of the consultant\'s target', function () {
@@ -292,7 +293,8 @@ test('a stat is colored amber between 80% and 100% of the consultant\'s target',
 
     Livewire::test(ConsultantPerformanceSummary::class)
         ->set('consultantId', $consultant->id)
-        ->assertSeeHtml('fi-color-warning');
+        ->assertSeeHtml('fi-color-warning')
+        ->assertSeeHtml('bg-warning-50');
 });
 
 test('a stat is colored red below 80% of the consultant\'s target', function () {
@@ -318,7 +320,8 @@ test('a stat is colored red below 80% of the consultant\'s target', function () 
 
     Livewire::test(ConsultantPerformanceSummary::class)
         ->set('consultantId', $consultant->id)
-        ->assertSeeHtml('fi-color-danger');
+        ->assertSeeHtml('fi-color-danger')
+        ->assertSeeHtml('bg-danger-50');
 });
 
 test('stats are never colored while viewing "All Consultants", even if the only consultant has a target', function () {
@@ -345,7 +348,10 @@ test('stats are never colored while viewing "All Consultants", even if the only 
     Livewire::test(ConsultantPerformanceSummary::class)
         ->assertDontSeeHtml('fi-color-success')
         ->assertDontSeeHtml('fi-color-warning')
-        ->assertDontSeeHtml('fi-color-danger');
+        ->assertDontSeeHtml('fi-color-danger')
+        ->assertDontSeeHtml('bg-success-50')
+        ->assertDontSeeHtml('bg-warning-50')
+        ->assertDontSeeHtml('bg-danger-50');
 });
 
 test('stats are uncolored when the selected consultant has no KPI target set for the active industry', function () {
@@ -368,7 +374,10 @@ test('stats are uncolored when the selected consultant has no KPI target set for
         ->set('consultantId', $consultant->id)
         ->assertDontSeeHtml('fi-color-success')
         ->assertDontSeeHtml('fi-color-warning')
-        ->assertDontSeeHtml('fi-color-danger');
+        ->assertDontSeeHtml('fi-color-danger')
+        ->assertDontSeeHtml('bg-success-50')
+        ->assertDontSeeHtml('bg-warning-50')
+        ->assertDontSeeHtml('bg-danger-50');
 });
 
 test('an admin only gets the monthly report link once a specific consultant is selected', function () {
