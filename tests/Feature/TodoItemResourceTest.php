@@ -373,10 +373,50 @@ test('a todo item can be marked complete and reopened', function () {
 
     expect($todoItem->refresh()->isComplete())->toBeTrue();
 
+    // The table defaults to hiding completed items (see below), so a fresh
+    // component needs the "Completed" filter applied to still find this
+    // now-completed record before it can be reopened.
     Livewire::test(ListTodoItems::class)
+        ->filterTable('completed_at', true)
         ->callTableAction('toggleComplete', $todoItem);
 
     expect($todoItem->refresh()->isComplete())->toBeFalse();
+});
+
+test('the list only shows outstanding todo items by default', function () {
+    $outstanding = TodoItem::factory()->create(['user_id' => $this->user->id, 'completed_at' => null]);
+    $completed = TodoItem::factory()->create(['user_id' => $this->user->id, 'completed_at' => now()]);
+
+    Livewire::test(ListTodoItems::class)
+        ->assertCanSeeTableRecords([$outstanding])
+        ->assertCanNotSeeTableRecords([$completed]);
+});
+
+test('filtering to completed shows completed todo items and hides outstanding ones', function () {
+    $outstanding = TodoItem::factory()->create(['user_id' => $this->user->id, 'completed_at' => null]);
+    $completed = TodoItem::factory()->create(['user_id' => $this->user->id, 'completed_at' => now()]);
+
+    Livewire::test(ListTodoItems::class)
+        ->filterTable('completed_at', true)
+        ->assertCanSeeTableRecords([$completed])
+        ->assertCanNotSeeTableRecords([$outstanding]);
+});
+
+test('there is no delete action on the todo list or its rows', function () {
+    $todoItem = TodoItem::factory()->create(['user_id' => $this->user->id]);
+
+    Livewire::test(ListTodoItems::class)
+        ->assertTableBulkActionDoesNotExist('delete')
+        ->assertTableActionDoesNotExist('delete');
+
+    expect($todoItem->exists)->toBeTrue();
+});
+
+test('there is no delete action on the todo edit page', function () {
+    $todoItem = TodoItem::factory()->create(['user_id' => $this->user->id]);
+
+    Livewire::test(EditTodoItem::class, ['record' => $todoItem->getRouteKey()])
+        ->assertActionDoesNotExist('delete');
 });
 
 test('the link to field is editable on create but read-only on edit', function () {
