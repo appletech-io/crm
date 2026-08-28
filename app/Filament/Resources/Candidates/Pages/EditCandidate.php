@@ -2,20 +2,57 @@
 
 namespace App\Filament\Resources\Candidates\Pages;
 
+use App\Filament\Concerns\HasPayrollProviderErrorAlert;
 use App\Filament\Resources\Candidates\CandidateResource;
 use App\Filament\Resources\Candidates\Schemas\CandidateComplianceForm;
+use App\Jobs\SyncPayrollProviderRecord;
+use App\Models\Candidate;
 use App\Services\Candidates\FormattedCvGenerator;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
 
 class EditCandidate extends EditRecord
 {
+    use HasPayrollProviderErrorAlert;
+
     protected static string $resource = CandidateResource::class;
 
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('retryPayrollSync')
+                ->label('Retry Payroll Sync')
+                ->icon('heroicon-o-arrow-path')
+                ->color('warning')
+                ->visible(fn (): bool => $this->hasProviderError($this->record))
+                ->action(function (): void {
+                    /** @var Candidate $record */
+                    $record = $this->record;
+
+                    try {
+                        SyncPayrollProviderRecord::dispatchSync($record);
+                    } catch (\Throwable) {
+                        // recordFailure() inside the job already persisted
+                        // the error detail — the check below picks it up.
+                    }
+
+                    if ($this->hasProviderError($record)) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Retry failed — see the error below')
+                            ->send();
+
+                        return;
+                    }
+
+                    Notification::make()
+                        ->title('Payroll sync retried successfully')
+                        ->success()
+                        ->send();
+                }),
             DeleteAction::make(),
         ];
     }

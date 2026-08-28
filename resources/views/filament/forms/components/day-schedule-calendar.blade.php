@@ -180,9 +180,11 @@
                     <span class="flex items-center gap-1">
                         <span class="h-3 w-3 rounded bg-purple-100 dark:bg-purple-500/20"></span> PM
                     </span>
-                    <span class="flex items-center gap-1">
-                        <span class="h-3 w-3 rounded bg-orange-100 dark:bg-orange-500/20"></span> Hours
-                    </span>
+                    @if ($isHoursEnabled())
+                        <span class="flex items-center gap-1">
+                            <span class="h-3 w-3 rounded bg-orange-100 dark:bg-orange-500/20"></span> Hours
+                        </span>
+                    @endif
                     <span class="flex items-center gap-1">
                         <span class="h-3 w-3 rounded bg-gray-200 dark:bg-white/10"></span> N/A
                     </span>
@@ -215,9 +217,11 @@
                     <button type="button" x-on:click="applyPeriod('pm')" :disabled="selected.length === 0" class="rounded-full bg-purple-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
                         Set PM
                     </button>
-                    <button type="button" x-on:click="applyPeriod('hours')" :disabled="selected.length === 0" class="rounded-full bg-orange-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
-                        Set Hours
-                    </button>
+                    @if ($isHoursEnabled())
+                        <button type="button" x-on:click="applyPeriod('hours')" :disabled="selected.length === 0" class="rounded-full bg-orange-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
+                            Set Hours
+                        </button>
+                    @endif
                     <button type="button" x-on:click="applyCancelled(true)" :disabled="selected.length === 0" class="rounded-full bg-gray-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
                         Set N/A
                     </button>
@@ -226,20 +230,22 @@
                     </button>
                 </div>
 
-                <template x-if="hoursDays.length > 0">
-                    <div class="flex flex-col gap-2 border-t border-gray-100 pt-3 dark:border-white/10">
-                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Times for Hours days</p>
+                @if ($isHoursEnabled())
+                    <template x-if="hoursDays.length > 0">
+                        <div class="flex flex-col gap-2 border-t border-gray-100 pt-3 dark:border-white/10">
+                            <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Times for Hours days</p>
 
-                        <template x-for="day in hoursDays" :key="day.date">
-                            <div class="flex items-center gap-3 text-sm">
-                                <span class="w-28 text-gray-600 dark:text-gray-300" x-text="day.date"></span>
-                                <input type="time" x-model="day.time_from" class="fi-input rounded-lg border-gray-300 text-sm dark:border-white/10 dark:bg-white/5" />
-                                <span class="text-gray-400">to</span>
-                                <input type="time" x-model="day.time_to" class="fi-input rounded-lg border-gray-300 text-sm dark:border-white/10 dark:bg-white/5" />
-                            </div>
-                        </template>
-                    </div>
-                </template>
+                            <template x-for="day in hoursDays" :key="day.date">
+                                <div class="flex items-center gap-3 text-sm">
+                                    <span class="w-28 text-gray-600 dark:text-gray-300" x-text="day.date"></span>
+                                    <input type="time" x-model="day.time_from" class="fi-input rounded-lg border-gray-300 text-sm dark:border-white/10 dark:bg-white/5" />
+                                    <span class="text-gray-400">to</span>
+                                    <input type="time" x-model="day.time_to" class="fi-input rounded-lg border-gray-300 text-sm dark:border-white/10 dark:bg-white/5" />
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                @endif
 
                 @if ($disputedDays->isNotEmpty())
                     <div class="flex flex-col gap-2 border-t border-gray-100 pt-3 dark:border-white/10">

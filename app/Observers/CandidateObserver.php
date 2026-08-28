@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Actions\Automations\CheckActions;
 use App\Jobs\GeocodeCandidate;
+use App\Jobs\SyncPayrollProviderRecord;
 use App\Models\Candidate;
 
 class CandidateObserver
@@ -15,6 +16,8 @@ class CandidateObserver
         }
 
         CheckActions::run($candidate);
+
+        SyncPayrollProviderRecord::dispatch($candidate);
     }
 
     public function deleted(Candidate $candidate): void

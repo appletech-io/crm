@@ -259,4 +259,10 @@ class EducationCandidate extends Model
     {
         return $this->morphMany(Booking::class, 'candidate');
     }
+
+    /** @return MorphMany<ProviderError, $this> */
+    public function providerErrors(): MorphMany
+    {
+        return $this->morphMany(ProviderError::class, 'candidate');
+    }
 }

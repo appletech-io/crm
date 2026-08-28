@@ -4,6 +4,7 @@ use App\Enums\BookingDayPeriod;
 use App\Enums\BookingStatus;
 use App\Enums\Integration;
 use App\Filament\Resources\Bookings\Pages\EditBooking;
+use App\Jobs\SyncPayrollProviderRecord;
 use App\Models\Booking;
 use App\Models\Client;
 use App\Models\Company;
@@ -13,12 +14,24 @@ use App\Models\JobTitle;
 use App\Models\ProviderError;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
+
+    // This file is only about the retry action on a booking's own provider
+    // error, not the independent client/candidate sync — faked so creating
+    // them below doesn't reach Evertime for real. Scoped to just this one
+    // job class (rather than a bare Queue::fake()) because dispatchSync()
+    // — used by the retry action itself — still routes ShouldQueue jobs
+    // through the queue resolver, so a blanket fake would swallow the retry
+    // action's own dispatch too. No Http::fake() here — each test registers
+    // its own, and an earlier catch-all would only shadow it (Laravel
+    // matches fakes in registration order, first hit wins).
+    Bus::fake([SyncPayrollProviderRecord::class]);
 
     $this->company = Company::factory()->create(['payroll_provider' => Integration::Evertime->value]);
     $this->company->setIntegrationSetting(Integration::Evertime, 'api_url', 'https://api-staging.evertime.co.uk');

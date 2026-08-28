@@ -2,18 +2,55 @@
 
 namespace App\Filament\Resources\Users\Pages;
 
+use App\Filament\Concerns\HasPayrollProviderErrorAlert;
 use App\Filament\Resources\Users\UserResource;
+use App\Jobs\SyncPayrollProviderRecord;
+use App\Models\User;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Facades\Auth;
 
 class EditUser extends EditRecord
 {
+    use HasPayrollProviderErrorAlert;
+
     protected static string $resource = UserResource::class;
 
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('retryPayrollSync')
+                ->label('Retry Payroll Sync')
+                ->icon('heroicon-o-arrow-path')
+                ->color('warning')
+                ->visible(fn (): bool => $this->hasProviderError($this->record))
+                ->action(function (): void {
+                    /** @var User $record */
+                    $record = $this->record;
+
+                    try {
+                        SyncPayrollProviderRecord::dispatchSync($record);
+                    } catch (\Throwable) {
+                        // recordFailure() inside the job already persisted
+                        // the error detail — the check below picks it up.
+                    }
+
+                    if ($this->hasProviderError($record)) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Retry failed — see the error below')
+                            ->send();
+
+                        return;
+                    }
+
+                    Notification::make()
+                        ->title('Payroll sync retried successfully')
+                        ->success()
+                        ->send();
+                }),
             DeleteAction::make(),
         ];
     }

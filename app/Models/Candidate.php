@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Traits\BelongsToCompany;
 use App\Models\Traits\HasFieldSuggestions;
+use App\Models\Traits\HasProviderExternalId;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -28,6 +29,7 @@ class Candidate extends Model
     use BelongsToCompany;
     use HasFactory;
     use HasFieldSuggestions;
+    use HasProviderExternalId;
     use SoftDeletes;
 
     protected $guarded = [];
@@ -159,6 +161,12 @@ class Candidate extends Model
     public function candidatePools(): MorphToMany
     {
         return $this->morphToMany(CandidatePool::class, 'candidate', 'candidate_pool_candidates');
+    }
+
+    /** @return MorphMany<ProviderError, $this> */
+    public function providerErrors(): MorphMany
+    {
+        return $this->morphMany(ProviderError::class, 'candidate');
     }
 
     /** @return array<string, array{0: class-string<Model>, 1: array<int, string>}> */

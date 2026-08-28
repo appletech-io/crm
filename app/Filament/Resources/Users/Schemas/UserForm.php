@@ -3,9 +3,11 @@
 namespace App\Filament\Resources\Users\Schemas;
 
 use App\Enums\Integration;
+use App\Filament\Concerns\HasPayrollProviderErrorAlert;
 use App\Models\ClientContact;
 use App\Models\User;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
@@ -15,6 +17,8 @@ use Spatie\Permission\Models\Role;
 
 class UserForm
 {
+    use HasPayrollProviderErrorAlert;
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
@@ -99,6 +103,25 @@ class UserForm
 
                                 if ($record && $provider instanceof Integration) {
                                     $component->state($record->providerExternalId($provider));
+                                }
+                            }),
+                    ]),
+
+                Section::make('Payroll Submission Failed')
+                    ->columnSpanFull()
+                    ->icon('heroicon-o-exclamation-triangle')
+                    ->iconColor('danger')
+                    ->visible(fn (?User $record): bool => $record && $record->hasRole('consultant') && static::currentProviderErrors($record)->isNotEmpty())
+                    ->schema([
+                        Textarea::make('payroll_provider_errors')
+                            ->hiddenLabel()
+                            ->disabled()
+                            ->dehydrated(false)
+                            ->rows(3)
+                            ->columnSpanFull()
+                            ->afterStateHydrated(function (Textarea $component, ?User $record): void {
+                                if ($record) {
+                                    $component->state(static::currentProviderErrors($record)->implode("\n"));
                                 }
                             }),
                     ]),

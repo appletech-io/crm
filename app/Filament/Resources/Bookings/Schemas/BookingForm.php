@@ -636,15 +636,25 @@ class BookingForm
      * @param  array<int, string|int>  $daysOfWeek  ISO weekday numbers (1 = Monday .. 7 = Sunday) to include.
      *                                              An empty array means "no filter" — every day in the range —
      *                                              so existing callers/bookings are unaffected.
+     * @param  ?bool  $weekendsDefaultToNA  Schools only operate on weekdays, so a freshly generated
+     *                                      Saturday/Sunday defaults to N/A rather than a full day for
+     *                                      Education — Healthcare (and anything else) runs 7 days a
+     *                                      week, so weekends there default to Full Day like any other
+     *                                      day. Null (the default) infers this from active_industry(),
+     *                                      which only reflects the logged-in *staff* member's current
+     *                                      sector — callers outside that context (e.g. the client
+     *                                      portal, where a client has a fixed industry rather than a
+     *                                      switchable one) must pass this explicitly.
      * @return array<int, array{date: string, period: string, time_from: ?string, time_to: ?string, cancelled: bool}>
      */
-    public static function dayPeriodsForRange(mixed $startDate, mixed $endDate, array $existing = [], array $daysOfWeek = []): array
+    public static function dayPeriodsForRange(mixed $startDate, mixed $endDate, array $existing = [], array $daysOfWeek = [], ?bool $weekendsDefaultToNA = null): array
     {
         if (blank($startDate)) {
             return [];
         }
 
         $endDate = $endDate ?: $startDate;
+        $weekendsDefaultToNA ??= active_industry() === 'education';
 
         $existingPeriods = collect($existing)
             ->filter(fn (array $entry): bool => filled($entry['date'] ?? null))
@@ -657,13 +667,10 @@ class BookingForm
                 $allowedWeekdays->isNotEmpty(),
                 fn (Collection $dates) => $dates->filter(fn (Carbon $date): bool => $allowedWeekdays->contains($date->isoWeekday())),
             )
-            ->map(function (Carbon $date) use ($existingPeriods): array {
+            ->map(function (Carbon $date) use ($existingPeriods, $weekendsDefaultToNA): array {
                 $existing = $existingPeriods->get($date->toDateString());
 
-                // Schools only operate on weekdays, so a freshly generated
-                // Saturday/Sunday defaults to N/A rather than a full day —
-                // it's still shown (and can be overridden) on the calendar.
-                $isWeekend = $date->isWeekend();
+                $isWeekend = $date->isWeekend() && $weekendsDefaultToNA;
 
                 return [
                     'date' => $date->toDateString(),

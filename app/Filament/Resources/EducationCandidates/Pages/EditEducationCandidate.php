@@ -3,14 +3,19 @@
 namespace App\Filament\Resources\EducationCandidates\Pages;
 
 use App\Enums\EmailTemplateAudience;
+use App\Filament\Concerns\HasPayrollProviderErrorAlert;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Filament\Resources\EducationCandidates\Pages\Concerns\HasCandidateStatusSubheading;
 use App\Filament\Support\ChangeCandidateStatusAction;
 use App\Filament\Support\SendCustomEmailAction;
+use App\Jobs\SyncPayrollProviderRecord;
+use App\Models\EducationCandidate;
 use App\Services\Candidates\FormattedCvGenerator;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Auth;
@@ -20,6 +25,7 @@ use Illuminate\Support\HtmlString;
 class EditEducationCandidate extends EditRecord
 {
     use HasCandidateStatusSubheading;
+    use HasPayrollProviderErrorAlert;
 
     protected static string $resource = EducationCandidateResource::class;
 
@@ -28,6 +34,36 @@ class EditEducationCandidate extends EditRecord
         return [
             ChangeCandidateStatusAction::header(),
             SendCustomEmailAction::header(EmailTemplateAudience::Candidate),
+            Action::make('retryPayrollSync')
+                ->label('Retry Payroll Sync')
+                ->icon('heroicon-o-arrow-path')
+                ->color('warning')
+                ->visible(fn (): bool => $this->hasProviderError($this->record))
+                ->action(function (): void {
+                    /** @var EducationCandidate $record */
+                    $record = $this->record;
+
+                    try {
+                        SyncPayrollProviderRecord::dispatchSync($record);
+                    } catch (\Throwable) {
+                        // recordFailure() inside the job already persisted
+                        // the error detail — the check below picks it up.
+                    }
+
+                    if ($this->hasProviderError($record)) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Retry failed — see the error below')
+                            ->send();
+
+                        return;
+                    }
+
+                    Notification::make()
+                        ->title('Payroll sync retried successfully')
+                        ->success()
+                        ->send();
+                }),
             DeleteAction::make()
                 ->visible(fn (): bool => Auth::user()?->isAdmin() ?? false),
             ForceDeleteAction::make(),

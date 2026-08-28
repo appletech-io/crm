@@ -78,6 +78,36 @@ test('dayPeriodsForRange automatically marks freshly generated Saturdays and Sun
     ]);
 });
 
+test('dayPeriodsForRange does not default weekends to N/A for a healthcare consultant', function () {
+    $healthcareIndustry = Industry::factory()->create(['slug' => 'healthcare']);
+    Cache::put("user.{$this->user->id}.active_industry", $healthcareIndustry->slug);
+    Cache::put("user.{$this->user->id}.active_industry_id", $healthcareIndustry->id);
+
+    // 2026-09-01 is a Tuesday, so this range covers one Saturday (5th) and one Sunday (6th).
+    $result = collect(BookingForm::dayPeriodsForRange('2026-09-01', '2026-09-07'))
+        ->mapWithKeys(fn (array $entry): array => [$entry['date'] => $entry['cancelled']]);
+
+    expect($result->all())->toBe([
+        '2026-09-01' => false,
+        '2026-09-02' => false,
+        '2026-09-03' => false,
+        '2026-09-04' => false,
+        '2026-09-05' => false,
+        '2026-09-06' => false,
+        '2026-09-07' => false,
+    ]);
+});
+
+test('dayPeriodsForRange respects an explicit weekendsDefaultToNA override regardless of active_industry', function () {
+    // active_industry is 'education' per beforeEach, but the explicit false
+    // here must win — this is what the client portal relies on.
+    $result = collect(BookingForm::dayPeriodsForRange('2026-09-01', '2026-09-07', weekendsDefaultToNA: false))
+        ->mapWithKeys(fn (array $entry): array => [$entry['date'] => $entry['cancelled']]);
+
+    expect($result->get('2026-09-05'))->toBeFalse()
+        ->and($result->get('2026-09-06'))->toBeFalse();
+});
+
 test('dayPeriodsForRange does not override an existing weekend entry that was manually included', function () {
     $result = BookingForm::dayPeriodsForRange('2026-09-05', '2026-09-05', [
         ['date' => '2026-09-05', 'period' => BookingDayPeriod::FullDay->value, 'time_from' => null, 'time_to' => null, 'cancelled' => false],

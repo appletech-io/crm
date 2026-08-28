@@ -112,6 +112,11 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
         return $this->kpiTargets()->where('industry_id', $industryId)->first();
     }
 
+    public function providerErrors(): HasMany
+    {
+        return $this->hasMany(ProviderError::class);
+    }
+
     public function candidate(): MorphTo
     {
         return $this->morphTo();

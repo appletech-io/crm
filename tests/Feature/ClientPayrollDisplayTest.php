@@ -8,10 +8,16 @@ use App\Models\Industry;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
+
+    // This file is only about the read-only display, not payroll sync
+    // behaviour — faked so saving a client below doesn't try to actually
+    // reach Evertime (no api_url/api_key is configured here).
+    Queue::fake();
 
     $this->company = Company::factory()->create(['payroll_provider' => Integration::Evertime->value]);
     $this->industry = Industry::factory()->create(['slug' => 'education']);

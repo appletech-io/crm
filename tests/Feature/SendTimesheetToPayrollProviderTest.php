@@ -242,10 +242,17 @@ test('a generated placement id is persisted rather than reconstructed on each se
 });
 
 test('a 422 validation error from the provider is recorded and does not throw', function () {
-    Http::fake(['*/clients' => Http::response([
-        'HasErrors' => true,
-        'Errors' => [['ErrorMessage' => "The supplied VatCode of 'Standard' is invalid."]],
-    ], 422)]);
+    Http::fake([
+        '*/clients' => Http::response([
+            'HasErrors' => true,
+            'Errors' => [['ErrorMessage' => "The supplied VatCode of 'Standard' is invalid."]],
+        ], 422),
+        // The candidate's own independent sync (see SyncPayrollProviderRecord)
+        // fires the moment it's created below, before this test's actual
+        // subject (the booking-approval /clients call) even runs — give it a
+        // safe default so only /clients is exercising the failure path.
+        '*' => Http::response(['HasErrors' => false, 'Errors' => []], 200),
+    ]);
 
     $company = fakeEvertimeCompany();
     $booking = makePayrollBooking($company);
@@ -279,10 +286,23 @@ test('a 200 response with HasErrors is recorded and does not throw', function ()
 });
 
 test('a server error is rethrown for the queue to retry, but still recorded', function () {
-    Http::fake(['*' => Http::response(['Message' => 'Internal error'], 500)]);
-
-    $company = fakeEvertimeCompany();
+    // The company starts without a payroll provider so the client/candidate's
+    // own independent sync doesn't run (and rethrow this same 500) while
+    // they're created below — that dispatch isn't what this test is about.
+    // No Http::fake() is needed for this setup at all: with no provider
+    // configured yet, the independent sync bails before making any request.
+    $company = Company::factory()->create(['payroll_provider' => null]);
     $booking = makePayrollBooking($company);
+
+    $company->update(['payroll_provider' => Integration::Evertime->value]);
+    $company->setIntegrationSetting(Integration::Evertime, 'api_url', 'https://api-staging.evertime.co.uk');
+    $company->setIntegrationSetting(Integration::Evertime, 'api_key', 'test-key');
+
+    // Http::fake() only needs registering once, here — an earlier call
+    // (e.g. a catch-all success response before this) would win instead,
+    // since Laravel matches fakes in registration order and takes the
+    // first hit, not the most recently registered one.
+    Http::fake(['*' => Http::response(['Message' => 'Internal error'], 500)]);
 
     $job = new SendTimesheetToPayrollProvider($booking->fresh());
 
@@ -531,8 +551,18 @@ test('an hourly time entry uses the STH rate code with start/end times, not STD'
 test('a brand new client is created via a single clients POST with its contact and location', function () {
     Http::fake(['*' => Http::response(['HasErrors' => false, 'Errors' => []], 200)]);
 
-    $company = fakeEvertimeCompany();
+    // The company starts without a payroll provider so the client's own
+    // independent sync (SyncPayrollProviderRecord, fired by ClientObserver
+    // on every save) doesn't run while it's created below — otherwise it
+    // would resolve and persist an external ID immediately, and by the time
+    // the booking is approved the client would already look "known" to
+    // Evertime instead of genuinely brand new.
+    $company = Company::factory()->create(['payroll_provider' => null]);
     $booking = makePayrollBooking($company);
+
+    $company->update(['payroll_provider' => Integration::Evertime->value]);
+    $company->setIntegrationSetting(Integration::Evertime, 'api_url', 'https://api-staging.evertime.co.uk');
+    $company->setIntegrationSetting(Integration::Evertime, 'api_key', 'test-key');
 
     $booking->update(['status' => BookingStatus::Approved]);
 
@@ -553,8 +583,17 @@ test('a brand new client is created via a single clients POST with its contact a
 test('a client already known to the provider is updated via PUT, not the destructive clients POST', function () {
     Http::fake(['*' => Http::response(['HasErrors' => false, 'Errors' => []], 200)]);
 
-    $company = fakeEvertimeCompany();
+    // Same reasoning as the "brand new client" test above — the provider
+    // isn't enabled until after the client exists, so its own independent
+    // sync can't run (and can't make a stray /clients POST) before the
+    // external ID is explicitly forced to a known value below.
+    $company = Company::factory()->create(['payroll_provider' => null]);
     $booking = makePayrollBooking($company);
+
+    $company->update(['payroll_provider' => Integration::Evertime->value]);
+    $company->setIntegrationSetting(Integration::Evertime, 'api_url', 'https://api-staging.evertime.co.uk');
+    $company->setIntegrationSetting(Integration::Evertime, 'api_key', 'test-key');
+
     $booking->client->setProviderExternalId(Integration::Evertime, 'PRE-EXISTING-CLIENT-99');
 
     $booking->update(['status' => BookingStatus::Approved]);

@@ -4,8 +4,10 @@ namespace App\Filament\Resources\Candidates\Schemas;
 
 use App\Actions\References\ResendReferenceRequestEmail;
 use App\Enums\DocumentType;
+use App\Enums\Integration;
 use App\Enums\ReferenceStatus;
 use App\Enums\ReferenceType;
+use App\Filament\Concerns\HasPayrollProviderErrorAlert;
 use App\Filament\Widgets\CandidateActivityTimeline;
 use App\Filament\Widgets\CandidateAvailabilityCalendar;
 use App\Filament\Widgets\CandidateDocumentManager;
@@ -50,6 +52,8 @@ use Illuminate\Support\Str;
 
 class CandidateForm
 {
+    use HasPayrollProviderErrorAlert;
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
@@ -277,6 +281,39 @@ class CandidateForm
                                         TextInput::make('country')
                                             ->maxLength(255)
                                             ->hidden(fn (Get $get) => ! (bool) $get('address_manual') && empty($get('address')) && empty($get('postcode'))),
+                                    ]),
+
+                                Section::make('Payroll')
+                                    ->visible(fn (?Candidate $record): bool => $record !== null)
+                                    ->schema([
+                                        // Shown regardless of whether the company currently has
+                                        // Evertime enabled as its active payroll_provider — a
+                                        // candidate can already have a synced/manually-entered ID
+                                        // from before that toggle changed, or before it's set at
+                                        // all, and that shouldn't hide an ID that already exists.
+                                        TextEntry::make('payroll_provider_id_display')
+                                            ->label('Payroll Provider ID')
+                                            ->getStateUsing(fn (?Candidate $record): ?string => $record?->providerExternalId(Integration::Evertime))
+                                            ->placeholder('Not yet synced'),
+                                    ]),
+
+                                Section::make('Payroll Submission Failed')
+                                    ->columnSpanFull()
+                                    ->icon('heroicon-o-exclamation-triangle')
+                                    ->iconColor('danger')
+                                    ->visible(fn (?Candidate $record): bool => $record && static::currentProviderErrors($record)->isNotEmpty())
+                                    ->schema([
+                                        Textarea::make('payroll_provider_errors')
+                                            ->hiddenLabel()
+                                            ->disabled()
+                                            ->dehydrated(false)
+                                            ->rows(3)
+                                            ->columnSpanFull()
+                                            ->afterStateHydrated(function (Textarea $component, ?Candidate $record): void {
+                                                if ($record) {
+                                                    $component->state(static::currentProviderErrors($record)->implode("\n"));
+                                                }
+                                            }),
                                     ]),
                             ]),
 

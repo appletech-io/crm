@@ -11,6 +11,7 @@ use App\Models\Client;
 use App\Models\ClientContact;
 use App\Models\Company;
 use App\Models\EducationCandidate;
+use App\Models\HealthcareCandidate;
 use App\Models\Industry;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
@@ -157,4 +158,49 @@ test('a candidate not in the pool cannot be booked', function () {
 
     Livewire::test(MyCandidates::class)
         ->assertCanNotSeeTableRecords([$otherCandidate]);
+});
+
+test('an education client requesting a booking over a weekend gets it defaulted to N/A', function () {
+    // 2026-09-01 is a Tuesday, so index 4/5 in the resulting array (Sept 1
+    // is index 0) are Saturday 5th / Sunday 6th.
+    Livewire::test(MyCandidates::class)
+        ->mountTableAction('book', $this->candidate)
+        ->set('mountedActions.0.data.start_date', '2026-09-01')
+        ->set('mountedActions.0.data.end_date', '2026-09-07')
+        ->assertSet('mountedActions.0.data.day_periods.4.cancelled', true)
+        ->assertSet('mountedActions.0.data.day_periods.5.cancelled', true);
+});
+
+test('a healthcare client requesting a booking over a weekend does not get it defaulted to N/A', function () {
+    $healthcareIndustry = Industry::factory()->create(['slug' => 'healthcare']);
+    $this->company->industries()->attach($healthcareIndustry);
+
+    $healthcareCandidate = HealthcareCandidate::factory()->create(['company_id' => $this->company->id]);
+
+    $healthcareClient = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $healthcareIndustry->id,
+        'consultant_id' => $this->consultant->id,
+    ]);
+    $healthcareContact = ClientContact::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $healthcareClient->id,
+    ]);
+    $healthcareClientUser = User::factory()->create([
+        'company_id' => $this->company->id,
+        'client_contact_id' => $healthcareContact->id,
+    ]);
+    $healthcareClientUser->assignRole('client');
+
+    $pool = EnsureClientCandidatePool::run($healthcareClient);
+    $pool->candidatesOfType(HealthcareCandidate::class)->attach($healthcareCandidate->id);
+
+    $this->actingAs($healthcareClientUser);
+
+    Livewire::test(MyCandidates::class)
+        ->mountTableAction('book', $healthcareCandidate)
+        ->set('mountedActions.0.data.start_date', '2026-09-01')
+        ->set('mountedActions.0.data.end_date', '2026-09-07')
+        ->assertSet('mountedActions.0.data.day_periods.4.cancelled', false)
+        ->assertSet('mountedActions.0.data.day_periods.5.cancelled', false);
 });

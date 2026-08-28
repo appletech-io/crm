@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Clients\Schemas;
 use App\Actions\Clients\CreateClientContactPortalAccount;
 use App\Enums\Education\KeyStage;
 use App\Enums\Integration;
+use App\Filament\Concerns\HasPayrollProviderErrorAlert;
 use App\Filament\Widgets\ClientActivityTimeline;
 use App\Filament\Widgets\ClientPipelineOverview;
 use App\Filament\Widgets\ClientTimesheetOverview;
@@ -39,6 +40,8 @@ use Illuminate\Support\Facades\Http;
 
 class ClientForm
 {
+    use HasPayrollProviderErrorAlert;
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
@@ -292,6 +295,25 @@ class ClientForm
                                             ->label('Payroll Provider ID')
                                             ->getStateUsing(fn (?Client $record): ?string => $record?->providerExternalId(Integration::Evertime))
                                             ->placeholder('Not yet synced'),
+                                    ]),
+
+                                Section::make('Payroll Submission Failed')
+                                    ->columnSpanFull()
+                                    ->icon('heroicon-o-exclamation-triangle')
+                                    ->iconColor('danger')
+                                    ->visible(fn (?Client $record): bool => $record && static::currentProviderErrors($record)->isNotEmpty())
+                                    ->schema([
+                                        Textarea::make('payroll_provider_errors')
+                                            ->hiddenLabel()
+                                            ->disabled()
+                                            ->dehydrated(false)
+                                            ->rows(3)
+                                            ->columnSpanFull()
+                                            ->afterStateHydrated(function (Textarea $component, ?Client $record): void {
+                                                if ($record) {
+                                                    $component->state(static::currentProviderErrors($record)->implode("\n"));
+                                                }
+                                            }),
                                     ]),
 
                             ]),
