@@ -20,25 +20,6 @@ new #[Layout('layouts.companion', ['title' => 'Today'])] class extends Component
         return Carbon::tomorrow();
     }
 
-    /**
-     * "Morning" / "Afternoon" / "Evening" / "Night" — the single biggest
-     * thing dementia-friendly displays add over a plain clock, so someone
-     * doesn't have to interpret an "AM/PM" or a raw hour.
-     */
-    #[Computed]
-    public function partOfDay(): string
-    {
-        $hour = (int) now()->format('G');
-
-        return match (true) {
-            $hour < 6 => 'Night',
-            $hour < 12 => 'Morning',
-            $hour < 17 => 'Afternoon',
-            $hour < 21 => 'Evening',
-            default => 'Night',
-        };
-    }
-
     #[Computed]
     public function todaysEvents()
     {
@@ -82,13 +63,12 @@ new #[Layout('layouts.companion', ['title' => 'Today'])] class extends Component
 
 <div wire:poll.60s class="flex h-screen flex-col gap-6 overflow-hidden px-8 py-6 text-center">
     <div class="shrink-0">
-        <p class="text-xl font-semibold text-amber-600 sm:text-2xl">{{ $this->partOfDay }}</p>
-        <h1 class="mt-1 text-5xl font-bold tracking-tight text-neutral-900 sm:text-6xl">{{ $this->today->format('l') }}</h1>
-        <p class="mt-1 text-xl text-neutral-500 sm:text-2xl">{{ $this->today->format('j F Y') }}</p>
-        <p class="mt-2 text-4xl font-mono font-semibold text-neutral-900 sm:text-5xl" x-data x-init="
-            $el.textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-            setInterval(() => { $el.textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}); }, 1000);
-        "></p>
+        <p class="text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">
+            {{ $this->today->format('l jS') }} - <span class="font-mono" x-data x-init="
+                $el.textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12: false});
+                setInterval(() => { $el.textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12: false}); }, 1000);
+            "></span>
+        </p>
     </div>
 
     <div class="grid min-h-0 flex-1 grid-cols-2 gap-6">
