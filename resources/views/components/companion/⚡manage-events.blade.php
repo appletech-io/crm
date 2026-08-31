@@ -11,10 +11,10 @@ use Livewire\Component;
 new #[Layout('layouts.companion', ['title' => 'Manage Events'])] class extends Component
 {
     #[Url]
-    public string $month;
+    public string $month = '';
 
     #[Url]
-    public string $selectedDate;
+    public string $selectedDate = '';
 
     public ?int $editingId = null;
 
@@ -26,8 +26,8 @@ new #[Layout('layouts.companion', ['title' => 'Manage Events'])] class extends C
 
     public function mount(): void
     {
-        $this->month ??= Carbon::today()->format('Y-m');
-        $this->selectedDate ??= Carbon::today()->format('Y-m-d');
+        $this->month = $this->month ?: Carbon::today()->format('Y-m');
+        $this->selectedDate = $this->selectedDate ?: Carbon::today()->format('Y-m-d');
     }
 
     #[Computed]
@@ -170,9 +170,9 @@ new #[Layout('layouts.companion', ['title' => 'Manage Events'])] class extends C
     {{-- Month --}}
     <div class="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
         <div class="mb-4 flex items-center justify-between">
-            <flux:button wire:click="previousMonth" icon="chevron-left" size="sm" variant="subtle" />
+            <flux:button type="button" wire:click="previousMonth" icon="chevron-left" size="sm" variant="subtle" />
             <flux:heading size="lg">{{ $this->monthStart->format('F Y') }}</flux:heading>
-            <flux:button wire:click="nextMonth" icon="chevron-right" size="sm" variant="subtle" />
+            <flux:button type="button" wire:click="nextMonth" icon="chevron-right" size="sm" variant="subtle" />
         </div>
 
         <div class="grid grid-cols-7 gap-1 text-center text-xs text-neutral-500">
