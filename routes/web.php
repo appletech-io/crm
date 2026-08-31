@@ -36,6 +36,14 @@ Route::livewire('/reference/{token}/form', 'reference.reference-form')->name('re
 
 Route::get('/booking-confirmation', [BookingConfirmationController::class, 'show'])->name('booking-confirmation.show');
 
+// Family companion day board (dementia-care MVP) — deliberately unauthenticated
+// on both sides: the board is a wall/tablet display with nobody to log in,
+// and the management side is kept passwordless for a family member to add
+// events from any device without setup. Demo/MVP only — not linked from the
+// app, not intended for the production domain. See branch `dementia`.
+Route::livewire('/companion/board', 'companion.daily-board')->name('companion.board');
+Route::livewire('/companion/manage', 'companion.manage-events')->name('companion.manage');
+
 // Deliberately unauthenticated so images embedded in outbound emails render
 // for external recipients — see EmailImageController for how this stays safe.
 Route::get('/email-images/{path}', [EmailImageController::class, 'show'])
