@@ -8,10 +8,12 @@
         <title>{{ $title ?? 'Companion Board' }}</title>
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
-        @fluxAppearance
+        {{-- Deliberately no @fluxAppearance here: this MVP is fixed to a
+        light theme regardless of any dark-mode preference stored by the
+        main CRM app in this browser. --}}
         @stack('head')
     </head>
-    <body class="min-h-screen bg-neutral-950 text-white antialiased">
+    <body class="min-h-screen bg-neutral-50 text-neutral-900 antialiased">
         {{ $slot }}
 
         @fluxScripts

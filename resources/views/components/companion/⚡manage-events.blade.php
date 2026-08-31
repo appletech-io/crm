@@ -168,14 +168,14 @@ new #[Layout('layouts.companion', ['title' => 'Manage Events'])] class extends C
     </div>
 
     {{-- Month --}}
-    <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+    <div class="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
         <div class="mb-4 flex items-center justify-between">
             <flux:button wire:click="previousMonth" icon="chevron-left" size="sm" variant="subtle" />
             <flux:heading size="lg">{{ $this->monthStart->format('F Y') }}</flux:heading>
             <flux:button wire:click="nextMonth" icon="chevron-right" size="sm" variant="subtle" />
         </div>
 
-        <div class="grid grid-cols-7 gap-1 text-center text-xs text-neutral-400">
+        <div class="grid grid-cols-7 gap-1 text-center text-xs text-neutral-500">
             @foreach (['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as $label)
                 <div class="py-1">{{ $label }}</div>
             @endforeach
@@ -194,10 +194,10 @@ new #[Layout('layouts.companion', ['title' => 'Manage Events'])] class extends C
                     wire:click="selectDate('{{ $key }}')"
                     @class([
                         'flex flex-col items-center gap-0.5 rounded-lg py-2 text-sm',
-                        'text-neutral-600' => ! $inMonth,
-                        'text-white' => $inMonth && ! $isSelected,
+                        'text-neutral-300' => ! $inMonth,
+                        'text-neutral-900' => $inMonth && ! $isSelected,
                         'bg-amber-400 text-neutral-900 font-semibold' => $isSelected,
-                        'hover:bg-white/10' => ! $isSelected,
+                        'hover:bg-neutral-100' => ! $isSelected,
                     ])
                 >
                     {{ $day->day }}
@@ -205,7 +205,7 @@ new #[Layout('layouts.companion', ['title' => 'Manage Events'])] class extends C
                         <span @class([
                             'h-1.5 w-1.5 rounded-full',
                             'bg-neutral-900' => $isSelected,
-                            'bg-amber-400' => ! $isSelected,
+                            'bg-amber-500' => ! $isSelected,
                         ])></span>
                     @endif
                 </button>
@@ -214,7 +214,7 @@ new #[Layout('layouts.companion', ['title' => 'Manage Events'])] class extends C
     </div>
 
     {{-- Selected day --}}
-    <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+    <div class="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
         <flux:heading size="lg" class="mb-4">{{ $this->selectedDateCarbon->format('l j F Y') }}</flux:heading>
 
         @if ($this->eventsForSelectedDate->isEmpty())
@@ -222,12 +222,12 @@ new #[Layout('layouts.companion', ['title' => 'Manage Events'])] class extends C
         @else
             <ul class="flex flex-col gap-2">
                 @foreach ($this->eventsForSelectedDate as $event)
-                    <li class="flex items-center justify-between rounded-lg bg-white/5 px-4 py-3">
+                    <li class="flex items-center justify-between rounded-lg bg-neutral-50 px-4 py-3">
                         <div>
-                            <span class="font-mono text-neutral-300">{{ $event->display_time }}</span>
-                            <span class="ml-3">{{ $event->title }}</span>
+                            <span class="font-mono text-neutral-500">{{ $event->display_time }}</span>
+                            <span class="ml-3 text-neutral-900">{{ $event->title }}</span>
                             @if ($event->notes)
-                                <p class="mt-1 text-sm text-neutral-400">{{ $event->notes }}</p>
+                                <p class="mt-1 text-sm text-neutral-500">{{ $event->notes }}</p>
                             @endif
                         </div>
                         <div class="flex gap-2">
@@ -246,7 +246,7 @@ new #[Layout('layouts.companion', ['title' => 'Manage Events'])] class extends C
     </div>
 
     {{-- Add / edit form --}}
-    <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+    <div class="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
         <flux:heading size="lg" class="mb-4">{{ $editingId ? 'Edit event' : 'Add event' }}</flux:heading>
 
         <form wire:submit="save" class="flex flex-col gap-4">
