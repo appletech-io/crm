@@ -89,11 +89,15 @@ new #[Layout('layouts.companion', ['title' => 'Manage Events'])] class extends C
     public function previousMonth(): void
     {
         $this->month = Carbon::createFromFormat('Y-m', $this->month)->subMonth()->format('Y-m');
+
+        unset($this->monthStart, $this->calendarDays, $this->eventCountsByDate);
     }
 
     public function nextMonth(): void
     {
         $this->month = Carbon::createFromFormat('Y-m', $this->month)->addMonth()->format('Y-m');
+
+        unset($this->monthStart, $this->calendarDays, $this->eventCountsByDate);
     }
 
     public function selectDate(string $date): void
