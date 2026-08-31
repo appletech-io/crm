@@ -88,14 +88,18 @@ new #[Layout('layouts.companion', ['title' => 'Manage Events'])] class extends C
 
     public function previousMonth(): void
     {
-        $this->month = Carbon::createFromFormat('Y-m', $this->month)->subMonth()->format('Y-m');
+        // Anchor to the 1st before shifting — parsing 'Y-m' alone fills the
+        // day-of-month in from today's date, so on the 29th–31st,
+        // addMonth()/subMonth() can overflow past a shorter month
+        // (e.g. Aug 31 + 1 month skips September, landing in October).
+        $this->month = Carbon::createFromFormat('Y-m', $this->month)->startOfMonth()->subMonth()->format('Y-m');
 
         unset($this->monthStart, $this->calendarDays, $this->eventCountsByDate);
     }
 
     public function nextMonth(): void
     {
-        $this->month = Carbon::createFromFormat('Y-m', $this->month)->addMonth()->format('Y-m');
+        $this->month = Carbon::createFromFormat('Y-m', $this->month)->startOfMonth()->addMonth()->format('Y-m');
 
         unset($this->monthStart, $this->calendarDays, $this->eventCountsByDate);
     }
