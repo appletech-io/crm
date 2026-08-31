@@ -33,7 +33,14 @@ new #[Layout('layouts.companion', ['title' => 'Manage Events'])] class extends C
     #[Computed]
     public function monthStart(): Carbon
     {
-        return Carbon::createFromFormat('Y-m', $this->month)->startOfMonth();
+        // Force day 1 in the parsed string itself — Carbon::createFromFormat
+        // with format 'Y-m' alone fills the missing day-of-month in from
+        // *today's* date during parsing, before any method chain runs. On
+        // the 29th-31st that can parse straight into a nonexistent date
+        // (e.g. "September 31") which PHP silently overflows into the
+        // following month right there, so a later ->startOfMonth() is too
+        // late to fix it.
+        return Carbon::createFromFormat('Y-m-d', $this->month.'-01');
     }
 
     #[Computed]
@@ -88,18 +95,14 @@ new #[Layout('layouts.companion', ['title' => 'Manage Events'])] class extends C
 
     public function previousMonth(): void
     {
-        // Anchor to the 1st before shifting — parsing 'Y-m' alone fills the
-        // day-of-month in from today's date, so on the 29th–31st,
-        // addMonth()/subMonth() can overflow past a shorter month
-        // (e.g. Aug 31 + 1 month skips September, landing in October).
-        $this->month = Carbon::createFromFormat('Y-m', $this->month)->startOfMonth()->subMonth()->format('Y-m');
+        $this->month = Carbon::createFromFormat('Y-m-d', $this->month.'-01')->subMonth()->format('Y-m');
 
         unset($this->monthStart, $this->calendarDays, $this->eventCountsByDate);
     }
 
     public function nextMonth(): void
     {
-        $this->month = Carbon::createFromFormat('Y-m', $this->month)->startOfMonth()->addMonth()->format('Y-m');
+        $this->month = Carbon::createFromFormat('Y-m-d', $this->month.'-01')->addMonth()->format('Y-m');
 
         unset($this->monthStart, $this->calendarDays, $this->eventCountsByDate);
     }
