@@ -37,7 +37,13 @@ class VacancyFeedResource extends JsonResource
             'job_id' => (string) $this->id,
             'category' => $this->jobTitle?->name,
             'type' => $isTemp ? 'Contract' : 'Permanent',
-            'startdate' => $this->start_date?->format('d-m-Y'),
+            // The feed's own "startdate" is when the LISTING should start
+            // showing, not when the role itself is actually needed — a
+            // vacancy created today for cover starting in two weeks should
+            // still show now. The genuine cover date lives on start_date
+            // ("Cover Needed From" on the form) and only feeds the Booking
+            // prefill once a candidate applies.
+            'startdate' => $this->created_at?->format('d-m-Y'),
             'expiry' => $this->listing_expires_at?->format('d-m-Y'),
             'featured' => null,
             'refno' => $this->refno(),
@@ -46,7 +52,6 @@ class VacancyFeedResource extends JsonResource
             'description' => (string) $this->description,
             'benefits' => self::BENEFITS,
             'county' => $this->client?->county,
-            'town' => $this->client?->city ?? $this->location,
             'location' => $this->client?->city ?? $this->location,
             'salary_min' => $this->formatAmount($payMin),
             'salary_max' => $this->formatAmount($payMax),
