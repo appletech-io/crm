@@ -879,6 +879,33 @@ test('the cover date fields are hidden for a permanent vacancy and visible for a
         ->assertFormFieldIsHidden('placement_fee_percentage');
 });
 
+test('the location field is only visible when no client is selected', function () {
+    Livewire::test(CreateVacancy::class)
+        ->assertFormFieldIsVisible('location')
+        ->set('data.client_id', $this->client->id)
+        ->assertFormFieldIsHidden('location')
+        ->set('data.client_id', null)
+        ->assertFormFieldIsVisible('location');
+});
+
+test('a client-less temp vacancy persists its location', function () {
+    Livewire::test(CreateVacancy::class)
+        ->fillForm([
+            'client_id' => null,
+            'job_title_id' => $this->jobTitle->id,
+            'job_status_id' => $this->jobStatus->id,
+            'title' => 'General Supply Cover',
+            'employment_type' => VacancyEmploymentType::Temp->value,
+            'location' => 'Birmingham',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $vacancy = Vacancy::where('title', 'General Supply Cover')->first();
+
+    expect($vacancy->location)->toBe('Birmingham');
+});
+
 test('a temp vacancy persists its cover start and end dates', function () {
     Livewire::test(CreateVacancy::class)
         ->fillForm([
