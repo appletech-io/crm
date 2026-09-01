@@ -51,6 +51,7 @@ class AdminPanelProvider extends PanelProvider
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->login(false)
             ->authGuard('web')
+            ->sidebarCollapsibleOnDesktop()
             ->colors([
                 'primary' => Color::Green,
                 'red' => Color::Red,
