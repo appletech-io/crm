@@ -12,6 +12,7 @@ use App\Services\Reporting\KpiStatus;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Throwable;
@@ -58,6 +59,7 @@ class ConsultantPerformanceSummary extends StatsOverviewWidget
     {
         $stats = $this->weekStats();
         $target = $this->activeKpiTarget();
+        $trend = $this->weeklyTrend();
 
         $gpStatus = KpiStatus::for($stats['gp'], $target?->gp_target);
         $daysStatus = KpiStatus::for($stats['daysPlaced'], $target?->candidate_days_target);
@@ -68,27 +70,58 @@ class ConsultantPerformanceSummary extends StatsOverviewWidget
         return [
             Stat::make('Gross Profit', '£'.number_format($stats['gp'], 2))
                 ->description($target?->gp_target !== null ? 'Target: £'.number_format($target->gp_target, 2) : null)
+                ->icon('heroicon-o-banknotes')
                 ->color($gpStatus)
+                ->chart($trend->pluck('gp')->all())
                 ->extraAttributes(static::statBackgroundAttributes($gpStatus)),
             Stat::make('Candidate Days Out', $stats['daysPlaced'])
                 ->description($target?->candidate_days_target !== null ? "Target: {$target->candidate_days_target}" : null)
+                ->icon('heroicon-o-calendar-days')
                 ->color($daysStatus)
+                ->chart($trend->pluck('daysPlaced')->all())
                 ->extraAttributes(static::statBackgroundAttributes($daysStatus)),
             Stat::make('Working Candidates', $stats['candidates'])
                 ->description($target?->working_candidates_target !== null ? "Target: {$target->working_candidates_target}" : null)
+                ->icon('heroicon-o-user-group')
                 ->color($candidatesStatus)
+                ->chart($trend->pluck('candidates')->all())
                 ->extraAttributes(static::statBackgroundAttributes($candidatesStatus)),
             Stat::make('Clients Booked', $stats['clients'])
                 ->description($target?->clients_booked_target !== null ? "Target: {$target->clients_booked_target}" : null)
+                ->icon('heroicon-o-building-office-2')
                 ->color($clientsStatus)
+                ->chart($trend->pluck('clients')->all())
                 ->extraAttributes(static::statBackgroundAttributes($clientsStatus)),
             Stat::make('Rebook Rate', $stats['rebookRate'] !== null ? number_format($stats['rebookRate'], 1).'%' : '—')
                 ->description($target?->rebook_rate_target !== null
                     ? 'Next week vs this week — Target: '.number_format($target->rebook_rate_target, 1).'%'
                     : 'Next week vs this week')
+                ->icon('heroicon-o-arrow-path')
                 ->color($rebookStatus)
                 ->extraAttributes(static::statBackgroundAttributes($rebookStatus)),
         ];
+    }
+
+    /**
+     * The last 6 weeks (including the current one) of gp/daysPlaced/
+     * candidates/clients, oldest first, keyed by a short week-start label —
+     * feeds each stat's sparkline via {@see Stat::chart()}. Rebook Rate has
+     * no chart: it's a single forward-looking snapshot (next week vs this
+     * week as of now), not a trailing trend, so a history of past values
+     * wouldn't mean the same thing week to week.
+     *
+     * @return Collection<int, array{gp: float, daysPlaced: int, candidates: int, clients: int}>
+     */
+    private function weeklyTrend(): Collection
+    {
+        $consultantId = $this->activeConsultantId();
+        $end = Carbon::now();
+        $start = $end->copy()->subWeeks(5);
+
+        return PerformanceCalculator::weeklyBreakdown($consultantId, $start, $end)
+            ->mapWithKeys(fn (array $week): array => [
+                Carbon::parse($week['weekStart'])->format('d M') => $week,
+            ]);
     }
 
     /**

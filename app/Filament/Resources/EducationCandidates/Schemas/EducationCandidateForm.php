@@ -69,6 +69,28 @@ class EducationCandidateForm
         return $schema
             ->columns(1)
             ->components([
+                // Kept outside the Tabs so a failed sync is visible immediately on
+                // page load, matching BookingForm's flat, always-on-top placement —
+                // nested inside a non-default tab it'd be missed entirely.
+                Section::make('Payroll Submission Failed')
+                    ->columnSpanFull()
+                    ->icon('heroicon-o-exclamation-triangle')
+                    ->iconColor('danger')
+                    ->visible(fn (?EducationCandidate $record): bool => $record && static::currentProviderErrors($record)->isNotEmpty())
+                    ->schema([
+                        Textarea::make('payroll_provider_errors')
+                            ->hiddenLabel()
+                            ->disabled()
+                            ->dehydrated(false)
+                            ->rows(3)
+                            ->columnSpanFull()
+                            ->afterStateHydrated(function (Textarea $component, ?EducationCandidate $record): void {
+                                if ($record) {
+                                    $component->state(static::currentProviderErrors($record)->implode("\n"));
+                                }
+                            }),
+                    ]),
+
                 Tabs::make('Tabs')
                     ->tabs([
                         Tab::make('Activity')
@@ -220,25 +242,6 @@ class EducationCandidateForm
                                             // all, and that shouldn't hide an ID that already exists.
                                             ->getStateUsing(fn (?EducationCandidate $record): ?string => $record?->providerExternalId(Integration::Evertime))
                                             ->placeholder('Not yet synced'),
-                                    ]),
-
-                                Section::make('Payroll Submission Failed')
-                                    ->columnSpanFull()
-                                    ->icon('heroicon-o-exclamation-triangle')
-                                    ->iconColor('danger')
-                                    ->visible(fn (?EducationCandidate $record): bool => $record && static::currentProviderErrors($record)->isNotEmpty())
-                                    ->schema([
-                                        Textarea::make('payroll_provider_errors')
-                                            ->hiddenLabel()
-                                            ->disabled()
-                                            ->dehydrated(false)
-                                            ->rows(3)
-                                            ->columnSpanFull()
-                                            ->afterStateHydrated(function (Textarea $component, ?EducationCandidate $record): void {
-                                                if ($record) {
-                                                    $component->state(static::currentProviderErrors($record)->implode("\n"));
-                                                }
-                                            }),
                                     ]),
 
                                 Section::make('Contact Details')

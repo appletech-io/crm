@@ -50,16 +50,50 @@ class EducationConsultantKpiOverview extends StatsOverviewWidget implements HasA
 
         return [
             Stat::make('Calls This Month', $stats['calls'])
+                ->icon('heroicon-o-phone')
+                ->chart($this->monthlyTrend(fn (Carbon $start, Carbon $end): int => $this->activityCount(
+                    ActivityType::Call, $start, $end, $this->activeConsultantId(), User::query()->pluck('id')
+                )))
+                ->chartColor('info')
                 ->extraAttributes($this->clickableStatAttributes(ActivityType::Call)),
             Stat::make('Meetings This Month', $stats['meetings'])
+                ->icon('heroicon-o-calendar')
+                ->chart($this->monthlyTrend(fn (Carbon $start, Carbon $end): int => $this->activityCount(
+                    ActivityType::Meeting, $start, $end, $this->activeConsultantId(), User::query()->pluck('id')
+                )))
+                ->chartColor('warning')
                 ->extraAttributes($this->clickableStatAttributes(ActivityType::Meeting)),
             Stat::make('Applications Completed This Month', $stats['completedApplications'])
                 ->description("({$stats['previousMonthCompletedApplications']})")
+                ->icon('heroicon-o-document-check')
+                ->chart($this->monthlyTrend(fn (Carbon $start, Carbon $end): int => $this->completedApplicationsCount(
+                    $start, $end, $this->activeConsultantId()
+                )))
+                ->chartColor('success')
                 ->extraAttributes([
                     'class' => 'cursor-pointer transition hover:opacity-75',
                     'wire:click' => "mountAction('viewCompletedApplications')",
                 ]),
         ];
+    }
+
+    /**
+     * The last 6 months (including the current, partial one), oldest first,
+     * keyed by a short month label — feeds a stat's sparkline via
+     * {@see Stat::chart()}. $counter receives the start/end of each month
+     * and returns whatever count that stat is tracking.
+     *
+     * @return array<string, int>
+     */
+    private function monthlyTrend(callable $counter): array
+    {
+        return collect(range(5, 0))
+            ->mapWithKeys(function (int $monthsAgo) use ($counter): array {
+                $month = Carbon::now()->subMonths($monthsAgo);
+
+                return [$month->format('M Y') => $counter($month->copy()->startOfMonth(), $month->copy()->endOfMonth())];
+            })
+            ->all();
     }
 
     /** @return array<string, string> */
