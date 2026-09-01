@@ -56,7 +56,7 @@ test('it lists a temp vacancy with its day rate, category, and reference number'
                 'job_id' => (string) $vacancy->id,
                 'category' => 'Teaching Assistant',
                 'type' => 'Contract',
-                'startdate' => '07-08-2026',
+                'startdate' => now()->format('d-m-Y'),
                 'expiry' => '26-08-2026',
                 'featured' => null,
                 'refno' => "KG-{$vacancy->id}",
@@ -64,7 +64,6 @@ test('it lists a temp vacancy with its day rate, category, and reference number'
                 'summary' => '',
                 'description' => 'A great role.',
                 'county' => 'West Midlands',
-                'town' => 'Cradley Heath',
                 'location' => 'Cradley Heath',
                 'salary_min' => '90',
                 'salary_max' => '105',
@@ -92,13 +91,32 @@ test('it lists a permanent vacancy with its salary instead of a day rate', funct
             [
                 'job_id' => (string) $vacancy->id,
                 'type' => 'Permanent',
-                'startdate' => null,
+                'startdate' => now()->format('d-m-Y'),
                 'salary_min' => '25000',
                 'salary_max' => '30000',
                 'salary_term' => 'Year',
             ],
         ],
     ]);
+});
+
+test("the feed's startdate reflects when the vacancy was created, not when cover is actually needed", function () {
+    $vacancy = createFeedVacancy([
+        'employment_type' => VacancyEmploymentType::Temp->value,
+        'created_at' => '2026-09-01',
+        'start_date' => '2026-09-14',
+    ]);
+
+    $this->getJson('/api/vacancies')->assertOk()->assertJson([
+        'data' => [
+            [
+                'job_id' => (string) $vacancy->id,
+                'startdate' => '01-09-2026',
+            ],
+        ],
+    ]);
+
+    expect($vacancy->start_date->toDateString())->toBe('2026-09-14');
 });
 
 test('a vacancy with no consultant falls back to a generic reference number and null contact details', function () {
@@ -115,7 +133,7 @@ test('a vacancy with no consultant falls back to a generic reference number and 
     ]);
 });
 
-test('a vacancy with no client falls back to its own location field for town and location', function () {
+test('a vacancy with no client falls back to its own location field', function () {
     $vacancy = createFeedVacancy([
         'client_id' => null,
         'location' => 'Birmingham',
@@ -126,7 +144,6 @@ test('a vacancy with no client falls back to its own location field for town and
             [
                 'job_id' => (string) $vacancy->id,
                 'county' => null,
-                'town' => 'Birmingham',
                 'location' => 'Birmingham',
             ],
         ],
@@ -140,7 +157,6 @@ test('a client on the vacancy takes priority over its own location field', funct
         'data' => [
             [
                 'job_id' => (string) $vacancy->id,
-                'town' => 'Cradley Heath',
                 'location' => 'Cradley Heath',
             ],
         ],
