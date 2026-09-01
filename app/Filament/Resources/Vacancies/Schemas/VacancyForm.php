@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Vacancies\Schemas;
 
 use App\Enums\VacancyEmploymentType;
+use App\Enums\VacancyLocation;
 use App\Filament\Widgets\VacancyActivityTimeline;
 use App\Filament\Widgets\VacancyApplicantsTable;
 use App\Filament\Widgets\VacancyMatchesTable;
@@ -51,7 +52,15 @@ class VacancyForm
                                             ->required(fn (Get $get): bool => $get('employment_type') !== VacancyEmploymentType::Temp->value)
                                             ->helperText('Optional for a temp vacancy covering general availability rather than a specific client.')
                                             ->searchable()
+                                            ->live()
                                             ->preload(),
+
+                                        Select::make('location')
+                                            ->label('Location')
+                                            ->options(VacancyLocation::options())
+                                            ->helperText('City/town for this vacancy, used on the public jobs feed since there\'s no client to take it from.')
+                                            ->searchable()
+                                            ->visible(fn (Get $get): bool => blank($get('client_id'))),
 
                                         Select::make('job_title_id')
                                             ->label('Job Title')

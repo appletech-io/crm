@@ -65,6 +65,7 @@ test('it lists a temp vacancy with its day rate, category, and reference number'
                 'description' => 'A great role.',
                 'county' => 'West Midlands',
                 'town' => 'Cradley Heath',
+                'location' => 'Cradley Heath',
                 'salary_min' => '90',
                 'salary_max' => '105',
                 'salary_term' => 'Day',
@@ -109,6 +110,38 @@ test('a vacancy with no consultant falls back to a generic reference number and 
                 'consultant_name' => null,
                 'email' => null,
                 'refno' => "JOB-{$vacancy->id}",
+            ],
+        ],
+    ]);
+});
+
+test('a vacancy with no client falls back to its own location field for town and location', function () {
+    $vacancy = createFeedVacancy([
+        'client_id' => null,
+        'location' => 'Birmingham',
+    ]);
+
+    $this->getJson('/api/vacancies')->assertOk()->assertJson([
+        'data' => [
+            [
+                'job_id' => (string) $vacancy->id,
+                'county' => null,
+                'town' => 'Birmingham',
+                'location' => 'Birmingham',
+            ],
+        ],
+    ]);
+});
+
+test('a client on the vacancy takes priority over its own location field', function () {
+    $vacancy = createFeedVacancy(['location' => 'Birmingham']);
+
+    $this->getJson('/api/vacancies')->assertOk()->assertJson([
+        'data' => [
+            [
+                'job_id' => (string) $vacancy->id,
+                'town' => 'Cradley Heath',
+                'location' => 'Cradley Heath',
             ],
         ],
     ]);
