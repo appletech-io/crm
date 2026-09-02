@@ -25,8 +25,10 @@ use App\Observers\UserObserver;
 use App\Observers\VacancyObserver;
 use App\Observers\VacancyPlacementObserver;
 use Carbon\CarbonImmutable;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -49,6 +51,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->configureRateLimiting();
 
         EducationCandidate::observe(EducationCandidateObserver::class);
         HealthcareCandidate::observe(HealthcareCandidateObserver::class);
@@ -83,5 +86,24 @@ class AppServiceProvider extends ServiceProvider
                 ->uncompromised()
             : null,
         );
+    }
+
+    /**
+     * Microsoft Graph throttles an app's total request payload bytes, not
+     * just request count — a burst of queued emails (each carrying a base64
+     * logo attachment) can trip it well before any per-minute request-count
+     * limit would matter on its own. Scoped per company since each has its
+     * own Graph app registration/credentials, so one company's burst can't
+     * starve another's send capacity.
+     */
+    protected function configureRateLimiting(): void
+    {
+        RateLimiter::for('microsoft-graph-mail', function ($job) {
+            $company = method_exists($job, 'graphMailCompany') ? $job->graphMailCompany() : null;
+
+            return $company
+                ? Limit::perMinute(20)->by($company->id)
+                : Limit::none();
+        });
     }
 }

@@ -3,10 +3,13 @@
 namespace App\Filament\Widgets\Concerns;
 
 use App\Enums\ActivityType;
+use App\Filament\Resources\TodoItems\TodoItemResource;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Component;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -109,29 +112,76 @@ trait HasActivityTimeline
                     ->modalHeading('Log Activity')
                     ->modalWidth('md')
                     ->schema([
-                        Select::make('type')
-                            ->options(collect(static::loggableTypes())
-                                ->mapWithKeys(fn (ActivityType $type): array => [$type->value => $type->label()])
-                                ->toArray()
-                            )
-                            ->required(),
-                        TextInput::make('note')
-                            ->required()
-                            ->maxLength(1000),
-                        Textarea::make('body')
-                            ->label('Additional details')
-                            ->rows(3)
-                            ->belowContent(static::dictationAction()),
+                        ...static::activitySchema(),
+                        // Which footer button was clicked, set client-side
+                        // just before the form submits (see the "Create &
+                        // Todo" button below). Both buttons are genuine
+                        // type="submit" elements triggering the SAME
+                        // wire:submit.prevent="callMountedAction" — Filament
+                        // can't reliably resolve a second action mounted via
+                        // wire:click nested under this one (confirmed by
+                        // inspecting the actual rendered attribute, which
+                        // carries no context at all), so there's only ever
+                        // one action here, branching on this flag instead.
+                        Hidden::make('__intent')->default('save'),
+                    ])
+                    ->modalFooterActions([
+                        Action::make('submit')
+                            ->label('Log Activity')
+                            ->submit('callMountedAction')
+                            ->color('primary'),
+                        Action::make('createAndTodo')
+                            ->label('Log & Todo')
+                            ->submit('callMountedAction')
+                            ->color('gray')
+                            ->alpineClickHandler("\$wire.set('mountedActions.0.data.__intent', 'todo')"),
+                        Action::make('cancel')
+                            ->label('Cancel')
+                            ->close()
+                            ->color('gray'),
                     ])
                     ->action(function (array $data): void {
-                        $this->record->activities()->create([
-                            'user_id' => auth()->id(),
-                            'type' => $data['type'],
-                            'note' => $data['note'],
-                            'body' => filled($data['body']) ? $data['body'] : null,
-                        ]);
+                        $this->logActivity($data);
+
+                        if (($data['__intent'] ?? 'save') === 'todo') {
+                            $this->redirect(TodoItemResource::getUrl('create', [
+                                'model_type' => $this->record::class,
+                                'model_id' => $this->record->id,
+                                'name' => $data['note'],
+                            ]));
+                        }
                     }),
             ]);
+    }
+
+    /** @return array<int, Component> */
+    private static function activitySchema(): array
+    {
+        return [
+            Select::make('type')
+                ->options(collect(static::loggableTypes())
+                    ->mapWithKeys(fn (ActivityType $type): array => [$type->value => $type->label()])
+                    ->toArray()
+                )
+                ->required(),
+            TextInput::make('note')
+                ->required()
+                ->maxLength(1000),
+            Textarea::make('body')
+                ->label('Additional details')
+                ->rows(3)
+                ->belowContent(static::dictationAction()),
+        ];
+    }
+
+    private function logActivity(array $data): void
+    {
+        $this->record->activities()->create([
+            'user_id' => auth()->id(),
+            'type' => $data['type'],
+            'note' => $data['note'],
+            'body' => filled($data['body']) ? $data['body'] : null,
+        ]);
     }
 
     /**

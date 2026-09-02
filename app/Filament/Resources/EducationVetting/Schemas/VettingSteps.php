@@ -397,6 +397,18 @@ class VettingSteps
                 ->action(function (VettingWizard $livewire): void {
                     $livewire->qualificationManuallyConfirmed = true;
                 }),
+            'reference' => Action::make('confirm_reference')
+                ->iconButton()
+                ->icon('heroicon-o-check-badge')
+                ->color('gray')
+                ->tooltip('Manually confirm references are sufficient')
+                ->requiresConfirmation()
+                ->modalHeading('Confirm references are sufficient')
+                ->modalDescription('Use this once you\'ve reviewed this candidate\'s references and confirmed they meet requirements.')
+                ->modalSubmitActionLabel('Confirm')
+                ->action(fn (?EducationCandidate $record) => static::runManualConfirm(
+                    $record, 'reference_checked', 'reference_checked_at', 'Reference'
+                )),
             'proof_of_address' => Action::make('confirm_proof_of_address')
                 ->iconButton()
                 ->icon('heroicon-o-check-badge')

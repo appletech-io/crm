@@ -2,13 +2,16 @@
 
 namespace App\Filament\Widgets;
 
+use App\Enums\ReferenceStatus;
 use App\Enums\ReferenceType;
 use App\Models\CandidateReference;
+use App\Services\References\ReferenceResponsePdfService;
 use Filament\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
 use Illuminate\Database\Eloquent\Model;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * A compact summary of the candidate's references, shown above the required
@@ -61,6 +64,15 @@ class CandidateReferencesSummary extends TableWidget
                     )
                     ->openUrlInNewTab()
                     ->visible(fn (CandidateReference $record): bool => filled($record->token)),
+                Action::make('downloadPdf')
+                    ->label('Download PDF')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('gray')
+                    ->visible(fn (CandidateReference $record): bool => in_array($record->status, [ReferenceStatus::Submitted, ReferenceStatus::Confirmed], true))
+                    ->action(fn (CandidateReference $record): StreamedResponse => response()->streamDownload(
+                        fn () => print (app(ReferenceResponsePdfService::class)->generate($record)),
+                        app(ReferenceResponsePdfService::class)->filename($record)
+                    )),
             ])
             ->paginated(false)
             ->emptyStateHeading('No references')

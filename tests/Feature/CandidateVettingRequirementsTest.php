@@ -29,6 +29,7 @@ function fullyCompliantCandidate(array $attributes = []): EducationCandidate
         'overseas_police_clearance_check' => null,
         'proof_of_address_match' => 'yes',
         'ni_number_match' => 'yes',
+        'reference_checked' => 'yes',
         'trn_number' => null,
         'trn_issue_date' => null,
         'safeguarding_certified_date' => now(),
@@ -578,51 +579,28 @@ test('headshot photo check fails unless a photo document is uploaded', function 
     expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
 });
 
-test('reference check fails when there is neither a confirmed reference nor a reference document', function () {
-    $candidate = fullyCompliantCandidate();
-    $candidate->documents()->where('document_type', DocumentType::Reference)->delete();
-
-    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeFalse();
-    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
-});
-
-test('reference check passes with a reference document even without a confirmed reference', function () {
-    $candidate = fullyCompliantCandidate();
-
-    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeTrue();
-    expect(CandidateVettingRequirements::isComplete($candidate))->toBeTrue();
-});
-
-test('reference check passes with a confirmed reference even without a reference document', function () {
-    $candidate = fullyCompliantCandidate();
+test('reference check fails when not manually confirmed, even with a confirmed reference', function () {
+    $candidate = fullyCompliantCandidate(['reference_checked' => null]);
     $candidate->documents()->where('document_type', DocumentType::Reference)->delete();
     $candidate->references()->create(['type' => 'professional', 'first_name' => 'Jane', 'last_name' => 'Doe', 'status' => 'confirmed']);
 
+    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('reference check fails when not manually confirmed, even with a reference document uploaded', function () {
+    $candidate = fullyCompliantCandidate(['reference_checked' => null]);
+
+    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('reference check passes once manually confirmed, even without any references or documents', function () {
+    $candidate = fullyCompliantCandidate(['reference_checked' => 'yes']);
+    $candidate->documents()->where('document_type', DocumentType::Reference)->delete();
+
     expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeTrue();
     expect(CandidateVettingRequirements::isComplete($candidate))->toBeTrue();
-});
-
-test('reference check fails when a reference exists but is not confirmed', function () {
-    $candidate = fullyCompliantCandidate();
-    $candidate->documents()->where('document_type', DocumentType::Reference)->delete();
-    $candidate->references()->create(['type' => 'professional', 'first_name' => 'Jane', 'last_name' => 'Doe', 'status' => 'pending']);
-
-    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeFalse();
-    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
-});
-
-test('reference check fails when the only confirmed reference is a gap/statement entry', function () {
-    $candidate = fullyCompliantCandidate();
-    $candidate->documents()->where('document_type', DocumentType::Reference)->delete();
-    $candidate->references()->create([
-        'type' => 'gap_statement',
-        'statement' => 'Travelling',
-        'worked_from' => now()->subMonths(6),
-        'status' => 'confirmed',
-    ]);
-
-    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeFalse();
-    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
 });
 
 test('qualification check fails without a document and no manual override', function () {

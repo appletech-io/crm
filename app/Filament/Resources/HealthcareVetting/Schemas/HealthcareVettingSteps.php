@@ -362,6 +362,18 @@ class HealthcareVettingSteps
     protected static function manualConfirmAction(string $key): ?Action
     {
         return match ($key) {
+            'reference' => Action::make('confirm_reference')
+                ->iconButton()
+                ->icon('heroicon-o-check-badge')
+                ->color('gray')
+                ->tooltip('Manually confirm references are sufficient')
+                ->requiresConfirmation()
+                ->modalHeading('Confirm references are sufficient')
+                ->modalDescription('Use this once you\'ve reviewed this candidate\'s references and confirmed they meet requirements.')
+                ->modalSubmitActionLabel('Confirm')
+                ->action(fn (?HealthcareCandidate $record) => static::runManualConfirm(
+                    $record, 'reference_checked', 'reference_checked_at', 'Reference'
+                )),
             'proof_of_address' => Action::make('confirm_proof_of_address')
                 ->iconButton()
                 ->icon('heroicon-o-check-badge')

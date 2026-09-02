@@ -28,6 +28,7 @@ use App\Models\Qualification;
 use App\Models\User;
 use App\Services\Candidates\Document;
 use App\Services\Education\DbsUpdateService;
+use App\Services\References\ReferenceResponsePdfService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\CheckboxList;
@@ -59,6 +60,7 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class EducationCandidateForm
 {
@@ -708,6 +710,29 @@ class EducationCandidateForm
                                                 )
                                                 ->openUrlInNewTab()
                                                 ->visible(fn (Get $get): bool => filled($get('token'))),
+                                            Action::make('downloadReferencePdf')
+                                                ->label('Download PDF')
+                                                ->icon('heroicon-o-arrow-down-tray')
+                                                ->color('gray')
+                                                ->visible(fn (Get $get): bool => in_array(
+                                                    ReferenceStatus::tryFrom($get('status') ?? ''),
+                                                    [ReferenceStatus::Submitted, ReferenceStatus::Confirmed],
+                                                    true
+                                                ))
+                                                ->action(function (Get $get): ?StreamedResponse {
+                                                    $reference = CandidateReference::find($get('id'));
+
+                                                    if (! $reference) {
+                                                        return null;
+                                                    }
+
+                                                    $pdfs = app(ReferenceResponsePdfService::class);
+
+                                                    return response()->streamDownload(
+                                                        fn () => print ($pdfs->generate($reference)),
+                                                        $pdfs->filename($reference)
+                                                    );
+                                                }),
                                             Action::make('resendReference')
                                                 ->label(fn (Get $get): string => filled($get('token')) ? 'Resend Reference Email' : 'Send Reference Email')
                                                 ->icon('heroicon-o-paper-airplane')

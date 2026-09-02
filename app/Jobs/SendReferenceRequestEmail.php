@@ -4,7 +4,10 @@ namespace App\Jobs;
 
 use App\Enums\ActivityType;
 use App\Enums\EmailProvider;
+use App\Exceptions\Mail\MicrosoftGraphThrottledException;
+use App\Jobs\Concerns\ThrottlesMicrosoftGraphMail;
 use App\Models\CandidateReference;
+use App\Models\Company;
 use App\Models\EmailTemplate;
 use App\Models\Industry;
 use App\Services\Mail\Concerns\ReplacesEmailPlaceholders;
@@ -12,20 +15,32 @@ use App\Services\Mail\EmailFooter;
 use App\Services\Mail\EmailSenderResolver;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
+use DateTimeInterface;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class SendReferenceRequestEmail implements ShouldQueue
 {
+    use InteractsWithQueue;
     use Queueable;
     use ReplacesEmailPlaceholders;
-
-    public int $tries = 3;
+    use ThrottlesMicrosoftGraphMail;
 
     public int $backoff = 60;
+
+    public function retryUntil(): DateTimeInterface
+    {
+        return now()->addHours(6);
+    }
+
+    public function graphMailCompany(): ?Company
+    {
+        return $this->reference->candidate?->company;
+    }
 
     public function __construct(
         public readonly CandidateReference $reference,
@@ -87,6 +102,8 @@ class SendReferenceRequestEmail implements ShouldQueue
                 'body' => "Reference request email sent to {$this->refereeName()} ({$this->reference->email})",
                 'contacted' => true,
             ]);
+        } catch (MicrosoftGraphThrottledException $e) {
+            $this->release($e->retryAfterSeconds);
         } catch (Throwable $e) {
             Log::error("Failed to send reference request email to {$this->reference->email}: {$e->getMessage()}");
             throw $e;

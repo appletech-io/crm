@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Resources\Clients\Pages\EditClient;
+use App\Filament\Resources\TodoItems\TodoItemResource;
 use App\Filament\Widgets\ClientActivityTimeline;
 use App\Models\Client;
 use App\Models\ClientActivity;
@@ -50,6 +51,45 @@ test('activity action requires type and note', function () {
     Livewire::test(ClientActivityTimeline::class, ['record' => $client])
         ->callTableAction('logActivity', data: [])
         ->assertHasTableActionErrors(['type', 'note']);
+});
+
+test('create and todo logs the activity and redirects to a pre-filled create todo page', function () {
+    $client = Client::factory()->create(['company_id' => $this->user->company_id]);
+
+    // Log & Todo is a real inline footer button, alongside Submit and
+    // Cancel — both it and the primary submit button are type="submit",
+    // triggering the same callMountedAction; Log & Todo just flags its
+    // intent first (mirroring the x-on:click on its real button) so
+    // logActivity's own action knows to redirect afterwards.
+    Livewire::test(ClientActivityTimeline::class, ['record' => $client])
+        ->mountTableAction('logActivity')
+        ->set('mountedActions.0.data.type', 'call')
+        ->set('mountedActions.0.data.note', 'Follow up next week')
+        ->set('mountedActions.0.data.__intent', 'todo')
+        ->call('callMountedAction')
+        ->assertRedirect(TodoItemResource::getUrl('create', [
+            'model_type' => Client::class,
+            'model_id' => $client->id,
+            'name' => 'Follow up next week',
+        ]));
+
+    expect(ClientActivity::count())->toBe(1);
+    expect(ClientActivity::first()->note)->toBe('Follow up next week');
+});
+
+test('create and todo requires type and note, same as log activity', function () {
+    $client = Client::factory()->create(['company_id' => $this->user->company_id]);
+
+    Livewire::test(ClientActivityTimeline::class, ['record' => $client])
+        ->mountTableAction('logActivity')
+        ->set('mountedActions.0.data.__intent', 'todo')
+        ->call('callMountedAction')
+        ->assertHasErrors([
+            'mountedActions.0.data.type',
+            'mountedActions.0.data.note',
+        ]);
+
+    expect(ClientActivity::count())->toBe(0);
 });
 
 test('a BDM Call and a Visit can be logged against a client', function () {

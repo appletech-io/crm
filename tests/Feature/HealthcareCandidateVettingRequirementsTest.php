@@ -23,6 +23,7 @@ function fullyCompliantHealthcareCandidate(array $attributes = []): HealthcareCa
         'dbs_certificate_number' => '001234567890',
         'proof_of_address_match' => 'yes',
         'ni_number_match' => 'yes',
+        'reference_checked' => 'yes',
         'professional_registration_body' => 'NMC',
         'professional_registration_number' => '12345678',
         'professional_registration_checked_at' => now(),
@@ -263,49 +264,26 @@ test('overseas clearance check passes when applicable and cleared', function () 
     expect(CandidateVettingRequirements::for($candidate)['overseas_clearance']['complete'])->toBeTrue();
 });
 
-test('reference check fails when there is neither a confirmed reference nor a reference document', function () {
-    $candidate = fullyCompliantHealthcareCandidate();
-    $candidate->documents()->where('document_type', DocumentType::Reference)->delete();
-
-    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeFalse();
-    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
-});
-
-test('reference check passes with a reference document even without a confirmed reference', function () {
-    $candidate = fullyCompliantHealthcareCandidate();
-
-    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeTrue();
-    expect(CandidateVettingRequirements::isComplete($candidate))->toBeTrue();
-});
-
-test('reference check passes with a confirmed reference even without a reference document', function () {
-    $candidate = fullyCompliantHealthcareCandidate();
+test('reference check fails when not manually confirmed, even with a confirmed reference', function () {
+    $candidate = fullyCompliantHealthcareCandidate(['reference_checked' => null]);
     $candidate->documents()->where('document_type', DocumentType::Reference)->delete();
     $candidate->references()->create(['type' => 'professional', 'first_name' => 'Jane', 'last_name' => 'Doe', 'status' => 'confirmed']);
 
+    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('reference check fails when not manually confirmed, even with a reference document uploaded', function () {
+    $candidate = fullyCompliantHealthcareCandidate(['reference_checked' => null]);
+
+    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeFalse();
+    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
+});
+
+test('reference check passes once manually confirmed, even without any references or documents', function () {
+    $candidate = fullyCompliantHealthcareCandidate(['reference_checked' => 'yes']);
+    $candidate->documents()->where('document_type', DocumentType::Reference)->delete();
+
     expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeTrue();
     expect(CandidateVettingRequirements::isComplete($candidate))->toBeTrue();
-});
-
-test('reference check fails when a reference exists but is not confirmed', function () {
-    $candidate = fullyCompliantHealthcareCandidate();
-    $candidate->documents()->where('document_type', DocumentType::Reference)->delete();
-    $candidate->references()->create(['type' => 'professional', 'first_name' => 'Jane', 'last_name' => 'Doe', 'status' => 'pending']);
-
-    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeFalse();
-    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
-});
-
-test('reference check fails when the only confirmed reference is a gap/statement entry', function () {
-    $candidate = fullyCompliantHealthcareCandidate();
-    $candidate->documents()->where('document_type', DocumentType::Reference)->delete();
-    $candidate->references()->create([
-        'type' => 'gap_statement',
-        'statement' => 'Travelling',
-        'worked_from' => now()->subMonths(6),
-        'status' => 'confirmed',
-    ]);
-
-    expect(CandidateVettingRequirements::for($candidate)['reference']['complete'])->toBeFalse();
-    expect(CandidateVettingRequirements::isComplete($candidate))->toBeFalse();
 });
