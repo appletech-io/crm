@@ -2,6 +2,7 @@
 
 namespace App\Services\Mail;
 
+use App\Exceptions\Mail\MicrosoftGraphThrottledException;
 use App\Models\Company;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -9,6 +10,12 @@ use RuntimeException;
 
 class MicrosoftGraphMailer
 {
+    /**
+     * Used when Graph throttles a request but doesn't send a Retry-After
+     * header of its own — a conservative guess, not a documented value.
+     */
+    private const DEFAULT_THROTTLE_RETRY_SECONDS = 60;
+
     public function __construct(private readonly Company $company) {}
 
     /** @param  array<int, array{name: string, path?: string, content?: string, mimeType?: string, inline?: bool, contentId?: string}>  $attachments */
@@ -42,12 +49,19 @@ class MicrosoftGraphMailer
                 ->all();
         }
 
-        Http::withToken($this->accessToken())
+        $response = Http::withToken($this->accessToken())
             ->post("https://graph.microsoft.com/v1.0/users/{$sender}/sendMail", [
                 'message' => $message,
                 'saveToSentItems' => true,
-            ])
-            ->throwUnlessStatus(202);
+            ]);
+
+        if ($response->status() === 429) {
+            throw new MicrosoftGraphThrottledException(
+                (int) ($response->header('Retry-After') ?: self::DEFAULT_THROTTLE_RETRY_SECONDS)
+            );
+        }
+
+        $response->throwUnlessStatus(202);
     }
 
     private function accessToken(): string

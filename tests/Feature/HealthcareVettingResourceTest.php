@@ -79,6 +79,23 @@ test('manually confirming visa restrictions sets the check for a visa candidate'
     expect($candidate->right_to_work_checked_date)->not->toBeNull();
 });
 
+test('manually confirming references sets the checked flag', function () {
+    $candidate = HealthcareCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'reference_checked' => null,
+    ]);
+    assignHealthcareVettingStatus($candidate, $this->industry, $this->user->company_id);
+
+    Livewire::test(HealthcareVettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->callAction(TestAction::make('confirm_reference')->schemaComponent())
+        ->assertNotified('Reference manually confirmed');
+
+    $candidate->refresh();
+
+    expect($candidate->reference_checked)->toBe('yes');
+    expect($candidate->reference_checked_at)->not->toBeNull();
+});
+
 test('the confirm visa restrictions action is hidden for a non-visa candidate', function () {
     $candidate = HealthcareCandidate::factory()->create([
         'company_id' => $this->user->company_id,

@@ -1184,6 +1184,23 @@ test('manually confirming proof of NI sets the match without calling the AI', fu
     expect($candidate->ni_number_checked_at)->not->toBeNull();
 });
 
+test('manually confirming references sets the checked flag', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'reference_checked' => null,
+    ]);
+    assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
+
+    Livewire::test(VettingWizard::class, ['record' => $candidate->getRouteKey()])
+        ->callAction(TestAction::make('confirm_reference')->schemaComponent())
+        ->assertNotified('Reference manually confirmed');
+
+    $candidate->refresh();
+
+    expect($candidate->reference_checked)->toBe('yes');
+    expect($candidate->reference_checked_at)->not->toBeNull();
+});
+
 test('the confirm step submit button is labelled Complete', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
     assignStatus($candidate, $this->industry, $this->user->company_id, 'Vetting');
@@ -1214,6 +1231,7 @@ test('the Complete button is enabled when the vetting checklist is fully met', f
         'lived_overseas_six_months' => 'no',
         'proof_of_address_match' => 'yes',
         'ni_number_match' => 'yes',
+        'reference_checked' => 'yes',
         'trn_number' => null,
         'safeguarding_certified_date' => now(),
         'benedicts_law_issue_date' => now(),

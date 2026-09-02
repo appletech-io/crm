@@ -5,10 +5,13 @@ namespace App\Jobs;
 use App\Enums\ActivityType;
 use App\Enums\EmailProvider;
 use App\Enums\EmailTemplateType;
+use App\Exceptions\Mail\MicrosoftGraphThrottledException;
+use App\Jobs\Concerns\ThrottlesMicrosoftGraphMail;
 use App\Models\Booking;
 use App\Models\BookingDay;
 use App\Models\Client;
 use App\Models\ClientContact;
+use App\Models\Company;
 use App\Models\EmailTemplate;
 use App\Services\Booking\TimesheetPeriod;
 use App\Services\Mail\Concerns\ReplacesEmailPlaceholders;
@@ -16,21 +19,33 @@ use App\Services\Mail\EmailFooter;
 use App\Services\Mail\EmailSenderResolver;
 use App\Services\Mail\MailgunMailer;
 use App\Services\Mail\MicrosoftGraphMailer;
+use DateTimeInterface;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class SendPayrollConfirmationEmail implements ShouldQueue
 {
+    use InteractsWithQueue;
     use Queueable;
     use ReplacesEmailPlaceholders;
-
-    public int $tries = 3;
+    use ThrottlesMicrosoftGraphMail;
 
     public int $backoff = 60;
+
+    public function retryUntil(): DateTimeInterface
+    {
+        return now()->addHours(6);
+    }
+
+    public function graphMailCompany(): ?Company
+    {
+        return $this->client->company;
+    }
 
     public function __construct(
         public readonly Client $client,
@@ -93,6 +108,8 @@ class SendPayrollConfirmationEmail implements ShouldQueue
                 'body' => "Payroll confirmation sent to {$contact->email}",
                 'contacted' => true,
             ]);
+        } catch (MicrosoftGraphThrottledException $e) {
+            $this->release($e->retryAfterSeconds);
         } catch (Throwable $e) {
             Log::error("Failed to send payroll confirmation email to {$contact->email}: {$e->getMessage()}");
             throw $e;

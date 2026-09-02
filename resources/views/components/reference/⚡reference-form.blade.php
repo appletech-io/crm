@@ -4,10 +4,12 @@ use App\Enums\ReferenceStatus;
 use App\Models\CandidateReference;
 use App\Services\ReferenceAccessSession;
 use App\Services\References\ReferenceFormSchema;
+use App\Services\References\ReferenceResponsePdfService;
 use Filament\Notifications\Notification;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 new #[Layout('layouts.application')] class extends Component
 {
@@ -126,6 +128,20 @@ new #[Layout('layouts.application')] class extends Component
             ->success()
             ->send();
     }
+
+    public function downloadPdf(): ?StreamedResponse
+    {
+        if (! $this->isStaffViewer || ! $this->isSubmitted) {
+            return null;
+        }
+
+        $pdfs = app(ReferenceResponsePdfService::class);
+
+        return response()->streamDownload(
+            fn () => print($pdfs->generate($this->reference)),
+            $pdfs->filename($this->reference)
+        );
+    }
 };
 
 ?>
@@ -140,6 +156,12 @@ new #[Layout('layouts.application')] class extends Component
         <div class="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
             {{ __('This reference was submitted on :date. It can no longer be edited.', ['date' => $reference->submitted_at->format('d M Y')]) }}
         </div>
+
+        @if ($this->isStaffViewer)
+            <flux:button wire:click="downloadPdf" icon="arrow-down-tray" variant="ghost">
+                {{ __('Download PDF') }}
+            </flux:button>
+        @endif
     @elseif ($this->isStaffViewer)
         <div class="rounded-lg bg-amber-50 p-4 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
             {{ __('This reference has not been submitted by the referee yet.') }}

@@ -4,8 +4,6 @@ namespace App\Services\Education;
 
 use App\Enums\DocumentType;
 use App\Enums\PaymentMethod;
-use App\Enums\ReferenceStatus;
-use App\Enums\ReferenceType;
 use App\Models\EducationCandidate;
 use Carbon\CarbonInterface;
 
@@ -47,12 +45,8 @@ class CandidateVettingRequirements
             ],
             'reference' => [
                 'label' => 'Reference',
-                'description' => 'At least one reference has been confirmed, or a reference document has been uploaded.',
-                'complete' => $candidate->references()
-                    ->where('status', ReferenceStatus::Confirmed)
-                    ->where('type', '!=', ReferenceType::GapStatement)
-                    ->exists()
-                    || $candidate->documents()->where('document_type', DocumentType::Reference)->exists(),
+                'description' => 'References have been manually reviewed and confirmed as sufficient for this candidate.',
+                'complete' => $candidate->reference_checked === 'yes',
             ],
             'qualification' => [
                 'label' => 'Qualification',

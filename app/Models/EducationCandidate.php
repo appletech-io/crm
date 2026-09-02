@@ -60,6 +60,7 @@ class EducationCandidate extends Model
         'proof_of_address_checked_at' => 'datetime',
         'ni_number_checked_at' => 'datetime',
         'update_service_checked_at' => 'datetime',
+        'reference_checked_at' => 'datetime',
     ];
 
     /** @return array<string, array{0: class-string<Model>, 1: array<int, string>}> */

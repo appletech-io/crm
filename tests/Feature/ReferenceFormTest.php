@@ -391,3 +391,102 @@ test('a logged-in CRM user can view an expired, unsubmitted reference', function
     Livewire::test('reference.reference-form', ['token' => $reference->token])
         ->assertSuccessful();
 });
+
+test('a staff viewer sees a download pdf button once the reference is submitted', function () {
+    $this->seed(RoleSeeder::class);
+
+    $reference = makeVerifiedReference([
+        'type' => 'academic',
+        'status' => ReferenceStatus::Submitted,
+        'submitted_at' => now(),
+        'answers' => ['worked_from' => '2018-01-01', 'worked_to' => '2019-01-01', 'confirm_name' => 'Ref Eree'],
+    ]);
+    session()->forget("reference.{$reference->token}.verified");
+
+    $admin = User::factory()->create(['company_id' => $reference->candidate->company_id]);
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+
+    Livewire::test('reference.reference-form', ['token' => $reference->token])
+        ->assertSee('Download PDF');
+});
+
+test('a staff viewer does not see a download pdf button before the reference is submitted', function () {
+    $this->seed(RoleSeeder::class);
+
+    $reference = makeVerifiedReference(['type' => 'agency']);
+    session()->forget("reference.{$reference->token}.verified");
+
+    $admin = User::factory()->create(['company_id' => $reference->candidate->company_id]);
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+
+    Livewire::test('reference.reference-form', ['token' => $reference->token])
+        ->assertDontSee('Download PDF');
+});
+
+test('the referee themselves never sees a download pdf button', function () {
+    $reference = makeVerifiedReference([
+        'type' => 'academic',
+        'status' => ReferenceStatus::Submitted,
+        'submitted_at' => now(),
+        'answers' => ['worked_from' => '2018-01-01', 'worked_to' => '2019-01-01', 'confirm_name' => 'Ref Eree'],
+    ]);
+
+    Livewire::test('reference.reference-form', ['token' => $reference->token])
+        ->assertDontSee('Download PDF');
+});
+
+test('calling downloadPdf as a staff viewer on a submitted reference streams a pdf', function () {
+    $this->seed(RoleSeeder::class);
+
+    $reference = makeVerifiedReference([
+        'type' => 'academic',
+        'status' => ReferenceStatus::Submitted,
+        'submitted_at' => now(),
+        'answers' => ['worked_from' => '2018-01-01', 'worked_to' => '2019-01-01', 'confirm_name' => 'Ref Eree'],
+    ]);
+    session()->forget("reference.{$reference->token}.verified");
+
+    $admin = User::factory()->create(['company_id' => $reference->candidate->company_id]);
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+
+    $component = Livewire::test('reference.reference-form', ['token' => $reference->token])
+        ->call('downloadPdf');
+
+    $download = $component->effects['download'] ?? null;
+
+    expect($download)->not->toBeNull();
+    expect(base64_decode($download['content']))->toStartWith('%PDF');
+});
+
+test('calling downloadPdf as the referee does not trigger a download', function () {
+    $reference = makeVerifiedReference([
+        'type' => 'academic',
+        'status' => ReferenceStatus::Submitted,
+        'submitted_at' => now(),
+        'answers' => ['worked_from' => '2018-01-01', 'worked_to' => '2019-01-01', 'confirm_name' => 'Ref Eree'],
+    ]);
+
+    $component = Livewire::test('reference.reference-form', ['token' => $reference->token])
+        ->call('downloadPdf');
+
+    expect($component->effects['download'] ?? null)->toBeNull();
+});
+
+test('calling downloadPdf on an unsubmitted reference does not trigger a download', function () {
+    $this->seed(RoleSeeder::class);
+
+    $reference = makeVerifiedReference(['type' => 'agency']);
+    session()->forget("reference.{$reference->token}.verified");
+
+    $admin = User::factory()->create(['company_id' => $reference->candidate->company_id]);
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+
+    $component = Livewire::test('reference.reference-form', ['token' => $reference->token])
+        ->call('downloadPdf');
+
+    expect($component->effects['download'] ?? null)->toBeNull();
+});

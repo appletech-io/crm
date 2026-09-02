@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Resources\EducationCandidates\Pages\EditEducationCandidate;
+use App\Filament\Resources\TodoItems\TodoItemResource;
 use App\Filament\Widgets\CandidateActivityTimeline;
 use App\Models\CandidateActivity;
 use App\Models\EducationCandidate;
@@ -42,6 +43,45 @@ test('activity can be logged via action', function () {
     expect($activity->user_id)->toBe($this->user->id);
     expect($activity->model_type)->toBe(EducationCandidate::class);
     expect($activity->model_id)->toBe($candidate->id);
+});
+
+test('create and todo logs the activity and redirects to a pre-filled create todo page', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    // Log & Todo is a real inline footer button, alongside Submit and
+    // Cancel — both it and the primary submit button are type="submit",
+    // triggering the same callMountedAction; Log & Todo just flags its
+    // intent first (mirroring the x-on:click on its real button) so
+    // logActivity's own action knows to redirect afterwards.
+    Livewire::test(CandidateActivityTimeline::class, ['record' => $candidate])
+        ->mountTableAction('logActivity')
+        ->set('mountedActions.0.data.type', 'call')
+        ->set('mountedActions.0.data.note', 'Follow up next week')
+        ->set('mountedActions.0.data.__intent', 'todo')
+        ->call('callMountedAction')
+        ->assertRedirect(TodoItemResource::getUrl('create', [
+            'model_type' => EducationCandidate::class,
+            'model_id' => $candidate->id,
+            'name' => 'Follow up next week',
+        ]));
+
+    expect(CandidateActivity::count())->toBe(1);
+    expect(CandidateActivity::first()->note)->toBe('Follow up next week');
+});
+
+test('create and todo requires type and note, same as log activity', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    Livewire::test(CandidateActivityTimeline::class, ['record' => $candidate])
+        ->mountTableAction('logActivity')
+        ->set('mountedActions.0.data.__intent', 'todo')
+        ->call('callMountedAction')
+        ->assertHasErrors([
+            'mountedActions.0.data.type',
+            'mountedActions.0.data.note',
+        ]);
+
+    expect(CandidateActivity::count())->toBe(0);
 });
 
 test('activity action requires type and note', function () {

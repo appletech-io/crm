@@ -141,6 +141,50 @@ test('a todo item can be linked to a candidate', function () {
         ->and($todoItem->model_id)->toBe($candidate->id);
 });
 
+test('the create page prefills the linked record and name from query string parameters', function () {
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    Livewire::withQueryParams([
+        'model_type' => Client::class,
+        'model_id' => $client->id,
+        'name' => 'Follow up next week',
+    ])->test(CreateTodoItem::class)
+        ->assertFormSet([
+            'model_type' => Client::class,
+            'model_id' => $client->id,
+            'name' => 'Follow up next week',
+        ]);
+});
+
+test('the create page prefill truncates a name longer than the max length', function () {
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    $longName = str_repeat('a', TodoItemForm::NAME_MAX_LENGTH + 20);
+
+    Livewire::withQueryParams([
+        'model_type' => Client::class,
+        'model_id' => $client->id,
+        'name' => $longName,
+    ])->test(CreateTodoItem::class)
+        ->assertFormSet([
+            'name' => str_repeat('a', TodoItemForm::NAME_MAX_LENGTH),
+        ]);
+});
+
+test('the create page has no prefill without model_type and model_id in the query string', function () {
+    Livewire::test(CreateTodoItem::class)
+        ->assertFormSet([
+            'model_type' => null,
+            'model_id' => null,
+        ]);
+});
+
 test('the link to type options only include the active industrys candidate model', function () {
     Livewire::test(CreateTodoItem::class)
         ->assertFormFieldExists('model_type', function (Select $field): bool {

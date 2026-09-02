@@ -65,6 +65,33 @@ test('the view response action links to the reference form once contacted', func
     expect($html)->toContain(route('reference.form', ['token' => 'the-token']));
 });
 
+test('the download pdf action is hidden until the reference has been submitted', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    $reference = $candidate->references()->create([
+        'type' => 'agency', 'first_name' => 'Jane', 'last_name' => 'Doe',
+        'consent_to_contact' => true, 'status' => 'contacted',
+        'token' => 'the-token', 'expires_on' => now()->addDays(7),
+    ]);
+
+    Livewire::test(CandidateReferencesSummary::class, ['record' => $candidate])
+        ->assertActionHidden(TestAction::make('downloadPdf')->table($reference));
+});
+
+test('the download pdf action is visible once the reference has been submitted', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    $reference = $candidate->references()->create([
+        'type' => 'agency', 'first_name' => 'Jane', 'last_name' => 'Doe',
+        'consent_to_contact' => true, 'status' => 'submitted',
+        'token' => 'the-token', 'expires_on' => now()->addDays(7),
+        'answers' => ['confirm_name' => 'Jane Doe'],
+    ]);
+
+    Livewire::test(CandidateReferencesSummary::class, ['record' => $candidate])
+        ->assertActionVisible(TestAction::make('downloadPdf')->table($reference));
+});
+
 test('it works for healthcare candidates too', function () {
     $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
 
