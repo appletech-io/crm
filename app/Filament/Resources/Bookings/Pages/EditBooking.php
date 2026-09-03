@@ -7,10 +7,15 @@ use App\Enums\BookingStatus;
 use App\Enums\Integration;
 use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\Bookings\Schemas\BookingForm;
+use App\Jobs\GenerateBookingConfirmationPdf;
+use App\Jobs\SendBookingConfirmationEmail;
+use App\Jobs\SendClientBookingConfirmationEmail;
 use App\Jobs\SendTimesheetToPayrollProvider;
 use App\Models\Booking;
+use App\Models\ClientContact;
 use App\Models\Industry;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
@@ -120,24 +125,66 @@ class EditBooking extends EditRecord
                         ->success()
                         ->send();
                 }),
-            Action::make('resendConfirmationEmails')
+            ActionGroup::make([
+                Action::make('resendBothConfirmationEmails')
+                    ->label('Both')
+                    ->visible(fn (): bool => $this->isUpcoming())
+                    ->requiresConfirmation()
+                    ->modalDescription('This will regenerate the booking confirmation PDF and resend the confirmation emails to the candidate and client.')
+                    ->action(function (): void {
+                        /** @var Booking $record */
+                        $record = $this->record;
+
+                        BookingCreated::run($record);
+
+                        Notification::make()
+                            ->title('Confirmation emails queued for resend')
+                            ->success()
+                            ->send();
+                    }),
+                Action::make('resendClientConfirmationEmail')
+                    ->label('Client Only')
+                    ->visible(fn (): bool => $this->isUpcoming())
+                    ->requiresConfirmation()
+                    ->modalDescription('This will regenerate the booking confirmation PDF and resend the confirmation email to the client only.')
+                    ->action(function (): void {
+                        /** @var Booking $record */
+                        $record = $this->record;
+
+                        GenerateBookingConfirmationPdf::dispatch($record);
+
+                        $record->client?->bookingContacts()->each(
+                            fn (ClientContact $contact) => SendClientBookingConfirmationEmail::dispatch($record, $contact)
+                        );
+
+                        Notification::make()
+                            ->title('Client confirmation email queued for resend')
+                            ->success()
+                            ->send();
+                    }),
+                Action::make('resendCandidateConfirmationEmail')
+                    ->label('Candidate Only')
+                    ->visible(fn (): bool => $this->isUpcoming())
+                    ->requiresConfirmation()
+                    ->modalDescription('This will regenerate the booking confirmation PDF and resend the confirmation email to the candidate only.')
+                    ->action(function (): void {
+                        /** @var Booking $record */
+                        $record = $this->record;
+
+                        GenerateBookingConfirmationPdf::dispatch($record);
+                        SendBookingConfirmationEmail::dispatch($record);
+
+                        Notification::make()
+                            ->title('Candidate confirmation email queued for resend')
+                            ->success()
+                            ->send();
+                    }),
+            ])
                 ->label('Resend Confirmation Emails')
                 ->icon('heroicon-o-paper-airplane')
                 ->color('gray')
-                ->requiresConfirmation()
-                ->modalDescription('This will regenerate the booking confirmation PDF and resend the confirmation emails to the candidate and client.')
-                ->visible(fn (): bool => $this->isUpcoming())
-                ->action(function (): void {
-                    /** @var Booking $record */
-                    $record = $this->record;
-
-                    BookingCreated::run($record);
-
-                    Notification::make()
-                        ->title('Confirmation emails queued for resend')
-                        ->success()
-                        ->send();
-                }),
+                ->button()
+                ->visible(fn (): bool => $this->isUpcoming()),
             DeleteAction::make(),
             ForceDeleteAction::make(),
             RestoreAction::make(),
