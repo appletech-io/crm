@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 
 class Client extends Model
 {
@@ -123,6 +124,24 @@ class Client extends Model
     public function bookingContact(): ?ClientContact
     {
         return $this->contacts()->where('booking_contact', true)->first() ?? $this->mainContact;
+    }
+
+    /**
+     * Every contact flagged as a booking contact — more than one contact can
+     * hold the flag at once, unlike main_contact. Falls back to the main
+     * contact when none are flagged.
+     *
+     * @return Collection<int, ClientContact>
+     */
+    public function bookingContacts(): Collection
+    {
+        $contacts = $this->contacts()->where('booking_contact', true)->get();
+
+        if ($contacts->isNotEmpty()) {
+            return $contacts;
+        }
+
+        return $this->mainContact ? collect([$this->mainContact]) : collect();
     }
 
     public function activities(): MorphMany

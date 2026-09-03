@@ -9,6 +9,7 @@ use App\Models\User;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
@@ -105,6 +106,20 @@ class UserForm
                                     $component->state($record->providerExternalId($provider));
                                 }
                             }),
+                    ]),
+
+                Section::make('Payroll')
+                    ->visible(fn (?User $record): bool => $record !== null)
+                    ->schema([
+                        // Shown regardless of whether the company currently has
+                        // Evertime enabled as its active payroll_provider — a
+                        // consultant can already have a synced/manually-entered
+                        // ID from before that toggle changed, or before it's set
+                        // at all, and that shouldn't hide an ID that already exists.
+                        TextEntry::make('payroll_provider_id_display')
+                            ->label('Payroll Provider ID')
+                            ->getStateUsing(fn (?User $record): ?string => $record?->providerExternalId(Integration::Evertime))
+                            ->placeholder('Not yet synced'),
                     ]),
 
                 Section::make('Payroll Submission Failed')

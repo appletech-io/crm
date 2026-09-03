@@ -6,6 +6,7 @@ use App\Filament\Resources\Clients\Pages\ListClients;
 use App\Jobs\SendCustomTemplateEmail;
 use App\Models\Client;
 use App\Models\ClientContact;
+use App\Models\ClientContactJobTitle;
 use App\Models\EmailTemplate;
 use App\Models\Industry;
 use App\Models\User;
@@ -100,4 +101,74 @@ test('the edit page header action sends to the client being edited', function ()
         ->assertNotified('Email queued for sending');
 
     Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->recipient->is($client));
+});
+
+test('the edit page header action sends only to contacts holding the selected job title', function () {
+    Bus::fake();
+
+    $client = Client::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id, 'consultant_id' => $this->user->id]);
+    $headteacher = ClientContactJobTitle::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id, 'name' => 'Headteacher']);
+    ClientContactJobTitle::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id, 'name' => 'SENCO']);
+
+    $bookingContact = ClientContact::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $client->id,
+        'main_contact' => true,
+        'booking_contact' => true,
+        'email' => 'booking@acme.test',
+    ]);
+    $target = ClientContact::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $client->id,
+        'client_contact_job_title_id' => $headteacher->id,
+        'email' => 'head@acme.test',
+    ]);
+
+    Livewire::test(EditClient::class, ['record' => $client->getRouteKey()])
+        ->callAction('sendEmail', data: [
+            'email_template_id' => $this->template->id,
+            'client_contact_job_titles' => [$headteacher->id],
+        ])
+        ->assertNotified('Email queued for sending');
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->recipient->is($client) && $job->contact->is($target) && ! $job->contact->is($bookingContact));
+    Bus::assertDispatched(SendCustomTemplateEmail::class, 1);
+});
+
+test('the edit page header action falls back to the main contact when no contact matches the selected job title', function () {
+    Bus::fake();
+
+    $client = Client::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id, 'consultant_id' => $this->user->id]);
+    $headteacher = ClientContactJobTitle::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id, 'name' => 'Headteacher']);
+
+    $mainContact = ClientContact::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $client->id,
+        'main_contact' => true,
+        'email' => 'main@acme.test',
+    ]);
+
+    Livewire::test(EditClient::class, ['record' => $client->getRouteKey()])
+        ->callAction('sendEmail', data: [
+            'email_template_id' => $this->template->id,
+            'client_contact_job_titles' => [$headteacher->id],
+        ])
+        ->assertNotified('Email queued for sending');
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->contact->is($mainContact));
+});
+
+test('the send test email button sends to the acting user and keeps the modal open, without touching the client at all', function () {
+    Bus::fake();
+
+    $client = Client::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $this->industry->id, 'consultant_id' => $this->user->id]);
+
+    Livewire::test(EditClient::class, ['record' => $client->getRouteKey()])
+        ->callAction('sendEmail', data: ['email_template_id' => $this->template->id], arguments: ['test' => true])
+        ->assertNotified("Test email queued — sending to {$this->user->email}")
+        ->assertActionHalted('sendEmail');
+
+    Bus::assertDispatched(SendCustomTemplateEmail::class, fn (SendCustomTemplateEmail $job): bool => $job->recipient->is($client)
+        && $job->testRecipientEmail === $this->user->email
+        && $job->contact === null);
 });

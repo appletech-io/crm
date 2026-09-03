@@ -340,6 +340,78 @@ test('it does not record a campaign send for a candidate recipient, even if a ca
     expect(CampaignSend::count())->toBe(0);
 });
 
+test('a test send goes to the override address instead of the recipients real contact, with a prefixed subject and no activity logged', function () {
+    $client = Client::factory()->create(['company_id' => $this->company->id, 'name' => 'Acme Ltd']);
+    ClientContact::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $client->id,
+        'first_name' => 'Sam',
+        'last_name' => 'Smith',
+        'email' => 'sam@acme.test',
+        'booking_contact' => true,
+    ]);
+
+    $template = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Custom client template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => EmailTemplateAudience::Client->value,
+        'subject' => 'Hello {recipient_first_name}',
+        'body' => 'Dear {recipient_name} at {client_name}',
+    ]);
+
+    (new SendCustomTemplateEmail($template, $client, null, testRecipientEmail: 'consultant@example.com'))->handle();
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), 'users/sender@example.com/sendMail')
+        && $request['message']['subject'] === '[TEST] Hello Sam'
+        && str_contains($request['message']['body']['content'], 'Dear Sam Smith at Acme Ltd')
+        && $request['message']['toRecipients'][0]['emailAddress']['address'] === 'consultant@example.com');
+
+    expect($client->activities()->count())->toBe(0);
+});
+
+test('a test send does not require the recipient to have a real contact email at all', function () {
+    $client = Client::factory()->create(['company_id' => $this->company->id]);
+
+    $template = EmailTemplate::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Custom client template',
+        'type' => EmailTemplateType::Custom->value,
+        'audience' => EmailTemplateAudience::Client->value,
+        'subject' => 'Hello',
+        'body' => 'Hi',
+    ]);
+
+    (new SendCustomTemplateEmail($template, $client, null, testRecipientEmail: 'consultant@example.com'))->handle();
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), 'sendMail')
+        && $request['message']['toRecipients'][0]['emailAddress']['address'] === 'consultant@example.com');
+});
+
+test('a test send does not record a campaign send even when a campaign is passed', function () {
+    $client = Client::factory()->create(['company_id' => $this->company->id]);
+    ClientContact::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $client->id,
+        'main_contact' => true,
+        'email' => 'sam@acme.test',
+    ]);
+    $campaign = MarketingCampaign::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+
+    (new SendCustomTemplateEmail(
+        template: null,
+        recipient: $client,
+        campaign: $campaign,
+        adHocSubject: 'Hi',
+        adHocBody: 'Body',
+        testRecipientEmail: 'consultant@example.com',
+    ))->handle();
+
+    expect(CampaignSend::count())->toBe(0);
+});
+
 test('it does not record a campaign send when no campaign is passed', function () {
     $client = Client::factory()->create(['company_id' => $this->company->id]);
     ClientContact::factory()->create([

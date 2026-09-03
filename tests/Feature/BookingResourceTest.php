@@ -16,6 +16,7 @@ use App\Models\CandidateAvailability;
 use App\Models\CandidateCandidateStatus;
 use App\Models\CandidateStatus;
 use App\Models\Client;
+use App\Models\ClientContact;
 use App\Models\EducationCandidate;
 use App\Models\Industry;
 use App\Models\JobTitle;
@@ -928,12 +929,59 @@ test('the resend confirmation emails action dispatches pdf generation and both c
     ]);
 
     Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
-        ->callAction('resendConfirmationEmails')
+        ->callAction('resendBothConfirmationEmails')
         ->assertNotified();
 
     Queue::assertPushed(GenerateBookingConfirmationPdf::class, fn ($job) => $job->booking->is($booking));
     Queue::assertPushed(SendBookingConfirmationEmail::class, fn ($job) => $job->booking->is($booking));
     Queue::assertPushed(SendClientBookingConfirmationEmail::class, fn ($job) => $job->booking->is($booking));
+});
+
+test('the resend client only confirmation email action dispatches the pdf and client email, but not the candidate email', function () {
+    Queue::fake();
+
+    $contact = ClientContact::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'main_contact' => true,
+        'email' => 'contact@acme.test',
+    ]);
+
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+
+    Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+        ->callAction('resendClientConfirmationEmail')
+        ->assertNotified();
+
+    Queue::assertPushed(GenerateBookingConfirmationPdf::class, fn ($job) => $job->booking->is($booking));
+    Queue::assertPushed(SendClientBookingConfirmationEmail::class, fn ($job) => $job->booking->is($booking) && $job->contact->is($contact));
+    Queue::assertNotPushed(SendBookingConfirmationEmail::class);
+});
+
+test('the resend candidate only confirmation email action dispatches the pdf and candidate email, but not the client email', function () {
+    Queue::fake();
+
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+
+    Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+        ->callAction('resendCandidateConfirmationEmail')
+        ->assertNotified();
+
+    Queue::assertPushed(GenerateBookingConfirmationPdf::class, fn ($job) => $job->booking->is($booking));
+    Queue::assertPushed(SendBookingConfirmationEmail::class, fn ($job) => $job->booking->is($booking));
+    Queue::assertNotPushed(SendClientBookingConfirmationEmail::class);
 });
 
 test('the all section table can be filtered by client and by candidate', function () {
@@ -1343,7 +1391,7 @@ test('an approved booking cannot be edited and hides the resend confirmation ema
     Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
         ->assertFormFieldDisabled('status')
         ->assertFormFieldDisabled('candidate_id')
-        ->assertActionHidden('resendConfirmationEmails');
+        ->assertActionHidden('resendBothConfirmationEmails');
 });
 
 test('an upcoming booking can still be edited and shows the resend confirmation emails action', function () {
@@ -1359,7 +1407,7 @@ test('an upcoming booking can still be edited and shows the resend confirmation 
     Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
         ->assertFormFieldDisabled('status')
         ->assertFormFieldEnabled('candidate_id')
-        ->assertActionVisible('resendConfirmationEmails');
+        ->assertActionVisible('resendBothConfirmationEmails');
 });
 
 test('the create form is prefilled from the query string with candidate, client, job title, dates, and rates', function () {

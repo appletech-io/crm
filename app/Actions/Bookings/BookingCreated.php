@@ -7,6 +7,7 @@ use App\Jobs\GenerateBookingConfirmationPdf;
 use App\Jobs\SendBookingConfirmationEmail;
 use App\Jobs\SendClientBookingConfirmationEmail;
 use App\Models\Booking;
+use App\Models\ClientContact;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 class BookingCreated
@@ -18,7 +19,16 @@ class BookingCreated
         GenerateBookingConfirmationPdf::dispatch($booking);
 
         SendBookingConfirmationEmail::dispatch($booking);
-        SendClientBookingConfirmationEmail::dispatch($booking);
+
+        $bookingContacts = $booking->client?->bookingContacts() ?? collect();
+
+        if ($bookingContacts->isEmpty()) {
+            SendClientBookingConfirmationEmail::dispatch($booking);
+        } else {
+            $bookingContacts->each(
+                fn (ClientContact $contact) => SendClientBookingConfirmationEmail::dispatch($booking, $contact)
+            );
+        }
 
         $this->addCandidateToClientPool($booking);
     }

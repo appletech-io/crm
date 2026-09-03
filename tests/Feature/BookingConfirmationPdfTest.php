@@ -360,6 +360,38 @@ test('BookingCreated dispatches the pdf generation job and both confirmation ema
     Queue::assertPushed(SendClientBookingConfirmationEmail::class, fn (SendClientBookingConfirmationEmail $job) => $job->booking->is($this->booking));
 });
 
+test('BookingCreated dispatches one client confirmation email job per booking contact', function () {
+    Queue::fake();
+
+    $first = $this->client->contacts()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'First',
+        'last_name' => 'Contact',
+        'booking_contact' => true,
+        'email' => 'first@acme.test',
+    ]);
+    $second = $this->client->contacts()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Second',
+        'last_name' => 'Contact',
+        'booking_contact' => true,
+        'email' => 'second@acme.test',
+    ]);
+    $this->client->contacts()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Main',
+        'last_name' => 'Contact',
+        'main_contact' => true,
+        'email' => 'main@acme.test',
+    ]);
+
+    BookingCreated::run($this->booking);
+
+    Queue::assertPushed(SendClientBookingConfirmationEmail::class, 2);
+    Queue::assertPushed(SendClientBookingConfirmationEmail::class, fn (SendClientBookingConfirmationEmail $job) => $job->contact->is($first));
+    Queue::assertPushed(SendClientBookingConfirmationEmail::class, fn (SendClientBookingConfirmationEmail $job) => $job->contact->is($second));
+});
+
 test('the generation job stores the pdf path on the booking', function () {
     (new GenerateBookingConfirmationPdf($this->booking))->handle(app(BookingConfirmationPdfService::class));
 

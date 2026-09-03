@@ -7,6 +7,7 @@ use App\Enums\BookingStatus;
 use App\Enums\Integration;
 use App\Enums\PaymentMethod;
 use App\Filament\Forms\Components\DayScheduleCalendar;
+use App\Filament\Widgets\BookingTimesheetOverview;
 use App\Models\Booking;
 use App\Models\BookingDay;
 use App\Models\Client;
@@ -24,8 +25,13 @@ use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Livewire as LivewireComponent;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\View;
@@ -39,302 +45,11 @@ class BookingForm
     public static function configure(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->components([
-                Section::make('Booking Details')
-                    ->columnSpanFull()
-                    ->columns(2)
-                    ->schema([
-                        Select::make('client_id')
-                            ->label('Client')
-                            ->options(fn (): array => Client::query()
-                                ->visibleToCurrentUser()
-                                ->pluck('name', 'id')
-                                ->toArray()
-                            )
-                            ->getOptionLabelUsing(function (mixed $value): ?string {
-                                $client = Client::withTrashed()->find($value);
-
-                                if (! $client) {
-                                    return null;
-                                }
-
-                                return $client->trashed() ? "{$client->name} (deleted)" : $client->name;
-                            })
-                            ->required()
-                            ->searchable()
-                            ->preload()
-                            ->live()
-                            ->afterStateUpdated(fn (Set $set, Get $get) => static::applyDefaultRates($set, $get)),
-                        Select::make('job_title_id')
-                            ->label('Job Title')
-                            ->options(fn (): array => JobTitle::query()
-                                ->where('company_id', Auth::user()->company_id)
-                                ->where('industry_id', active_industry_id())
-                                ->pluck('name', 'id')
-                                ->toArray()
-                            )
-                            ->required()
-                            ->searchable()
-                            ->preload()
-                            ->live()
-                            ->afterStateUpdated(fn (Set $set, Get $get) => static::applyDefaultRates($set, $get))
-                            ->rule(function (Get $get): Closure {
-                                return function (string $attribute, mixed $value, Closure $fail) use ($get): void {
-                                    $candidateModelClass = Industry::candidateModelForSlug(active_industry() ?? '');
-                                    $candidate = $candidateModelClass ? $candidateModelClass::find($get('candidate_id')) : null;
-
-                                    $reason = BookingEligibility::disallowedJobTitleReason($candidate, $value ? (int) $value : null);
-
-                                    if ($reason) {
-                                        $fail($reason);
-                                    }
-                                };
-                            }),
-                        Select::make('candidate_id')
-                            ->label('Candidate')
-                            ->options(function (?Booking $record): array {
-                                $candidateModelClass = Industry::candidateModelForSlug(active_industry() ?? '');
-
-                                if (! $candidateModelClass) {
-                                    return [];
-                                }
-
-                                $candidates = $candidateModelClass::query()
-                                    ->whereHas(
-                                        'latestStatus.status',
-                                        fn ($statusQuery) => $statusQuery->where('name', 'Live')
-                                    )
-                                    ->get();
-
-                                // Editing a booking must keep offering its already-assigned
-                                // candidate even if their status has since moved off Live —
-                                // otherwise saving the form with no other changes would
-                                // silently blank the candidate out.
-                                if ($record?->candidate_id && ! $candidates->contains('id', $record->candidate_id)) {
-                                    $existing = $candidateModelClass::withTrashed()->find($record->candidate_id);
-
-                                    if ($existing) {
-                                        $candidates->push($existing);
-                                    }
-                                }
-
-                                return $candidates
-                                    ->mapWithKeys(fn (Model $candidate): array => [
-                                        $candidate->id => trim("{$candidate->first_name} {$candidate->last_name}"),
-                                    ])
-                                    ->toArray();
-                            })
-                            ->getOptionLabelUsing(function (mixed $value): ?string {
-                                $candidateModelClass = Industry::candidateModelForSlug(active_industry() ?? '');
-
-                                $candidate = $candidateModelClass ? $candidateModelClass::withTrashed()->find($value) : null;
-
-                                if (! $candidate) {
-                                    return null;
-                                }
-
-                                $name = trim("{$candidate->first_name} {$candidate->last_name}");
-
-                                return $candidate->trashed() ? "{$name} (deleted)" : $name;
-                            })
-                            ->required()
-                            ->searchable()
-                            ->preload()
-                            ->live()
-                            ->afterStateUpdated(fn (Set $set, Get $get) => static::applyDefaultRates($set, $get)),
-                        DatePicker::make('start_date')
-                            ->required()
-                            ->live()
-                            ->afterStateUpdated(fn (Set $set, Get $get) => static::regenerateDayPeriods($set, $get)),
-                        DatePicker::make('end_date')
-                            ->live()
-                            ->afterStateUpdated(fn (Set $set, Get $get) => static::regenerateDayPeriods($set, $get)),
-                        Select::make('status')
-                            ->options(BookingStatus::options())
-                            ->required()
-                            ->default(BookingStatus::Upcoming->value)
-                            // Status moves automatically when payroll runs (and the
-                            // booking can be deleted if it needs correcting), so it's
-                            // not something staff should set by hand on creation —
-                            // only ever visible as a read-only indicator afterwards.
-                            ->hidden(fn (?Booking $record): bool => $record === null)
-                            ->disabled(fn (?Booking $record): bool => $record !== null)
-                            ->dehydrated(),
-                        Textarea::make('notes')
-                            ->label('Client Notes')
-                            ->helperText('Submitted by the client when they requested this booking.')
-                            ->disabled()
-                            ->dehydrated(false)
-                            ->visible(fn (?Booking $record): bool => filled($record?->notes))
-                            ->columnSpanFull(),
-                    ]),
-
-                Section::make('Daily Schedule')
-                    ->columnSpanFull()
-                    ->visible(fn (Get $get): bool => filled($get('start_date')))
-                    ->schema([
-                        CheckboxList::make('days_of_week')
-                            ->label('Repeat on')
-                            ->helperText('Only these weekdays are included when the schedule below is (re)generated from the date range — e.g. pick Thursday and Friday only for a booking that runs every Thursday and Friday between the start and end date.')
-                            ->options([
-                                '1' => 'Monday',
-                                '2' => 'Tuesday',
-                                '3' => 'Wednesday',
-                                '4' => 'Thursday',
-                                '5' => 'Friday',
-                                '6' => 'Saturday',
-                                '7' => 'Sunday',
-                            ])
-                            ->default(['1', '2', '3', '4', '5', '6', '7'])
-                            ->columns(7)
-                            ->dehydrated(false)
-                            ->live()
-                            ->afterStateUpdated(fn (Set $set, Get $get) => static::regenerateDayPeriods($set, $get)),
-                        DayScheduleCalendar::make('day_periods')
-                            ->hiddenLabel()
-                            ->live()
-                            ->dehydrated(false)
-                            ->rule(function (Get $get, ?Booking $record): Closure {
-                                return function (string $attribute, mixed $value, Closure $fail) use ($get, $record): void {
-                                    $missingTimes = collect($value ?? [])
-                                        ->reject(fn (array $entry): bool => $entry['cancelled'] ?? false)
-                                        ->filter(fn (array $entry): bool => ($entry['period'] ?? null) === BookingDayPeriod::Hours->value)
-                                        ->filter(fn (array $entry): bool => blank($entry['time_from'] ?? null) || blank($entry['time_to'] ?? null));
-
-                                    if ($missingTimes->isNotEmpty()) {
-                                        $dates = $missingTimes->pluck('date')->map(fn (string $date): string => Carbon::parse($date)->format('jS M Y'))->implode(', ');
-
-                                        $fail("Enter a from and to time for these Hours days: {$dates}.");
-                                    }
-
-                                    $candidateModelClass = Industry::candidateModelForSlug(active_industry() ?? '');
-
-                                    if (! $candidateModelClass) {
-                                        return;
-                                    }
-
-                                    $conflicts = BookingOverlap::conflictingDates(
-                                        $candidateModelClass,
-                                        $get('candidate_id'),
-                                        $value ?? [],
-                                        $record?->id,
-                                    );
-
-                                    if ($conflicts->isNotEmpty()) {
-                                        $dates = $conflicts->map(fn (string $date): string => Carbon::parse($date)->format('jS M Y'))->implode(', ');
-
-                                        $fail("This candidate already has a booking that overlaps on: {$dates}.");
-                                    }
-
-                                    $unavailable = BookingEligibility::unavailableDates(
-                                        $candidateModelClass,
-                                        $get('candidate_id'),
-                                        $value ?? [],
-                                    );
-
-                                    if ($unavailable->isNotEmpty()) {
-                                        $dates = $unavailable->map(fn (string $date): string => Carbon::parse($date)->format('jS M Y'))->implode(', ');
-
-                                        $fail("This candidate is not available on: {$dates}.");
-                                    }
-                                };
-                            })
-                            ->columnSpanFull(),
-                    ]),
-
-                Section::make('Pay & Charge Rates')
-                    ->columnSpanFull()
-                    ->schema([
-                        Grid::make(3)
-                            ->schema([
-                                TextInput::make('day_rate')
-                                    ->label('Day Pay Rate')
-                                    ->helperText('Defaults from the candidate\'s pay rate for this job title. Override if needed.')
-                                    ->numeric()
-                                    ->prefix('£')
-                                    ->step(0.01)
-                                    ->minValue(0)
-                                    ->live(onBlur: true)
-                                    ->visible(fn (Get $get): bool => static::dayRateVisible($get)),
-                                TextInput::make('half_day_rate')
-                                    ->label('Half Day Pay Rate')
-                                    ->helperText('Defaults from the candidate\'s pay rate for this job title. Override if needed.')
-                                    ->numeric()
-                                    ->prefix('£')
-                                    ->step(0.01)
-                                    ->minValue(0)
-                                    ->live(onBlur: true)
-                                    ->visible(fn (Get $get): bool => static::halfDayRateVisible($get)),
-                                TextInput::make('hourly_rate')
-                                    ->label('Hourly Pay Rate')
-                                    ->helperText('Defaults from the candidate\'s pay rate for this job title. Override if needed.')
-                                    ->numeric()
-                                    ->prefix('£')
-                                    ->step(0.01)
-                                    ->minValue(0)
-                                    ->live(onBlur: true)
-                                    ->visible(fn (Get $get): bool => static::hourlyRateVisible($get)),
-                            ]),
-                        Grid::make(3)
-                            ->schema([
-                                TextInput::make('day_charge_rate')
-                                    ->label('Day Charge Rate')
-                                    ->helperText('Defaults from the client\'s charge rate for this job title. Override if needed.')
-                                    ->required()
-                                    ->numeric()
-                                    ->prefix('£')
-                                    ->step(0.01)
-                                    ->minValue(0)
-                                    ->live(onBlur: true)
-                                    ->visible(fn (Get $get): bool => static::dayRateVisible($get)),
-                                TextInput::make('half_day_charge_rate')
-                                    ->label('Half Day Charge Rate')
-                                    ->helperText('Defaults from the client\'s charge rate for this job title. Override if needed.')
-                                    ->required()
-                                    ->numeric()
-                                    ->prefix('£')
-                                    ->step(0.01)
-                                    ->minValue(0)
-                                    ->live(onBlur: true)
-                                    ->visible(fn (Get $get): bool => static::halfDayRateVisible($get)),
-                                TextInput::make('hourly_charge_rate')
-                                    ->label('Hourly Charge Rate')
-                                    ->helperText('Defaults from the client\'s charge rate for this job title. Override if needed.')
-                                    ->required()
-                                    ->numeric()
-                                    ->prefix('£')
-                                    ->step(0.01)
-                                    ->minValue(0)
-                                    ->live(onBlur: true)
-                                    ->visible(fn (Get $get): bool => static::hourlyRateVisible($get)),
-                            ]),
-                    ]),
-
-                Section::make('Margin Calculator')
-                    ->columnSpanFull()
-                    ->description('Calculated from the scheduled days below and the rates above.')
-                    ->schema([
-                        Placeholder::make('margin_payment_method')
-                            ->label('Payment Method')
-                            ->content(fn (Get $get): string => static::marginBreakdown($get)['paymentMethodLabel']),
-                        Placeholder::make('margin_oncosts')
-                            ->label('Employer Oncosts')
-                            ->content(fn (Get $get): string => static::marginBreakdown($get)['oncostsLabel']),
-                        Placeholder::make('margin_total_pay')
-                            ->label('Total Pay Cost')
-                            ->content(fn (Get $get): string => '£'.number_format(static::marginBreakdown($get)['totalPay'], 2)),
-                        Placeholder::make('margin_total_charge')
-                            ->label('Total Charge')
-                            ->content(fn (Get $get): string => '£'.number_format(static::marginBreakdown($get)['totalCharge'], 2)),
-                        Placeholder::make('margin_net')
-                            ->label('Net Margin')
-                            ->content(fn (Get $get): string => static::marginBreakdown($get)['marginLabel']),
-                        View::make('filament.forms.components.margin-daily-breakdown')
-                            ->viewData(fn (Get $get): array => ['rows' => static::dailyBreakdown($get)])
-                            ->columnSpanFull(),
-                    ])
-                    ->columns(3),
-
+                // Kept outside the Tabs so a failed sync is visible immediately
+                // on page load, matching ClientForm's identical placement —
+                // nested inside a non-default tab it'd be missed entirely.
                 Section::make('Payroll Submission Failed')
                     ->columnSpanFull()
                     ->icon('heroicon-o-exclamation-triangle')
@@ -354,22 +69,350 @@ class BookingForm
                             }),
                     ]),
 
-                Section::make('Payroll Provider')
-                    ->hidden()
-                    ->schema([
-                        TextInput::make('payroll_provider_id')
-                            ->label('Payroll Provider ID')
-                            ->helperText('This booking\'s existing Placement ID in the agency\'s payroll provider, if one already exists there.')
-                            ->dehydrated(false)
-                            ->afterStateHydrated(function (TextInput $component, ?Booking $record): void {
-                                $provider = Auth::user()->company->payroll_provider;
+                Tabs::make('Tabs')
+                    ->tabs([
+                        Tab::make('Details')
+                            ->schema(static::detailsTabSchema()),
 
-                                if ($record && $provider instanceof Integration) {
-                                    $component->state($record->providerExternalId($provider));
-                                }
-                            }),
+                        Tab::make('Timesheets')
+                            ->schema([
+                                LivewireComponent::make(BookingTimesheetOverview::class)
+                                    ->key('booking-timesheet-overview')
+                                    ->hidden(fn (?Model $record): bool => $record === null),
+                            ]),
                     ]),
             ]);
+    }
+
+    /** @return array<int, Component> */
+    protected static function detailsTabSchema(): array
+    {
+        return [
+            Section::make('Booking Details')
+                ->columnSpanFull()
+                ->columns(2)
+                ->schema([
+                    Select::make('client_id')
+                        ->label('Client')
+                        ->options(fn (): array => Client::query()
+                            ->visibleToCurrentUser()
+                            ->pluck('name', 'id')
+                            ->toArray()
+                        )
+                        ->getOptionLabelUsing(function (mixed $value): ?string {
+                            $client = Client::withTrashed()->find($value);
+
+                            if (! $client) {
+                                return null;
+                            }
+
+                            return $client->trashed() ? "{$client->name} (deleted)" : $client->name;
+                        })
+                        ->required()
+                        ->searchable()
+                        ->preload()
+                        ->live()
+                        ->afterStateUpdated(fn (Set $set, Get $get) => static::applyDefaultRates($set, $get)),
+                    Select::make('job_title_id')
+                        ->label('Job Title')
+                        ->options(fn (): array => JobTitle::query()
+                            ->where('company_id', Auth::user()->company_id)
+                            ->where('industry_id', active_industry_id())
+                            ->pluck('name', 'id')
+                            ->toArray()
+                        )
+                        ->required()
+                        ->searchable()
+                        ->preload()
+                        ->live()
+                        ->afterStateUpdated(fn (Set $set, Get $get) => static::applyDefaultRates($set, $get))
+                        ->rule(function (Get $get): Closure {
+                            return function (string $attribute, mixed $value, Closure $fail) use ($get): void {
+                                $candidateModelClass = Industry::candidateModelForSlug(active_industry() ?? '');
+                                $candidate = $candidateModelClass ? $candidateModelClass::find($get('candidate_id')) : null;
+
+                                $reason = BookingEligibility::disallowedJobTitleReason($candidate, $value ? (int) $value : null);
+
+                                if ($reason) {
+                                    $fail($reason);
+                                }
+                            };
+                        }),
+                    Select::make('candidate_id')
+                        ->label('Candidate')
+                        ->options(function (?Booking $record): array {
+                            $candidateModelClass = Industry::candidateModelForSlug(active_industry() ?? '');
+
+                            if (! $candidateModelClass) {
+                                return [];
+                            }
+
+                            $candidates = $candidateModelClass::query()
+                                ->whereHas(
+                                    'latestStatus.status',
+                                    fn ($statusQuery) => $statusQuery->where('name', 'Live')
+                                )
+                                ->get();
+
+                            // Editing a booking must keep offering its already-assigned
+                            // candidate even if their status has since moved off Live —
+                            // otherwise saving the form with no other changes would
+                            // silently blank the candidate out.
+                            if ($record?->candidate_id && ! $candidates->contains('id', $record->candidate_id)) {
+                                $existing = $candidateModelClass::withTrashed()->find($record->candidate_id);
+
+                                if ($existing) {
+                                    $candidates->push($existing);
+                                }
+                            }
+
+                            return $candidates
+                                ->mapWithKeys(fn (Model $candidate): array => [
+                                    $candidate->id => trim("{$candidate->first_name} {$candidate->last_name}"),
+                                ])
+                                ->toArray();
+                        })
+                        ->getOptionLabelUsing(function (mixed $value): ?string {
+                            $candidateModelClass = Industry::candidateModelForSlug(active_industry() ?? '');
+
+                            $candidate = $candidateModelClass ? $candidateModelClass::withTrashed()->find($value) : null;
+
+                            if (! $candidate) {
+                                return null;
+                            }
+
+                            $name = trim("{$candidate->first_name} {$candidate->last_name}");
+
+                            return $candidate->trashed() ? "{$name} (deleted)" : $name;
+                        })
+                        ->required()
+                        ->searchable()
+                        ->preload()
+                        ->live()
+                        ->afterStateUpdated(fn (Set $set, Get $get) => static::applyDefaultRates($set, $get)),
+                    DatePicker::make('start_date')
+                        ->required()
+                        ->live()
+                        ->afterStateUpdated(fn (Set $set, Get $get) => static::regenerateDayPeriods($set, $get)),
+                    DatePicker::make('end_date')
+                        ->live()
+                        ->afterStateUpdated(fn (Set $set, Get $get) => static::regenerateDayPeriods($set, $get)),
+                    Select::make('status')
+                        ->options(BookingStatus::options())
+                        ->required()
+                        ->default(BookingStatus::Upcoming->value)
+                        // Status moves automatically when payroll runs (and the
+                        // booking can be deleted if it needs correcting), so it's
+                        // not something staff should set by hand on creation —
+                        // only ever visible as a read-only indicator afterwards.
+                        ->hidden(fn (?Booking $record): bool => $record === null)
+                        ->disabled(fn (?Booking $record): bool => $record !== null)
+                        ->dehydrated(),
+                    Textarea::make('notes')
+                        ->label('Client Notes')
+                        ->helperText('Submitted by the client when they requested this booking.')
+                        ->disabled()
+                        ->dehydrated(false)
+                        ->visible(fn (?Booking $record): bool => filled($record?->notes))
+                        ->columnSpanFull(),
+                ]),
+
+            Section::make('Daily Schedule')
+                ->columnSpanFull()
+                ->visible(fn (Get $get): bool => filled($get('start_date')))
+                ->schema([
+                    CheckboxList::make('days_of_week')
+                        ->label('Repeat on')
+                        ->helperText('Only these weekdays are included when the schedule below is (re)generated from the date range — e.g. pick Thursday and Friday only for a booking that runs every Thursday and Friday between the start and end date.')
+                        ->options([
+                            '1' => 'Monday',
+                            '2' => 'Tuesday',
+                            '3' => 'Wednesday',
+                            '4' => 'Thursday',
+                            '5' => 'Friday',
+                            '6' => 'Saturday',
+                            '7' => 'Sunday',
+                        ])
+                        ->default(['1', '2', '3', '4', '5', '6', '7'])
+                        ->columns(7)
+                        ->dehydrated(false)
+                        ->live()
+                        ->afterStateUpdated(fn (Set $set, Get $get) => static::regenerateDayPeriods($set, $get)),
+                    DayScheduleCalendar::make('day_periods')
+                        ->hiddenLabel()
+                        ->live()
+                        ->dehydrated(false)
+                        ->rule(function (Get $get, ?Booking $record): Closure {
+                            return function (string $attribute, mixed $value, Closure $fail) use ($get, $record): void {
+                                $missingTimes = collect($value ?? [])
+                                    ->reject(fn (array $entry): bool => $entry['cancelled'] ?? false)
+                                    ->filter(fn (array $entry): bool => ($entry['period'] ?? null) === BookingDayPeriod::Hours->value)
+                                    ->filter(fn (array $entry): bool => blank($entry['time_from'] ?? null) || blank($entry['time_to'] ?? null));
+
+                                if ($missingTimes->isNotEmpty()) {
+                                    $dates = $missingTimes->pluck('date')->map(fn (string $date): string => Carbon::parse($date)->format('jS M Y'))->implode(', ');
+
+                                    $fail("Enter a from and to time for these Hours days: {$dates}.");
+                                }
+
+                                $candidateModelClass = Industry::candidateModelForSlug(active_industry() ?? '');
+
+                                if (! $candidateModelClass) {
+                                    return;
+                                }
+
+                                $conflicts = BookingOverlap::conflictingDates(
+                                    $candidateModelClass,
+                                    $get('candidate_id'),
+                                    $value ?? [],
+                                    $record?->id,
+                                );
+
+                                if ($conflicts->isNotEmpty()) {
+                                    $dates = $conflicts->map(fn (string $date): string => Carbon::parse($date)->format('jS M Y'))->implode(', ');
+
+                                    $fail("This candidate already has a booking that overlaps on: {$dates}.");
+                                }
+
+                                $unavailable = BookingEligibility::unavailableDates(
+                                    $candidateModelClass,
+                                    $get('candidate_id'),
+                                    $value ?? [],
+                                );
+
+                                if ($unavailable->isNotEmpty()) {
+                                    $dates = $unavailable->map(fn (string $date): string => Carbon::parse($date)->format('jS M Y'))->implode(', ');
+
+                                    $fail("This candidate is not available on: {$dates}.");
+                                }
+                            };
+                        })
+                        ->columnSpanFull(),
+                ]),
+
+            Section::make('Pay & Charge Rates')
+                ->columnSpanFull()
+                ->schema([
+                    Grid::make(3)
+                        ->schema([
+                            TextInput::make('day_rate')
+                                ->label('Day Pay Rate')
+                                ->helperText('Defaults from the candidate\'s pay rate for this job title. Override if needed.')
+                                ->numeric()
+                                ->prefix('£')
+                                ->step(0.01)
+                                ->minValue(0)
+                                ->live(onBlur: true)
+                                ->visible(fn (Get $get): bool => static::dayRateVisible($get)),
+                            TextInput::make('half_day_rate')
+                                ->label('Half Day Pay Rate')
+                                ->helperText('Defaults from the candidate\'s pay rate for this job title. Override if needed.')
+                                ->numeric()
+                                ->prefix('£')
+                                ->step(0.01)
+                                ->minValue(0)
+                                ->live(onBlur: true)
+                                ->visible(fn (Get $get): bool => static::halfDayRateVisible($get)),
+                            TextInput::make('hourly_rate')
+                                ->label('Hourly Pay Rate')
+                                ->helperText('Defaults from the candidate\'s pay rate for this job title. Override if needed.')
+                                ->numeric()
+                                ->prefix('£')
+                                ->step(0.01)
+                                ->minValue(0)
+                                ->live(onBlur: true)
+                                ->visible(fn (Get $get): bool => static::hourlyRateVisible($get)),
+                        ]),
+                    Grid::make(3)
+                        ->schema([
+                            TextInput::make('day_charge_rate')
+                                ->label('Day Charge Rate')
+                                ->helperText('Defaults from the client\'s charge rate for this job title. Override if needed.')
+                                ->required()
+                                ->numeric()
+                                ->prefix('£')
+                                ->step(0.01)
+                                ->minValue(0)
+                                ->live(onBlur: true)
+                                ->visible(fn (Get $get): bool => static::dayRateVisible($get)),
+                            TextInput::make('half_day_charge_rate')
+                                ->label('Half Day Charge Rate')
+                                ->helperText('Defaults from the client\'s charge rate for this job title. Override if needed.')
+                                ->required()
+                                ->numeric()
+                                ->prefix('£')
+                                ->step(0.01)
+                                ->minValue(0)
+                                ->live(onBlur: true)
+                                ->visible(fn (Get $get): bool => static::halfDayRateVisible($get)),
+                            TextInput::make('hourly_charge_rate')
+                                ->label('Hourly Charge Rate')
+                                ->helperText('Defaults from the client\'s charge rate for this job title. Override if needed.')
+                                ->required()
+                                ->numeric()
+                                ->prefix('£')
+                                ->step(0.01)
+                                ->minValue(0)
+                                ->live(onBlur: true)
+                                ->visible(fn (Get $get): bool => static::hourlyRateVisible($get)),
+                        ]),
+                ]),
+
+            Section::make('Margin Calculator')
+                ->columnSpanFull()
+                ->description('Calculated from the scheduled days below and the rates above.')
+                ->schema([
+                    Placeholder::make('margin_payment_method')
+                        ->label('Payment Method')
+                        ->content(fn (Get $get): string => static::marginBreakdown($get)['paymentMethodLabel']),
+                    Placeholder::make('margin_oncosts')
+                        ->label('Employer Oncosts')
+                        ->content(fn (Get $get): string => static::marginBreakdown($get)['oncostsLabel']),
+                    Placeholder::make('margin_total_pay')
+                        ->label('Total Pay Cost')
+                        ->content(fn (Get $get): string => '£'.number_format(static::marginBreakdown($get)['totalPay'], 2)),
+                    Placeholder::make('margin_total_charge')
+                        ->label('Total Charge')
+                        ->content(fn (Get $get): string => '£'.number_format(static::marginBreakdown($get)['totalCharge'], 2)),
+                    Placeholder::make('margin_net')
+                        ->label('Net Margin')
+                        ->content(fn (Get $get): string => static::marginBreakdown($get)['marginLabel']),
+                    View::make('filament.forms.components.margin-daily-breakdown')
+                        ->viewData(fn (Get $get): array => ['rows' => static::dailyBreakdown($get)])
+                        ->columnSpanFull(),
+                ])
+                ->columns(3),
+
+            Section::make('Payroll Provider')
+                ->hidden()
+                ->schema([
+                    TextInput::make('payroll_provider_id')
+                        ->label('Payroll Provider ID')
+                        ->helperText('This booking\'s existing Placement ID in the agency\'s payroll provider, if one already exists there.')
+                        ->dehydrated(false)
+                        ->afterStateHydrated(function (TextInput $component, ?Booking $record): void {
+                            $provider = Auth::user()->company->payroll_provider;
+
+                            if ($record && $provider instanceof Integration) {
+                                $component->state($record->providerExternalId($provider));
+                            }
+                        }),
+                ]),
+
+            Section::make('Payroll')
+                ->visible(fn (?Booking $record): bool => $record !== null)
+                ->schema([
+                    // Shown regardless of whether the company currently has
+                    // Evertime enabled as its active payroll_provider — a
+                    // booking can already have a synced/manually-entered ID
+                    // from before that toggle changed, or before it's set at
+                    // all, and that shouldn't hide an ID that already exists.
+                    TextEntry::make('payroll_provider_id_display')
+                        ->label('Payroll Provider ID')
+                        ->getStateUsing(fn (?Booking $record): ?string => $record?->providerExternalId(Integration::Evertime))
+                        ->placeholder('Not yet synced'),
+                ]),
+        ];
     }
 
     /** @return Collection<int, string> */

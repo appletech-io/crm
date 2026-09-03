@@ -127,7 +127,7 @@ test('resend confirmation emails is only visible while the booking is upcoming',
         ]);
 
         Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
-            ->assertActionHidden('resendConfirmationEmails');
+            ->assertActionHidden('resendBothConfirmationEmails');
     }
 
     $upcoming = Booking::factory()->create([
@@ -140,7 +140,7 @@ test('resend confirmation emails is only visible while the booking is upcoming',
     ]);
 
     Livewire::test(EditBooking::class, ['record' => $upcoming->getRouteKey()])
-        ->assertActionVisible('resendConfirmationEmails');
+        ->assertActionVisible('resendBothConfirmationEmails');
 });
 
 test('rejecting a request soft-deletes the booking and the client is not notified', function () {

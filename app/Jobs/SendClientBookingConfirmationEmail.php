@@ -46,6 +46,7 @@ class SendClientBookingConfirmationEmail implements ShouldQueue
 
     public function __construct(
         public readonly Booking $booking,
+        public readonly ?ClientContact $contact = null,
     ) {}
 
     /**
@@ -104,7 +105,7 @@ class SendClientBookingConfirmationEmail implements ShouldQueue
 
     private function recipientContact(): ?ClientContact
     {
-        return $this->booking->client?->bookingContact();
+        return $this->contact ?? $this->booking->client?->bookingContact();
     }
 
     /** @return array<string, string> */
