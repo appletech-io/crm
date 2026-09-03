@@ -64,6 +64,7 @@ class ReferenceFormSchema
                         self::dateField('worked_to', 'Known To'),
                         self::radioField('suitable_for_role', 'Do you believe this candidate is suitable for the role?', self::YES_NO_OPTIONS),
                         self::textareaField('suitability_details', 'Please provide more information', showWhen: ['suitable_for_role', 'no']),
+                        self::textareaField('additional_details', 'Additional Details'),
                     ],
                 ],
             ],

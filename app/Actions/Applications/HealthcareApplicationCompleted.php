@@ -2,7 +2,6 @@
 
 namespace App\Actions\Applications;
 
-use App\Actions\References\SendReferenceRequestEmails;
 use App\Enums\ActivityType;
 use App\Models\HealthcareApplication;
 use Lorisleiva\Actions\Concerns\AsAction;
@@ -22,7 +21,5 @@ class HealthcareApplicationCompleted
             'body' => 'Candidate has completed the Application pack.',
             'contacted' => true,
         ]);
-
-        SendReferenceRequestEmails::run($candidate);
     }
 }
