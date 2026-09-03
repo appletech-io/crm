@@ -53,6 +53,14 @@ class SendCustomTemplateEmail implements ShouldQueue
          * booking contact.
          */
         public readonly ?ClientContact $contact = null,
+        /**
+         * When set, sends here instead of to the recipient's real contact
+         * email — used by the "Send Test Email to Me" modal button so a
+         * consultant can preview a real render without emailing the actual
+         * candidate/client. Suppresses the recipient's activity log entry
+         * and any campaign send record, and prefixes the subject.
+         */
+        public readonly ?string $testRecipientEmail = null,
     ) {}
 
     /**
@@ -60,8 +68,9 @@ class SendCustomTemplateEmail implements ShouldQueue
      */
     public function handle(): void
     {
+        $isTest = filled($this->testRecipientEmail);
         $contact = $this->contact ?? ($this->recipient instanceof Client ? $this->recipient->bookingContact() : null);
-        $email = $this->recipient instanceof Client ? $contact?->email : $this->recipient->email;
+        $email = $this->testRecipientEmail ?? ($this->recipient instanceof Client ? $contact?->email : $this->recipient->email);
 
         if (blank($email)) {
             return;
@@ -79,6 +88,10 @@ class SendCustomTemplateEmail implements ShouldQueue
 
             $subject = $this->replacePlaceholders($this->template?->subject ?? $this->adHocSubject ?? '', $replacements);
             $body = $this->replacePlaceholders($this->template?->body ?? $this->adHocBody ?? '', $replacements);
+
+            if ($isTest) {
+                $subject = "[TEST] {$subject}";
+            }
 
             // The raw $body (with signed email-images links, not cid:
             // references) is what gets stored for the campaign send record
@@ -107,6 +120,10 @@ class SendCustomTemplateEmail implements ShouldQueue
                 from: $sender?->email ?? $company->defaultFromEmail(),
                 attachments: $attachments,
             );
+
+            if ($isTest) {
+                return;
+            }
 
             // Ad-hoc images/attachments aren't deleted here: a bulk/campaign
             // send dispatches one of these jobs per recipient, all sharing

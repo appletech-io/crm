@@ -7,6 +7,7 @@ use App\Http\Controllers\EmailImageController;
 use App\Jobs\SendCustomTemplateEmail;
 use App\Models\Client;
 use App\Models\ClientContact;
+use App\Models\ClientContactJobTitle;
 use App\Models\ClientPool;
 use App\Models\EducationCandidate;
 use App\Models\EmailTemplate;
@@ -40,11 +41,24 @@ class SendCustomEmailAction
             ->label('Send Email')
             ->icon(Heroicon::OutlinedEnvelope)
             ->modalSubmitActionLabel('Send')
-            ->schema(fn (): array => static::formSchema($audience))
-            ->action(function (array $data, EducationCandidate|HealthcareCandidate|Client $record): void {
-                $recipient = static::resolveRecipient($record);
+            ->schema(fn (EducationCandidate|HealthcareCandidate|Client $record): array => static::formSchema($audience, $record))
+            ->extraModalFooterActions(fn (Action $action): array => [
+                $action->makeModalSubmitAction('sendTestEmail', arguments: ['test' => true])
+                    ->label('Send Test Email to Me')
+                    ->color('gray')
+                    ->icon(Heroicon::OutlinedBeaker),
+            ])
+            ->action(function (array $data, EducationCandidate|HealthcareCandidate|Client $record, Action $action, array $arguments = []): void {
+                if ($arguments['test'] ?? false) {
+                    static::sendTest($data, $record);
+                    $action->halt();
 
-                if (blank($recipient['email'])) {
+                    return;
+                }
+
+                $contacts = static::resolveRecipients($record, $data['client_contact_job_titles'] ?? []);
+
+                if ($contacts->isEmpty()) {
                     Notification::make()
                         ->danger()
                         ->title('Cannot send — no contact email on file')
@@ -53,14 +67,17 @@ class SendCustomEmailAction
                     return;
                 }
 
-                SendCustomTemplateEmail::dispatch(
-                    static::templateFromData($data),
+                $template = static::templateFromData($data);
+
+                $contacts->each(fn (?ClientContact $contact) => SendCustomTemplateEmail::dispatch(
+                    $template,
                     $record,
                     auth()->id(),
                     $data['adhoc_subject'] ?? null,
                     $data['adhoc_body'] ?? null,
                     adHocAttachments: $data['adhoc_attachments'] ?? [],
-                );
+                    contact: $contact,
+                ));
 
                 Notification::make()->success()->title('Email queued for sending')->send();
             });
@@ -214,8 +231,44 @@ class SendCustomEmailAction
             : null;
     }
 
+    /**
+     * Sends the currently-composed email to the acting user instead of the
+     * record's real contact, so they can check a real render before sending
+     * for real. Uses the record's own data for placeholders (recipient name,
+     * client name, etc), just redirected to the user's inbox — the modal
+     * stays open afterwards so they can go on to the real send.
+     */
+    private static function sendTest(array $data, EducationCandidate|HealthcareCandidate|Client $record): void
+    {
+        $user = auth()->user();
+
+        if (blank($user?->email)) {
+            Notification::make()
+                ->danger()
+                ->title('Cannot send test — your account has no email address')
+                ->send();
+
+            return;
+        }
+
+        SendCustomTemplateEmail::dispatch(
+            static::templateFromData($data),
+            $record,
+            auth()->id(),
+            $data['adhoc_subject'] ?? null,
+            $data['adhoc_body'] ?? null,
+            adHocAttachments: $data['adhoc_attachments'] ?? [],
+            testRecipientEmail: $user->email,
+        );
+
+        Notification::make()
+            ->success()
+            ->title("Test email queued — sending to {$user->email}")
+            ->send();
+    }
+
     /** @return array<int, Component> */
-    private static function formSchema(EmailTemplateAudience $audience): array
+    private static function formSchema(EmailTemplateAudience $audience, EducationCandidate|HealthcareCandidate|Client|null $record = null): array
     {
         return [
             Radio::make('mode')
@@ -264,6 +317,20 @@ class SendCustomEmailAction
                     ->label('Attachments')
                     ->helperText('Sent as regular attachments on this email only — not kept afterwards.'),
             ),
+
+            ...($record instanceof Client ? [
+                Select::make('client_contact_job_titles')
+                    ->label('Send to job title(s)')
+                    ->helperText('Send to every contact at this client holding one of these job titles, instead of just the booking contact. Leave blank to use the booking contact.')
+                    ->multiple()
+                    ->searchable()
+                    ->options(fn (): array => ClientContactJobTitle::query()
+                        ->where('company_id', auth()->user()->company_id)
+                        ->where('industry_id', active_industry_id())
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->toArray()),
+            ] : []),
         ];
     }
 
@@ -277,6 +344,43 @@ class SendCustomEmailAction
         }
 
         return ['email' => $record->email, 'contact' => null];
+    }
+
+    /**
+     * When job titles are selected on a Client's send-email action, every
+     * contact at the client holding one of those job titles receives the
+     * email. A client with no contact matching any selected title falls
+     * back to its main contact rather than being skipped. With no job
+     * titles selected, falls back to the single booking contact — and a
+     * non-Client recipient always sends to its own email address.
+     *
+     * @param  array<int, int|string>  $jobTitleIds
+     * @return \Illuminate\Support\Collection<int, ?ClientContact>
+     */
+    private static function resolveRecipients(EducationCandidate|HealthcareCandidate|Client $record, array $jobTitleIds): \Illuminate\Support\Collection
+    {
+        if (! $record instanceof Client) {
+            return filled($record->email) ? collect([null]) : collect();
+        }
+
+        if (filled($jobTitleIds)) {
+            $contacts = $record->contacts()
+                ->whereIn('client_contact_job_title_id', $jobTitleIds)
+                ->whereNotNull('email')
+                ->get();
+
+            if ($contacts->isNotEmpty()) {
+                return $contacts;
+            }
+
+            $mainContact = $record->mainContact;
+
+            return filled($mainContact?->email) ? collect([$mainContact]) : collect();
+        }
+
+        $contact = $record->bookingContact();
+
+        return filled($contact?->email) ? collect([$contact]) : collect();
     }
 
     /**
