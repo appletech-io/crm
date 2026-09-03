@@ -2,7 +2,6 @@
 
 namespace App\Actions\Applications;
 
-use App\Actions\References\SendReferenceRequestEmails;
 use App\Enums\ActivityType;
 use App\Models\EducationApplication;
 use Lorisleiva\Actions\Concerns\AsAction;
@@ -22,7 +21,5 @@ class ApplicationCompleted
             'body' => 'Candidate has completed the Application pack.',
             'contacted' => true,
         ]);
-
-        SendReferenceRequestEmails::run($candidate);
     }
 }

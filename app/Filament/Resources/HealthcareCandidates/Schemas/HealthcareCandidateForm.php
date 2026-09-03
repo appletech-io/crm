@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\HealthcareCandidates\Schemas;
 
+use App\Actions\References\ResendReferenceRequestEmail;
 use App\Enums\DocumentType;
 use App\Enums\Education\Availability;
 use App\Enums\Healthcare\CareSetting;
@@ -17,16 +18,19 @@ use App\Filament\Widgets\CandidateAvailabilityCalendar;
 use App\Filament\Widgets\CandidateDocumentManager;
 use App\Jobs\GenerateFormattedCv;
 use App\Models\CandidateDocument;
+use App\Models\CandidateReference;
 use App\Models\HealthcareCandidate;
 use App\Models\JobTitle;
 use App\Models\PaymentProvider;
 use App\Models\Qualification;
 use App\Models\User;
 use App\Services\Candidates\Document;
+use App\Services\References\ReferenceResponsePdfService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
@@ -52,6 +56,7 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class HealthcareCandidateForm
 {
@@ -498,6 +503,12 @@ class HealthcareCandidateForm
                                             ->label('Candidate consents to us contacting this referee')
                                             ->columnSpanFull()
                                             ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
+                                        Checkbox::make('contact_now')
+                                            ->label('Contact this referee now')
+                                            ->helperText('Switch off if the candidate isn\'t ready for this referee to be contacted yet.')
+                                            ->default(true)
+                                            ->columnSpanFull()
+                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
                                         Select::make('status')
                                             ->options(
                                                 collect(ReferenceStatus::cases())
@@ -505,9 +516,92 @@ class HealthcareCandidateForm
                                                     ->toArray()
                                             )
                                             ->default(ReferenceStatus::Pending->value)
-                                            ->required(),
+                                            ->required()
+                                            ->live()
+                                            ->suffixIcon(fn (Get $get) => ReferenceStatus::tryFrom($get('status') ?? '')?->icon())
+                                            ->suffixIconColor(fn (Get $get) => ReferenceStatus::tryFrom($get('status') ?? '')?->color()),
+                                        DatePicker::make('last_contacted')
+                                            ->native(false),
+                                        Hidden::make('token'),
+                                        Hidden::make('id')
+                                            ->dehydrated(false),
+                                        Actions::make([
+                                            Action::make('viewResponse')
+                                                ->label('View Reference Response')
+                                                ->icon('heroicon-o-eye')
+                                                ->color('gray')
+                                                ->url(fn (Get $get): ?string => filled($get('token'))
+                                                    ? route('reference.form', ['token' => $get('token')])
+                                                    : null
+                                                )
+                                                ->openUrlInNewTab()
+                                                ->visible(fn (Get $get): bool => filled($get('token'))),
+                                            Action::make('downloadReferencePdf')
+                                                ->label('Download PDF')
+                                                ->icon('heroicon-o-arrow-down-tray')
+                                                ->color('gray')
+                                                ->visible(fn (Get $get): bool => in_array(
+                                                    ReferenceStatus::tryFrom($get('status') ?? ''),
+                                                    [ReferenceStatus::Submitted, ReferenceStatus::Confirmed],
+                                                    true
+                                                ))
+                                                ->action(function (Get $get): ?StreamedResponse {
+                                                    $reference = CandidateReference::find($get('id'));
+
+                                                    if (! $reference) {
+                                                        return null;
+                                                    }
+
+                                                    $pdfs = app(ReferenceResponsePdfService::class);
+
+                                                    return response()->streamDownload(
+                                                        fn () => print ($pdfs->generate($reference)),
+                                                        $pdfs->filename($reference)
+                                                    );
+                                                }),
+                                            Action::make('resendReference')
+                                                ->label(fn (Get $get): string => filled($get('token')) ? 'Resend Reference Email' : 'Send Reference Email')
+                                                ->icon('heroicon-o-paper-airplane')
+                                                ->color('gray')
+                                                ->requiresConfirmation()
+                                                ->visible(function (Get $get): bool {
+                                                    $status = ReferenceStatus::tryFrom($get('status') ?? '');
+
+                                                    return filled($get('id'))
+                                                        && filled($get('email'))
+                                                        && $get('contact_now')
+                                                        && ! in_array($status, [ReferenceStatus::Submitted, ReferenceStatus::Confirmed], true);
+                                                })
+                                                ->action(function (Get $get, Set $set): void {
+                                                    $reference = CandidateReference::find($get('id'));
+
+                                                    if (! $reference) {
+                                                        return;
+                                                    }
+
+                                                    ResendReferenceRequestEmail::run($reference);
+                                                    $reference->refresh();
+
+                                                    $set('token', $reference->token);
+                                                    $set('status', $reference->status->value);
+                                                    $set('last_contacted', $reference->last_contacted?->toDateString());
+
+                                                    Notification::make()
+                                                        ->success()
+                                                        ->title('Reference email sent')
+                                                        ->body("A reference request email has been sent to {$reference->email}.")
+                                                        ->send();
+                                                }),
+                                        ])->columnSpanFull(),
                                     ])
                                     ->columns(2)
+                                    ->itemLabel(function (array $state): ?string {
+                                        $name = trim(($state['first_name'] ?? '').' '.($state['last_name'] ?? '')) ?: 'Reference';
+
+                                        $status = ReferenceStatus::tryFrom($state['status'] ?? '');
+
+                                        return $status ? "{$name} — {$status->label()} {$status->emoji()}" : $name;
+                                    })
                                     ->collapsible()
                                     ->collapsed()
                                     ->columnSpanFull(),

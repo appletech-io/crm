@@ -20,14 +20,15 @@ test('academic only asks for dates', function () {
     expect($keys->all())->toBe(['worked_from', 'worked_to']);
 });
 
-test('character asks for dates and a suitability question with a conditional detail field when not suitable', function () {
+test('character asks for dates, a suitability question with a conditional detail field when not suitable, and mandatory additional details', function () {
     $sections = ReferenceFormSchema::sectionsFor(ReferenceType::Character, 'Acme Recruitment');
     $keys = collect($sections)->flatMap(fn (array $section) => collect($section['fields'])->pluck('key'));
 
-    expect($keys->all())->toBe(['worked_from', 'worked_to', 'suitable_for_role', 'suitability_details']);
+    expect($keys->all())->toBe(['worked_from', 'worked_to', 'suitable_for_role', 'suitability_details', 'additional_details']);
 
     $rules = ReferenceFormSchema::rulesFor(ReferenceType::Character);
     expect($rules['answers.suitability_details'])->toContain('required_if:answers.suitable_for_role,no');
+    expect($rules['answers.additional_details'])->toContain('required');
 });
 
 test('professional includes dates worked, the safeguarding question, the recommendation grid, the rating grid, and free text questions', function () {

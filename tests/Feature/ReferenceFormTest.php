@@ -203,11 +203,26 @@ test('submitting the character form only requires the confirm name, not position
         ->set('answers.worked_from', '2020-01-01')
         ->set('answers.worked_to', '2021-01-01')
         ->set('answers.suitable_for_role', 'yes')
+        ->set('answers.additional_details', 'A reliable and punctual colleague.')
         ->set('answers.confirm_name', 'Ref Eree')
         ->call('submit')
         ->assertHasNoErrors();
 
     expect($reference->fresh()->status)->toBe(ReferenceStatus::Submitted);
+});
+
+test('additional details are mandatory on the character form', function () {
+    $reference = makeVerifiedReference(['type' => 'character']);
+
+    Livewire::test('reference.reference-form', ['token' => $reference->token])
+        ->set('answers.worked_from', '2020-01-01')
+        ->set('answers.worked_to', '2021-01-01')
+        ->set('answers.suitable_for_role', 'yes')
+        ->set('answers.confirm_name', 'Ref Eree')
+        ->call('submit')
+        ->assertHasErrors(['answers.additional_details']);
+
+    expect($reference->fresh()->status)->toBe(ReferenceStatus::Contacted);
 });
 
 test('a submitted reference stores all of the answers and the submitted_at timestamp', function () {
