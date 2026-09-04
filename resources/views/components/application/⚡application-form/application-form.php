@@ -16,13 +16,13 @@ use App\Models\User;
 use App\Services\Ai\CvParserService;
 use App\Services\ApplicationAccessSession;
 use App\Services\Candidates\Document;
+use App\Services\GooglePlacesService;
 use Filament\Notifications\Notification;
 use Illuminate\Contracts\Validation\ImplicitRule;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -112,6 +112,8 @@ new #[Layout('layouts.application')] class extends Component
 
     /** @var array<string, string> */
     public array $address_suggestions = [];
+
+    public ?string $address_session_token = null;
 
     // Contact
     public string $phone = '';
@@ -379,39 +381,28 @@ new #[Layout('layouts.application')] class extends Component
             return;
         }
 
-        $response = Http::withHeaders([
-            'X-Goog-Api-Key' => config('services.google.places_key'),
-            'X-Goog-FieldMask' => 'suggestions.placePrediction.placeId,suggestions.placePrediction.text',
-        ])->post('https://places.googleapis.com/v1/places:autocomplete', [
-            'input' => $value,
-            'includedRegionCodes' => ['gb'],
-        ]);
-
-        if ($response->failed()) {
-            $this->address_suggestions = [];
-
-            return;
+        if (blank($this->address_session_token)) {
+            $this->address_session_token = app(GooglePlacesService::class)->newSessionToken();
         }
 
-        $this->address_suggestions = collect($response->json('suggestions') ?? [])
-            ->mapWithKeys(fn (array $s): array => [
-                $s['placePrediction']['placeId'] => $s['placePrediction']['text']['text'],
-            ])
-            ->toArray();
+        $this->address_suggestions = app(GooglePlacesService::class)->autocomplete($value, $this->address_session_token);
     }
 
     public function selectAddress(string $placeId): void
     {
-        $response = Http::withHeaders([
-            'X-Goog-Api-Key' => config('services.google.places_key'),
-            'X-Goog-FieldMask' => 'addressComponents,formattedAddress',
-        ])->get("https://places.googleapis.com/v1/places/{$placeId}");
+        $details = app(GooglePlacesService::class)->placeDetails($placeId, (string) $this->address_session_token);
 
-        if ($response->failed()) {
+        // The session ends here regardless of outcome — the next search
+        // (even one retrying after a failed lookup) should start a fresh,
+        // correctly-billed session rather than reusing one Google may have
+        // already settled.
+        $this->address_session_token = null;
+
+        if (! $details) {
             return;
         }
 
-        $components = collect($response->json('addressComponents') ?? []);
+        $components = collect($details['addressComponents'] ?? []);
 
         $getComponent = fn (string $type): string => $components
             ->first(fn (array $c): bool => in_array($type, $c['types'] ?? []))['longText'] ?? '';
@@ -424,7 +415,7 @@ new #[Layout('layouts.application')] class extends Component
         $this->county = $getComponent('administrative_area_level_2');
         $this->country = $getComponent('country');
         $this->postcode = $getComponent('postal_code');
-        $this->address_search = (string) $response->json('formattedAddress');
+        $this->address_search = (string) ($details['formattedAddress'] ?? '');
         $this->address_suggestions = [];
     }
 

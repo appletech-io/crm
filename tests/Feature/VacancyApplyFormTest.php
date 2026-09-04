@@ -17,6 +17,7 @@ use App\Models\Vacancy;
 use App\Services\Ai\CvParserService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Features\SupportFileUploads\FileUploadConfiguration;
@@ -24,6 +25,11 @@ use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\Livewire;
 
 beforeEach(function () {
+    // GooglePlacesService caches autocomplete/place-details responses by
+    // query/place ID — without this, a cached response from an earlier
+    // test using the same fixture place ID (e.g. "place-1") would mask
+    // this test's own Http::fake() response.
+    Cache::flush();
     Storage::fake('local');
 });
 
@@ -175,7 +181,7 @@ test('address search does not call the api for very short input', function () {
 
 test('selecting an address suggestion populates the address fields from the google places details api', function () {
     Http::fake([
-        'places.googleapis.com/v1/places/place-1' => Http::response([
+        'places.googleapis.com/v1/places/place-1*' => Http::response([
             'formattedAddress' => '10 Downing St, London SW1A 2AA, UK',
             'addressComponents' => [
                 ['types' => ['street_number'], 'longText' => '10'],
