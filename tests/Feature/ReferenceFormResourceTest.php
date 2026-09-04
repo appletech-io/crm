@@ -44,6 +44,16 @@ test('non-admin cannot access the reference forms resource', function () {
     $this->get('/crm/reference-forms')->assertRedirect('/crm');
 });
 
+test('compliance can access the reference forms resource', function () {
+    $compliance = User::factory()->create(['company_id' => $this->company->id]);
+    $compliance->industries()->attach($this->industry);
+    $compliance->assignRole('compliance');
+    $this->actingAs($compliance);
+
+    expect(ReferenceFormResource::canViewAny())->toBeTrue();
+    Livewire::test(ListReferenceForms::class)->assertSuccessful();
+});
+
 test('list only shows reference forms for the active company and industry', function () {
     $ownForm = ReferenceForm::factory()->create([
         'company_id' => $this->company->id,

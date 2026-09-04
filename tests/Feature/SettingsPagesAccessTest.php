@@ -64,3 +64,15 @@ test('an admin with no active industry cannot access any settings page', functio
         expect($page::canAccess())->toBeFalse();
     }
 });
+
+test('compliance can access candidate settings (for reference forms), but not client or job settings', function () {
+    $compliance = User::factory()->create();
+    $compliance->assignRole('compliance');
+    $this->actingAs($compliance);
+    Cache::put("user.{$compliance->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$compliance->id}.active_industry_id", $this->industry->id);
+
+    expect(CandidateSettings::canAccess())->toBeTrue();
+    expect(ClientSettings::canAccess())->toBeFalse();
+    expect(JobSettings::canAccess())->toBeFalse();
+});

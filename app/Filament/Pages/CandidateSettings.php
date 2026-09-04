@@ -20,7 +20,7 @@ class CandidateSettings extends Page
 
     public static function canAccess(): bool
     {
-        return active_industry() !== null && (auth()->user()?->hasRole('admin') ?? false);
+        return active_industry() !== null && (auth()->user()?->hasAnyRole(['admin', 'compliance']) ?? false);
     }
 
     public function getWidgets(): array
