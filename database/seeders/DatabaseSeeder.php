@@ -27,6 +27,7 @@ class DatabaseSeeder extends Seeder
             EducationQualificationsSeeder::class,
             EducationSkillSeeder::class,
             EmailTemplateSeeder::class,
+            ReferenceFormSeeder::class,
             ClientSeeder::class,
             EducationCandidateSeeder::class,
             BookingSeeder::class,

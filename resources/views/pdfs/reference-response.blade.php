@@ -68,7 +68,7 @@
 <body>
     <img src="{{ $logoDataUri }}" class="logo" alt="Logo">
 
-    <h1>{{ $reference->type->label() }} Reference</h1>
+    <h1>{{ $reference->displayLabel() }} Reference</h1>
     <div class="subtitle">For {{ $candidateName }}</div>
 
     <h2>Referee Details</h2>

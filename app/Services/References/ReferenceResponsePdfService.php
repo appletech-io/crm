@@ -15,8 +15,8 @@ class ReferenceResponsePdfService
 
         $html = view('pdfs.reference-response', [
             'reference' => $reference,
-            'sections' => ReferenceFormSchema::sectionsFor($reference->type, $companyName),
-            'needsPositionAndOrganisation' => ReferenceFormSchema::needsPositionAndOrganisation($reference->type),
+            'sections' => ReferenceFormRenderer::sectionsFor($reference, $companyName),
+            'needsPositionAndOrganisation' => $reference->needsPositionAndOrganisation(),
             'candidateName' => trim("{$reference->candidate?->first_name} {$reference->candidate?->last_name}"),
             'refereeName' => trim("{$reference->first_name} {$reference->last_name}"),
             'logoDataUri' => $this->logoDataUri($reference),

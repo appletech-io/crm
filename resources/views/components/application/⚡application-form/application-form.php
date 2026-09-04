@@ -5,13 +5,13 @@ use App\Enums\DocumentType;
 use App\Enums\Education\Availability;
 use App\Enums\Education\KeyStage;
 use App\Enums\ReferenceStatus;
-use App\Enums\ReferenceType;
 use App\Jobs\GenerateFormattedCv;
 use App\Models\CandidateSkill;
 use App\Models\EducationApplication;
 use App\Models\EducationCandidate;
 use App\Models\Industry;
 use App\Models\Qualification;
+use App\Models\ReferenceForm;
 use App\Models\User;
 use App\Services\Ai\CvParserService;
 use App\Services\ApplicationAccessSession;
@@ -1029,7 +1029,12 @@ new #[Layout('layouts.application')] class extends Component
     private function referenceValidationRules(string $index): array
     {
         return [
-            "references.{$index}.type" => ['required', 'string', Rule::enum(ReferenceType::class)],
+            "references.{$index}.reference_form_id" => [
+                'required',
+                Rule::exists('reference_forms', 'id')
+                    ->where('company_id', $this->application->educationCandidate->company_id)
+                    ->where('industry_id', $this->educationIndustryId()),
+            ],
             "references.{$index}.title" => ['nullable', 'string', 'in:Mr,Mrs,Miss,Ms,Dr,Prof'],
             "references.{$index}.first_name" => ['nullable', 'string', 'max:255', $this->requiredUnlessGapStatement('first name')],
             "references.{$index}.last_name" => ['nullable', 'string', 'max:255', $this->requiredUnlessGapStatement('last name')],
@@ -1062,19 +1067,20 @@ new #[Layout('layouts.application')] class extends Component
     private function requiredUnlessGapStatement(string $label): ImplicitRule
     {
         $references = $this->references;
+        $statementOnlyIds = $this->statementOnlyReferenceFormIds;
 
-        return new class($label, $references) implements ImplicitRule
+        return new class($label, $references, $statementOnlyIds) implements ImplicitRule
         {
             private string $failMessage = '';
 
-            public function __construct(private string $label, private array $references) {}
+            public function __construct(private string $label, private array $references, private array $statementOnlyIds) {}
 
             public function passes($attribute, $value)
             {
                 $itemIndex = explode('.', $attribute)[1] ?? null;
-                $type = $itemIndex === null ? null : data_get($this->references, "{$itemIndex}.type");
+                $formId = $itemIndex === null ? null : data_get($this->references, "{$itemIndex}.reference_form_id");
 
-                if ($type !== ReferenceType::GapStatement->value && blank($value)) {
+                if (! in_array((int) $formId, $this->statementOnlyIds, true) && blank($value)) {
                     $this->failMessage = "The {$this->label} field is required.";
 
                     return false;
@@ -1093,19 +1099,20 @@ new #[Layout('layouts.application')] class extends Component
     private function requiredIfGapStatement(string $label): ImplicitRule
     {
         $references = $this->references;
+        $statementOnlyIds = $this->statementOnlyReferenceFormIds;
 
-        return new class($label, $references) implements ImplicitRule
+        return new class($label, $references, $statementOnlyIds) implements ImplicitRule
         {
             private string $failMessage = '';
 
-            public function __construct(private string $label, private array $references) {}
+            public function __construct(private string $label, private array $references, private array $statementOnlyIds) {}
 
             public function passes($attribute, $value)
             {
                 $itemIndex = explode('.', $attribute)[1] ?? null;
-                $type = $itemIndex === null ? null : data_get($this->references, "{$itemIndex}.type");
+                $formId = $itemIndex === null ? null : data_get($this->references, "{$itemIndex}.reference_form_id");
 
-                if ($type === ReferenceType::GapStatement->value && blank($value)) {
+                if (in_array((int) $formId, $this->statementOnlyIds, true) && blank($value)) {
                     $this->failMessage = "The {$this->label} field is required.";
 
                     return false;
@@ -1124,17 +1131,18 @@ new #[Layout('layouts.application')] class extends Component
     private function acceptedUnlessGapStatement(): ImplicitRule
     {
         $references = $this->references;
+        $statementOnlyIds = $this->statementOnlyReferenceFormIds;
 
-        return new class($references) implements ImplicitRule
+        return new class($references, $statementOnlyIds) implements ImplicitRule
         {
-            public function __construct(private array $references) {}
+            public function __construct(private array $references, private array $statementOnlyIds) {}
 
             public function passes($attribute, $value)
             {
                 $itemIndex = explode('.', $attribute)[1] ?? null;
-                $type = $itemIndex === null ? null : data_get($this->references, "{$itemIndex}.type");
+                $formId = $itemIndex === null ? null : data_get($this->references, "{$itemIndex}.reference_form_id");
 
-                return $type === ReferenceType::GapStatement->value || (bool) $value;
+                return in_array((int) $formId, $this->statementOnlyIds, true) || (bool) $value;
             }
 
             public function message()
@@ -1148,7 +1156,7 @@ new #[Layout('layouts.application')] class extends Component
     private function referenceFieldLabels(): array
     {
         return [
-            'type' => 'reference type',
+            'reference_form_id' => 'reference type',
             'title' => 'title',
             'first_name' => 'first name',
             'last_name' => 'last name',
@@ -1227,10 +1235,10 @@ new #[Layout('layouts.application')] class extends Component
     private function persistReference(int $index): void
     {
         $reference = $this->references[$index];
-        $isGapStatement = ($reference['type'] ?? null) === ReferenceType::GapStatement->value;
+        $isGapStatement = in_array((int) ($reference['reference_form_id'] ?? null), $this->statementOnlyReferenceFormIds, true);
 
         $data = [
-            'type' => $reference['type'],
+            'reference_form_id' => $reference['reference_form_id'],
             'title' => $reference['title'] ?: null,
             'first_name' => $reference['first_name'] ?: null,
             'last_name' => $reference['last_name'] ?: null,
@@ -1404,7 +1412,7 @@ new #[Layout('layouts.application')] class extends Component
     {
         return [
             'id' => null,
-            'type' => null,
+            'reference_form_id' => null,
             'title' => null,
             'first_name' => '',
             'last_name' => '',
@@ -1488,6 +1496,28 @@ new #[Layout('layouts.application')] class extends Component
     private function educationIndustryId(): ?int
     {
         return Industry::where('slug', 'education')->value('id');
+    }
+
+    /** @return array<int, string> */
+    #[Computed]
+    public function referenceFormOptions(): array
+    {
+        return ReferenceForm::where('company_id', $this->application->educationCandidate->company_id)
+            ->where('industry_id', $this->educationIndustryId())
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->toArray();
+    }
+
+    /** @return array<int, int> */
+    #[Computed]
+    public function statementOnlyReferenceFormIds(): array
+    {
+        return ReferenceForm::where('company_id', $this->application->educationCandidate->company_id)
+            ->where('industry_id', $this->educationIndustryId())
+            ->where('is_statement_only', true)
+            ->pluck('id')
+            ->all();
     }
 
     /** @return array<int, string> */
@@ -1642,7 +1672,7 @@ new #[Layout('layouts.application')] class extends Component
 
         $this->references = $candidate->references->map(fn ($reference) => [
             'id' => $reference->id,
-            'type' => $reference->type?->value,
+            'reference_form_id' => $reference->reference_form_id,
             'title' => $reference->title,
             'first_name' => $reference->first_name,
             'last_name' => $reference->last_name,

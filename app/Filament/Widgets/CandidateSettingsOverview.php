@@ -8,12 +8,14 @@ use App\Filament\Resources\CandidateStatuses\CandidateStatusResource;
 use App\Filament\Resources\JobTitles\JobTitleResource;
 use App\Filament\Resources\QualificationJobTitles\QualificationJobTitleResource;
 use App\Filament\Resources\Qualifications\QualificationResource;
+use App\Filament\Resources\ReferenceForms\ReferenceFormResource;
 use App\Models\CandidatePool;
 use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
 use App\Models\JobTitle;
 use App\Models\Qualification;
 use App\Models\QualificationJobTitle;
+use App\Models\ReferenceForm;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Facades\Auth;
@@ -60,6 +62,11 @@ class CandidateSettingsOverview extends StatsOverviewWidget
             ->where('industry_id', active_industry_id())
             ->count();
 
+        $referenceFormsCount = ReferenceForm::query()
+            ->where('company_id', Auth::user()->company_id)
+            ->where('industry_id', active_industry_id())
+            ->count();
+
         return [
             Stat::make('Skills', $skillsCount)
                 ->description('Candidate skills configured')
@@ -96,6 +103,12 @@ class CandidateSettingsOverview extends StatsOverviewWidget
                 ->descriptionIcon('heroicon-m-academic-cap')
                 ->color('primary')
                 ->url(QualificationJobTitleResource::getUrl('index')),
+
+            Stat::make('Reference Forms', $referenceFormsCount)
+                ->description('Reference form builders configured')
+                ->descriptionIcon('heroicon-m-document-text')
+                ->color('primary')
+                ->url(ReferenceFormResource::getUrl('index')),
         ];
     }
 }

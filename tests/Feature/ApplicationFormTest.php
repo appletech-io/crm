@@ -4,7 +4,6 @@ use App\Actions\Applications\ApplicationCompleted;
 use App\Ai\Agents\CvParser;
 use App\Enums\DocumentType;
 use App\Enums\ReferenceStatus;
-use App\Enums\ReferenceType;
 use App\Jobs\GenerateFormattedCv;
 use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
@@ -14,6 +13,7 @@ use App\Models\EducationApplication;
 use App\Models\EducationCandidate;
 use App\Models\Industry;
 use App\Models\Qualification;
+use App\Models\ReferenceForm;
 use App\Models\User;
 use App\Services\ApplicationAccessSession;
 use Carbon\CarbonInterface;
@@ -49,6 +49,21 @@ function makePendingApplication(): EducationApplication
     ApplicationAccessSession::markVerified($application->token);
 
     return $application;
+}
+
+function referenceFormFor(EducationApplication $application, string $name = 'Professional', bool $statementOnly = false): ReferenceForm
+{
+    $factory = ReferenceForm::factory();
+
+    if ($statementOnly) {
+        $factory = $factory->statementOnly();
+    }
+
+    return $factory->create([
+        'company_id' => $application->educationCandidate->company_id,
+        'industry_id' => Industry::where('slug', 'education')->value('id'),
+        'name' => $name,
+    ]);
 }
 
 function fakeDocxUpload(string $filename, string $bodyText): UploadedFile
@@ -1533,11 +1548,12 @@ test('removeReference removes the reference at the given index', function () {
 test('saveReference validates and persists a single reference, then collapses it', function () {
     $application = makePendingApplication();
     $candidate = $application->educationCandidate;
+    $professionalForm = referenceFormFor($application);
 
     $component = Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 9)
         ->set('references.0', [
-            'type' => 'professional',
+            'reference_form_id' => $professionalForm->id,
             'title' => 'Mr',
             'first_name' => 'Jane',
             'last_name' => 'Smith',
@@ -1567,11 +1583,12 @@ test('saveReference validates and persists a single reference, then collapses it
 
 test('saveReference rejects a title that is not one of the dropdown options', function () {
     $application = makePendingApplication();
+    $professionalForm = referenceFormFor($application);
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 9)
         ->set('references.0', [
-            'type' => 'professional',
+            'reference_form_id' => $professionalForm->id,
             'title' => 'Sir',
             'first_name' => 'Jane',
             'last_name' => 'Smith',
@@ -1593,11 +1610,12 @@ test('saveReference rejects a title that is not one of the dropdown options', fu
 
 test('saveReference allows a reference title to be left blank', function () {
     $application = makePendingApplication();
+    $professionalForm = referenceFormFor($application);
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 9)
         ->set('references.0', [
-            'type' => 'professional',
+            'reference_form_id' => $professionalForm->id,
             'title' => '',
             'first_name' => 'Jane',
             'last_name' => 'Smith',
@@ -1630,11 +1648,12 @@ test('a new reference defaults to contact_now being off, requiring the candidate
 test('saveReference persists contact_now as true when the candidate explicitly opts in to contact', function () {
     $application = makePendingApplication();
     $candidate = $application->educationCandidate;
+    $professionalForm = referenceFormFor($application);
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 9)
         ->set('references.0', [
-            'type' => 'professional',
+            'reference_form_id' => $professionalForm->id,
             'title' => 'Mr',
             'first_name' => 'Jane',
             'last_name' => 'Smith',
@@ -1660,11 +1679,12 @@ test('saveReference persists contact_now as true when the candidate explicitly o
 test('saveReference updates an already-saved reference on a second save without a database error', function () {
     $application = makePendingApplication();
     $candidate = $application->educationCandidate;
+    $professionalForm = referenceFormFor($application);
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 9)
         ->set('references.0', [
-            'type' => 'professional',
+            'reference_form_id' => $professionalForm->id,
             'title' => 'Mr',
             'first_name' => 'Jane',
             'last_name' => 'Smith',
@@ -1706,12 +1726,13 @@ test('saveReference does not persist or collapse when validation fails', functio
 test('saveReference persists a gap/statement entry with just dates and a statement, requiring no name or consent', function () {
     $application = makePendingApplication();
     $candidate = $application->educationCandidate;
+    $gapStatementForm = referenceFormFor($application, 'Gap / Statement', statementOnly: true);
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 9)
         ->set('references.0', [
             'id' => null,
-            'type' => 'gap_statement',
+            'reference_form_id' => $gapStatementForm->id,
             'title' => null,
             'first_name' => '',
             'last_name' => '',
@@ -1736,7 +1757,7 @@ test('saveReference persists a gap/statement entry with just dates and a stateme
     expect($candidate->references()->count())->toBe(1);
 
     $reference = $candidate->references()->first();
-    expect($reference->type)->toBe(ReferenceType::GapStatement);
+    expect($reference->isStatementOnly())->toBeTrue();
     expect($reference->statement)->toBe('Travelling in the USA');
     expect($reference->first_name)->toBeNull();
     expect($reference->last_name)->toBeNull();
@@ -1747,12 +1768,13 @@ test('saveReference persists a gap/statement entry with just dates and a stateme
 
 test('saveReference requires a statement when the reference type is gap/statement', function () {
     $application = makePendingApplication();
+    $gapStatementForm = referenceFormFor($application, 'Gap / Statement', statementOnly: true);
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 9)
         ->set('references.0', [
             'id' => null,
-            'type' => 'gap_statement',
+            'reference_form_id' => $gapStatementForm->id,
             'title' => null,
             'first_name' => '',
             'last_name' => '',
@@ -1837,11 +1859,12 @@ test('the reference consent checkbox names the candidates own company, not a har
 test('removeReference deletes an already-saved reference from the database', function () {
     $application = makePendingApplication();
     $candidate = $application->educationCandidate;
+    $professionalForm = referenceFormFor($application);
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 9)
         ->set('references.0', [
-            'type' => 'professional',
+            'reference_form_id' => $professionalForm->id,
             'title' => 'Mr',
             'first_name' => 'Jane',
             'last_name' => 'Smith',
@@ -1871,7 +1894,7 @@ test('submitApplication validates required reference fields', function () {
         ->set('currentStep', 9)
         ->call('submitApplication')
         ->assertHasErrors([
-            'references.0.type',
+            'references.0.reference_form_id',
             'references.0.first_name',
             'references.0.last_name',
             'references.0.worked_from',
@@ -1895,11 +1918,12 @@ test('reference validation error messages use friendly field names, not raw arra
 
 test('submitApplication rejects references that leave a gap in the last 3 years', function () {
     $application = makePendingApplication();
+    $professionalForm = referenceFormFor($application);
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 9)
         ->set('references.0', [
-            'type' => 'professional',
+            'reference_form_id' => $professionalForm->id,
             'title' => 'Mr',
             'first_name' => 'Jane',
             'last_name' => 'Smith',
@@ -1924,11 +1948,13 @@ test('submitApplication rejects references that leave a gap in the last 3 years'
 test('submitApplication persists references and advances to the document requirements step when history is fully covered', function () {
     $application = makePendingApplication();
     $candidate = $application->educationCandidate;
+    $professionalForm = referenceFormFor($application, 'Professional');
+    $characterForm = referenceFormFor($application, 'Character');
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 9)
         ->set('references.0', [
-            'type' => 'professional',
+            'reference_form_id' => $professionalForm->id,
             'title' => 'Mr',
             'first_name' => 'Jane',
             'last_name' => 'Smith',
@@ -1946,7 +1972,7 @@ test('submitApplication persists references and advances to the document require
         ])
         ->call('addReference')
         ->set('references.1', [
-            'type' => 'character',
+            'reference_form_id' => $characterForm->id,
             'title' => 'Mrs',
             'first_name' => 'Alex',
             'last_name' => 'Jones',
@@ -1969,7 +1995,7 @@ test('submitApplication persists references and advances to the document require
     expect($candidate->references()->count())->toBe(2);
 
     $first = $candidate->references()->where('first_name', 'Jane')->first();
-    expect($first->type)->toBe(ReferenceType::Professional);
+    expect($first->reference_form_id)->toBe($professionalForm->id);
     expect($first->consent_to_contact)->toBeTrue();
     expect($first->status)->toBe(ReferenceStatus::Pending);
     expect($first->last_contacted)->toBeNull();
@@ -1988,9 +2014,11 @@ test('submitApplication does not fail validation when a previously-saved referen
     // step for anyone who had ever saved a reference and come back.
     $application = makePendingApplication();
     $candidate = $application->educationCandidate;
+    $professionalForm = referenceFormFor($application, 'Professional');
+    $gapStatementForm = referenceFormFor($application, 'Gap / Statement', statementOnly: true);
 
     $candidate->references()->create([
-        'type' => 'professional',
+        'reference_form_id' => $professionalForm->id,
         'first_name' => 'Jane',
         'last_name' => 'Smith',
         'worked_from' => now()->subYears(3),
@@ -2000,7 +2028,7 @@ test('submitApplication does not fail validation when a previously-saved referen
     ]);
 
     $candidate->references()->create([
-        'type' => 'gap_statement',
+        'reference_form_id' => $gapStatementForm->id,
         'statement' => 'Travelling',
         'worked_from' => now()->subYear()->addDay(),
         'worked_to' => now(),
@@ -2020,11 +2048,12 @@ test('submitApplication does not fail validation when a previously-saved referen
 
 test('submitApplication accepts references covering at least 80% of the last 3 years even with a gap', function () {
     $application = makePendingApplication();
+    $professionalForm = referenceFormFor($application);
 
     Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 9)
         ->set('references.0', [
-            'type' => 'professional',
+            'reference_form_id' => $professionalForm->id,
             'title' => 'Mr',
             'first_name' => 'Jane',
             'last_name' => 'Smith',
@@ -2050,6 +2079,8 @@ test('submitApplication accepts references covering at least 80% of the last 3 y
 
 test('submitApplication reports the largest gap, not just any gap, when coverage falls below 80%', function () {
     $application = makePendingApplication();
+    $professionalForm = referenceFormFor($application, 'Professional');
+    $characterForm = referenceFormFor($application, 'Character');
 
     $smallGapFrom = now()->subYears(3)->addMonths(3)->addDay();
     $smallGapTo = now()->subYears(3)->addMonths(4)->subDay();
@@ -2059,7 +2090,7 @@ test('submitApplication reports the largest gap, not just any gap, when coverage
     $component = Livewire::test('application.application-form', ['token' => $application->token])
         ->set('currentStep', 9)
         ->set('references.0', [
-            'type' => 'professional',
+            'reference_form_id' => $professionalForm->id,
             'title' => 'Mr',
             'first_name' => 'Jane',
             'last_name' => 'Smith',
@@ -2080,7 +2111,7 @@ test('submitApplication reports the largest gap, not just any gap, when coverage
         ])
         ->call('addReference')
         ->set('references.1', [
-            'type' => 'character',
+            'reference_form_id' => $characterForm->id,
             'title' => 'Mrs',
             'first_name' => 'Alex',
             'last_name' => 'Jones',

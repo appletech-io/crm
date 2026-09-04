@@ -3,7 +3,7 @@
 use App\Enums\ReferenceStatus;
 use App\Models\CandidateReference;
 use App\Services\ReferenceAccessSession;
-use App\Services\References\ReferenceFormSchema;
+use App\Services\References\ReferenceFormRenderer;
 use App\Services\References\ReferenceResponsePdfService;
 use Filament\Notifications\Notification;
 use Livewire\Attributes\Computed;
@@ -50,7 +50,7 @@ new #[Layout('layouts.application')] class extends Component
     #[Computed]
     public function sections(): array
     {
-        return ReferenceFormSchema::sectionsFor($this->reference->type, $this->companyName);
+        return ReferenceFormRenderer::sectionsFor($this->reference, $this->companyName);
     }
 
     #[Computed]
@@ -64,7 +64,7 @@ new #[Layout('layouts.application')] class extends Component
     #[Computed]
     public function needsPositionAndOrganisation(): bool
     {
-        return ReferenceFormSchema::needsPositionAndOrganisation($this->reference->type);
+        return $this->reference->needsPositionAndOrganisation();
     }
 
     #[Computed]
@@ -101,8 +101,8 @@ new #[Layout('layouts.application')] class extends Component
             return;
         }
 
-        $rules = ReferenceFormSchema::rulesFor($this->reference->type);
-        $attributes = ReferenceFormSchema::attributeNamesFor($this->reference->type, $this->companyName);
+        $rules = ReferenceFormRenderer::rulesFor($this->reference);
+        $attributes = ReferenceFormRenderer::attributeNamesFor($this->reference, $this->companyName);
 
         $rules['answers.confirm_name'] = ['required', 'string', 'max:255'];
         $attributes['answers.confirm_name'] = 'name';
@@ -148,7 +148,7 @@ new #[Layout('layouts.application')] class extends Component
 
 <div class="mx-auto flex w-full max-w-lg flex-col gap-6">
     <x-auth-header
-        :title="__(':type Reference', ['type' => $reference->type->label()])"
+        :title="__(':type Reference', ['type' => $reference->displayLabel()])"
         :description="__('For :candidate', ['candidate' => $this->candidateName])"
     />
 

@@ -6,7 +6,6 @@ use App\Actions\References\ResendReferenceRequestEmail;
 use App\Enums\DocumentType;
 use App\Enums\Integration;
 use App\Enums\ReferenceStatus;
-use App\Enums\ReferenceType;
 use App\Filament\Concerns\HasPayrollProviderErrorAlert;
 use App\Filament\Widgets\CandidateActivityTimeline;
 use App\Filament\Widgets\CandidateAvailabilityCalendar;
@@ -17,6 +16,7 @@ use App\Models\CandidateDocument;
 use App\Models\CandidateReference;
 use App\Models\CandidateSkill;
 use App\Models\JobTitle;
+use App\Models\ReferenceForm;
 use App\Models\User;
 use App\Services\Candidates\Document;
 use Filament\Actions\Action;
@@ -56,6 +56,14 @@ class CandidateForm
 
     public static function configure(Schema $schema): Schema
     {
+        $referenceForms = ReferenceForm::query()
+            ->where('company_id', Auth::user()->company_id)
+            ->where('industry_id', active_industry_id())
+            ->orderBy('name')
+            ->get();
+
+        $statementOnlyReferenceFormIds = $referenceForms->where('is_statement_only', true)->pluck('id')->all();
+
         return $schema
             ->columns(1)
             ->components([
@@ -479,19 +487,25 @@ class CandidateForm
                                     ->relationship()
                                     ->hiddenLabel()
                                     ->schema([
-                                        Select::make('type')
+                                        Select::make('reference_form_id')
                                             ->label('Reference Type')
-                                            ->options(
-                                                collect(ReferenceType::cases())
-                                                    ->mapWithKeys(fn (ReferenceType $case) => [
-                                                        $case->value => $case->label(),
-                                                    ])
-                                                    ->toArray()
-                                            )
-                                            ->required()
+                                            ->options($referenceForms->pluck('name', 'id'))
+                                            ->helperText(function (Get $get): ?string {
+                                                if (ReferenceStatus::tryFrom($get('status') ?? 'pending') !== ReferenceStatus::Pending) {
+                                                    return 'This reference has already been sent, so its type can no longer be changed.';
+                                                }
+
+                                                if (filled($get('id')) && blank($get('reference_form_id'))) {
+                                                    return 'This reference was created before dynamic forms — it keeps working without one selected here.';
+                                                }
+
+                                                return null;
+                                            })
+                                            ->disabled(fn (Get $get): bool => ReferenceStatus::tryFrom($get('status') ?? 'pending') !== ReferenceStatus::Pending)
+                                            ->required(fn (Get $get): bool => blank($get('id')))
                                             ->live()
-                                            ->afterStateUpdated(function (Get $get, Set $set): void {
-                                                if ($get('type') === ReferenceType::GapStatement->value) {
+                                            ->afterStateUpdated(function (Get $get, Set $set) use ($statementOnlyReferenceFormIds): void {
+                                                if (in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true)) {
                                                     $set('consent_to_contact', false);
                                                     $set('contact_now', false);
                                                 }
@@ -499,23 +513,23 @@ class CandidateForm
                                         Textarea::make('statement')
                                             ->label('Statement')
                                             ->helperText('Briefly explain this period, e.g. "Travelling in the USA" or "Between roles, actively job seeking".')
-                                            ->visible(fn (Get $get): bool => $get('type') === ReferenceType::GapStatement->value)
-                                            ->required(fn (Get $get): bool => $get('type') === ReferenceType::GapStatement->value)
+                                            ->visible(fn (Get $get): bool => in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true))
+                                            ->required(fn (Get $get): bool => in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true))
                                             ->columnSpanFull(),
                                         TextInput::make('title')
                                             ->maxLength(10)
-                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
+                                            ->visible(fn (Get $get): bool => ! in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true)),
                                         TextInput::make('first_name')
-                                            ->required(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value)
-                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value)
+                                            ->required(fn (Get $get): bool => ! in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true))
+                                            ->visible(fn (Get $get): bool => ! in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true))
                                             ->maxLength(255),
                                         TextInput::make('last_name')
-                                            ->required(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value)
-                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value)
+                                            ->required(fn (Get $get): bool => ! in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true))
+                                            ->visible(fn (Get $get): bool => ! in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true))
                                             ->maxLength(255),
                                         TextInput::make('job_title')
                                             ->maxLength(255)
-                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
+                                            ->visible(fn (Get $get): bool => ! in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true)),
                                         DatePicker::make('worked_from')
                                             ->label('From')
                                             ->native(false),
@@ -525,38 +539,38 @@ class CandidateForm
                                         TextInput::make('email')
                                             ->email()
                                             ->maxLength(255)
-                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
+                                            ->visible(fn (Get $get): bool => ! in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true)),
                                         TextInput::make('mobile')
                                             ->tel()
                                             ->maxLength(255)
-                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
+                                            ->visible(fn (Get $get): bool => ! in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true)),
                                         TextInput::make('address')
                                             ->maxLength(500)
                                             ->columnSpanFull()
-                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
+                                            ->visible(fn (Get $get): bool => ! in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true)),
                                         TextInput::make('city')
                                             ->label('City / Town')
                                             ->maxLength(255)
-                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
+                                            ->visible(fn (Get $get): bool => ! in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true)),
                                         TextInput::make('postcode')
                                             ->maxLength(10)
-                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
+                                            ->visible(fn (Get $get): bool => ! in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true)),
                                         TextInput::make('county')
                                             ->maxLength(255)
-                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
+                                            ->visible(fn (Get $get): bool => ! in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true)),
                                         TextInput::make('country')
                                             ->maxLength(255)
-                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
+                                            ->visible(fn (Get $get): bool => ! in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true)),
                                         Checkbox::make('consent_to_contact')
                                             ->label('Candidate consents to us contacting this referee')
                                             ->columnSpanFull()
-                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
+                                            ->visible(fn (Get $get): bool => ! in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true)),
                                         Checkbox::make('contact_now')
                                             ->label('Contact this referee now')
                                             ->helperText('Switch off if the candidate isn\'t ready for this referee to be contacted yet.')
                                             ->default(true)
                                             ->columnSpanFull()
-                                            ->visible(fn (Get $get): bool => $get('type') !== ReferenceType::GapStatement->value),
+                                            ->visible(fn (Get $get): bool => ! in_array((int) $get('reference_form_id'), $statementOnlyReferenceFormIds, true)),
                                         Select::make('status')
                                             ->options(
                                                 collect(ReferenceStatus::cases())
