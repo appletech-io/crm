@@ -17,6 +17,7 @@ use App\Filament\Pages\Integrations\ListIntegrations;
 use App\Filament\Pages\JobSettings;
 use App\Filament\Pages\Reports;
 use App\Filament\Pages\RunPayroll;
+use App\Filament\Pages\ViewPayroll;
 use App\Filament\Resources\EducationCandidates\Pages\EditEducationCandidate;
 use App\Filament\Resources\HealthcareCandidates\Pages\EditHealthcareCandidate;
 use App\Http\Middleware\EnsureAccountSetupIsComplete;
@@ -122,6 +123,7 @@ class AdminPanelProvider extends PanelProvider
                 ListIntegrations::class,
                 EvertimeIntegration::class,
                 RunPayroll::class,
+                ViewPayroll::class,
                 Reports::class,
                 RevenueMarginReport::class,
                 VacanciesReport::class,
