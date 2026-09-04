@@ -6,6 +6,7 @@ use App\Enums\DocumentType;
 use App\Enums\Education\Availability;
 use App\Enums\Education\KeyStage;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
+use App\Models\CandidateReference;
 use App\Models\EducationCandidate;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -256,7 +257,10 @@ class ViewApplication extends ViewRecord
                             ->schema([
                                 TextEntry::make('first_name')->label('First Name'),
                                 TextEntry::make('last_name')->label('Last Name'),
-                                TextEntry::make('type')->badge(),
+                                TextEntry::make('type')
+                                    ->label('Type')
+                                    ->badge()
+                                    ->state(fn (CandidateReference $record): string => $record->displayLabel()),
                                 TextEntry::make('status')->badge(),
                             ])
                             ->columns(4),

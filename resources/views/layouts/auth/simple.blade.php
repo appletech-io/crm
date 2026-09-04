@@ -1,10 +1,18 @@
 <?php
+    use App\Models\User;
+
     // auth()->user() is only ever populated here once a user is fully
     // logged in (sector-selector, confirm-password, verify-email) — every
     // other page sharing this layout (login, forgot/reset-password, the 2FA
     // challenge) runs before that, so $logoUrl stays null and falls back to
-    // the platform default, same as AdminPanelProvider's ->brandLogo().
-    $logoUrl = auth()->user()?->company?->logoUrl();
+    // the platform default, same as AdminPanelProvider's ->brandLogo() —
+    // except the reset-password link itself always carries the user's email
+    // as a query param (see the form below), so we can still resolve their
+    // company's branding on that one page without requiring a session.
+    $logoUrl = auth()->user()?->company?->logoUrl()
+        ?? (filled(request()->query('email'))
+            ? User::where('email', request()->query('email'))->first()?->company?->logoUrl()
+            : null);
 ?>
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">

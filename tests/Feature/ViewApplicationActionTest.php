@@ -9,6 +9,7 @@ use App\Filament\Resources\HealthcareCandidates\Pages\ViewApplication as Healthc
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use App\Models\Industry;
+use App\Models\ReferenceForm;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
@@ -103,6 +104,41 @@ test('the education view application page shows the candidates submitted persona
         ->assertSee('Class Teacher')
         ->assertSee('Ref')
         ->assertSee('Eree');
+});
+
+test('the education view application page shows the reference type for both legacy and dynamic-form references', function () {
+    activateIndustryFor('education');
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $candidate->application()->create([
+        'email' => $candidate->email,
+        'status' => 'completed',
+        'token' => Str::uuid(),
+        'expires_on' => now()->addDays(7)->toDateString(),
+        'completed_at' => now(),
+    ]);
+
+    $candidate->references()->create([
+        'type' => 'professional',
+        'first_name' => 'Legacy',
+        'last_name' => 'Referee',
+        'consent_to_contact' => true,
+    ]);
+
+    $form = ReferenceForm::factory()->create([
+        'company_id' => $this->user->company_id,
+        'name' => 'Character Reference',
+    ]);
+    $candidate->references()->create([
+        'reference_form_id' => $form->id,
+        'first_name' => 'Dynamic',
+        'last_name' => 'Referee',
+        'consent_to_contact' => true,
+    ]);
+
+    Livewire::test(EducationViewApplication::class, ['record' => $candidate->getRouteKey()])
+        ->assertSuccessful()
+        ->assertSee('Professional')
+        ->assertSee('Character Reference');
 });
 
 test('the education view application page shows the terms of engagement, kcsie and declaration the candidate agreed to', function () {
