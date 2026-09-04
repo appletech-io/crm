@@ -35,7 +35,7 @@ class ClientPanelProvider extends PanelProvider
             ->brandLogoHeight('3rem')
             ->favicon(fn (): string => auth()->user()?->company?->faviconUrl() ?? asset('images/appletech-favicon.png'))
             ->renderHook(
-                PanelsRenderHook::TOPBAR_START,
+                PanelsRenderHook::TOPBAR_LOGO_AFTER,
                 fn () => view('filament.client-portal-header'),
             )
             ->discoverResources(in: app_path('Filament/Client/Resources'), for: 'App\Filament\Client\Resources')
