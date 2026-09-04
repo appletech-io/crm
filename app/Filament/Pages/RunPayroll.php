@@ -94,6 +94,29 @@ class RunPayroll extends Page implements HasTable
                         ->success()
                         ->send();
                 }),
+            Action::make('remind')
+                ->label('Send Reminders')
+                ->icon('heroicon-o-bell-alert')
+                ->color('warning')
+                ->requiresConfirmation()
+                ->modalDescription('This will email every client who has not yet approved or disputed their timesheet for this period, asking them to do so.')
+                ->disabled(fn (): bool => $this->unapprovedClientIds()->isEmpty())
+                ->tooltip(fn (): ?string => $this->unapprovedClientIds()->isEmpty()
+                    ? 'Every client has already approved or disputed their timesheets for this period.'
+                    : null)
+                ->action(function (): void {
+                    $period = $this->currentPeriod();
+                    $clientIds = $this->unapprovedClientIds();
+
+                    foreach ($clientIds as $clientId) {
+                        SendPayrollConfirmationEmail::dispatch(Client::findOrFail($clientId), $period['start']->toDateString());
+                    }
+
+                    Notification::make()
+                        ->title($clientIds->count().' reminder email(s) queued')
+                        ->success()
+                        ->send();
+                }),
         ]);
     }
 
@@ -113,6 +136,32 @@ class RunPayroll extends Page implements HasTable
             ->whereHas('dayPeriods', function ($query) use ($period): void {
                 $query->whereBetween('date', [$period['start']->toDateString(), $period['end']->toDateString()])
                     ->whereNull('cancelled_at');
+            })
+            ->pluck('client_id')
+            ->unique();
+    }
+
+    /**
+     * Clients with at least one already-sent, still-unresolved day this
+     * period — i.e. the client has neither approved nor disputed it. A day
+     * that was never sent in the first place belongs to the Confirm/Resend
+     * action instead, not a reminder.
+     *
+     * @return Collection<int, int>
+     */
+    private function unapprovedClientIds()
+    {
+        $period = $this->currentPeriod();
+
+        return Booking::query()
+            ->visibleToCurrentUser()
+            ->excludingRequests()
+            ->whereHas('dayPeriods', function ($query) use ($period): void {
+                $query->whereBetween('date', [$period['start']->toDateString(), $period['end']->toDateString()])
+                    ->whereNull('cancelled_at')
+                    ->whereNotNull('payroll_confirmation_sent_at')
+                    ->whereNull('approved_at')
+                    ->whereNull('disputed_at');
             })
             ->pluck('client_id')
             ->unique();
