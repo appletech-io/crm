@@ -11,7 +11,7 @@ beforeEach(function () {
     $this->company = Company::factory()->create();
 });
 
-test('the client portal header shows the school name in title case', function () {
+test('the client portal header shows the school name in title case, after the logo', function () {
     $client = Client::factory()->create(['company_id' => $this->company->id, 'name' => 'WELFORD SCHOOL']);
     $contact = ClientContact::factory()->create(['company_id' => $this->company->id, 'client_id' => $client->id]);
     $user = User::factory()->create(['company_id' => $this->company->id, 'client_contact_id' => $contact->id]);
@@ -21,7 +21,8 @@ test('the client portal header shows the school name in title case', function ()
         ->get('/client/my-bookings')
         ->assertOk()
         ->assertSee('Welford School')
-        ->assertDontSee('WELFORD SCHOOL');
+        ->assertDontSee('WELFORD SCHOOL')
+        ->assertSeeInOrder(['fi-logo', 'Welford School'], false);
 });
 
 test('the client portal header renders nothing for a user with no client', function () {
