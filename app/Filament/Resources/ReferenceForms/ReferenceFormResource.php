@@ -36,7 +36,7 @@ class ReferenceFormResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasAnyRole(['admin', 'site_admin']) ?? false;
+        return auth()->user()?->hasAnyRole(['admin', 'site_admin', 'compliance']) ?? false;
     }
 
     public static function form(Schema $schema): Schema
