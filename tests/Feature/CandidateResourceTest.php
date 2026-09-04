@@ -23,6 +23,12 @@ use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 beforeEach(function () {
+    // GooglePlacesService caches autocomplete/place-details responses by
+    // query/place ID — without this, a cached response from an earlier
+    // test using the same fixture place ID (e.g. "place-1") would mask
+    // this test's own Http::fake() response.
+    Cache::flush();
+
     $this->seed(RoleSeeder::class);
 
     $this->company = Company::factory()->create();
@@ -175,7 +181,7 @@ test('address search returns suggestions from the google places autocomplete api
 
 test('selecting an address suggestion populates the address fields from the google places details api', function () {
     Http::fake([
-        'places.googleapis.com/v1/places/place-1' => Http::response([
+        'places.googleapis.com/v1/places/place-1*' => Http::response([
             'formattedAddress' => '10 Downing St, London SW1A 2AA, UK',
             'addressComponents' => [
                 ['types' => ['street_number'], 'longText' => '10'],

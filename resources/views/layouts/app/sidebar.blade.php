@@ -6,12 +6,15 @@
     <body class="min-h-screen bg-white dark:bg-zinc-800">
         <flux:sidebar sticky collapsible="mobile" class="border-e border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
             <flux:sidebar.header class="py-3">
-                <a href="{{ route('dashboard') }}" wire:navigate>
+                <a href="{{ route('dashboard') }}" wire:navigate class="flex flex-col items-start gap-1">
                     <img
-                        src="{{ asset('images/appletech.png') }}"
+                        src="{{ auth()->user()?->company?->logoUrl() ?? asset('images/appletech.png') }}"
                         alt="{{ config('app.name') }}"
                         class="w-36 h-auto object-contain"
                     />
+                    @if ($schoolName = auth()->user()?->client()?->name)
+                        <span class="text-sm font-medium text-zinc-600 dark:text-zinc-300">{{ \Illuminate\Support\Str::title($schoolName) }}</span>
+                    @endif
                 </a>
                 <flux:sidebar.collapse class="lg:hidden" />
             </flux:sidebar.header>

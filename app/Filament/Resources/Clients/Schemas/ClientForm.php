@@ -15,6 +15,7 @@ use App\Models\ClientContactJobTitle;
 use App\Models\ClientType;
 use App\Models\JobTitle;
 use App\Models\User;
+use App\Services\GooglePlacesService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Hidden;
@@ -36,7 +37,6 @@ use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Http;
 
 class ClientForm
 {
@@ -132,6 +132,9 @@ class ClientForm
                                         Hidden::make('address_suggestions')
                                             ->dehydrated(false),
 
+                                        Hidden::make('address_session_token')
+                                            ->dehydrated(false),
+
                                         Actions::make([
                                             Action::make('toggle_manual')
                                                 ->label(fn (Get $get) => $get('address_manual')
@@ -161,25 +164,14 @@ class ClientForm
                                                     return;
                                                 }
 
-                                                $response = Http::withHeaders([
-                                                    'X-Goog-Api-Key' => config('services.google.places_key'),
-                                                    'X-Goog-FieldMask' => 'suggestions.placePrediction.placeId,suggestions.placePrediction.text',
-                                                ])->post('https://places.googleapis.com/v1/places:autocomplete', [
-                                                    'input' => $state,
-                                                    'includedRegionCodes' => ['gb'],
-                                                ]);
+                                                $sessionToken = $get('address_session_token');
 
-                                                if ($response->failed()) {
-                                                    $set('address_suggestions', []);
-
-                                                    return;
+                                                if (blank($sessionToken)) {
+                                                    $sessionToken = app(GooglePlacesService::class)->newSessionToken();
+                                                    $set('address_session_token', $sessionToken);
                                                 }
 
-                                                $suggestions = collect($response->json('suggestions') ?? [])
-                                                    ->mapWithKeys(fn ($s) => [
-                                                        $s['placePrediction']['placeId'] => $s['placePrediction']['text']['text'],
-                                                    ])
-                                                    ->toArray();
+                                                $suggestions = app(GooglePlacesService::class)->autocomplete($state, $sessionToken);
 
                                                 $set('address_suggestions', $suggestions);
                                             })
@@ -196,16 +188,19 @@ class ClientForm
                                                     return;
                                                 }
 
-                                                $response = Http::withHeaders([
-                                                    'X-Goog-Api-Key' => config('services.google.places_key'),
-                                                    'X-Goog-FieldMask' => 'addressComponents,formattedAddress',
-                                                ])->get("https://places.googleapis.com/v1/places/{$state}");
+                                                $details = app(GooglePlacesService::class)->placeDetails($state, (string) $get('address_session_token'));
 
-                                                if ($response->failed()) {
+                                                // The session ends here regardless of outcome — the next
+                                                // search (even one retrying after a failed lookup) should
+                                                // start a fresh, correctly-billed session rather than
+                                                // reusing one Google may have already settled.
+                                                $set('address_session_token', null);
+
+                                                if (! $details) {
                                                     return;
                                                 }
 
-                                                $components = collect($response->json('addressComponents') ?? []);
+                                                $components = collect($details['addressComponents'] ?? []);
 
                                                 $getComponent = fn (string $type) => $components
                                                     ->first(fn ($c) => in_array($type, $c['types'] ?? []))['longText'] ?? '';
@@ -217,7 +212,7 @@ class ClientForm
                                                 $set('city', $getComponent('postal_town') ?: $getComponent('locality'));
                                                 $set('county', $getComponent('administrative_area_level_2'));
                                                 $set('postcode', $getComponent('postal_code'));
-                                                $set('address_search', $response->json('formattedAddress'));
+                                                $set('address_search', $details['formattedAddress'] ?? null);
                                                 $set('address_suggestions', []);
                                             })
                                             ->placeholder('Select an address...')

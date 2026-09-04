@@ -32,8 +32,8 @@ class BookingTimesheetOverview extends BaseWidget
                     ->label('Period'),
                 TextColumn::make('days_count')
                     ->label('Days'),
-                TextColumn::make('total_pay_label')
-                    ->label('Total Pay'),
+                TextColumn::make('total_margin_label')
+                    ->label('Total Margin'),
                 TextColumn::make('sent_at_label')
                     ->label('Sent to Payroll'),
             ])
@@ -61,7 +61,7 @@ class BookingTimesheetOverview extends BaseWidget
      * SendTimesheetToPayrollProvider itself groups by when actually
      * submitting — rather than a hardcoded calendar week.
      *
-     * @return array<int, array{id: string, period_label: string, days_count: int, total_pay_label: string, sent_at_label: string, days: array<int, array<string, string>>}>
+     * @return array<int, array{id: string, period_label: string, days_count: int, total_margin_label: string, sent_at_label: string, days: array<int, array<string, string>>}>
      */
     public static function periodRows(Booking $booking): array
     {
@@ -87,12 +87,14 @@ class BookingTimesheetOverview extends BaseWidget
                     'id' => $periodEndKey,
                     'period_label' => $period['start']->format('j M Y').' - '.$period['end']->format('j M Y'),
                     'days_count' => $periodDays->count(),
-                    'total_pay_label' => '£'.number_format($periodDays->sum(fn (BookingDay $day): float => static::dayPay($booking, $day)), 2),
+                    'total_margin_label' => '£'.number_format($periodDays->sum(fn (BookingDay $day): float => static::dayMargin($booking, $day)), 2),
                     'sent_at_label' => optional($periodDays->max('sent_to_provider_at'))->format('j M Y, g:ia') ?? '—',
                     'days' => $periodDays->map(fn (BookingDay $day): array => [
                         'date' => $day->date->format('D j M Y'),
                         'period' => $day->period->label(),
                         'pay' => '£'.number_format(static::dayPay($booking, $day), 2),
+                        'charge' => '£'.number_format(static::dayCharge($booking, $day), 2),
+                        'margin' => '£'.number_format(static::dayMargin($booking, $day), 2),
                         'approved_at' => optional($day->approved_at)->format('j M Y, g:ia') ?? '—',
                         'approved_by' => $day->approvedBy?->name ?? '—',
                         'sent_at' => optional($day->sent_to_provider_at)->format('j M Y, g:ia') ?? '—',
@@ -111,6 +113,20 @@ class BookingTimesheetOverview extends BaseWidget
             BookingDayPeriod::Am, BookingDayPeriod::Pm => (float) ($booking->half_day_rate ?? 0),
             BookingDayPeriod::Hours => (float) ($booking->hourly_rate ?? 0) * static::hoursFor($day),
         };
+    }
+
+    public static function dayCharge(Booking $booking, BookingDay $day): float
+    {
+        return match ($day->period) {
+            BookingDayPeriod::FullDay => (float) ($booking->day_charge_rate ?? 0),
+            BookingDayPeriod::Am, BookingDayPeriod::Pm => (float) ($booking->half_day_charge_rate ?? 0),
+            BookingDayPeriod::Hours => (float) ($booking->hourly_charge_rate ?? 0) * static::hoursFor($day),
+        };
+    }
+
+    public static function dayMargin(Booking $booking, BookingDay $day): float
+    {
+        return static::dayCharge($booking, $day) - static::dayPay($booking, $day);
     }
 
     private static function hoursFor(BookingDay $day): float

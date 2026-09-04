@@ -8,6 +8,8 @@
                     <th class="py-1 pr-4 font-medium">Date</th>
                     <th class="py-1 pr-4 font-medium">Session</th>
                     <th class="py-1 pr-4 font-medium">Pay</th>
+                    <th class="py-1 pr-4 font-medium">Charge</th>
+                    <th class="py-1 pr-4 font-medium">Margin</th>
                     <th class="py-1 pr-4 font-medium">Approved</th>
                     <th class="py-1 pr-4 font-medium">Approved By</th>
                     <th class="py-1 font-medium">Sent to Payroll</th>
@@ -19,6 +21,8 @@
                         <td class="py-1 pr-4 text-gray-700 dark:text-gray-200">{{ $day['date'] }}</td>
                         <td class="py-1 pr-4 text-gray-700 dark:text-gray-200">{{ $day['period'] }}</td>
                         <td class="py-1 pr-4 text-gray-700 dark:text-gray-200">{{ $day['pay'] }}</td>
+                        <td class="py-1 pr-4 text-gray-700 dark:text-gray-200">{{ $day['charge'] }}</td>
+                        <td class="py-1 pr-4 text-gray-700 dark:text-gray-200">{{ $day['margin'] }}</td>
                         <td class="py-1 pr-4 text-gray-700 dark:text-gray-200">{{ $day['approved_at'] }}</td>
                         <td class="py-1 pr-4 text-gray-700 dark:text-gray-200">{{ $day['approved_by'] }}</td>
                         <td class="py-1 text-gray-700 dark:text-gray-200">{{ $day['sent_at'] }}</td>
