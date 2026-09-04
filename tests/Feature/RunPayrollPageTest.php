@@ -148,6 +148,69 @@ test('the confirm button becomes enabled again once a new upcoming booking is ad
         ->assertTableActionEnabled('confirm');
 });
 
+test('the remind button is disabled when there are no bookings in the period at all', function () {
+    Livewire::test(RunPayroll::class)
+        ->assertTableActionDisabled('remind');
+});
+
+test('the remind button is disabled while a booking has not been sent a confirmation yet', function () {
+    createPayrollBooking($this->user, $this->jobTitle, $this->periodStart->toDateString());
+
+    Livewire::test(RunPayroll::class)
+        ->assertTableActionDisabled('remind');
+});
+
+test('the remind button is enabled once a client has been sent a confirmation but not yet approved or disputed it', function () {
+    createPayrollBooking($this->user, $this->jobTitle, $this->periodStart->toDateString(), [
+        'payroll_confirmation_sent_at' => now(),
+    ]);
+
+    Livewire::test(RunPayroll::class)
+        ->assertTableActionEnabled('remind');
+});
+
+test('the remind button is disabled once every sent day has been approved', function () {
+    createPayrollBooking($this->user, $this->jobTitle, $this->periodStart->toDateString(), [
+        'payroll_confirmation_sent_at' => now(),
+        'approved_at' => now(),
+    ]);
+
+    Livewire::test(RunPayroll::class)
+        ->assertTableActionDisabled('remind');
+});
+
+test('the remind button is disabled once every sent day has been disputed', function () {
+    createPayrollBooking($this->user, $this->jobTitle, $this->periodStart->toDateString(), [
+        'payroll_confirmation_sent_at' => now(),
+        'disputed_at' => now(),
+        'dispute_reason' => 'Wrong hours',
+    ]);
+
+    Livewire::test(RunPayroll::class)
+        ->assertTableActionDisabled('remind');
+});
+
+test('the remind action only emails clients with an already-sent, still-unresolved day this period', function () {
+    Queue::fake();
+
+    $unapproved = createPayrollBooking($this->user, $this->jobTitle, $this->periodStart->toDateString(), [
+        'payroll_confirmation_sent_at' => now(),
+    ]);
+    $approved = createPayrollBooking($this->user, $this->jobTitle, $this->periodStart->toDateString(), [
+        'payroll_confirmation_sent_at' => now(),
+        'approved_at' => now(),
+    ]);
+    $neverSent = createPayrollBooking($this->user, $this->jobTitle, $this->periodStart->toDateString());
+
+    Livewire::test(RunPayroll::class)
+        ->callTableAction('remind')
+        ->assertNotified();
+
+    Queue::assertPushed(SendPayrollConfirmationEmail::class, 1);
+    Queue::assertPushed(SendPayrollConfirmationEmail::class, fn ($job) => $job->client->is($unapproved->client));
+    Queue::assertNotPushed(SendPayrollConfirmationEmail::class, fn ($job) => $job->client->is($approved->client) || $job->client->is($neverSent->client));
+});
+
 test('the table lists this periods non-cancelled bookings and excludes cancelled or out-of-period ones', function () {
     $inPeriod = createPayrollBooking($this->user, $this->jobTitle, $this->periodStart->toDateString());
     $cancelled = createPayrollBooking($this->user, $this->jobTitle, $this->periodStart->toDateString(), ['cancelled_at' => now()]);
