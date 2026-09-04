@@ -14,6 +14,7 @@ use App\Models\ComplianceItemField;
 use App\Models\Industry;
 use App\Models\JobTitle;
 use App\Models\PayRate;
+use App\Models\ReferenceForm;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
@@ -359,8 +360,13 @@ test('a gap/statement reference does not require a name when saving via the repe
         'industry_id' => $this->industry->id,
     ]);
 
+    $statementForm = ReferenceForm::factory()->statementOnly()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
     $reference = $candidate->references()->create([
-        'type' => 'gap_statement',
+        'reference_form_id' => $statementForm->id,
         'statement' => 'Travelling',
         'worked_from' => '2024-01-01',
         'worked_to' => '2024-06-01',
@@ -383,6 +389,11 @@ test('switching an existing candidate reference to gap/statement requires a stat
         'industry_id' => $this->industry->id,
     ]);
 
+    $statementForm = ReferenceForm::factory()->statementOnly()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
     $reference = $candidate->references()->create([
         'type' => 'character',
         'first_name' => 'Jane',
@@ -392,7 +403,7 @@ test('switching an existing candidate reference to gap/statement requires a stat
     ])->fresh();
 
     Livewire::test(EditCandidate::class, ['record' => $candidate->getRouteKey()])
-        ->set("data.references.record-{$reference->id}.type", 'gap_statement')
+        ->set("data.references.record-{$reference->id}.reference_form_id", $statementForm->id)
         ->call('save')
         ->assertHasFormErrors(["references.record-{$reference->id}.statement"]);
 });

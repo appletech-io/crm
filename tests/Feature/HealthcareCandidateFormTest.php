@@ -2,6 +2,8 @@
 
 use App\Filament\Resources\HealthcareCandidates\Pages\EditHealthcareCandidate;
 use App\Models\HealthcareCandidate;
+use App\Models\Industry;
+use App\Models\ReferenceForm;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
@@ -13,7 +15,9 @@ beforeEach(function () {
     $this->user = User::factory()->create();
     $this->user->assignRole('admin');
     $this->actingAs($this->user);
+    $this->industry = Industry::factory()->create(['slug' => 'healthcare']);
     Cache::put("user.{$this->user->id}.active_industry", 'healthcare');
+    Cache::put("user.{$this->user->id}.active_industry_id", $this->industry->id);
 });
 
 test('the formatted CV content can be edited and saved from its tab', function () {
@@ -153,8 +157,13 @@ test('the right to work expiry date field is hidden and not saved when right to 
 test('a gap/statement reference does not require a name when saving via the repeater', function () {
     $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id, 'phone' => '07700900000']);
 
+    $statementForm = ReferenceForm::factory()->statementOnly()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+    ]);
+
     $reference = $candidate->references()->create([
-        'type' => 'gap_statement',
+        'reference_form_id' => $statementForm->id,
         'statement' => 'Travelling',
         'worked_from' => '2024-01-01',
         'worked_to' => '2024-06-01',
@@ -174,6 +183,11 @@ test('a gap/statement reference does not require a name when saving via the repe
 test('switching an existing reference to gap/statement requires a statement instead of a name', function () {
     $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id, 'phone' => '07700900000']);
 
+    $statementForm = ReferenceForm::factory()->statementOnly()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+    ]);
+
     $reference = $candidate->references()->create([
         'type' => 'character',
         'first_name' => 'Jane',
@@ -183,7 +197,7 @@ test('switching an existing reference to gap/statement requires a statement inst
     ])->fresh();
 
     Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
-        ->set("data.references.record-{$reference->id}.type", 'gap_statement')
+        ->set("data.references.record-{$reference->id}.reference_form_id", $statementForm->id)
         ->call('save')
         ->assertHasFormErrors(["references.record-{$reference->id}.statement"]);
 });

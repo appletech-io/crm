@@ -3,7 +3,6 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\ReferenceStatus;
-use App\Enums\ReferenceType;
 use App\Models\CandidateReference;
 use App\Services\References\ReferenceResponsePdfService;
 use Filament\Actions\Action;
@@ -39,13 +38,13 @@ class CandidateReferencesSummary extends TableWidget
             ->columns([
                 TextColumn::make('name')
                     ->label('Name')
-                    ->state(fn (CandidateReference $record): string => $record->type === ReferenceType::GapStatement
+                    ->state(fn (CandidateReference $record): string => $record->isStatementOnly()
                         ? 'Gap / Statement'
                         : trim("{$record->first_name} {$record->last_name}")),
 
                 TextColumn::make('type')
                     ->label('Type')
-                    ->formatStateUsing(fn (CandidateReference $record): string => $record->type->label()),
+                    ->formatStateUsing(fn (CandidateReference $record): string => $record->displayLabel()),
 
                 TextColumn::make('status')
                     ->label('Status')

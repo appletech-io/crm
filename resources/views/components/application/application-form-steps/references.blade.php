@@ -45,7 +45,7 @@
                     class="flex flex-col items-start gap-0.5 text-left"
                 >
                     <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                        @if ($reference['type'] === \App\Enums\ReferenceType::GapStatement->value)
+                        @if (in_array((int) ($reference['reference_form_id'] ?? null), $this->statementOnlyReferenceFormIds, true))
                             {{ __('Gap / Statement') }}
                         @else
                             {{ trim($reference['first_name'].' '.$reference['last_name']) ?: __('Untitled reference') }}
@@ -57,9 +57,9 @@
                     @endif
                 </button>
             @else
-                <flux:select wire:model.live="references.{{ $index }}.type" :label="__('Reference Type')" placeholder="{{ __('Select…') }}">
-                    @foreach (\App\Enums\ReferenceType::cases() as $type)
-                        <flux:select.option value="{{ $type->value }}">{{ $type->label() }}</flux:select.option>
+                <flux:select wire:model.live="references.{{ $index }}.reference_form_id" :label="__('Reference Type')" placeholder="{{ __('Select…') }}">
+                    @foreach ($this->referenceFormOptions as $formId => $formName)
+                        <flux:select.option value="{{ $formId }}">{{ $formName }}</flux:select.option>
                     @endforeach
                 </flux:select>
 
@@ -79,7 +79,7 @@
                     />
                 </div>
 
-                @if ($reference['type'] === \App\Enums\ReferenceType::GapStatement->value)
+                @if (in_array((int) ($reference['reference_form_id'] ?? null), $this->statementOnlyReferenceFormIds, true))
                     <flux:textarea
                         wire:model="references.{{ $index }}.statement"
                         :label="__('Statement')"
