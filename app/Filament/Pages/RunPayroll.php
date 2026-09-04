@@ -2,7 +2,6 @@
 
 namespace App\Filament\Pages;
 
-use App\Enums\BookingStatus;
 use App\Filament\Concerns\HasPayrollBookingsTable;
 use App\Filament\Concerns\HasTimesheetPeriodNavigation;
 use App\Filament\Support\ExportPayrollCsvAction;
@@ -76,14 +75,14 @@ class RunPayroll extends Page implements HasTable
                 ->icon('heroicon-o-paper-airplane')
                 ->color('primary')
                 ->requiresConfirmation()
-                ->modalDescription('This will email every client with bookings this period, asking them to review and approve or dispute their timesheet.')
-                ->disabled(fn (): bool => ! $this->hasUpcomingBookings())
-                ->tooltip(fn (): ?string => $this->hasUpcomingBookings()
-                    ? null
-                    : 'All bookings for this period have already been sent.')
+                ->modalDescription('This will email every client with a booking this period that has not yet been sent a confirmation.')
+                ->disabled(fn (): bool => $this->unsentClientIds()->isEmpty())
+                ->tooltip(fn (): ?string => $this->unsentClientIds()->isEmpty()
+                    ? 'All bookings for this period have already been sent.'
+                    : null)
                 ->action(function (): void {
                     $period = $this->currentPeriod();
-                    $clientIds = $this->periodClientIds();
+                    $clientIds = $this->unsentClientIds();
 
                     foreach ($clientIds as $clientId) {
                         SendPayrollConfirmationEmail::dispatch(Client::findOrFail($clientId), $period['start']->toDateString());
@@ -125,8 +124,16 @@ class RunPayroll extends Page implements HasTable
         return Auth::user()->company;
     }
 
-    /** @return Collection<int, int> */
-    private function periodClientIds()
+    /**
+     * Clients with at least one day this period that has never been sent a
+     * confirmation at all — a brand new/late-added booking, or a day reset
+     * back to unsent after a dispute gets resolved. This is deliberately
+     * distinct from unapprovedClientIds(): a day that's already been sent
+     * belongs to the reminder, not another initial confirmation.
+     *
+     * @return Collection<int, int>
+     */
+    private function unsentClientIds()
     {
         $period = $this->currentPeriod();
 
@@ -135,7 +142,8 @@ class RunPayroll extends Page implements HasTable
             ->excludingRequests()
             ->whereHas('dayPeriods', function ($query) use ($period): void {
                 $query->whereBetween('date', [$period['start']->toDateString(), $period['end']->toDateString()])
-                    ->whereNull('cancelled_at');
+                    ->whereNull('cancelled_at')
+                    ->whereNull('payroll_confirmation_sent_at');
             })
             ->pluck('client_id')
             ->unique();
@@ -176,20 +184,6 @@ class RunPayroll extends Page implements HasTable
             ->whereBetween('date', [$period['start']->toDateString(), $period['end']->toDateString()])
             ->whereNull('cancelled_at')
             ->whereNotNull('payroll_confirmation_sent_at')
-            ->exists();
-    }
-
-    private function hasUpcomingBookings(): bool
-    {
-        $period = $this->currentPeriod();
-
-        return Booking::query()
-            ->visibleToCurrentUser()
-            ->where('status', BookingStatus::Upcoming)
-            ->whereHas('dayPeriods', function ($query) use ($period): void {
-                $query->whereBetween('date', [$period['start']->toDateString(), $period['end']->toDateString()])
-                    ->whereNull('cancelled_at');
-            })
             ->exists();
     }
 }
