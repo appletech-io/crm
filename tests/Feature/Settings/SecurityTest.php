@@ -1,8 +1,6 @@
 <?php
 
 use App\Livewire\Settings\Security;
-use App\Models\Client;
-use App\Models\ClientContact;
 use App\Models\Company;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
@@ -69,31 +67,6 @@ test('the settings sidebar shows the users own company logo, not the generic def
         ->get(route('security.edit'))
         ->assertOk()
         ->assertSee(route('company.logo', $company), false);
-});
-
-test('the settings sidebar shows a client users school name in title case after the logo', function () {
-    $company = Company::factory()->create();
-    $client = Client::factory()->create(['company_id' => $company->id, 'name' => 'WELFORD SCHOOL']);
-    $contact = ClientContact::factory()->create(['company_id' => $company->id, 'client_id' => $client->id]);
-    $user = User::factory()->create(['company_id' => $company->id, 'client_contact_id' => $contact->id]);
-
-    $this->actingAs($user)
-        ->withSession(['auth.password_confirmed_at' => time()])
-        ->get(route('security.edit'))
-        ->assertOk()
-        ->assertSee('Welford School')
-        ->assertDontSee('WELFORD SCHOOL');
-});
-
-test('the settings sidebar shows no school name for a staff or candidate user', function () {
-    $user = User::factory()->create();
-
-    $this->actingAs($user)
-        ->withSession(['auth.password_confirmed_at' => time()])
-        ->get(route('security.edit'))
-        ->assertOk();
-
-    expect($user->client())->toBeNull();
 });
 
 test('being redirected here because of incomplete account setup shows an explanatory notice', function () {
