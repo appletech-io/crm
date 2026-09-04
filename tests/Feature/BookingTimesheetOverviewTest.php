@@ -72,7 +72,7 @@ test('it ignores days that are not both approved and sent', function () {
     expect(BookingTimesheetOverview::periodRows($booking))->toBe([]);
 });
 
-test('it groups sent days within the same billing period into one row with the total pay', function () {
+test('it groups sent days within the same billing period into one row with the total margin', function () {
     $monday = TimesheetPeriod::current($this->company)['start'];
 
     $booking = Booking::factory()->create([
@@ -81,6 +81,7 @@ test('it groups sent days within the same billing period into one row with the t
         'candidate_id' => $this->candidate->id,
         'job_title_id' => $this->jobTitle->id,
         'day_rate' => 100,
+        'day_charge_rate' => 150,
     ]);
 
     sentDay($booking, $monday->toDateString());
@@ -90,7 +91,7 @@ test('it groups sent days within the same billing period into one row with the t
 
     expect($rows)->toHaveCount(1)
         ->and($rows[0]['days_count'])->toBe(2)
-        ->and($rows[0]['total_pay_label'])->toBe('£200.00')
+        ->and($rows[0]['total_margin_label'])->toBe('£100.00')
         ->and($rows[0]['days'])->toHaveCount(2);
 });
 
@@ -125,6 +126,7 @@ test('the days breakdown carries the detail needed for the popup', function () {
         'candidate_id' => $this->candidate->id,
         'job_title_id' => $this->jobTitle->id,
         'day_rate' => 150,
+        'day_charge_rate' => 200,
     ]);
 
     sentDay($booking, TimesheetPeriod::current($this->company)['start']->toDateString(), overrides: [
@@ -134,6 +136,8 @@ test('the days breakdown carries the detail needed for the popup', function () {
     $day = BookingTimesheetOverview::periodRows($booking)[0]['days'][0];
 
     expect($day['pay'])->toBe('£150.00')
+        ->and($day['charge'])->toBe('£200.00')
+        ->and($day['margin'])->toBe('£50.00')
         ->and($day['approved_by'])->toBe('Kirsty Greaves')
         ->and($day['approved_at'])->not->toBe('—')
         ->and($day['sent_at'])->not->toBe('—');
@@ -153,6 +157,28 @@ test('dayPay computes full day, half day, and hourly rates correctly', function 
     expect(BookingTimesheetOverview::dayPay($booking, $fullDay))->toBe(100.0)
         ->and(BookingTimesheetOverview::dayPay($booking, $am))->toBe(60.0)
         ->and(BookingTimesheetOverview::dayPay($booking, $hours))->toBe(80.0);
+});
+
+test('dayCharge and dayMargin compute full day, half day, and hourly rates correctly', function () {
+    $booking = Booking::factory()->make([
+        'day_rate' => 100,
+        'day_charge_rate' => 140,
+        'half_day_rate' => 60,
+        'half_day_charge_rate' => 90,
+        'hourly_rate' => 20,
+        'hourly_charge_rate' => 30,
+    ]);
+
+    $fullDay = new BookingDay(['period' => BookingDayPeriod::FullDay]);
+    $am = new BookingDay(['period' => BookingDayPeriod::Am]);
+    $hours = new BookingDay(['period' => BookingDayPeriod::Hours, 'time_from' => '09:00', 'time_to' => '13:00']);
+
+    expect(BookingTimesheetOverview::dayCharge($booking, $fullDay))->toBe(140.0)
+        ->and(BookingTimesheetOverview::dayCharge($booking, $am))->toBe(90.0)
+        ->and(BookingTimesheetOverview::dayCharge($booking, $hours))->toBe(120.0)
+        ->and(BookingTimesheetOverview::dayMargin($booking, $fullDay))->toBe(40.0)
+        ->and(BookingTimesheetOverview::dayMargin($booking, $am))->toBe(30.0)
+        ->and(BookingTimesheetOverview::dayMargin($booking, $hours))->toBe(40.0);
 });
 
 test('the widget mounts successfully for a booking', function () {
