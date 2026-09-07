@@ -102,7 +102,7 @@ class AdminPanelProvider extends PanelProvider
             )
             ->renderHook(
                 PanelsRenderHook::BODY_END,
-                fn () => view('filament.ask-assistant-floating-button'),
+                fn () => view('filament.ask-assistant-popup'),
             )
             ->navigationGroups([
                 NavigationGroup::make('Analytics'),

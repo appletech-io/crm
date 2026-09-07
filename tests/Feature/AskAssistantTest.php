@@ -50,6 +50,17 @@ test('the page renders with the suggested prompts visible', function () {
         ->assertSee('Which candidates are Live?');
 });
 
+test('the full page does not show an expand link, since it already is the full page', function () {
+    Livewire::test(AskAssistant::class)
+        ->assertDontSee('Expand to full page');
+});
+
+test('the popup shows an expand link to the full page', function () {
+    Livewire::test(AskAssistant::class, ['isPopup' => true])
+        ->assertSee('Expand to full page')
+        ->assertSeeHtml('href="'.route('ask-assistant').'"');
+});
+
 test('the qualification suggestion is tailored to the education sector', function () {
     $industry = Industry::factory()->create(['slug' => 'education']);
     Cache::put("user.{$this->user->id}.active_industry", $industry->slug);
@@ -84,7 +95,9 @@ test('the prompt help modal lists examples for every tool', function () {
         ->assertSee('Nearby candidates')
         ->assertSee('Which candidates are within 10 miles of a specific client?')
         ->assertSee('Best-rated candidates nearby')
-        ->assertSee('Find me a good candidate near a client');
+        ->assertSee('Find me a good candidate near a client')
+        ->assertSee('Draft an email')
+        ->assertSee('Write a follow-up email to a candidate about their application');
 });
 
 test('the prompt help modal best-rated-nearby example is tailored to the education sector', function () {
@@ -129,10 +142,41 @@ test('sending a prompt appends both messages using the agent response', function
         ->assertSet('prompt', '')
         ->assertSet('messages.0.role', 'user')
         ->assertSet('messages.0.content', 'Show me bookings for Riverside School')
+        ->call('respond')
         ->assertSet('messages.1.role', 'assistant')
         ->assertSet('messages.1.content', 'Riverside School has 3 upcoming bookings.');
 
     DataAssistant::assertPrompted('Show me bookings for Riverside School');
+});
+
+test('the user\'s own message renders as soon as send() runs, before the agent has replied', function () {
+    DataAssistant::fake(['Riverside School has 3 upcoming bookings.']);
+
+    Livewire::test(AskAssistant::class)
+        ->set('prompt', 'Show me bookings for Riverside School')
+        ->call('send')
+        ->assertSee('Show me bookings for Riverside School')
+        ->assertDontSee('Riverside School has 3 upcoming bookings.')
+        ->assertSet('pendingPrompt', 'Show me bookings for Riverside School');
+});
+
+test('a user message renders with no leading blank space before its text', function () {
+    DataAssistant::fake();
+
+    $html = Livewire::test(AskAssistant::class)
+        ->set('prompt', 'Show me bookings for Riverside School')
+        ->call('send')
+        ->html();
+
+    // Blade's own structural HTML comment markers around @if/@endif are
+    // invisible to the browser and don't affect layout — strip them so this
+    // only fails on whitespace that would actually render. whitespace-pre-line
+    // on the user bubble renders any stray blank line or leading space
+    // between the bubble's opening tag and its text as a visible gap above
+    // the message — so the text must sit directly against the tag.
+    $html = preg_replace('/<!--\[if (?:BLOCK|ENDBLOCK)]><!\[endif]-->/', '', $html);
+
+    expect($html)->toContain('>Show me bookings for Riverside School</div>');
 });
 
 test('markdown links in the agent response render as clickable links', function () {
@@ -141,6 +185,7 @@ test('markdown links in the agent response render as clickable links', function 
     Livewire::test(AskAssistant::class)
         ->set('prompt', 'Which candidates are Live?')
         ->call('send')
+        ->call('respond')
         ->assertSeeHtml('<a href="https://example.com/candidates/1">Jane Doe</a>');
 });
 
@@ -150,6 +195,7 @@ test('user messages are never rendered as markdown', function () {
     Livewire::test(AskAssistant::class)
         ->set('prompt', 'What about [not a link](javascript:alert(1))?')
         ->call('send')
+        ->call('respond')
         ->assertDontSeeHtml('<a href="javascript:alert(1)">not a link</a>');
 });
 
@@ -159,6 +205,17 @@ test('sending a blank prompt does nothing', function () {
     Livewire::test(AskAssistant::class)
         ->set('prompt', '   ')
         ->call('send')
+        ->call('respond')
+        ->assertSet('messages', []);
+
+    DataAssistant::assertNeverPrompted();
+});
+
+test('respond does nothing if there is no pending prompt to answer', function () {
+    DataAssistant::fake();
+
+    Livewire::test(AskAssistant::class)
+        ->call('respond')
         ->assertSet('messages', []);
 
     DataAssistant::assertNeverPrompted();
@@ -170,6 +227,7 @@ test('clearing the chat empties the message list', function () {
     Livewire::test(AskAssistant::class)
         ->set('prompt', 'A question')
         ->call('send')
+        ->call('respond')
         ->call('clearChat')
         ->assertSet('messages', []);
 });
@@ -180,6 +238,7 @@ test('a "show me more" prompt appears when a result says more results match', fu
     Livewire::test(AskAssistant::class)
         ->set('prompt', 'Which candidates are Live?')
         ->call('send')
+        ->call('respond')
         ->assertSet('moreResultsAvailable', true)
         ->assertSee('Show me more');
 });
@@ -190,6 +249,7 @@ test('the "show me more" prompt does not appear when nothing more matches', func
     Livewire::test(AskAssistant::class)
         ->set('prompt', 'Which candidates are Live?')
         ->call('send')
+        ->call('respond')
         ->assertSet('moreResultsAvailable', false)
         ->assertDontSee('Show me more');
 });
@@ -203,7 +263,9 @@ test('clicking "show me more" continues the same conversation the agent already 
     Livewire::test(AskAssistant::class)
         ->set('prompt', 'Which candidates are Live?')
         ->call('send')
+        ->call('respond')
         ->call('showMore')
+        ->call('respond')
         ->assertSet('moreResultsAvailable', true);
 
     DataAssistant::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'Show me more'));
@@ -218,9 +280,11 @@ test('clicking "show me more" stops offering more once nothing is left', functio
     Livewire::test(AskAssistant::class)
         ->set('prompt', 'Which candidates are Live?')
         ->call('send')
+        ->call('respond')
         ->call('showMore')
+        ->call('respond')
         ->assertSet('moreResultsAvailable', false)
-        ->assertDontSeeHtml('wire:click="showMore"');
+        ->assertDontSeeHtml('$wire.showMore()');
 });
 
 test('clearing the chat resets the "show me more" state', function () {
@@ -229,6 +293,7 @@ test('clearing the chat resets the "show me more" state', function () {
     Livewire::test(AskAssistant::class)
         ->set('prompt', 'Which candidates are Live?')
         ->call('send')
+        ->call('respond')
         ->call('clearChat')
         ->assertSet('moreResultsAvailable', false)
         ->assertSet('conversationId', null);
@@ -239,7 +304,8 @@ test('the conversation is continued across messages, not restarted each time', f
 
     $component = Livewire::test(AskAssistant::class)
         ->set('prompt', 'Which candidates are Live?')
-        ->call('send');
+        ->call('send')
+        ->call('respond');
 
     $conversationId = $component->get('conversationId');
 
@@ -248,6 +314,7 @@ test('the conversation is continued across messages, not restarted each time', f
     $component
         ->set('prompt', 'And which of those are in Manchester?')
         ->call('send')
+        ->call('respond')
         ->assertSet('conversationId', $conversationId);
 });
 
@@ -256,14 +323,16 @@ test('a fresh conversation is started after clearing the chat', function () {
 
     $component = Livewire::test(AskAssistant::class)
         ->set('prompt', 'Which candidates are Live?')
-        ->call('send');
+        ->call('send')
+        ->call('respond');
 
     $firstConversationId = $component->get('conversationId');
 
     $component
         ->call('clearChat')
         ->set('prompt', 'A brand new question')
-        ->call('send');
+        ->call('send')
+        ->call('respond');
 
     expect($component->get('conversationId'))
         ->not->toBeNull()

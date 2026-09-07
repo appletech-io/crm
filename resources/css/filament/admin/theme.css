@@ -3,6 +3,7 @@
 
 @source '../../../../app/Filament/**/*';
 @source '../../../../resources/views/filament/**/*';
+@source '../../../../resources/views/livewire/ask-assistant.blade.php';
 @source '../../../../vendor/guava/calendar/resources/**/*';
 
 /* Formatted CV editor: default .fi-prose spacing (1rem between every

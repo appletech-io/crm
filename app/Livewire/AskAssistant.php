@@ -27,9 +27,26 @@ class AskAssistant extends Component
 
     public bool $moreResultsAvailable = false;
 
-    public function mount(): void
+    /**
+     * The prompt to send to the agent once respond() runs. Split from
+     * send()/showMore() into its own request so the user's own message
+     * renders immediately, instead of waiting alongside the (much slower)
+     * agent reply for a single response to come back.
+     */
+    public ?string $pendingPrompt = null;
+
+    /**
+     * True when embedded as the small floating popup rather than the full
+     * /crm/ask-assistant page — shows an "expand" link to that page instead
+     * of relying on the layout around it, since the popup has none.
+     */
+    public bool $isPopup = false;
+
+    public function mount(bool $isPopup = false): void
     {
         abort_unless(active_industry() !== null, 403);
+
+        $this->isPopup = $isPopup;
     }
 
     /** @return array<int, string> */
@@ -104,6 +121,10 @@ class AskAssistant extends Component
             'Best-rated candidates nearby' => [
                 "Find me a good {$this->exampleSkillOrQualification()} near a client",
             ],
+            'Draft an email' => [
+                'Write a follow-up email to a candidate about their application',
+                'Draft a booking confirmation email for a client',
+            ],
         ];
     }
 
@@ -148,8 +169,9 @@ class AskAssistant extends Component
 
         $this->messages[] = ['role' => 'user', 'content' => $prompt];
         $this->prompt = '';
+        $this->pendingPrompt = $prompt;
 
-        $this->askAssistant($prompt);
+        $this->dispatch('message-added');
     }
 
     /**
@@ -159,8 +181,26 @@ class AskAssistant extends Component
     public function showMore(): void
     {
         $this->messages[] = ['role' => 'user', 'content' => 'Show me more'];
+        $this->pendingPrompt = 'Show me more of the results from my last search.';
 
-        $this->askAssistant('Show me more of the results from my last search.');
+        $this->dispatch('message-added');
+    }
+
+    /**
+     * Runs the (slow) agent call for whatever send()/showMore() just queued.
+     * Kept as its own request so the user's message from send()/showMore()
+     * has already rendered before this one starts.
+     */
+    public function respond(): void
+    {
+        if ($this->pendingPrompt === null) {
+            return;
+        }
+
+        $prompt = $this->pendingPrompt;
+        $this->pendingPrompt = null;
+
+        $this->askAssistant($prompt);
     }
 
     private function askAssistant(string $prompt): void
@@ -194,6 +234,7 @@ class AskAssistant extends Component
         $this->messages = [];
         $this->conversationId = null;
         $this->moreResultsAvailable = false;
+        $this->pendingPrompt = null;
     }
 
     public function render()

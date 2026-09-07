@@ -1,5 +1,6 @@
 <div
     x-data="{
+        helpOpen: false,
         listening: false,
         recognition: null,
         base: '',
@@ -71,7 +72,7 @@
             }
         },
     }"
-    class="flex h-full max-h-[44rem] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl shadow-zinc-950/10 dark:border-white/10 dark:bg-zinc-900"
+    class="flex {{ $isPopup ? 'h-full w-full' : 'h-full max-h-[44rem] w-full max-w-2xl' }} flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl shadow-zinc-950/10 dark:border-white/10 dark:bg-zinc-900"
 >
     <div class="flex shrink-0 items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-white/10">
         <div class="flex items-center gap-3">
@@ -85,15 +86,25 @@
         </div>
 
         <div class="flex items-center gap-3">
-            <flux:modal.trigger name="prompt-help">
-                <button
-                    type="button"
-                    aria-label="{{ __('What can I ask?') }}"
+            @if ($isPopup)
+                <a
+                    href="{{ route('ask-assistant') }}"
+                    title="{{ __('Expand to full page') }}"
                     class="flex h-5 w-5 items-center justify-center rounded-full text-zinc-400 transition hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
                 >
-                    <flux:icon.information-circle variant="mini" />
-                </button>
-            </flux:modal.trigger>
+                    <span class="sr-only">{{ __('Expand to full page') }}</span>
+                    <flux:icon.arrows-pointing-out variant="mini" />
+                </a>
+            @endif
+
+            <button
+                type="button"
+                x-on:click="helpOpen = true"
+                aria-label="{{ __('What can I ask?') }}"
+                class="flex h-5 w-5 items-center justify-center rounded-full text-zinc-400 transition hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+            >
+                <flux:icon.information-circle variant="mini" />
+            </button>
 
             <button
                 type="button"
@@ -106,13 +117,42 @@
         </div>
     </div>
 
-    <flux:modal name="prompt-help" class="max-w-lg">
-        <div class="space-y-5">
-            <div>
-                <flux:heading size="lg">{{ __('What can I ask?') }}</flux:heading>
-                <flux:text class="mt-1">
-                    {{ __('A few example prompts for your active sector — mix and match filters in one sentence and the assistant will work out which of these to use.') }}
-                </flux:text>
+    {{--
+        A plain Alpine overlay rather than <flux:modal> — Flux's modal needs
+        its own JS runtime (@fluxScripts), which is loaded on this
+        component's own full-page layout but not in the Filament admin
+        panel this same component is also embedded in as the floating
+        popup, so a Flux modal here would throw "fluxModal is not defined"
+        there. This has no such dependency, so it works in both places.
+    --}}
+    <div
+        x-show="helpOpen"
+        x-on:keydown.escape.window="helpOpen = false"
+        class="fixed inset-0 z-10 flex items-center justify-center bg-zinc-950/50 p-4"
+        style="display: none"
+    >
+        <div
+            x-show="helpOpen"
+            x-on:click.outside="helpOpen = false"
+            x-transition
+            class="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-lg ring ring-zinc-950/5 dark:bg-zinc-800 dark:ring-white/10"
+        >
+            <div class="mb-5 flex items-start justify-between gap-4">
+                <div>
+                    <flux:heading size="lg">{{ __('What can I ask?') }}</flux:heading>
+                    <flux:text class="mt-1">
+                        {{ __('A few example prompts for your active sector — mix and match filters in one sentence and the assistant will work out which of these to use.') }}
+                    </flux:text>
+                </div>
+
+                <button
+                    type="button"
+                    x-on:click="helpOpen = false"
+                    aria-label="{{ __('Close') }}"
+                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-400 transition hover:bg-zinc-800/5 hover:text-zinc-800 dark:hover:bg-white/15 dark:hover:text-white"
+                >
+                    <flux:icon.x-mark variant="mini" />
+                </button>
             </div>
 
             <div class="space-y-4">
@@ -132,7 +172,7 @@
                 @endforeach
             </div>
         </div>
-    </flux:modal>
+    </div>
 
     <div
         x-ref="scroller"
@@ -151,13 +191,7 @@
                     class="max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed {{ $message['role'] === 'user'
                         ? 'rounded-tr-sm bg-emerald-600 text-white whitespace-pre-line'
                         : 'rounded-tl-sm bg-zinc-100 text-zinc-900 dark:bg-white/5 dark:text-zinc-100 [&_a]:text-emerald-700 [&_a]:underline dark:[&_a]:text-emerald-400 [&_ul]:list-disc [&_ul]:pl-4 [&_li]:mb-1 last:[&_li]:mb-0 [&_p]:mb-2 last:[&_p]:mb-0' }}"
-                >
-                    @if ($message['role'] === 'user')
-                        {{ $message['content'] }}
-                    @else
-                        {!! \Illuminate\Support\Str::markdown($message['content'], ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}
-                    @endif
-                </div>
+                >@if ($message['role'] === 'user'){{ $message['content'] }}@else{!! \Illuminate\Support\Str::markdown($message['content'], ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}@endif</div>
             </div>
         @empty
             <div class="flex flex-1 flex-col items-center justify-center gap-5 py-8 text-center">
@@ -184,10 +218,10 @@
         @endforelse
 
         @if ($moreResultsAvailable)
-            <div class="flex justify-start pl-8" wire:loading.remove wire:target="send, showMore">
+            <div class="flex justify-start pl-8" wire:loading.remove wire:target="respond">
                 <button
                     type="button"
-                    wire:click="showMore"
+                    x-on:click="$wire.showMore().then(() => $wire.respond())"
                     class="rounded-full border border-zinc-200 px-3 py-1.5 text-xs text-zinc-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
                 >
                     {{ __('Show me more') }}
@@ -195,7 +229,7 @@
             </div>
         @endif
 
-        <div wire:loading wire:target="send, showMore" class="flex justify-start">
+        <div wire:loading wire:target="respond" class="flex justify-start">
             <span class="mt-1 mr-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600/10 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-400">
                 <flux:icon.sparkles variant="micro" />
             </span>
@@ -208,8 +242,7 @@
     </div>
 
     <form
-        wire:submit="send"
-        x-on:submit="recognition && recognition.stop()"
+        x-on:submit.prevent="recognition && recognition.stop(); $wire.send().then(() => $wire.respond())"
         class="flex shrink-0 gap-2 border-t border-zinc-200 p-4 dark:border-white/10"
     >
         <div class="relative flex-1">
@@ -237,7 +270,7 @@
         <button
             type="submit"
             wire:loading.attr="disabled"
-            wire:target="send"
+            wire:target="send, respond"
             class="rounded-full bg-emerald-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-60"
         >
             {{ __('Send') }}
