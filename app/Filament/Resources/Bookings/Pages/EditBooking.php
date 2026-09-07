@@ -128,7 +128,7 @@ class EditBooking extends EditRecord
             ActionGroup::make([
                 Action::make('resendBothConfirmationEmails')
                     ->label('Both')
-                    ->visible(fn (): bool => $this->isUpcoming())
+                    ->visible(fn (): bool => $this->canResendConfirmation())
                     ->requiresConfirmation()
                     ->modalDescription('This will regenerate the booking confirmation PDF and resend the confirmation emails to the candidate and client.')
                     ->action(function (): void {
@@ -144,7 +144,7 @@ class EditBooking extends EditRecord
                     }),
                 Action::make('resendClientConfirmationEmail')
                     ->label('Client Only')
-                    ->visible(fn (): bool => $this->isUpcoming())
+                    ->visible(fn (): bool => $this->canResendConfirmation())
                     ->requiresConfirmation()
                     ->modalDescription('This will regenerate the booking confirmation PDF and resend the confirmation email to the client only.')
                     ->action(function (): void {
@@ -164,7 +164,7 @@ class EditBooking extends EditRecord
                     }),
                 Action::make('resendCandidateConfirmationEmail')
                     ->label('Candidate Only')
-                    ->visible(fn (): bool => $this->isUpcoming())
+                    ->visible(fn (): bool => $this->canResendConfirmation())
                     ->requiresConfirmation()
                     ->modalDescription('This will regenerate the booking confirmation PDF and resend the confirmation email to the candidate only.')
                     ->action(function (): void {
@@ -184,7 +184,7 @@ class EditBooking extends EditRecord
                 ->icon('heroicon-o-paper-airplane')
                 ->color('gray')
                 ->button()
-                ->visible(fn (): bool => $this->isUpcoming()),
+                ->visible(fn (): bool => $this->canResendConfirmation()),
             DeleteAction::make(),
             ForceDeleteAction::make(),
             RestoreAction::make(),
@@ -207,12 +207,19 @@ class EditBooking extends EditRecord
         return $record->status === BookingStatus::Requested;
     }
 
-    protected function isUpcoming(): bool
+    /**
+     * A booking whose earliest days have already gone through payroll can
+     * have moved past status Upcoming (see Booking::refreshPayrollStatus())
+     * while later days on the same booking are still upcoming — those days
+     * still need a resendable confirmation, so this checks the actual
+     * remaining schedule rather than the booking's overall status.
+     */
+    protected function canResendConfirmation(): bool
     {
         /** @var Booking $record */
         $record = $this->record;
 
-        return $record->status === BookingStatus::Upcoming;
+        return $record->hasUpcomingDayPeriods();
     }
 
     protected function hasProviderError(): bool
