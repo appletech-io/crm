@@ -57,6 +57,23 @@ class Booking extends Model
         return $this->disputed_at !== null;
     }
 
+    /**
+     * Whether this booking still has a scheduled, non-cancelled day today or
+     * later. A long-running booking's overall status can already have moved
+     * on to AwaitingApproval/Approved once its earliest days are sent for
+     * payroll (see refreshPayrollStatus()), even while later days on the
+     * same booking haven't happened yet — those later days still need a
+     * confirmation to be resendable, so this is checked independently of
+     * status rather than only allowing it while status is Upcoming.
+     */
+    public function hasUpcomingDayPeriods(): bool
+    {
+        return $this->dayPeriods()
+            ->whereNull('cancelled_at')
+            ->whereDate('date', '>=', now())
+            ->exists();
+    }
+
     public function isRated(): bool
     {
         return $this->candidate_rated_at !== null;

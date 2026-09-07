@@ -927,6 +927,7 @@ test('the resend confirmation emails action dispatches pdf generation and both c
         'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
+    $booking->dayPeriods()->create(['company_id' => $this->user->company_id, 'date' => now()]);
 
     Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
         ->callAction('resendBothConfirmationEmails')
@@ -954,6 +955,7 @@ test('the resend client only confirmation email action dispatches the pdf and cl
         'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
+    $booking->dayPeriods()->create(['company_id' => $this->user->company_id, 'date' => now()]);
 
     Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
         ->callAction('resendClientConfirmationEmail')
@@ -974,6 +976,7 @@ test('the resend candidate only confirmation email action dispatches the pdf and
         'candidate_type' => EducationCandidate::class,
         'job_title_id' => $this->jobTitle->id,
     ]);
+    $booking->dayPeriods()->create(['company_id' => $this->user->company_id, 'date' => now()]);
 
     Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
         ->callAction('resendCandidateConfirmationEmail')
@@ -1378,7 +1381,7 @@ test('the edit form only offers Live candidates besides the bookings own existin
         });
 });
 
-test('an approved booking cannot be edited and hides the resend confirmation emails action', function () {
+test('an approved booking cannot be edited and hides the resend confirmation emails action when it has no upcoming days left', function () {
     $booking = Booking::factory()->create([
         'company_id' => $this->user->company_id,
         'client_id' => $this->client->id,
@@ -1387,10 +1390,63 @@ test('an approved booking cannot be edited and hides the resend confirmation ema
         'job_title_id' => $this->jobTitle->id,
         'status' => 'approved',
     ]);
+    $booking->dayPeriods()->create(['company_id' => $this->user->company_id, 'date' => now()->subDay()]);
 
     Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
         ->assertFormFieldDisabled('status')
         ->assertFormFieldDisabled('candidate_id')
+        ->assertActionHidden('resendBothConfirmationEmails');
+});
+
+test('an approved booking still shows the resend confirmation emails action while it has upcoming days left', function () {
+    // A long-running booking's status can already read Approved once its
+    // earliest days have gone through payroll, even though later days on
+    // the same booking haven't happened yet (see Booking::refreshPayrollStatus()).
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'status' => 'approved',
+    ]);
+    $booking->dayPeriods()->create(['company_id' => $this->user->company_id, 'date' => now()->subDay()]);
+    $booking->dayPeriods()->create(['company_id' => $this->user->company_id, 'date' => now()->addWeek()]);
+
+    Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+        ->assertActionVisible('resendBothConfirmationEmails');
+});
+
+test('a cancelled upcoming day does not count towards showing the resend confirmation emails action', function () {
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'status' => 'upcoming',
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => now()->addWeek(),
+        'cancelled_at' => now(),
+    ]);
+
+    Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+        ->assertActionHidden('resendBothConfirmationEmails');
+});
+
+test('an upcoming booking with no scheduled days yet hides the resend confirmation emails action', function () {
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'status' => 'upcoming',
+    ]);
+
+    Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
         ->assertActionHidden('resendBothConfirmationEmails');
 });
 
@@ -1403,6 +1459,7 @@ test('an upcoming booking can still be edited and shows the resend confirmation 
         'job_title_id' => $this->jobTitle->id,
         'status' => 'upcoming',
     ]);
+    $booking->dayPeriods()->create(['company_id' => $this->user->company_id, 'date' => now()]);
 
     Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
         ->assertFormFieldDisabled('status')

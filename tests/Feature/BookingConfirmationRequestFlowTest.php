@@ -108,15 +108,8 @@ test('the confirm and reject actions are only visible while the booking is reque
         ->assertActionHidden('rejectBooking');
 });
 
-test('resend confirmation emails is only visible while the booking is upcoming', function () {
-    $statusesWhereHidden = [
-        BookingStatus::Requested,
-        BookingStatus::AwaitingApproval,
-        BookingStatus::Approved,
-        BookingStatus::Completed,
-    ];
-
-    foreach ($statusesWhereHidden as $status) {
+test('resend confirmation emails is hidden regardless of status when there are no upcoming days left', function () {
+    foreach (BookingStatus::cases() as $status) {
         $booking = Booking::factory()->create([
             'company_id' => $this->user->company_id,
             'client_id' => $this->client->id,
@@ -129,18 +122,27 @@ test('resend confirmation emails is only visible while the booking is upcoming',
         Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
             ->assertActionHidden('resendBothConfirmationEmails');
     }
+});
 
-    $upcoming = Booking::factory()->create([
-        'company_id' => $this->user->company_id,
-        'client_id' => $this->client->id,
-        'candidate_id' => $this->candidate->id,
-        'candidate_type' => EducationCandidate::class,
-        'job_title_id' => $this->jobTitle->id,
-        'status' => BookingStatus::Upcoming,
-    ]);
+test('resend confirmation emails is visible for any status as long as an upcoming day is still scheduled', function () {
+    // A long-running booking's status can move past Upcoming (see
+    // Booking::refreshPayrollStatus()) once its earliest days have gone
+    // through payroll, while later days on the same booking are still
+    // ahead — those should still be resendable regardless of status.
+    foreach (BookingStatus::cases() as $status) {
+        $booking = Booking::factory()->create([
+            'company_id' => $this->user->company_id,
+            'client_id' => $this->client->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => EducationCandidate::class,
+            'job_title_id' => $this->jobTitle->id,
+            'status' => $status,
+        ]);
+        $booking->dayPeriods()->create(['company_id' => $this->user->company_id, 'date' => now()->addWeek()]);
 
-    Livewire::test(EditBooking::class, ['record' => $upcoming->getRouteKey()])
-        ->assertActionVisible('resendBothConfirmationEmails');
+        Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+            ->assertActionVisible('resendBothConfirmationEmails');
+    }
 });
 
 test('rejecting a request soft-deletes the booking and the client is not notified', function () {
