@@ -20,7 +20,7 @@ trait ResolvesLocation
     private function resolveLocation(string $location): ?array
     {
         $client = Client::query()
-            ->visibleToCurrentUser()
+            ->visibleForReporting()
             ->where('industry_id', active_industry_id())
             ->where('name', 'like', '%'.$location.'%')
             ->first();

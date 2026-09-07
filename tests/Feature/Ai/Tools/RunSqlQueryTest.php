@@ -196,6 +196,37 @@ test('it does not expose activity logs belonging to a different company', functi
     expect($result)->not->toContain('Note belonging to a different company entirely');
 });
 
+test('an admin sees another consultant\'s clients and their activity, regardless of the "show all clients" toggle', function () {
+    $otherConsultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $otherConsultant->assignRole('consultant');
+
+    $otherClient = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Other Consultant School',
+        'consultant_id' => $otherConsultant->id,
+    ]);
+
+    ClientActivity::create([
+        'user_id' => $otherConsultant->id,
+        'model_type' => Client::class,
+        'model_id' => $otherClient->id,
+        'type' => 'call',
+        'note' => 'Called about their next term intake',
+    ]);
+
+    // Deliberately left off — an admin's own browsing preference on the
+    // Clients list page must not affect what the assistant can see.
+    session([Client::ADMIN_VIEWING_ALL_CLIENTS_SESSION_KEY => false]);
+
+    $clientsResult = (new RunSqlQuery)->handle(new Request(['sql' => 'SELECT name FROM clients']));
+    $activitiesResult = (new RunSqlQuery)->handle(new Request(['sql' => "SELECT user_name, note FROM activities WHERE category = 'client'"]));
+
+    expect($clientsResult)->toContain('Other Consultant School')
+        ->and($activitiesResult)->toContain($otherConsultant->name)
+        ->and($activitiesResult)->toContain('Called about their next term intake');
+});
+
 test('a multi-day booking produces one booking_days row per actual worked day, not one', function () {
     $booking = Booking::factory()->create([
         'company_id' => $this->user->company_id,

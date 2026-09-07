@@ -101,6 +101,27 @@ class Client extends Model
         return $query->where('consultant_id', $user->id);
     }
 
+    /**
+     * Same restriction as visibleToCurrentUser(), except an admin always
+     * sees every client, ignoring their personal "Show All Clients"
+     * browsing preference on the Clients list page — for company-wide
+     * analytics/reporting contexts (the Ask Assistant) where a "which
+     * consultant" or "who has the most" style question would otherwise be
+     * silently answered from just the admin's own clients, depending on a
+     * session toggle that has nothing to do with the question being asked.
+     * Matches how Booking::visibleToCurrentUser() already treats admins.
+     */
+    public function scopeVisibleForReporting(Builder $query): Builder
+    {
+        $user = auth()->user();
+
+        if (! $user || $user->isAdmin()) {
+            return $query;
+        }
+
+        return $query->where('consultant_id', $user->id);
+    }
+
     public function clientType(): BelongsTo
     {
         return $this->belongsTo(ClientType::class);

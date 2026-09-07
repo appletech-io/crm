@@ -35,7 +35,7 @@ class SearchClients implements Tool
     public function handle(Request $request): Stringable|string
     {
         $clients = Client::query()
-            ->visibleToCurrentUser()
+            ->visibleForReporting()
             ->where('industry_id', active_industry_id())
             ->with(['clientType', 'mainContact'])
             ->when($request->filled('name'), fn ($query) => $query->where('name', 'like', '%'.$request['name'].'%'))

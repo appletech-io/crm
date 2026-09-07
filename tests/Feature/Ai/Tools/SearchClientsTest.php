@@ -141,6 +141,41 @@ test('it paginates results and reports how many more match', function () {
     expect($secondPage)->not->toContain('more match');
 });
 
+test('an admin sees clients belonging to other consultants, regardless of their "show all clients" toggle', function () {
+    $otherConsultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $otherConsultant->assignRole('consultant');
+
+    Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Other Consultant School',
+        'consultant_id' => $otherConsultant->id,
+    ]);
+
+    $result = (new SearchClients)->handle(new Request(['name' => 'Other Consultant School']));
+
+    expect($result)->toContain('Other Consultant School');
+});
+
+test('a non-admin consultant only sees their own clients', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+    $this->actingAs($consultant);
+    Cache::put("user.{$consultant->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$consultant->id}.active_industry_id", $this->industry->id);
+
+    Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Someone Elses School',
+        'consultant_id' => $this->user->id,
+    ]);
+
+    $result = (new SearchClients)->handle(new Request(['name' => 'Someone Elses School']));
+
+    expect($result)->toBe('No clients matched.');
+});
+
 test('it does not return clients from a different industry', function () {
     $otherIndustry = Industry::factory()->create();
 
