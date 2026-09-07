@@ -34,8 +34,8 @@ class SearchBookings implements Tool
             'candidate_name' => $schema->string()->description('Match bookings for a candidate whose name contains this text'),
             'status' => $schema->string()->description('One of: requested, upcoming, awaiting_approval, approved, completed'),
             'region' => $schema->string()->description('Match bookings for a client whose city, county, or postcode contains this text'),
-            'from' => $schema->string()->description('Only bookings starting on or after this date, YYYY-MM-DD'),
-            'to' => $schema->string()->description('Only bookings ending on or before this date, YYYY-MM-DD'),
+            'from' => $schema->string()->description('Only bookings occurring on or after this date, YYYY-MM-DD (a booking that starts before this date but is still ongoing still counts)'),
+            'to' => $schema->string()->description('Only bookings occurring on or before this date, YYYY-MM-DD (a booking that started by this date but ends later still counts)'),
             'offset' => $schema->integer()->description('Skip this many matching results, for pagination — omit or 0 for the first page'),
         ];
     }
@@ -67,8 +67,16 @@ class SearchBookings implements Tool
 
                 return $status ? $query->where('status', $status) : $query;
             })
-            ->when($request->filled('from'), fn ($query) => $query->where('start_date', '>=', $request['from']))
-            ->when($request->filled('to'), fn ($query) => $query->where('end_date', '<=', $request['to']))
+            // Overlap, not containment: a long booking that started before
+            // "from" but is still running, or that starts within the window
+            // and continues past "to", still occurred during the window and
+            // must not be silently dropped just because it isn't entirely
+            // contained within it.
+            ->when($request->filled('from'), fn ($query) => $query->where(
+                fn ($q) => $q->where('end_date', '>=', $request['from'])
+                    ->orWhere(fn ($qq) => $qq->whereNull('end_date')->where('start_date', '>=', $request['from']))
+            ))
+            ->when($request->filled('to'), fn ($query) => $query->where('start_date', '<=', $request['to']))
             ->orderByDesc('start_date');
 
         $offset = $this->offset($request);
