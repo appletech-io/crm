@@ -663,3 +663,12 @@ test('consultant_kpi_targets shows every consultant to an admin', function () {
 
     expect($result)->toContain($consultant->name)->toContain('2000');
 });
+
+test('the description tells the model to count bookings on a date via booking_days, not the bookings table', function () {
+    $description = (string) (new RunSqlQuery)->description();
+
+    expect($description)
+        ->toContain('a booking\'s start_date/end_date is only its overall bounding range')
+        ->toContain('COUNT(DISTINCT booking_id) FROM booking_days WHERE date is in that range')
+        ->toContain('carried over from earlier in the conversation');
+});
