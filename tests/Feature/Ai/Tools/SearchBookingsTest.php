@@ -167,3 +167,73 @@ test('it filters by status', function () {
     expect($matching)->toContain('Completed');
     expect($nonMatching)->toBe('No bookings matched.');
 });
+
+test('a long booking that starts within the date range but ends well after it is not dropped', function () {
+    $longRunningClient = Client::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Long Term Placement School']);
+
+    Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $longRunningClient->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => '2026-09-09',
+        'end_date' => '2026-10-23',
+    ]);
+
+    $result = (new SearchBookings)->handle(new Request(['from' => '2026-09-07', 'to' => '2026-09-13']));
+
+    expect($result)->toContain('Long Term Placement School');
+});
+
+test('a long booking that started before the date range but is still ongoing is not dropped', function () {
+    $longRunningClient = Client::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Already Underway School']);
+
+    Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $longRunningClient->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => '2026-08-01',
+        'end_date' => '2026-10-23',
+    ]);
+
+    $result = (new SearchBookings)->handle(new Request(['from' => '2026-09-07', 'to' => '2026-09-13']));
+
+    expect($result)->toContain('Already Underway School');
+});
+
+test('a booking entirely outside the date range is excluded', function () {
+    $pastClient = Client::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Long Finished School']);
+
+    Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $pastClient->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => '2026-01-01',
+        'end_date' => '2026-01-05',
+    ]);
+
+    $result = (new SearchBookings)->handle(new Request(['from' => '2026-09-07', 'to' => '2026-09-13']));
+
+    expect($result)->not->toContain('Long Finished School');
+});
+
+test('a single-day booking with no end date is matched within the range it falls in', function () {
+    $singleDayClient = Client::factory()->create(['company_id' => $this->user->company_id, 'name' => 'One Day Cover School']);
+
+    Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $singleDayClient->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => '2026-09-09',
+        'end_date' => null,
+    ]);
+
+    $inRange = (new SearchBookings)->handle(new Request(['from' => '2026-09-07', 'to' => '2026-09-13']));
+    $outOfRange = (new SearchBookings)->handle(new Request(['from' => '2026-01-01', 'to' => '2026-01-31']));
+
+    expect($inRange)->toContain('One Day Cover School')
+        ->and($outOfRange)->not->toContain('One Day Cover School');
+});
