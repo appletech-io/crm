@@ -171,7 +171,7 @@ test('it filters by status', function () {
 test('a long booking that starts within the date range but ends well after it is not dropped', function () {
     $longRunningClient = Client::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Long Term Placement School']);
 
-    Booking::factory()->create([
+    $booking = Booking::factory()->create([
         'company_id' => $this->user->company_id,
         'client_id' => $longRunningClient->id,
         'candidate_id' => $this->candidate->id,
@@ -179,6 +179,7 @@ test('a long booking that starts within the date range but ends well after it is
         'start_date' => '2026-09-09',
         'end_date' => '2026-10-23',
     ]);
+    $booking->dayPeriods()->create(['company_id' => $this->user->company_id, 'date' => '2026-09-09']);
 
     $result = (new SearchBookings)->handle(new Request(['from' => '2026-09-07', 'to' => '2026-09-13']));
 
@@ -188,7 +189,7 @@ test('a long booking that starts within the date range but ends well after it is
 test('a long booking that started before the date range but is still ongoing is not dropped', function () {
     $longRunningClient = Client::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Already Underway School']);
 
-    Booking::factory()->create([
+    $booking = Booking::factory()->create([
         'company_id' => $this->user->company_id,
         'client_id' => $longRunningClient->id,
         'candidate_id' => $this->candidate->id,
@@ -196,6 +197,7 @@ test('a long booking that started before the date range but is still ongoing is 
         'start_date' => '2026-08-01',
         'end_date' => '2026-10-23',
     ]);
+    $booking->dayPeriods()->create(['company_id' => $this->user->company_id, 'date' => '2026-09-10']);
 
     $result = (new SearchBookings)->handle(new Request(['from' => '2026-09-07', 'to' => '2026-09-13']));
 
@@ -205,7 +207,7 @@ test('a long booking that started before the date range but is still ongoing is 
 test('a booking entirely outside the date range is excluded', function () {
     $pastClient = Client::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Long Finished School']);
 
-    Booking::factory()->create([
+    $booking = Booking::factory()->create([
         'company_id' => $this->user->company_id,
         'client_id' => $pastClient->id,
         'candidate_id' => $this->candidate->id,
@@ -213,6 +215,7 @@ test('a booking entirely outside the date range is excluded', function () {
         'start_date' => '2026-01-01',
         'end_date' => '2026-01-05',
     ]);
+    $booking->dayPeriods()->create(['company_id' => $this->user->company_id, 'date' => '2026-01-02']);
 
     $result = (new SearchBookings)->handle(new Request(['from' => '2026-09-07', 'to' => '2026-09-13']));
 
@@ -222,7 +225,7 @@ test('a booking entirely outside the date range is excluded', function () {
 test('a single-day booking with no end date is matched within the range it falls in', function () {
     $singleDayClient = Client::factory()->create(['company_id' => $this->user->company_id, 'name' => 'One Day Cover School']);
 
-    Booking::factory()->create([
+    $booking = Booking::factory()->create([
         'company_id' => $this->user->company_id,
         'client_id' => $singleDayClient->id,
         'candidate_id' => $this->candidate->id,
@@ -230,10 +233,59 @@ test('a single-day booking with no end date is matched within the range it falls
         'start_date' => '2026-09-09',
         'end_date' => null,
     ]);
+    $booking->dayPeriods()->create(['company_id' => $this->user->company_id, 'date' => '2026-09-09']);
 
     $inRange = (new SearchBookings)->handle(new Request(['from' => '2026-09-07', 'to' => '2026-09-13']));
     $outOfRange = (new SearchBookings)->handle(new Request(['from' => '2026-01-01', 'to' => '2026-01-31']));
 
     expect($inRange)->toContain('One Day Cover School')
         ->and($outOfRange)->not->toContain('One Day Cover School');
+});
+
+test('a booking whose day in the range was cancelled is excluded', function () {
+    $client = Client::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Cancelled Day School']);
+
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => '2026-09-07',
+        'end_date' => '2026-09-11',
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-09-07',
+        'cancelled_at' => now(),
+    ]);
+
+    $result = (new SearchBookings)->handle(new Request(['from' => '2026-09-07', 'to' => '2026-09-07']));
+
+    expect($result)->not->toContain('Cancelled Day School');
+});
+
+test('admins can filter to a single consultant\'s bookings by name', function () {
+    $ownBooking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'consultant_id' => $this->user->id,
+    ]);
+
+    $otherConsultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $otherConsultant->assignRole('consultant');
+    $otherClient = Client::factory()->create(['company_id' => $this->user->company_id, 'name' => 'Other Consultant School']);
+    Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $otherClient->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'consultant_id' => $otherConsultant->id,
+    ]);
+
+    $result = (new SearchBookings)->handle(new Request(['consultant_name' => $otherConsultant->name]));
+
+    expect($result)->toContain('Other Consultant School')
+        ->and($result)->not->toContain($this->client->name);
 });

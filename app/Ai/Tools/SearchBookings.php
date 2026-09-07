@@ -9,6 +9,7 @@ use App\Filament\Support\TodoLinkedRecord;
 use App\Models\Booking;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
+use App\Models\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Str;
 use Laravel\Ai\Contracts\Tool;
@@ -23,8 +24,8 @@ class SearchBookings implements Tool
 
     public function description(): Stringable|string
     {
-        return 'Search the current user\'s bookings by client name, candidate name, status, region, and/or date '.
-            'range. Returns at most 50 matching bookings per page (use "offset" to page through more).';
+        return 'Search the current user\'s bookings by client name, candidate name, status, region, consultant, '.
+            'and/or date range. Returns at most 50 matching bookings per page (use "offset" to page through more).';
     }
 
     public function schema(JsonSchema $schema): array
@@ -32,10 +33,11 @@ class SearchBookings implements Tool
         return [
             'client_name' => $schema->string()->description('Match bookings for a client whose name contains this text'),
             'candidate_name' => $schema->string()->description('Match bookings for a candidate whose name contains this text'),
+            'consultant_name' => $schema->string()->description('Admin only: only show bookings belonging to the consultant whose name contains this text. Leave blank to search every consultant\'s bookings (admins) or your own (non-admins, who only ever see their own regardless).'),
             'status' => $schema->string()->description('One of: requested, upcoming, awaiting_approval, approved, completed'),
             'region' => $schema->string()->description('Match bookings for a client whose city, county, or postcode contains this text'),
-            'from' => $schema->string()->description('Only bookings occurring on or after this date, YYYY-MM-DD (a booking that starts before this date but is still ongoing still counts)'),
-            'to' => $schema->string()->description('Only bookings occurring on or before this date, YYYY-MM-DD (a booking that started by this date but ends later still counts)'),
+            'from' => $schema->string()->description('Only bookings with a scheduled, non-cancelled day on or after this date, YYYY-MM-DD (a booking that starts before this date but is still ongoing still counts)'),
+            'to' => $schema->string()->description('Only bookings with a scheduled, non-cancelled day on or before this date, YYYY-MM-DD (a booking that started by this date but ends later still counts)'),
             'offset' => $schema->integer()->description('Skip this many matching results, for pagination — omit or 0 for the first page'),
         ];
     }
@@ -62,21 +64,43 @@ class SearchBookings implements Tool
                 [EducationCandidate::class, HealthcareCandidate::class],
                 fn ($q) => $this->whereNameContains($q, $request['candidate_name'])
             ))
+            ->when($request->filled('consultant_name'), function ($query) use ($request) {
+                if (! auth()->user()?->isAdmin()) {
+                    return $query;
+                }
+
+                $consultant = User::role('consultant')
+                    ->where('name', 'like', '%'.$request['consultant_name'].'%')
+                    ->first();
+
+                return $consultant ? $query->where('consultant_id', $consultant->id) : $query->whereRaw('1 = 0');
+            })
             ->when($request->filled('status'), function ($query) use ($request) {
                 $status = BookingStatus::tryFrom(Str::snake((string) $request['status']));
 
                 return $status ? $query->where('status', $status) : $query;
             })
-            // Overlap, not containment: a long booking that started before
-            // "from" but is still running, or that starts within the window
-            // and continues past "to", still occurred during the window and
-            // must not be silently dropped just because it isn't entirely
-            // contained within it.
-            ->when($request->filled('from'), fn ($query) => $query->where(
-                fn ($q) => $q->where('end_date', '>=', $request['from'])
-                    ->orWhere(fn ($qq) => $qq->whereNull('end_date')->where('start_date', '>=', $request['from']))
+            // A booking's start_date/end_date is just its overall bounding
+            // range — whether it's actually scheduled (and not cancelled) on
+            // any given day within that range lives on its BookingDay rows,
+            // so "occurring in this window" must be checked there rather
+            // than against the coarse range, or e.g. a "today" query would
+            // wrongly count bookings whose day today was cancelled, or miss
+            // nothing at all but count days that were never scheduled.
+            ->when($request->filled('from') || $request->filled('to'), fn ($query) => $query->whereHas(
+                'dayPeriods',
+                function ($q) use ($request) {
+                    $q->whereNull('cancelled_at');
+
+                    if ($request->filled('from')) {
+                        $q->where('date', '>=', $request['from']);
+                    }
+
+                    if ($request->filled('to')) {
+                        $q->where('date', '<=', $request['to']);
+                    }
+                }
             ))
-            ->when($request->filled('to'), fn ($query) => $query->where('start_date', '<=', $request['to']))
             ->orderByDesc('start_date');
 
         $offset = $this->offset($request);
