@@ -67,3 +67,13 @@ test('the instructions say every search_bookings result within a from/to window 
         ->toContain('every item it returns belongs there, no matter how far its own displayed start')
         ->toContain('never silently drop some based on their displayed dates');
 });
+
+test('the instructions say never to guess a reason for a blank field', function () {
+    $this->actingAs(User::factory()->create());
+
+    $instructions = (string) (new DataAssistant)->instructions();
+
+    expect($instructions)
+        ->toContain('never speculate that it means data is "missing" or broken')
+        ->toContain('just report the figure and say the field wasn\'t set, rather than guessing a cause');
+});

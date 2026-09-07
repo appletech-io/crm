@@ -86,7 +86,12 @@ class DataAssistant implements Agent, Conversational, HasTools
             'recruitment data (bookings, clients, candidates, vacancies, consultants) before assuming it\'s '.
             'out of scope — only decline once you\'re confident no reasonable reading of it maps to the data '.
             'available here. If a '.
-            'search returns nothing, say so plainly rather than making something up. Vacancy matches only exist once '.
+            'search returns nothing, say so plainly rather than making something up. The same applies to a blank/null '.
+            'field within a result you do get — e.g. a blank consultant_name/user_name on an activity or booking '.
+            'just means no consultant is associated with it (often a system-generated action like an automated '.
+            'email), never speculate that it means data is "missing" or broken; if you\'re not sure why a field is '.
+            'blank, just report the figure and say the field wasn\'t set, rather than guessing a cause. '.
+            'Vacancy matches only exist once '.
             'someone has run matching for that vacancy — never guess a score or a reason it matched. '.
             'good_candidates_nearby ranks by a candidate\'s average booking rating, not a vacancy match score — '.
             'never describe its results as a "match" or imply vacancy-matching was used. '.

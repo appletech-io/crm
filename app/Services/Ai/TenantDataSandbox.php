@@ -205,7 +205,7 @@ class TenantDataSandbox
         $statement = $pdo->prepare('INSERT INTO clients VALUES (?, ?, ?, ?, ?, ?, ?)');
 
         Client::query()
-            ->visibleToCurrentUser()
+            ->visibleForReporting()
             ->where('industry_id', active_industry_id())
             ->with(['clientType:id,name', 'consultant:id,name'])
             ->get()
@@ -585,7 +585,7 @@ class TenantDataSandbox
 
         ClientContact::query()
             ->whereHas('client', fn ($query) => $query
-                ->visibleToCurrentUser()
+                ->visibleForReporting()
                 ->where('industry_id', active_industry_id()))
             ->with(['client:id,name', 'clientContactJobTitle:id,name'])
             ->get()
@@ -721,7 +721,7 @@ class TenantDataSandbox
 
         ClientActivity::query()
             ->whereHasMorph('model', [Client::class], fn ($query) => $query
-                ->visibleToCurrentUser()
+                ->visibleForReporting()
                 ->where('industry_id', active_industry_id()))
             ->with(['user:id,name', 'model:id,name'])
             ->get()

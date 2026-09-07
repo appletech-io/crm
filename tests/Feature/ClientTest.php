@@ -136,6 +136,36 @@ test('the clients list can be filtered by consultant', function () {
         ->assertCanNotSeeTableRecords([$otherClient]);
 });
 
+test('visibleForReporting shows an admin every client regardless of their "show all clients" toggle', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+
+    $ownedByOtherConsultant = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => Cache::get("user.{$this->user->id}.active_industry_id"),
+        'consultant_id' => $consultant->id,
+    ]);
+
+    // Deliberately left off/false — visibleForReporting must not depend on it.
+    session([Client::ADMIN_VIEWING_ALL_CLIENTS_SESSION_KEY => false]);
+
+    expect(Client::visibleForReporting()->find($ownedByOtherConsultant->id))->not->toBeNull();
+});
+
+test('visibleForReporting still restricts a non-admin consultant to their own clients', function () {
+    $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $consultant->assignRole('consultant');
+    $this->actingAs($consultant);
+
+    $ownedByAdmin = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => Cache::get("user.{$this->user->id}.active_industry_id"),
+        'consultant_id' => $this->user->id,
+    ]);
+
+    expect(Client::visibleForReporting()->find($ownedByAdmin->id))->toBeNull();
+});
+
 test('it can create an education client', function () {
     $clientType = ClientType::factory()->create(['company_id' => $this->user->company_id, 'name' => 'School']);
 
