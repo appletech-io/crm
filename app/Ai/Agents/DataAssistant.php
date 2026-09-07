@@ -33,9 +33,23 @@ class DataAssistant implements Agent, Conversational, HasTools
 
     public function instructions(): Stringable|string
     {
+        $user = auth()->user();
+        $isAdmin = $user?->isAdmin() ?? false;
+
         return "Today's date is {$this->today()}. When a request uses a relative date term (this month, last week, ".
             'today, etc.), resolve it against that date yourself and pass concrete from/to dates (YYYY-MM-DD) to '.
             'search_bookings — never guess or skip the date filter for a relative term. '.
+            "You are talking to {$user?->name}".($isAdmin ? ', an admin' : '').'. When they say "I", "me", or "my" '.
+            "about bookings, clients, or vacancies, that means {$user?->name} specifically. ".
+            ($isAdmin
+                ? "Since they're an admin, search_bookings/search_clients/search_vacancies otherwise return every ".
+                    "consultant's data by default, so pass consultant_name=\"{$user?->name}\" explicitly whenever ".
+                    "they mean just their own; in run_sql_query, filter WHERE consultant_name = '{$user?->name}' the ".
+                    'same way. Only search or query without that filter when they clearly mean the whole team or '.
+                    'name a different consultant. '
+                : 'Non-admins automatically only ever see their own bookings/clients/vacancies, so no extra '.
+                    'filtering is needed for "I"/"me"/"my" questions. '
+            ).
             'You help recruitment agency staff look up their own bookings, clients, candidates, and vacancies, check '.
             'consultant performance, look up existing candidate-to-vacancy match scores, check whether a candidate '.
             'can be booked, check compliance expiry status, find candidates within a given radius of a client or '.
