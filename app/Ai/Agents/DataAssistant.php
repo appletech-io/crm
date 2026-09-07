@@ -39,6 +39,11 @@ class DataAssistant implements Agent, Conversational, HasTools
         return "Today's date is {$this->today()}. When a request uses a relative date term (this month, last week, ".
             'today, etc.), resolve it against that date yourself and pass concrete from/to dates (YYYY-MM-DD) to '.
             'search_bookings — never guess or skip the date filter for a relative term. '.
+            'search_bookings\' from/to already restrict results to bookings actually scheduled (not cancelled) '.
+            'within that window — every item it returns belongs there, no matter how far its own displayed start '.
+            'date/end date range extends outside it (e.g. a booking shown as "2026-08-01 to 2026-10-23" that '.
+            'appears in a "today" search IS happening today). When reporting a count from search_bookings, count '.
+            'and list every item it actually returned — never silently drop some based on their displayed dates. '.
             "You are talking to {$user?->name}".($isAdmin ? ', an admin' : '').'. When they say "I", "me", or "my" '.
             "about bookings, clients, or vacancies, that means {$user?->name} specifically. ".
             ($isAdmin

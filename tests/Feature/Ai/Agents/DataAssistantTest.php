@@ -57,3 +57,13 @@ test('for an admin, the instructions require an explicit consultant_name filter 
         ->toContain('consultant_name="Morgan Reed"')
         ->toContain("WHERE consultant_name = 'Morgan Reed'");
 });
+
+test('the instructions say every search_bookings result within a from/to window belongs there, regardless of its own displayed dates', function () {
+    $this->actingAs(User::factory()->create());
+
+    $instructions = (string) (new DataAssistant)->instructions();
+
+    expect($instructions)
+        ->toContain('every item it returns belongs there, no matter how far its own displayed start')
+        ->toContain('never silently drop some based on their displayed dates');
+});

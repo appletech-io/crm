@@ -57,6 +57,14 @@ class RunSqlQuery implements Tool
             'resolved — this is the ONLY correct table for "how many booking days", "margin", "revenue", or "cost" '.
             'questions, whether for one consultant or grouped/summed across many. Never estimate days or margin '.
             'from the bookings table\'s date range or rate columns — always use booking_days for those. '.
+            'The same applies to "how many bookings" for a specific date or date range — whether stated outright '.
+            '("today", "this week") or carried over from earlier in the conversation (e.g. a follow-up "how many '.
+            'does the whole company have" right after a "today" question still means today): '.
+            'a booking\'s start_date/end_date is only its overall bounding range, not proof it\'s actually scheduled '.
+            'on every day inside it — some of those days may never have been scheduled at all, or were cancelled. '.
+            'Counting WHERE start_date <= X AND end_date >= X over-counts. Instead use '.
+            'COUNT(DISTINCT booking_id) FROM booking_days WHERE date is in that range — only "how many bookings '.
+            'do we have" with no date/range mentioned at all is fine as a plain COUNT(*) FROM bookings. '.
             'vacancies is one row per job vacancy — is_temp/open_for_applications are 1 or 0; salary_min/max apply '.
             'to permanent vacancies and day_rate_min/max to temp ones (the other pair is null). '.
             'vacancy_applications is one row per candidate who applied to a vacancy (shortlisted is 1 or 0) — for '.
