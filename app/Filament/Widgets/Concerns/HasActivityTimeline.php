@@ -166,7 +166,8 @@ trait HasActivityTimeline
                 ->required(),
             TextInput::make('note')
                 ->required()
-                ->maxLength(1000),
+                ->maxLength(1000)
+                ->helperText('Kept short in the timeline — anything over 255 characters is shown in full under Additional details instead.'),
             Textarea::make('body')
                 ->label('Additional details')
                 ->rows(3)
