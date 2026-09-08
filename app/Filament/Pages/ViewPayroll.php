@@ -5,6 +5,8 @@ namespace App\Filament\Pages;
 use App\Enums\PayrollStatusFilter;
 use App\Filament\Concerns\HasPayrollBookingsTable;
 use App\Filament\Concerns\HasTimesheetPeriodNavigation;
+use App\Models\Booking;
+use App\Models\Client;
 use App\Models\Company;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
@@ -41,7 +43,11 @@ class ViewPayroll extends Page implements HasTable
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBanknotes;
 
-    protected static ?string $navigationLabel = 'Payroll';
+    protected static ?string $navigationLabel = 'Timesheets';
+
+    // Kept in step with the navigation label so the browser tab doesn't say
+    // "View Payroll" (what Filament would infer from the class name).
+    protected static ?string $title = 'Timesheets';
 
     protected static \UnitEnum|string|null $navigationGroup = null;
 
@@ -105,7 +111,7 @@ class ViewPayroll extends Page implements HasTable
     public function table(Table $table): Table
     {
         return $this->configurePayrollTable($table, $this->periodNavigationActions())
-            ->filters([$this->payrollStatusFilter()], layout: FiltersLayout::AboveContent)
+            ->filters([$this->payrollStatusFilter(), $this->clientFilter()], layout: FiltersLayout::AboveContent)
             ->deferFilters(false)
             ->emptyStateHeading(fn (): string => $this->selectedStatusFilter()?->emptyStateHeading()
                 ?? 'No bookings scheduled for this period');
@@ -133,6 +139,46 @@ class ViewPayroll extends Page implements HasTable
     private function selectedStatusFilter(): ?PayrollStatusFilter
     {
         return PayrollStatusFilter::tryFrom($this->getTableFilterState('payroll_status')['value'] ?? '');
+    }
+
+    /**
+     * Narrows to a single client. The table already groups by client, so
+     * this is for zeroing in when a period spans more of them than fits on
+     * a screen.
+     */
+    private function clientFilter(): SelectFilter
+    {
+        return SelectFilter::make('client_id')
+            ->label('Client')
+            ->placeholder('All clients')
+            ->searchable()
+            ->options(fn (): array => $this->clientOptions())
+            ->query(fn (Builder $query, array $data): Builder => $query->when(
+                filled($data['value'] ?? null),
+                fn (Builder $query) => $query->whereRelation('booking', 'client_id', $data['value']),
+            ));
+    }
+
+    /**
+     * Only the clients this consultant actually has bookings with, rather
+     * than every client at the company — the same scope the table itself
+     * uses, so the dropdown can't offer a client whose days would never
+     * appear. Soft-deleted clients are included and marked as such, since
+     * the table shows their days too: a client being deleted doesn't
+     * unpay the candidates who worked there.
+     *
+     * @return array<int, string>
+     */
+    private function clientOptions(): array
+    {
+        return Client::withTrashed()
+            ->whereIn('id', $this->scopePayrollBookingsQuery(Booking::query())->select('client_id'))
+            ->orderBy('name')
+            ->get()
+            ->mapWithKeys(fn (Client $client): array => [
+                $client->id => $client->trashed() ? "{$client->name} (deleted)" : $client->name,
+            ])
+            ->all();
     }
 
     protected function periodCompany(): Company
