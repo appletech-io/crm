@@ -104,6 +104,10 @@ class AdminPanelProvider extends PanelProvider
                 PanelsRenderHook::BODY_END,
                 fn () => view('filament.ask-assistant-popup'),
             )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn () => view('filament.sidebar-hover-expand'),
+            )
             ->navigationGroups([
                 NavigationGroup::make('Analytics'),
                 NavigationGroup::make('Settings')->collapsed(),

@@ -43,3 +43,35 @@
     --ec-last-line-color: rgba(255, 255, 255, 0.08);
     --ec-list-day-bg-color: var(--color-gray-900);
 }
+
+/* The sidebar gets its own surface colour so the nav reads as a separate
+   rail rather than part of the page. Filament styles the desktop sidebar
+   as lg:bg-transparent — deliberately inheriting the page background
+   (bg-gray-50 / dark:bg-gray-950 on .fi-body) — so these rules opt out of
+   that. .fi-main-sidebar sits on the same element as .fi-sidebar, so it
+   matches at equal specificity and wins on source order.
+
+   To restyle, change the two variables below and nothing else. For a
+   branded tint instead of neutral grey, something like
+   color-mix(in oklab, var(--color-primary-600) 8%, white) works here. */
+:root {
+    --crm-sidebar-surface: var(--color-gray-100);
+    --crm-sidebar-border: var(--color-gray-200);
+}
+
+.dark {
+    --crm-sidebar-surface: var(--color-gray-900);
+    --crm-sidebar-border: rgba(255, 255, 255, 0.08);
+}
+
+.fi-main-sidebar {
+    background-color: var(--crm-sidebar-surface);
+    border-inline-end: 1px solid var(--crm-sidebar-border);
+}
+
+/* The sidebar's own header (logo block) and nav inherit the rail colour,
+   but the header carries its own white background on mobile — cleared so
+   the rail is one continuous colour at every width. */
+.fi-main-sidebar .fi-sidebar-header-ctn {
+    background-color: transparent;
+}
