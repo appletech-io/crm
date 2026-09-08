@@ -3,6 +3,8 @@
 use App\Models\Company;
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Fortify\Features;
@@ -92,4 +94,103 @@ test('password can be reset with valid token', function () {
 
         return true;
     });
+});
+
+test('the reset link is sent from the users agency, through that agencys own mailer', function () {
+    Notification::fake();
+    Http::fake([
+        'login.microsoftonline.com/*' => Http::response(['access_token' => 'fake-token'], 200),
+        'graph.microsoft.com/*' => Http::response([], 202),
+    ]);
+
+    $company = Company::factory()->create([
+        'name' => 'Acme Recruitment',
+        'ms_tenant_id' => 'tenant',
+        'ms_client_id' => 'client',
+        'ms_client_secret' => 'secret',
+        'ms_sender_email' => 'info@acme-recruitment.test',
+    ]);
+    $user = User::factory()->create(['company_id' => $company->id, 'email' => 'consultant@example.com']);
+
+    $this->post(route('password.request'), ['email' => $user->email]);
+
+    Http::assertSent(function ($request) use ($user) {
+        if (! str_contains($request->url(), 'graph.microsoft.com')) {
+            return false;
+        }
+
+        return str_contains($request->url(), '/users/info@acme-recruitment.test/sendMail')
+            && $request['message']['subject'] === 'Reset your Acme Recruitment password'
+            && $request['message']['toRecipients'][0]['emailAddress']['address'] === $user->email
+            && str_contains($request['message']['body']['content'], url('/reset-password/'))
+            && str_contains($request['message']['body']['content'], 'Acme Recruitment');
+    });
+
+    Notification::assertNothingSent();
+});
+
+test('a reset link sent by the agency still resets the password', function () {
+    Http::fake([
+        'login.microsoftonline.com/*' => Http::response(['access_token' => 'fake-token'], 200),
+        'graph.microsoft.com/*' => Http::response([], 202),
+    ]);
+
+    $company = Company::factory()->create([
+        'ms_tenant_id' => 'tenant',
+        'ms_client_id' => 'client',
+        'ms_client_secret' => 'secret',
+        'ms_sender_email' => 'info@acme-recruitment.test',
+    ]);
+    $user = User::factory()->create(['company_id' => $company->id]);
+
+    $this->post(route('password.request'), ['email' => $user->email]);
+
+    $token = null;
+
+    Http::assertSent(function ($request) use (&$token) {
+        if (! str_contains($request->url(), 'graph.microsoft.com')) {
+            return false;
+        }
+
+        preg_match('#/reset-password/([^"?]+)#', $request['message']['body']['content'], $matches);
+        $token = $matches[1] ?? null;
+
+        return true;
+    });
+
+    expect($token)->not->toBeNull();
+
+    $this->post(route('password.update'), [
+        'token' => $token,
+        'email' => $user->email,
+        'password' => 'new-password',
+        'password_confirmation' => 'new-password',
+    ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('login', absolute: false));
+
+    expect(Hash::check('new-password', $user->fresh()->password))->toBeTrue();
+});
+
+test('it falls back to the platform notification when the users company has no sending address', function () {
+    Notification::fake();
+    Http::fake();
+
+    $company = Company::factory()->create(['ms_sender_email' => null]);
+    $user = User::factory()->create(['company_id' => $company->id]);
+
+    $this->post(route('password.request'), ['email' => $user->email]);
+
+    Notification::assertSentTo($user, ResetPassword::class);
+    Http::assertNothingSent();
+});
+
+test('no reset email is sent for an email address that has no user', function () {
+    Notification::fake();
+    Http::fake();
+
+    $this->post(route('password.request'), ['email' => 'nobody@example.com']);
+
+    Notification::assertNothingSent();
+    Http::assertNothingSent();
 });
