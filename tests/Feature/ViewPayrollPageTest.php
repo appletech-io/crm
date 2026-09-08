@@ -266,3 +266,67 @@ test('the empty state names the status being filtered on', function () {
         ->filterTable('payroll_status', null)
         ->assertDontSee('Nothing left to approve for this period');
 });
+
+test('the menu and page title call it Timesheets, not Payroll', function () {
+    expect(ViewPayroll::getNavigationLabel())->toBe('Timesheets');
+
+    expect(Livewire::test(ViewPayroll::class)->instance()->getTitle())->toBe('Timesheets');
+});
+
+test('the client filter narrows the period down to one clients days', function () {
+    $wanted = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString());
+    $other = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString());
+
+    Livewire::test(ViewPayroll::class)
+        ->filterTable('client_id', $wanted->client_id)
+        ->assertCanSeeTableRecords([$wanted->dayPeriods()->first()])
+        ->assertCanNotSeeTableRecords([$other->dayPeriods()->first()]);
+});
+
+test('the client filter offers only the clients this consultant has bookings with', function () {
+    $own = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString());
+
+    $otherConsultant = User::factory()->create(['company_id' => $this->company->id]);
+    $otherConsultant->assignRole('consultant');
+    $theirs = createConsultantPayrollBooking($otherConsultant, $this->jobTitle, $this->periodStart->toDateString());
+
+    $options = Livewire::test(ViewPayroll::class)
+        ->instance()
+        ->getTable()
+        ->getFilter('client_id')
+        ->getOptions();
+
+    expect($options)->toHaveKey($own->client_id)
+        ->and($options)->not->toHaveKey($theirs->client_id);
+});
+
+test('a deleted client is still filterable, and marked as deleted', function () {
+    $booking = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString());
+    $client = Client::withTrashed()->find($booking->client_id);
+    $client->delete();
+
+    $options = Livewire::test(ViewPayroll::class)
+        ->instance()
+        ->getTable()
+        ->getFilter('client_id')
+        ->getOptions();
+
+    expect($options[$client->id])->toBe("{$client->name} (deleted)");
+});
+
+test('the client and status filters narrow the table together', function () {
+    $wantedAwaiting = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString());
+    $wantedApproved = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString(), [
+        'payroll_confirmation_sent_at' => now(),
+        'approved_at' => now(),
+    ]);
+    $otherClient = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString());
+
+    Livewire::test(ViewPayroll::class)
+        ->filterTable('client_id', $wantedAwaiting->client_id)
+        ->assertCanSeeTableRecords([$wantedAwaiting->dayPeriods()->first()])
+        ->assertCanNotSeeTableRecords([
+            $wantedApproved->dayPeriods()->first(),
+            $otherClient->dayPeriods()->first(),
+        ]);
+});
