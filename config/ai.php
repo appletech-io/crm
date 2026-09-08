@@ -45,7 +45,8 @@ return [
     |
     | Below you may configure how agent conversation memory behaves. Title
     | generation makes an extra AI call per new conversation to name it —
-    | left off since nothing in this app surfaces a conversation list yet.
+    | left off, so the Ask Assistant history panel labels each conversation
+    | with the opening prompt (truncated) instead, at no extra cost.
     |
     */
 
