@@ -106,7 +106,7 @@ class ExportPayrollCsvAction
             static::hoursWorked($dayPeriod),
             $dayPeriod->isCancelled() ? null : $dayPeriod->payRate(),
             $dayPeriod->isCancelled() ? null : $dayPeriod->chargeRate(),
-            $dayPeriod->payrollStatus(),
+            $dayPeriod->payrollStatus()->value,
             $payee['payment_method'],
             $payee['umbrella_company'],
             $payee['umbrella_address'],
