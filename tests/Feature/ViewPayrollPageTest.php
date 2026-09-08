@@ -23,7 +23,11 @@ beforeEach(function () {
     Cache::put("user.{$this->consultant->id}.active_industry_id", 1);
 
     $this->jobTitle = JobTitle::factory()->create(['company_id' => $this->company->id]);
-    $this->periodStart = TimesheetPeriod::current($this->company)['start'];
+
+    // The page opens on the previous period, so that — not the current one —
+    // is the period every test below places its bookings in by default.
+    $this->currentPeriodStart = TimesheetPeriod::current($this->company)['start'];
+    $this->periodStart = TimesheetPeriod::previous($this->company, $this->currentPeriodStart)['start'];
 });
 
 function createConsultantPayrollBooking(User $consultant, JobTitle $jobTitle, string $date, array $dayAttributes = []): Booking
@@ -126,18 +130,99 @@ test('navigating to the next and previous period changes which days are visible'
         ->assertCanNotSeeTableRecords([$currentDay]);
 });
 
-test('the subheading shows the current period range', function () {
+test('the subheading shows the range of the period being viewed', function () {
     Livewire::test(ViewPayroll::class)
         ->assertSuccessful()
         ->assertSee($this->periodStart->format('jS M Y'));
 });
 
 test('the payroll status reflects whether the client has approved or disputed', function () {
+    createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString(), [
+        'payroll_confirmation_sent_at' => now(),
+        'approved_at' => now(),
+    ]);
+
+    Livewire::test(ViewPayroll::class)
+        ->filterTable('hide_approved', false)
+        ->assertSee('Approved');
+});
+
+test('a compliance only user cannot access the payroll page', function () {
+    $compliance = User::factory()->create(['company_id' => $this->company->id]);
+    $compliance->assignRole('compliance');
+    $this->actingAs($compliance);
+
+    expect(ViewPayroll::canAccess())->toBeFalse();
+});
+
+test('a user with compliance alongside another role keeps access to the payroll page', function () {
+    $consultant = User::factory()->create(['company_id' => $this->company->id]);
+    $consultant->assignRole('consultant');
+    $consultant->assignRole('compliance');
+    $this->actingAs($consultant);
+
+    expect(ViewPayroll::canAccess())->toBeTrue();
+});
+
+test('the page opens on the previous period, not the current one', function () {
+    $lastPeriod = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString());
+    $thisPeriod = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->currentPeriodStart->toDateString());
+
+    Livewire::test(ViewPayroll::class)
+        ->assertCanSeeTableRecords([$lastPeriod->dayPeriods()->first()])
+        ->assertCanNotSeeTableRecords([$thisPeriod->dayPeriods()->first()])
+        ->assertSee($this->periodStart->format('jS M Y'));
+});
+
+test('approved days are hidden by default, leaving only the ones still to be approved', function () {
+    $approved = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString(), [
+        'payroll_confirmation_sent_at' => now(),
+        'approved_at' => now(),
+    ]);
+    $awaitingApproval = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString(), [
+        'payroll_confirmation_sent_at' => now(),
+    ]);
+    $neverSent = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString());
+
+    Livewire::test(ViewPayroll::class)
+        ->assertCanSeeTableRecords([
+            $awaitingApproval->dayPeriods()->first(),
+            $neverSent->dayPeriods()->first(),
+        ])
+        ->assertCanNotSeeTableRecords([$approved->dayPeriods()->first()]);
+});
+
+test('a disputed day stays visible even if it also carries an approval timestamp', function () {
+    $disputed = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString(), [
+        'payroll_confirmation_sent_at' => now(),
+        'approved_at' => now(),
+        'disputed_at' => now(),
+    ]);
+
+    Livewire::test(ViewPayroll::class)
+        ->assertCanSeeTableRecords([$disputed->dayPeriods()->first()]);
+});
+
+test('turning the filter off brings the approved days back', function () {
     $approved = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString(), [
         'payroll_confirmation_sent_at' => now(),
         'approved_at' => now(),
     ]);
 
     Livewire::test(ViewPayroll::class)
-        ->assertSee('Approved');
+        ->assertCanNotSeeTableRecords([$approved->dayPeriods()->first()])
+        ->filterTable('hide_approved', false)
+        ->assertCanSeeTableRecords([$approved->dayPeriods()->first()]);
+});
+
+test('the empty state says there is nothing left to approve while approved days are hidden', function () {
+    createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString(), [
+        'payroll_confirmation_sent_at' => now(),
+        'approved_at' => now(),
+    ]);
+
+    Livewire::test(ViewPayroll::class)
+        ->assertSee('Nothing left to approve for this period')
+        ->filterTable('hide_approved', false)
+        ->assertDontSee('Nothing left to approve for this period');
 });
