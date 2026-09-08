@@ -2,6 +2,7 @@
 
 namespace App\Filament\Concerns;
 
+use App\Enums\PayrollStatus;
 use App\Filament\Resources\Bookings\BookingResource;
 use App\Models\BookingDay;
 use Filament\Actions\Action;
@@ -52,14 +53,9 @@ trait HasPayrollBookingsTable
                 TextColumn::make('payroll_status')
                     ->label('Status')
                     ->badge()
-                    ->getStateUsing(fn (BookingDay $record): string => $record->payrollStatus())
-                    ->formatStateUsing(fn (string $state): string => ucfirst($state))
-                    ->color(fn (string $state): string => match ($state) {
-                        'approved' => 'success',
-                        'disputed' => 'danger',
-                        'sent' => 'info',
-                        default => 'gray',
-                    }),
+                    ->getStateUsing(fn (BookingDay $record): PayrollStatus => $record->payrollStatus())
+                    ->formatStateUsing(fn (PayrollStatus $state): string => $state->label())
+                    ->color(fn (PayrollStatus $state): string => $state->color()),
             ])
             ->headerActions($headerActions)
             ->defaultSort('date')

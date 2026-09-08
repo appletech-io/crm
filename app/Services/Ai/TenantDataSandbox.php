@@ -182,7 +182,7 @@ class TenantDataSandbox
                     $day->booking?->client?->name,
                     $day->booking?->jobTitle?->name,
                     $day->booking?->consultant?->name,
-                    $day->payrollStatus(),
+                    $day->payrollStatus()->value,
                     $payRate,
                     $chargeRate,
                     $payRate !== null && $chargeRate !== null ? $chargeRate - $payRate : null,

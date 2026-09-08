@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Enums\PayrollStatus;
 use App\Filament\Concerns\HasTimesheetPeriodNavigation;
 use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Support\CandidateSummaryAction;
@@ -55,11 +56,11 @@ class ClientTimesheetOverview extends BaseWidget
                 TextColumn::make('payroll_status')
                     ->label('Status')
                     ->badge()
-                    ->getStateUsing(fn (BookingDay $record): string => $record->payrollStatus())
-                    ->formatStateUsing(fn (string $state): string => ucfirst($state))
-                    ->color(fn (string $state): string => match ($state) {
-                        'approved' => 'success',
-                        'disputed' => 'danger',
+                    ->getStateUsing(fn (BookingDay $record): PayrollStatus => $record->payrollStatus())
+                    ->formatStateUsing(fn (PayrollStatus $state): string => $state->label())
+                    ->color(fn (PayrollStatus $state): string => match ($state) {
+                        PayrollStatus::Approved => 'success',
+                        PayrollStatus::Disputed => 'danger',
                         default => 'gray',
                     }),
             ])

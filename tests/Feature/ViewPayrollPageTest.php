@@ -143,7 +143,7 @@ test('the payroll status reflects whether the client has approved or disputed', 
     ]);
 
     Livewire::test(ViewPayroll::class)
-        ->filterTable('hide_approved', false)
+        ->filterTable('payroll_status', null)
         ->assertSee('Approved');
 });
 
@@ -174,7 +174,7 @@ test('the page opens on the previous period, not the current one', function () {
         ->assertSee($this->periodStart->format('jS M Y'));
 });
 
-test('approved days are hidden by default, leaving only the ones still to be approved', function () {
+test('the status filter defaults to awaiting approval, leaving out the days already signed off', function () {
     $approved = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString(), [
         'payroll_confirmation_sent_at' => now(),
         'approved_at' => now(),
@@ -203,19 +203,57 @@ test('a disputed day stays visible even if it also carries an approval timestamp
         ->assertCanSeeTableRecords([$disputed->dayPeriods()->first()]);
 });
 
-test('turning the filter off brings the approved days back', function () {
+test('clearing the status filter shows the whole period, approved days included', function () {
     $approved = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString(), [
         'payroll_confirmation_sent_at' => now(),
         'approved_at' => now(),
     ]);
+    $awaitingApproval = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString());
 
     Livewire::test(ViewPayroll::class)
         ->assertCanNotSeeTableRecords([$approved->dayPeriods()->first()])
-        ->filterTable('hide_approved', false)
-        ->assertCanSeeTableRecords([$approved->dayPeriods()->first()]);
+        ->filterTable('payroll_status', null)
+        ->assertCanSeeTableRecords([
+            $approved->dayPeriods()->first(),
+            $awaitingApproval->dayPeriods()->first(),
+        ]);
 });
 
-test('the empty state says there is nothing left to approve while approved days are hidden', function () {
+test('the approved option shows only the signed off days, leaving out disputed ones', function () {
+    $approved = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString(), [
+        'payroll_confirmation_sent_at' => now(),
+        'approved_at' => now(),
+    ]);
+    $disputed = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString(), [
+        'payroll_confirmation_sent_at' => now(),
+        'approved_at' => now(),
+        'disputed_at' => now(),
+    ]);
+    $awaitingApproval = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString());
+
+    Livewire::test(ViewPayroll::class)
+        ->filterTable('payroll_status', 'approved')
+        ->assertCanSeeTableRecords([$approved->dayPeriods()->first()])
+        ->assertCanNotSeeTableRecords([
+            $disputed->dayPeriods()->first(),
+            $awaitingApproval->dayPeriods()->first(),
+        ]);
+});
+
+test('the disputed option isolates the disputed days', function () {
+    $disputed = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString(), [
+        'payroll_confirmation_sent_at' => now(),
+        'disputed_at' => now(),
+    ]);
+    $awaitingApproval = createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString());
+
+    Livewire::test(ViewPayroll::class)
+        ->filterTable('payroll_status', 'disputed')
+        ->assertCanSeeTableRecords([$disputed->dayPeriods()->first()])
+        ->assertCanNotSeeTableRecords([$awaitingApproval->dayPeriods()->first()]);
+});
+
+test('the empty state names the status being filtered on', function () {
     createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString(), [
         'payroll_confirmation_sent_at' => now(),
         'approved_at' => now(),
@@ -223,6 +261,8 @@ test('the empty state says there is nothing left to approve while approved days 
 
     Livewire::test(ViewPayroll::class)
         ->assertSee('Nothing left to approve for this period')
-        ->filterTable('hide_approved', false)
+        ->filterTable('payroll_status', 'disputed')
+        ->assertSee('Nothing disputed for this period')
+        ->filterTable('payroll_status', null)
         ->assertDontSee('Nothing left to approve for this period');
 });

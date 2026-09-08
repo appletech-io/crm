@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Enums\PayrollStatusFilter;
 use App\Filament\Concerns\HasPayrollBookingsTable;
 use App\Filament\Concerns\HasTimesheetPeriodNavigation;
 use App\Models\Company;
@@ -10,7 +11,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Enums\FiltersLayout;
-use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -25,8 +26,8 @@ use Illuminate\Support\Facades\Auth;
  * actions — this page is for seeing where things stand, not acting on them.
  *
  * Framed as a chase list rather than a full record of the period: it opens
- * on the previous (finished) period and hides days the client has already
- * approved, so what's left on screen is what still needs chasing. Both are
+ * on the previous (finished) period, filtered to the days the client hasn't
+ * signed off, so what's left on screen is what still needs chasing. Both are
  * defaults the consultant can navigate or filter their way out of, and
  * both are specific to this page — RunPayroll is untouched.
  */
@@ -97,41 +98,41 @@ class ViewPayroll extends Page implements HasTable
     }
 
     /**
-     * Adds the approved-day filter on top of the shared payroll table —
+     * Adds the status filter on top of the shared payroll table —
      * deliberately here rather than in HasPayrollBookingsTable, since
      * RunPayroll needs to keep showing every day in the period.
      */
     public function table(Table $table): Table
     {
         return $this->configurePayrollTable($table, $this->periodNavigationActions())
-            ->filters([$this->hideApprovedFilter()], layout: FiltersLayout::AboveContent)
+            ->filters([$this->payrollStatusFilter()], layout: FiltersLayout::AboveContent)
             ->deferFilters(false)
-            ->emptyStateHeading(fn (): string => $this->isHidingApprovedDays()
-                ? 'Nothing left to approve for this period'
-                : 'No bookings scheduled for this period');
+            ->emptyStateHeading(fn (): string => $this->selectedStatusFilter()?->emptyStateHeading()
+                ?? 'No bookings scheduled for this period');
     }
 
     /**
-     * On by default so the page opens as a to-do list of what the client
-     * still hasn't signed off, which is the reason a consultant comes here.
-     * Disputed days stay visible even once approved — a dispute is the one
-     * thing that needs chasing hardest, so it must never be filtered away
-     * by an approval timestamp sitting alongside it.
+     * Defaults to the days still to be signed off, so the page opens as a
+     * chase list — the reason a consultant comes here. Clearing the filter
+     * (the "All" placeholder) shows the whole period.
+     *
+     * The three slices, and what each means as a query, live on
+     * PayrollStatusFilter.
      */
-    private function hideApprovedFilter(): Filter
+    private function payrollStatusFilter(): SelectFilter
     {
-        return Filter::make('hide_approved')
-            ->label('Hide approved days')
-            ->toggle()
-            ->default()
-            ->query(fn (Builder $query): Builder => $query->where(
-                fn (Builder $query) => $query->whereNull('approved_at')->orWhereNotNull('disputed_at'),
-            ));
+        return SelectFilter::make('payroll_status')
+            ->label('Status')
+            ->placeholder('All')
+            ->options(PayrollStatusFilter::options())
+            ->default(PayrollStatusFilter::AwaitingApproval->value)
+            ->query(fn (Builder $query, array $data): Builder => PayrollStatusFilter::tryFrom($data['value'] ?? '')
+                ?->apply($query) ?? $query);
     }
 
-    private function isHidingApprovedDays(): bool
+    private function selectedStatusFilter(): ?PayrollStatusFilter
     {
-        return (bool) ($this->getTableFilterState('hide_approved')['isActive'] ?? false);
+        return PayrollStatusFilter::tryFrom($this->getTableFilterState('payroll_status')['value'] ?? '');
     }
 
     protected function periodCompany(): Company

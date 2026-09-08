@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\BookingDayPeriod;
+use App\Enums\PayrollStatus;
 use App\Models\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -46,13 +47,13 @@ class BookingDay extends Model
         return $this->disputed_at !== null;
     }
 
-    public function payrollStatus(): string
+    public function payrollStatus(): PayrollStatus
     {
         return match (true) {
-            $this->isDisputed() => 'disputed',
-            $this->isApproved() => 'approved',
-            $this->isPayrollConfirmationSent() => 'sent',
-            default => 'pending',
+            $this->isDisputed() => PayrollStatus::Disputed,
+            $this->isApproved() => PayrollStatus::Approved,
+            $this->isPayrollConfirmationSent() => PayrollStatus::Sent,
+            default => PayrollStatus::Pending,
         };
     }
 
