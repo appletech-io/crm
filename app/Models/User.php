@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Jobs\SendPasswordResetEmail;
 use App\Models\Traits\BelongsToCompany;
 use App\Models\Traits\HasProviderExternalId;
 use Database\Factories\UserFactory;
@@ -135,6 +136,28 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
     public function client(): ?Client
     {
         return $this->clientContact?->client;
+    }
+
+    /**
+     * Send the reset link from the agency the user belongs to, through that
+     * agency's own email provider — the same route every other outbound
+     * email in the app takes, so the message arrives from an address the
+     * recipient recognises (and one whose domain actually authorises the
+     * send). Users with no company, or whose company hasn't configured a
+     * sending address yet, fall back to Laravel's built-in notification on
+     * the platform's default mailer so a reset is never silently dropped.
+     *
+     * @param  string  $token
+     */
+    public function sendPasswordResetNotification($token): void
+    {
+        if (filled($this->company?->defaultFromEmail())) {
+            SendPasswordResetEmail::dispatch($this, $token);
+
+            return;
+        }
+
+        parent::sendPasswordResetNotification($token);
     }
 
     public function isAdmin(): bool
