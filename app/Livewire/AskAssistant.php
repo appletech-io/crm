@@ -3,7 +3,11 @@
 namespace App\Livewire;
 
 use App\Ai\Agents\DataAssistant;
+use App\Services\Ai\AssistantConversations;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Laravel\Ai\Models\Conversation;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -47,6 +51,73 @@ class AskAssistant extends Component
         abort_unless(active_industry() !== null, 403);
 
         $this->isPopup = $isPopup;
+
+        $this->reopenLastConversation();
+    }
+
+    /**
+     * Put the user back into the conversation they were last having, so a page
+     * reload (or opening the popup after using the full page) continues it
+     * rather than silently starting over on top of stored history.
+     */
+    private function reopenLastConversation(): void
+    {
+        $conversation = $this->conversations()->latestFor(auth()->user());
+
+        if ($conversation === null) {
+            return;
+        }
+
+        $this->conversationId = $conversation->id;
+        $this->messages = $this->conversations()->transcript($conversation);
+    }
+
+    /**
+     * The user's recent conversations, for the history panel.
+     *
+     * Computed so the panel costs one query per request rather than one per
+     * render, and invalidated wherever the set of conversations changes.
+     *
+     * @return Collection<int, Conversation>
+     */
+    #[Computed]
+    public function conversationHistory(): Collection
+    {
+        return $this->conversations()->historyFor(auth()->user());
+    }
+
+    /**
+     * Reopen a conversation the user picked from the history panel.
+     *
+     * The lookup is scoped to their own conversations for the active industry,
+     * and a miss is a 404 rather than a 403 so this never confirms that
+     * someone else's conversation ID exists.
+     */
+    public function loadConversation(string $conversationId): void
+    {
+        $conversation = $this->conversations()->find(auth()->user(), $conversationId);
+
+        abort_if($conversation === null, 404);
+
+        $this->conversations()->markResumed($conversation->id);
+
+        $this->conversationId = $conversation->id;
+        $this->messages = $this->conversations()->transcript($conversation);
+        $this->moreResultsAvailable = false;
+        $this->pendingPrompt = null;
+
+        unset($this->conversationHistory);
+
+        $this->dispatch('message-added');
+    }
+
+    /**
+     * Livewire components are serialized between requests, so this dependency
+     * is resolved on demand rather than held as component state.
+     */
+    private function conversations(): AssistantConversations
+    {
+        return app(AssistantConversations::class);
     }
 
     /** @return array<int, string> */
@@ -205,6 +276,8 @@ class AskAssistant extends Component
 
     private function askAssistant(string $prompt): void
     {
+        $startsNewConversation = $this->conversationId === null;
+
         try {
             $agent = new DataAssistant;
 
@@ -216,6 +289,12 @@ class AskAssistant extends Component
             $text = $response->text;
 
             $this->conversationId = $response->conversationId;
+
+            if ($startsNewConversation && $this->conversationId !== null) {
+                $this->conversations()->stampScope($this->conversationId);
+
+                unset($this->conversationHistory);
+            }
             $this->moreResultsAvailable = Str::contains($text, 'more match');
 
             $this->messages[] = ['role' => 'assistant', 'content' => $text];
@@ -229,8 +308,19 @@ class AskAssistant extends Component
         $this->dispatch('message-added');
     }
 
+    /**
+     * Start a fresh conversation. The previous one is kept and stays in the
+     * history panel; it is only marked as no longer the one to reopen, so a
+     * reload does not undo the user having cleared the window.
+     */
     public function clearChat(): void
     {
+        if ($this->conversationId !== null) {
+            $this->conversations()->dismiss($this->conversationId);
+
+            unset($this->conversationHistory);
+        }
+
         $this->messages = [];
         $this->conversationId = null;
         $this->moreResultsAvailable = false;

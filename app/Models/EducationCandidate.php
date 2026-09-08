@@ -107,6 +107,7 @@ class EducationCandidate extends Model
         return $this->belongsTo(User::class, 'compliance_completed_by');
     }
 
+    /** @return BelongsTo<Qualification, $this> */
     public function qualification(): BelongsTo
     {
         return $this->belongsTo(Qualification::class);

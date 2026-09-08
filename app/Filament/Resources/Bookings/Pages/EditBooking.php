@@ -14,6 +14,7 @@ use App\Jobs\SendTimesheetToPayrollProvider;
 use App\Models\Booking;
 use App\Models\ClientContact;
 use App\Models\Industry;
+use App\Services\Education\BookingConfirmationLink;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
@@ -23,6 +24,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class EditBooking extends EditRecord
 {
@@ -125,6 +127,32 @@ class EditBooking extends EditRecord
                         ->success()
                         ->send();
                 }),
+            Action::make('viewConfirmationPdf')
+                ->label('View Confirmation PDF')
+                ->icon('heroicon-o-document-text')
+                ->color('gray')
+                ->url(fn (): ?string => $this->confirmationPdfUrl())
+                ->openUrlInNewTab()
+                ->visible(fn (): bool => $this->hasConfirmationPdf()),
+            Action::make('generateConfirmationPdf')
+                ->label('Generate Confirmation PDF')
+                ->icon('heroicon-o-document-plus')
+                ->color('gray')
+                ->requiresConfirmation()
+                ->modalDescription('This builds the booking confirmation PDF, including the candidate\'s vetting checks and document scans. It runs in the background — refresh the page once it has finished to view it.')
+                ->visible(fn (): bool => ! $this->hasConfirmationPdf() && ! $this->isRequested())
+                ->action(function (): void {
+                    /** @var Booking $record */
+                    $record = $this->record;
+
+                    GenerateBookingConfirmationPdf::dispatch($record);
+
+                    Notification::make()
+                        ->title('Confirmation PDF queued')
+                        ->body('Refresh the page in a moment to view it.')
+                        ->success()
+                        ->send();
+                }),
             ActionGroup::make([
                 Action::make('resendBothConfirmationEmails')
                     ->label('Both')
@@ -220,6 +248,36 @@ class EditBooking extends EditRecord
         $record = $this->record;
 
         return $record->hasUpcomingDayPeriods();
+    }
+
+    /**
+     * Checks the file is actually on disk, not just that the column is set
+     * — a path pointing at a missing file would otherwise offer a "View"
+     * button that 404s through BookingConfirmationController. Treating it
+     * as absent instead surfaces the Generate action, so the page recovers
+     * itself.
+     */
+    protected function hasConfirmationPdf(): bool
+    {
+        /** @var Booking $record */
+        $record = $this->record;
+
+        return filled($record->confirmation_pdf_path)
+            && Storage::disk('local')->exists($record->confirmation_pdf_path);
+    }
+
+    /**
+     * Reuses the same crypt-secured link the confirmation emails send, which
+     * reads the PDF off the local disk where BookingConfirmationPdfService
+     * writes it. Document::viewUrl() would look on config('filesystems.default')
+     * instead and miss the file wherever that disk is not the local one.
+     */
+    protected function confirmationPdfUrl(): ?string
+    {
+        /** @var Booking $record */
+        $record = $this->record;
+
+        return $this->hasConfirmationPdf() ? BookingConfirmationLink::url($record) : null;
     }
 
     protected function hasProviderError(): bool

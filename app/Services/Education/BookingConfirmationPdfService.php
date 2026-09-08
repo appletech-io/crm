@@ -3,27 +3,42 @@
 namespace App\Services\Education;
 
 use App\Enums\DocumentType;
-use App\Enums\ReferenceStatus;
 use App\Models\Booking;
 use App\Models\CandidateDocument;
 use App\Models\EducationCandidate;
+use App\Models\HealthcareCandidate;
 use App\Services\Booking\BookingDayPeriods;
 use App\Services\Candidates\Document;
+use App\Services\Education\BookingConfirmationChecks as EducationBookingConfirmationChecks;
+use App\Services\Healthcare\BookingConfirmationChecks as HealthcareBookingConfirmationChecks;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 use setasign\Fpdi\Fpdi;
 
 class BookingConfirmationPdfService
 {
+    /**
+     * @throws RuntimeException when the booking's candidate is of a type
+     *                          that has no vetting checks defined, rather
+     *                          than failing later with a TypeError deep in
+     *                          the check builders.
+     */
     public function generate(Booking $booking): string
     {
-        /** @var EducationCandidate $candidate */
         $candidate = $booking->candidate;
+
+        if (! $candidate instanceof EducationCandidate && ! $candidate instanceof HealthcareCandidate) {
+            throw new RuntimeException(
+                "Cannot build a confirmation PDF for booking {$booking->id}: candidate type ".
+                ($booking->candidate_type ?? 'none').' is not supported.'
+            );
+        }
 
         $html = view('pdfs.booking-confirmation', [
             'booking' => $booking,
             'candidate' => $candidate,
-            'checks' => collect($this->checks($candidate)),
+            'checks' => collect($this->checksFor($candidate)),
             'bookingDates' => BookingDayPeriods::rows($booking, 'charge'),
             'photoDataUri' => $this->photoDataUri($candidate),
             'logoDataUri' => $this->logoDataUri($booking),
@@ -48,7 +63,7 @@ class BookingConfirmationPdfService
         return "data:{$mimeType};base64,".base64_encode($contents);
     }
 
-    protected function photoDataUri(EducationCandidate $candidate): ?string
+    protected function photoDataUri(EducationCandidate|HealthcareCandidate $candidate): ?string
     {
         /** @var CandidateDocument|null $photo */
         $photo = $candidate->documents->firstWhere('document_type', DocumentType::Photo);
@@ -65,68 +80,21 @@ class BookingConfirmationPdfService
         return "data:{$mimeType};base64,".base64_encode($contents);
     }
 
-    /** @return array<int, array{label: string, value: string}> */
-    protected function checks(EducationCandidate $candidate): array
+    /**
+     * Which vetting rows the summary table gets — the two sectors collect
+     * different checks, so each owns its own list.
+     *
+     * @return array<int, array{label: string, value: string}>
+     */
+    protected function checksFor(EducationCandidate|HealthcareCandidate $candidate): array
     {
-        return [
-            ['label' => 'Date of Birth', 'value' => $candidate->date_of_birth?->format('jS M Y') ?? 'N/A'],
-            ['label' => 'NI Number', 'value' => $candidate->ni_number ?? 'N/A'],
-            ['label' => 'Address Checked', 'value' => $candidate->proof_of_address_checked_at?->format('jS M Y') ?? 'N/A'],
-            ['label' => 'Right to Work Type', 'value' => $this->rightToWorkLabel($candidate)],
-            ['label' => 'Reference(s) Checked', 'value' => $this->referencesCheckedLabel($candidate)],
-            ['label' => 'Qualification', 'value' => $candidate->qualification?->name ?? 'N/A'],
-            ['label' => 'Safeguarding Training', 'value' => $candidate->safeguarding_certified_date?->format('jS M Y') ?? 'N/A'],
-            ['label' => 'Benedict\'s Law Training', 'value' => $candidate->benedicts_law_issue_date?->format('jS M Y') ?? 'N/A'],
-            ['label' => 'TRN', 'value' => $candidate->trn_number ?? 'N/A'],
-            ['label' => 'TRA/NCTL Sanctions', 'value' => $candidate->sanctions === 'yes' ? 'Sanctions' : 'No Sanctions'],
-            ['label' => 'DBS No', 'value' => $candidate->dbs_certificate_number ?? 'N/A'],
-            ['label' => 'DBS Checked Date', 'value' => $candidate->dbs_checked_date?->format('jS M Y') ?? 'N/A'],
-            ['label' => 'DBS Update Service', 'value' => $candidate->update_service_checked_at?->format('jS M Y') ?? 'N/A'],
-            ['label' => 'Any Medical Issue', 'value' => $this->medicalIssueLabel($candidate)],
-            ['label' => 'Overseas Police Clearance', 'value' => $this->overseasClearanceLabel($candidate)],
-        ];
-    }
-
-    protected function rightToWorkLabel(EducationCandidate $candidate): string
-    {
-        return match ($candidate->right_to_work_type) {
-            'passport' => 'UK Passport',
-            'visa' => 'Visa',
-            'birth_certificate' => 'UK Birth Certificate',
-            default => 'N/A',
+        return match (true) {
+            $candidate instanceof EducationCandidate => EducationBookingConfirmationChecks::for($candidate),
+            $candidate instanceof HealthcareCandidate => HealthcareBookingConfirmationChecks::for($candidate),
         };
     }
 
-    protected function referencesCheckedLabel(EducationCandidate $candidate): string
-    {
-        if (! $candidate->references()->exists()) {
-            return 'N/A';
-        }
-
-        $allConfirmed = ! $candidate->references()->where('status', '!=', ReferenceStatus::Confirmed)->exists();
-
-        return $allConfirmed ? 'Yes' : 'No';
-    }
-
-    protected function medicalIssueLabel(EducationCandidate $candidate): string
-    {
-        if ($candidate->has_health_condition_or_disability !== 'yes') {
-            return 'N/A';
-        }
-
-        return $candidate->health_condition_details ?: 'Yes';
-    }
-
-    protected function overseasClearanceLabel(EducationCandidate $candidate): string
-    {
-        if ($candidate->lived_overseas_six_months !== 'yes') {
-            return 'Not Required';
-        }
-
-        return $candidate->overseas_police_clearance_check === 'yes' ? 'Cleared' : 'Outstanding';
-    }
-
-    protected function mergeWithCandidateDocuments(string $summaryPdf, EducationCandidate $candidate): string
+    protected function mergeWithCandidateDocuments(string $summaryPdf, EducationCandidate|HealthcareCandidate $candidate): string
     {
         $pdf = new Fpdi;
 

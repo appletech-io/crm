@@ -23,10 +23,12 @@ use App\Models\JobTitle;
 use App\Models\PayRate;
 use App\Models\Qualification;
 use App\Models\User;
+use App\Services\Education\BookingConfirmationLink;
 use Carbon\Carbon;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 function assignCandidateStatus(EducationCandidate $candidate, Industry $industry, string $companyId, string $statusName): void
@@ -915,6 +917,67 @@ test('the edit form does not crash and flags the candidate as deleted when the c
     Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
         ->assertSuccessful()
         ->assertSee('(deleted)');
+});
+
+test('the view confirmation pdf action links to this booking\'s stored confirmation pdf', function () {
+    Storage::fake('local');
+    Storage::disk('local')->put('somewhere/booking-confirmation.pdf', 'pdf-bytes');
+
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'confirmation_pdf_path' => 'somewhere/booking-confirmation.pdf',
+    ]);
+
+    $url = Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+        ->assertActionVisible('viewConfirmationPdf')
+        ->instance()
+        ->getAction('viewConfirmationPdf')
+        ->getUrl();
+
+    // The token is encrypted with a random IV, so two calls never produce the
+    // same URL — this decodes the one the button carries instead of comparing
+    // it against a freshly generated link.
+    parse_str((string) parse_url((string) $url, PHP_URL_QUERY), $query);
+
+    expect($url)->toStartWith(route('booking-confirmation.show'))
+        ->and(BookingConfirmationLink::decode($query['crypt'] ?? '')?->is($booking))->toBeTrue();
+});
+
+test('the view confirmation pdf action is hidden until a pdf has been generated', function () {
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'confirmation_pdf_path' => null,
+    ]);
+
+    Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+        ->assertActionHidden('viewConfirmationPdf');
+});
+
+test('the view confirmation pdf action stays available on an approved booking, which is otherwise read-only', function () {
+    Storage::fake('local');
+    Storage::disk('local')->put('somewhere/booking-confirmation.pdf', 'pdf-bytes');
+
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'status' => BookingStatus::Approved,
+        'confirmation_pdf_path' => 'somewhere/booking-confirmation.pdf',
+    ]);
+
+    Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+        ->assertFormFieldDisabled('status')
+        ->assertActionVisible('viewConfirmationPdf');
 });
 
 test('the resend confirmation emails action dispatches pdf generation and both confirmation email jobs', function () {

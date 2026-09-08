@@ -1,6 +1,7 @@
 <div
     x-data="{
         helpOpen: false,
+        historyOpen: false,
         listening: false,
         recognition: null,
         base: '',
@@ -106,6 +107,18 @@
                 <flux:icon.information-circle variant="mini" />
             </button>
 
+            @if ($this->conversationHistory->isNotEmpty())
+                <button
+                    type="button"
+                    x-on:click="historyOpen = true"
+                    aria-label="{{ __('Earlier chats') }}"
+                    title="{{ __('Earlier chats') }}"
+                    class="flex h-5 w-5 items-center justify-center rounded-full text-zinc-400 transition hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+                >
+                    <flux:icon.clock variant="mini" />
+                </button>
+            @endif
+
             <button
                 type="button"
                 wire:click="clearChat"
@@ -173,6 +186,63 @@
             </div>
         </div>
     </div>
+
+    {{-- A plain Alpine overlay for the same reason as the help modal above. --}}
+    @if ($this->conversationHistory->isNotEmpty())
+        <div
+            x-show="historyOpen"
+            x-on:keydown.escape.window="historyOpen = false"
+            class="fixed inset-0 z-10 flex items-center justify-center bg-zinc-950/50 p-4"
+            style="display: none"
+        >
+            <div
+                x-show="historyOpen"
+                x-on:click.outside="historyOpen = false"
+                x-transition
+                class="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-lg ring ring-zinc-950/5 dark:bg-zinc-800 dark:ring-white/10"
+            >
+                <div class="mb-5 flex items-start justify-between gap-4">
+                    <div>
+                        <flux:heading size="lg">{{ __('Earlier chats') }}</flux:heading>
+                        <flux:text class="mt-1">
+                            {{ __('Pick up any of your recent conversations for this sector.') }}
+                        </flux:text>
+                    </div>
+
+                    <button
+                        type="button"
+                        x-on:click="historyOpen = false"
+                        aria-label="{{ __('Close') }}"
+                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-400 transition hover:bg-zinc-800/5 hover:text-zinc-800 dark:hover:bg-white/15 dark:hover:text-white"
+                    >
+                        <flux:icon.x-mark variant="mini" />
+                    </button>
+                </div>
+
+                <ul class="space-y-1">
+                    @foreach ($this->conversationHistory as $conversation)
+                        <li>
+                            <button
+                                type="button"
+                                wire:click="loadConversation({{ \Illuminate\Support\Js::from($conversation->id) }})"
+                                x-on:click="historyOpen = false"
+                                @class([
+                                    'flex w-full items-baseline justify-between gap-4 rounded-lg px-3 py-2 text-left transition',
+                                    'bg-emerald-50 dark:bg-emerald-400/10' => $conversation->id === $conversationId,
+                                    'hover:bg-zinc-800/5 dark:hover:bg-white/5' => $conversation->id !== $conversationId,
+                                ])
+                            >
+                                <span class="text-sm text-zinc-700 dark:text-zinc-200">{{ $conversation->title }}</span>
+                                <span class="shrink-0 text-xs text-zinc-400 dark:text-zinc-500">
+                                    {{ $conversation->updated_at->diffForHumans() }}
+                                </span>
+                            </button>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        </div>
+    @endif
 
     <div
         x-ref="scroller"
