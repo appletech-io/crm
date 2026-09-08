@@ -314,6 +314,11 @@ test('a server error is rethrown for the queue to retry, but still recorded', fu
 });
 
 test('a successful retry clears a previously recorded provider error', function () {
+    // Faked up front, as in the sibling tests: building the booking itself
+    // reaches the provider, so a fake registered later leaves that first
+    // call unstubbed.
+    Http::fake(['*' => Http::response(['HasErrors' => false, 'Errors' => []], 200)]);
+
     $company = fakeEvertimeCompany();
     $booking = makePayrollBooking($company);
 
@@ -323,8 +328,6 @@ test('a successful retry clears a previously recorded provider error', function 
         'provider' => Integration::Evertime->value,
         'errors' => ['Some earlier failure'],
     ]);
-
-    Http::fake(['*' => Http::response(['HasErrors' => false, 'Errors' => []], 200)]);
 
     $booking->update(['status' => BookingStatus::Approved]);
 
