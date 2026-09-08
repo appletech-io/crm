@@ -3,12 +3,15 @@
 namespace App\Models;
 
 use App\Enums\ActivityType;
+use App\Models\Traits\MovesLongNoteToBody;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class ClientActivity extends Model
 {
+    use MovesLongNoteToBody;
+
     protected $fillable = [
         'user_id',
         'model_type',
