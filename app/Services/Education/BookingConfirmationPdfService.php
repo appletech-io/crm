@@ -12,9 +12,11 @@ use App\Services\Candidates\Document;
 use App\Services\Education\BookingConfirmationChecks as EducationBookingConfirmationChecks;
 use App\Services\Healthcare\BookingConfirmationChecks as HealthcareBookingConfirmationChecks;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use setasign\Fpdi\Fpdi;
+use setasign\Fpdi\FpdiException;
 
 class BookingConfirmationPdfService
 {
@@ -104,12 +106,48 @@ class BookingConfirmationPdfService
             /** @var CandidateDocument|null $document */
             $document = $candidate->documents()->where('document_type', $type)->first();
 
-            if ($document) {
+            if (! $document) {
+                continue;
+            }
+
+            try {
                 $this->appendStoredDocument($pdf, $document->path);
+            } catch (FpdiException $e) {
+                Log::warning(
+                    "Could not embed {$type->label()} (document {$document->id}) in the confirmation PDF "
+                    ."for candidate {$candidate->id}: {$e->getMessage()}"
+                );
+
+                $this->appendUnembeddableDocumentPage($pdf, $type);
             }
         }
 
         return $pdf->Output('S');
+    }
+
+    /**
+     * A scan FPDI can't import — most often a DBS certificate saved with
+     * PDF encryption/permissions set, which FPDI refuses outright — must
+     * not take the whole confirmation PDF down with it: the summary page
+     * and the candidate's other documents are still worth sending.
+     *
+     * It gets a page saying so rather than being dropped silently, because
+     * these are compliance documents. A pack that quietly arrives without
+     * a DBS certificate looks complete to whoever reads it, which is worse
+     * than one that says the scan needs re-uploading.
+     */
+    protected function appendUnembeddableDocumentPage(Fpdi $pdf, DocumentType $type): void
+    {
+        $pdf->AddPage('P');
+        $pdf->SetFont('Helvetica', 'B', 14);
+        $pdf->MultiCell(0, 8, "{$type->label()} - not included");
+        $pdf->Ln(4);
+        $pdf->SetFont('Helvetica', '', 11);
+        $pdf->MultiCell(0, 6,
+            'This document is on file but could not be added to this pack, because the uploaded file is '
+            .'password-protected or otherwise unreadable. Please request an unprotected copy and re-upload it, '
+            .'then regenerate this confirmation.'
+        );
     }
 
     protected function importPdfBytes(Fpdi $pdf, string $bytes): void

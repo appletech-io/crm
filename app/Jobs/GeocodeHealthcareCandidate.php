@@ -22,6 +22,13 @@ class GeocodeHealthcareCandidate implements ShouldQueue
             return;
         }
 
+        // A geocode request without an API key is always rejected by Google,
+        // so there is nothing to gain from sending it. This also keeps test
+        // runs and any keyless environment off the network entirely.
+        if (blank(config('services.google.places_key'))) {
+            return;
+        }
+
         $response = Http::get('https://maps.googleapis.com/maps/api/geocode/json', [
             'address' => $postcode,
             'key' => config('services.google.places_key'),

@@ -5,6 +5,14 @@ use App\Models\HealthcareCandidate;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
+beforeEach(function () {
+    // The suite runs with no Google API key (see phpunit.xml) so nothing
+    // reaches the network by accident; these tests exercise the geocoding
+    // path itself, so they opt back in with a dummy key alongside a faked
+    // endpoint.
+    config(['services.google.places_key' => 'test-key']);
+});
+
 test('geocoding job is dispatched when postcode is set on create', function () {
     Queue::fake();
 
