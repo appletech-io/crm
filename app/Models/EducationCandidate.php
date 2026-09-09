@@ -144,6 +144,11 @@ class EducationCandidate extends Model
         return $this->morphOne(FormattedCv::class, 'candidate');
     }
 
+    public function candidateProfile(): MorphOne
+    {
+        return $this->morphOne(CandidateProfile::class, 'candidate');
+    }
+
     public function statuses(): MorphMany
     {
         return $this->morphMany(CandidateCandidateStatus::class, 'model')->latest();
