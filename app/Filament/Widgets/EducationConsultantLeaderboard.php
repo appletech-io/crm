@@ -78,6 +78,16 @@ class EducationConsultantLeaderboard extends Widget
      * (with day periods) and does the ranking in PHP, so it's one of the
      * more expensive things rendered on the dashboard.
      *
+     * The cached payload (built by buildLeaderboard()) is plain arrays only
+     * — a consultant_id, not the User model, and "weeks" as a plain array,
+     * not a Collection. Caching model/Collection objects directly risks
+     * them coming back as a __PHP_Incomplete_Class after a zero-downtime
+     * deploy swaps the autoloader out from under a value serialized moments
+     * earlier, so nothing that needs class resolution to unserialize ever
+     * goes into the cache itself — the User models are re-fetched fresh
+     * here, outside the cached closure, and "weeks" is wrapped back into a
+     * Collection afterwards.
+     *
      * @return Collection<int, array{consultant: User, weeks: Collection<string, array{start: int, current: int, nextWeek: int}>, rankValue: int}>
      */
     public function leaderboard(): Collection
@@ -85,20 +95,31 @@ class EducationConsultantLeaderboard extends Widget
         $companyId = Auth::user()?->company_id;
         $industryId = active_industry_id();
 
-        return Cache::remember(
+        $rows = collect(Cache::remember(
             "education-consultant-leaderboard:{$companyId}:{$industryId}:{$this->selectedMonth}",
             now()->addMinutes(10),
-            fn (): Collection => $this->buildLeaderboard(),
-        );
+            fn (): array => $this->buildLeaderboard(),
+        ));
+
+        $consultants = User::query()->whereIn('id', $rows->pluck('consultant_id'))->get()->keyBy('id');
+
+        return $rows
+            ->map(fn (array $row): array => [
+                'consultant' => $consultants->get($row['consultant_id']),
+                'weeks' => collect($row['weeks']),
+                'rankValue' => $row['rankValue'],
+            ])
+            ->filter(fn (array $row): bool => $row['consultant'] !== null)
+            ->values();
     }
 
-    /** @return Collection<int, array{consultant: User, weeks: Collection<string, array{start: int, current: int, nextWeek: int}>, rankValue: int}> */
-    private function buildLeaderboard(): Collection
+    /** @return array<int, array{consultant_id: int, weeks: array<string, array{start: int, current: int, nextWeek: int}>, rankValue: int}> */
+    private function buildLeaderboard(): array
     {
         $weeks = $this->weeks();
 
         if ($weeks->isEmpty()) {
-            return collect();
+            return [];
         }
 
         $referenceWeek = $weeks->first(fn (Carbon $week): bool => $this->isCurrentWeek($week)) ?? $weeks->last();
@@ -152,12 +173,13 @@ class EducationConsultantLeaderboard extends Widget
                 });
 
                 return [
-                    'consultant' => $consultant,
-                    'weeks' => $weekData,
+                    'consultant_id' => $consultant->id,
+                    'weeks' => $weekData->all(),
                     'rankValue' => $weekData->get($referenceWeek->toDateString())['current'] ?? 0,
                 ];
             })
             ->sortByDesc('rankValue')
-            ->values();
+            ->values()
+            ->all();
     }
 }
