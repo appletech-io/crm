@@ -5,6 +5,7 @@ namespace App\Ai\Agents;
 use App\Ai\Tools\CandidateComplianceExpiry;
 use App\Ai\Tools\CheckBookingEligibility;
 use App\Ai\Tools\ConsultantPerformance;
+use App\Ai\Tools\DraftBookingLink;
 use App\Ai\Tools\GoodCandidatesNearby;
 use App\Ai\Tools\NearbyCandidates;
 use App\Ai\Tools\RunSqlQuery;
@@ -61,7 +62,15 @@ class DataAssistant implements Agent, Conversational, HasTools
             'address, and find the best-rated candidates for a qualification or skill near a location. Only answer '.
             'using the search_bookings, search_clients, search_candidates, search_vacancies, '.
             'consultant_performance, vacancy_matches, check_booking_eligibility, candidate_compliance_expiry, '.
-            'nearby_candidates, good_candidates_nearby, and run_sql_query tools — never invent or guess data. '.
+            'nearby_candidates, good_candidates_nearby, run_sql_query, and draft_booking_link tools — never invent '.
+            'or guess data. '.
+            'When asked to book/create a booking for a candidate (e.g. "book Jane Doe at Oakwood School as a '.
+            'Teacher next Monday to Friday"), use draft_booking_link — it never actually creates a booking, it only '.
+            'returns a link to the real booking form with the candidate/client/job title/dates already filled in '.
+            'for the user to review and submit themselves. Always present that link, and always make clear nothing '.
+            'has been booked yet and they still need to open it and submit the form — never say or imply a booking '.
+            'was actually made. If it reports multiple or no matches for a name, relay that and ask for a more '.
+            'specific one rather than guessing which one was meant. '.
             'For counting, summing, averaging, grouping, or otherwise analysing across many bookings, clients, or '.
             'candidates at once (e.g. "how many bookings did we have last month", "average day rate by client", '.
             '"which consultant has the most approved bookings this year"), prefer run_sql_query over paging '.
@@ -145,6 +154,7 @@ class DataAssistant implements Agent, Conversational, HasTools
             new NearbyCandidates,
             new GoodCandidatesNearby,
             new RunSqlQuery,
+            new DraftBookingLink,
         ];
     }
 }

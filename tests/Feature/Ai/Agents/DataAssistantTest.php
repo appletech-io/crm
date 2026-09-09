@@ -1,6 +1,7 @@
 <?php
 
 use App\Ai\Agents\DataAssistant;
+use App\Ai\Tools\DraftBookingLink;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 
@@ -76,4 +77,22 @@ test('the instructions say never to guess a reason for a blank field', function 
     expect($instructions)
         ->toContain('never speculate that it means data is "missing" or broken')
         ->toContain('just report the figure and say the field wasn\'t set, rather than guessing a cause');
+});
+
+test('the instructions say draft_booking_link never actually creates a booking', function () {
+    $this->actingAs(User::factory()->create());
+
+    $instructions = (string) (new DataAssistant)->instructions();
+
+    expect($instructions)
+        ->toContain('it never actually creates a booking')
+        ->toContain('never say or imply a booking was actually made');
+});
+
+test('draft_booking_link is registered as one of the agent\'s tools', function () {
+    $this->actingAs(User::factory()->create());
+
+    $tools = collect((new DataAssistant)->tools());
+
+    expect($tools->contains(fn ($tool): bool => $tool instanceof DraftBookingLink))->toBeTrue();
 });
