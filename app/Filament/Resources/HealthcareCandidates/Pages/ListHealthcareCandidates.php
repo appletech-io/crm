@@ -328,10 +328,13 @@ class ListHealthcareCandidates extends ListRecords implements HasForms
                             ->whereDate('date', '>=', $weekStart->toDateString())
                             ->whereDate('date', '<=', $weekStart->copy()->addDays(4)->toDateString())
                             ->whereNull('cancelled_at'))
-                        ->with(['dayPeriods' => fn ($q) => $q
-                            ->whereDate('date', '>=', $weekStart->toDateString())
-                            ->whereDate('date', '<=', $weekStart->copy()->addDays(4)->toDateString())
-                            ->whereNull('cancelled_at')]),
+                        ->with([
+                            'dayPeriods' => fn ($q) => $q
+                                ->whereDate('date', '>=', $weekStart->toDateString())
+                                ->whereDate('date', '<=', $weekStart->copy()->addDays(4)->toDateString())
+                                ->whereNull('cancelled_at'),
+                            'client:id,name',
+                        ]),
                     'availabilities' => fn ($query) => $query
                         ->whereDate('date', '>=', $weekStart->toDateString())
                         ->whereDate('date', '<=', $weekStart->copy()->addDays(4)->toDateString()),
@@ -428,7 +431,7 @@ class ListHealthcareCandidates extends ListRecords implements HasForms
                     ))
                     ->tooltip(fn (HealthcareCandidate $record): string => $this->dayTooltip(
                         $this->availabilityStatusFor($record, $date),
-                        $this->bookedCoverageFor($record, $date),
+                        $this->bookedDetailsFor($record, $date),
                     ))
                     ->action(function (HealthcareCandidate $record) use ($date, $isoWeekday): void {
                         if (! $this->isSelectableStatus($this->availabilityStatusFor($record, $date))) {
@@ -572,20 +575,64 @@ class ListHealthcareCandidates extends ListRecords implements HasForms
         };
     }
 
-    private function dayTooltip(?string $status, string $bookedCoverage): string
+    /**
+     * @param  array<int, array{client: ?string, period: BookingDayPeriod, pay_rate: ?float, charge_rate: ?float}>  $bookedDetails
+     */
+    private function dayTooltip(?string $status, array $bookedDetails): string
     {
         return match ($status) {
             CandidateAvailabilityStatus::Available->value => 'Available — click to select this day for booking',
             CandidateAvailabilityStatus::AvailableAm->value => 'Available AM — click to select this day for booking',
             CandidateAvailabilityStatus::AvailablePm->value => 'Available PM — click to select this day for booking',
-            CandidateAvailabilityStatus::Booked->value => match ($bookedCoverage) {
-                'am' => 'Already has a morning booking this day',
-                'pm' => 'Already has an afternoon booking this day',
-                default => 'Already has a booking this day',
-            },
+            CandidateAvailabilityStatus::Booked->value => $this->bookedTooltip($bookedDetails),
             CandidateAvailabilityStatus::NotAvailable->value => 'Marked as not available this day',
             default => 'Availability not set for this day — click to select for booking',
         };
+    }
+
+    /**
+     * The client, pay rate, and charge rate for each booking covering this
+     * day — usually one, but a split AM/PM day can have two separate
+     * bookings (different clients/rates), so each is labelled with its
+     * period when there's more than one.
+     *
+     * @param  array<int, array{client: ?string, period: BookingDayPeriod, pay_rate: ?float, charge_rate: ?float}>  $bookedDetails
+     */
+    private function bookedTooltip(array $bookedDetails): string
+    {
+        if ($bookedDetails === []) {
+            return 'Already has a booking this day';
+        }
+
+        $showPeriodLabel = count($bookedDetails) > 1;
+
+        return collect($bookedDetails)
+            ->map(function (array $detail) use ($showPeriodLabel): string {
+                $prefix = $showPeriodLabel ? "{$detail['period']->label()}: " : '';
+                $client = $detail['client'] ?? 'Unknown client';
+                $pay = $detail['pay_rate'] !== null ? '£'.number_format($detail['pay_rate'], 2) : '—';
+                $charge = $detail['charge_rate'] !== null ? '£'.number_format($detail['charge_rate'], 2) : '—';
+
+                return "{$prefix}{$client} — Pay {$pay} / Charge {$charge}";
+            })
+            ->implode(' | ');
+    }
+
+    /**
+     * @return array<int, array{client: ?string, period: BookingDayPeriod, pay_rate: ?float, charge_rate: ?float}>
+     */
+    private function bookedDetailsFor(HealthcareCandidate $record, CarbonImmutable $date): array
+    {
+        return $record->bookings
+            ->flatMap(fn (Booking $booking) => $booking->dayPeriods
+                ->filter(fn (BookingDay $dayPeriod): bool => $dayPeriod->date->isSameDay($date))
+                ->map(fn (BookingDay $dayPeriod): array => [
+                    'client' => $booking->client?->name,
+                    'period' => $dayPeriod->period,
+                    'pay_rate' => $dayPeriod->payRate(),
+                    'charge_rate' => $dayPeriod->chargeRate(),
+                ]))
+            ->all();
     }
 
     /**

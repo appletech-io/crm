@@ -725,6 +725,78 @@ test('an already-booked day shows a blue tick', function () {
     expect($column->getColor($column->getState()))->toBe('info');
 });
 
+test('the tooltip on an already-booked day shows the client, pay rate, and charge rate', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+    $candidate = makeSearchCandidate();
+    $client = Client::factory()->create(['company_id' => $this->consultant->company_id, 'name' => 'Riverside School']);
+
+    $booking = $candidate->bookings()->create([
+        'company_id' => $this->consultant->company_id,
+        'client_id' => $client->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => $monday->toDateString(),
+        'status' => BookingStatus::Upcoming,
+        'day_rate' => 120,
+        'day_charge_rate' => 150,
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->consultant->company_id,
+        'date' => $monday->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+
+    $test = Livewire::test(ListEducationCandidates::class)->set('activeSection', 'search');
+    $column = $test->instance()->getTable()->getColumn('day_1');
+    $column->record($candidate);
+
+    expect($column->getTooltip($column->getState()))
+        ->toBe('Riverside School — Pay £120.00 / Charge £150.00');
+});
+
+test('the tooltip labels each period separately when morning and afternoon are different bookings', function () {
+    $monday = now()->startOfWeek(Carbon::MONDAY);
+    $candidate = makeSearchCandidate();
+    $morningClient = Client::factory()->create(['company_id' => $this->consultant->company_id, 'name' => 'Riverside School']);
+    $afternoonClient = Client::factory()->create(['company_id' => $this->consultant->company_id, 'name' => 'Oakwood School']);
+
+    $morningBooking = $candidate->bookings()->create([
+        'company_id' => $this->consultant->company_id,
+        'client_id' => $morningClient->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => $monday->toDateString(),
+        'status' => BookingStatus::Upcoming,
+        'half_day_rate' => 60,
+        'half_day_charge_rate' => 75,
+    ]);
+    $morningBooking->dayPeriods()->create([
+        'company_id' => $this->consultant->company_id,
+        'date' => $monday->toDateString(),
+        'period' => BookingDayPeriod::Am,
+    ]);
+
+    $afternoonBooking = $candidate->bookings()->create([
+        'company_id' => $this->consultant->company_id,
+        'client_id' => $afternoonClient->id,
+        'candidate_type' => EducationCandidate::class,
+        'start_date' => $monday->toDateString(),
+        'status' => BookingStatus::Upcoming,
+        'half_day_rate' => 55,
+        'half_day_charge_rate' => 70,
+    ]);
+    $afternoonBooking->dayPeriods()->create([
+        'company_id' => $this->consultant->company_id,
+        'date' => $monday->toDateString(),
+        'period' => BookingDayPeriod::Pm,
+    ]);
+
+    $test = Livewire::test(ListEducationCandidates::class)->set('activeSection', 'search');
+    $column = $test->instance()->getTable()->getColumn('day_1');
+    $column->record($candidate);
+
+    expect($column->getTooltip($column->getState()))
+        ->toBe('AM: Riverside School — Pay £60.00 / Charge £75.00 | PM: Oakwood School — Pay £55.00 / Charge £70.00');
+});
+
 test('a morning-only booking shows a blue half-circle, top filled', function () {
     $monday = now()->startOfWeek(Carbon::MONDAY);
     $candidate = makeSearchCandidate();
