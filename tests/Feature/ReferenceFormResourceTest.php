@@ -9,6 +9,7 @@ use App\Models\Industry;
 use App\Models\ReferenceForm;
 use App\Models\ReferenceFormField;
 use App\Models\User;
+use App\Services\References\ReferenceFormDraft;
 use Database\Seeders\RoleSeeder;
 use Filament\Actions\Testing\TestAction;
 use Illuminate\Support\Facades\Cache;
@@ -225,4 +226,63 @@ test('the edit page links to the form preview, opening it in a new tab', functio
     Livewire::test(EditReferenceForm::class, ['record' => $form->getRouteKey()])
         ->assertActionHasUrl('preview', route('reference-forms.preview', $form))
         ->assertActionShouldOpenUrlInNewTab('preview');
+});
+
+test('editing the form publishes the unsaved state to the preview pane, without saving it', function () {
+    $form = ReferenceForm::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'name' => 'Saved name',
+    ]);
+
+    Livewire::test(EditReferenceForm::class, ['record' => $form->getRouteKey()])
+        ->fillForm([
+            'name' => 'Typed but not saved',
+            'fields' => [
+                'field-1' => ['label' => 'Typed question', 'field_type' => 'text', 'required' => true],
+            ],
+        ])
+        ->assertSuccessful();
+
+    $draft = ReferenceFormDraft::retrieve($this->user, $form);
+
+    expect($draft)->not->toBeNull()
+        ->and($draft['name'])->toBe('Typed but not saved')
+        ->and($draft['fields'])->toHaveCount(1)
+        ->and($draft['fields'][0]['label'])->toBe('Typed question');
+
+    // Publishing the draft must never be mistaken for saving the form.
+    expect($form->fresh()->name)->toBe('Saved name')
+        ->and($form->fresh()->fields)->toHaveCount(0);
+});
+
+test('the edit page embeds the live preview pane', function () {
+    $form = ReferenceForm::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    Livewire::test(EditReferenceForm::class, ['record' => $form->getRouteKey()])
+        ->assertSee(route('reference-forms.preview', ['referenceForm' => $form, 'draft' => 1]), escape: false)
+        ->assertSee('Open in new tab');
+});
+
+test('the create page has no preview pane, since there is no form to preview yet', function () {
+    Livewire::test(CreateReferenceForm::class)
+        ->assertSuccessful()
+        ->assertDontSee('Open in new tab');
+});
+
+test('the parked draft keeps mirroring the form after a save', function () {
+    $form = ReferenceForm::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    Livewire::test(EditReferenceForm::class, ['record' => $form->getRouteKey()])
+        ->fillForm(['name' => 'Final name'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect(ReferenceFormDraft::retrieve($this->user, $form)['name'])->toBe('Final name');
 });

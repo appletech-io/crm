@@ -6,6 +6,7 @@ use App\Enums\ReferenceFieldType;
 use App\Models\CandidateReference;
 use App\Models\ReferenceForm;
 use App\Models\ReferenceFormField;
+use Illuminate\Support\Str;
 
 /**
  * The dynamic-forms successor to {@see ReferenceFormSchema} — builds a
@@ -25,21 +26,93 @@ class ReferenceFormRenderer
     /** @return array<int, array{heading: ?string, fields: array<int, array<string, mixed>>}> */
     public static function snapshotFor(ReferenceForm $form, string $companyName): array
     {
+        return self::groupIntoSections(
+            $form->fields
+                ->map(fn (ReferenceFormField $field): array => [
+                    $field->section_heading ?: null,
+                    self::fieldFor($field, $companyName),
+                ])
+                ->all()
+        );
+    }
+
+    /**
+     * The form builder's live preview pane renders from unsaved repeater
+     * state, where there are no ReferenceFormField records to read yet. The
+     * raw arrays are hydrated into throwaway (never-saved) models purely so
+     * the draft goes through exactly the same casts and the same fieldFor()
+     * mapping a saved form does — the preview can't drift from the real
+     * thing if there's only one mapping.
+     *
+     * Half-finished questions are skipped rather than rendered broken: a
+     * question with no label or no answer type yet isn't something a referee
+     * could ever be shown.
+     *
+     * @param  array<mixed, mixed>  $fields
+     * @return array<int, array{heading: ?string, fields: array<int, array<string, mixed>>}>
+     */
+    public static function snapshotForDraft(array $fields, string $companyName): array
+    {
+        $entries = [];
+
+        foreach ($fields as $field) {
+            if (! is_array($field)) {
+                continue;
+            }
+
+            $label = trim((string) ($field['label'] ?? ''));
+            $type = ReferenceFieldType::tryFrom((string) ($field['field_type'] ?? ''));
+
+            if ($label === '' || $type === null) {
+                continue;
+            }
+
+            $draft = new ReferenceFormField([
+                'label' => $label,
+                'field_type' => $type,
+                'options' => array_values(array_filter((array) ($field['options'] ?? []), 'is_string')),
+                'required' => (bool) ($field['required'] ?? false),
+                'section_heading' => ($field['section_heading'] ?? null) ?: null,
+                'show_when_field_key' => ($field['show_when_field_key'] ?? null) ?: null,
+                'show_when_value' => ($field['show_when_value'] ?? null) ?: null,
+            ]);
+
+            // The saved key is slugged from the label on first save (see
+            // ReferenceFormField::uniqueKeyFor) and the builder's "Only Show
+            // When..." select offers sibling labels slugged the same way, so
+            // this is what makes a draft's conditionals line up.
+            $draft->key = Str::slug($label, '_');
+
+            $entries[] = [$draft->section_heading, self::fieldFor($draft, $companyName)];
+        }
+
+        return self::groupIntoSections($entries);
+    }
+
+    /**
+     * Consecutive fields sharing a heading become one section; a blank
+     * heading is treated as no heading at all.
+     *
+     * @param  array<int, array{0: ?string, 1: array<string, mixed>}>  $entries
+     * @return array<int, array{heading: ?string, fields: array<int, array<string, mixed>>}>
+     */
+    private static function groupIntoSections(array $entries): array
+    {
         $sections = [];
         $currentHeading = false;
         $currentFields = [];
 
-        foreach ($form->fields as $field) {
-            if ($field->section_heading !== $currentHeading) {
+        foreach ($entries as [$heading, $field]) {
+            if ($heading !== $currentHeading) {
                 if ($currentHeading !== false) {
                     $sections[] = ['heading' => $currentHeading, 'fields' => $currentFields];
                 }
 
-                $currentHeading = $field->section_heading;
+                $currentHeading = $heading;
                 $currentFields = [];
             }
 
-            $currentFields[] = self::fieldFor($field, $companyName);
+            $currentFields[] = $field;
         }
 
         if ($currentFields !== []) {
