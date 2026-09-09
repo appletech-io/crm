@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ReferenceForms\Schemas;
 
 use App\Enums\ReferenceFieldType;
+use Filament\Actions\Action;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TagsInput;
@@ -95,7 +96,7 @@ class ReferenceFormForm
                 ->itemLabel(fn (array $state): ?string => $state['label'] ?? null)
                 ->collapsible()
                 ->collapsed()
-                ->reorderableWithButtons()
+                ->reorderAction(fn (Action $action) => $action->tooltip('Drag to reorder'))
                 ->orderColumn('sort_order')
                 ->addActionLabel('Add Question')
                 ->columnSpanFull()

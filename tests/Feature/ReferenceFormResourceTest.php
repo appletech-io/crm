@@ -10,6 +10,7 @@ use App\Models\ReferenceForm;
 use App\Models\ReferenceFormField;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
+use Filament\Actions\Testing\TestAction;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
 
@@ -168,4 +169,49 @@ test('can edit and delete a reference form', function () {
         ->callAction('delete');
 
     expect(ReferenceForm::find($form->id))->toBeNull();
+});
+
+test('questions can be reordered by dragging, and the new order is persisted to sort_order', function () {
+    $form = ReferenceForm::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    $first = ReferenceFormField::factory()->create([
+        'reference_form_id' => $form->id,
+        'label' => 'Worked From',
+        'sort_order' => 1,
+    ]);
+
+    $second = ReferenceFormField::factory()->create([
+        'reference_form_id' => $form->id,
+        'label' => 'Worked To',
+        'sort_order' => 2,
+    ]);
+
+    $third = ReferenceFormField::factory()->create([
+        'reference_form_id' => $form->id,
+        'label' => 'Would You Re-Employ?',
+        'sort_order' => 3,
+    ]);
+
+    Livewire::test(EditReferenceForm::class, ['record' => $form->getRouteKey()])
+        ->assertActionVisible(TestAction::make('reorder')->schemaComponent('fields'))
+        ->callAction(
+            TestAction::make('reorder')
+                ->schemaComponent('fields')
+                ->arguments(['items' => [
+                    "record-{$third->id}",
+                    "record-{$first->id}",
+                    "record-{$second->id}",
+                ]]),
+        )
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($form->fresh()->fields->pluck('label')->all())->toBe([
+        'Would You Re-Employ?',
+        'Worked From',
+        'Worked To',
+    ]);
 });
