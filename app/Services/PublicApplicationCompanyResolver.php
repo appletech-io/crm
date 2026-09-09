@@ -6,6 +6,7 @@ use App\Models\CandidateReference;
 use App\Models\Company;
 use App\Models\EducationApplication;
 use App\Models\HealthcareApplication;
+use App\Models\ReferenceForm;
 use App\Models\Vacancy;
 
 /**
@@ -44,5 +45,15 @@ class PublicApplicationCompanyResolver
     public static function forVacancy(mixed $vacancy): ?Company
     {
         return $vacancy instanceof Vacancy ? $vacancy->company : null;
+    }
+
+    /**
+     * The reference form preview is the one page using this layout that does
+     * have an authenticated user, but it resolves its company the same way as
+     * the rest so the preview renders under the branding a referee would see.
+     */
+    public static function forReferenceForm(mixed $referenceForm): ?Company
+    {
+        return $referenceForm instanceof ReferenceForm ? $referenceForm->company : null;
     }
 }

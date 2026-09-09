@@ -215,3 +215,14 @@ test('questions can be reordered by dragging, and the new order is persisted to 
         'Worked To',
     ]);
 });
+
+test('the edit page links to the form preview, opening it in a new tab', function () {
+    $form = ReferenceForm::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    Livewire::test(EditReferenceForm::class, ['record' => $form->getRouteKey()])
+        ->assertActionHasUrl('preview', route('reference-forms.preview', $form))
+        ->assertActionShouldOpenUrlInNewTab('preview');
+});
