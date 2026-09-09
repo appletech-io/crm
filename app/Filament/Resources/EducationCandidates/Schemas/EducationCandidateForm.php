@@ -16,6 +16,7 @@ use App\Filament\Resources\EducationVetting\VettingResource;
 use App\Filament\Widgets\CandidateActivityTimeline;
 use App\Filament\Widgets\CandidateAvailabilityCalendar;
 use App\Filament\Widgets\CandidateDocumentManager;
+use App\Jobs\GenerateCandidateProfile;
 use App\Jobs\GenerateFormattedCv;
 use App\Models\CandidateDocument;
 use App\Models\CandidateReference;
@@ -25,6 +26,7 @@ use App\Models\JobTitle;
 use App\Models\PaymentProvider;
 use App\Models\Qualification;
 use App\Models\ReferenceForm;
+use App\Models\SampleProfile;
 use App\Models\User;
 use App\Services\Candidates\Document;
 use App\Services\Education\DbsUpdateService;
@@ -841,6 +843,65 @@ class EducationCandidateForm
                                                 ->send();
                                         }),
                                 ])->columnSpanFull(),
+                            ]),
+
+                        Tab::make('Profile')
+                            ->hidden(fn (?Model $record): bool => $record === null)
+                            ->schema([
+                                Section::make('Profile')
+                                    ->relationship('candidateProfile')
+                                    ->schema([
+                                        RichEditor::make('content')
+                                            ->hiddenLabel()
+                                            ->columnSpanFull(),
+                                    ]),
+
+                                Html::make(fn (?EducationCandidate $record): HtmlString => new HtmlString(
+                                    $record?->candidateProfile?->pdf_path
+                                        ? Blade::render(
+                                            <<<'BLADE'
+                                                <div class="flex flex-col gap-2">
+                                                    <embed src="{{ $url }}" type="application/pdf" class="h-[70vh] w-full rounded-lg border border-gray-200 dark:border-gray-700" />
+                                                    <a href="{{ $url }}" target="_blank" rel="noopener" class="text-sm text-primary-600 underline dark:text-primary-400">{{ __('Open profile in a new tab') }}</a>
+                                                </div>
+                                                BLADE,
+                                            ['url' => Document::viewUrl($record->candidateProfile->pdf_path)],
+                                        )
+                                        : '<p class="text-sm text-gray-500 dark:text-gray-400">No profile yet — click Generate Profile below.</p>'
+                                )),
+
+                                Text::make(fn (?EducationCandidate $record): ?string => $record?->candidateProfile?->updated_at
+                                    ? 'Last generated: '.$record->candidateProfile->updated_at->diffForHumans()
+                                    : null)
+                                    ->visible(fn (?EducationCandidate $record): bool => $record?->candidateProfile?->updated_at !== null)
+                                    ->color('gray'),
+
+                                Actions::make([
+                                    Action::make('generateProfile')
+                                        ->label('Generate Profile')
+                                        ->icon('heroicon-o-sparkles')
+                                        ->color('gray')
+                                        ->visible(fn (): bool => SampleProfile::query()
+                                            ->where('company_id', Auth::user()->company_id)
+                                            ->where('industry_id', active_industry_id())
+                                            ->exists())
+                                        ->action(function (?EducationCandidate $record): void {
+                                            GenerateCandidateProfile::dispatch($record);
+
+                                            Notification::make()
+                                                ->success()
+                                                ->title('Generating profile')
+                                                ->body('This will appear here shortly, replacing any previous version.')
+                                                ->send();
+                                        }),
+                                ])->columnSpanFull(),
+
+                                Text::make('Upload at least one sample profile under Settings → Sample Profiles before generating.')
+                                    ->color('gray')
+                                    ->visible(fn (): bool => ! SampleProfile::query()
+                                        ->where('company_id', Auth::user()->company_id)
+                                        ->where('industry_id', active_industry_id())
+                                        ->exists()),
                             ]),
 
                         Tab::make('Availability')

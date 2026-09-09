@@ -9,6 +9,7 @@ use App\Filament\Resources\JobTitles\JobTitleResource;
 use App\Filament\Resources\QualificationJobTitles\QualificationJobTitleResource;
 use App\Filament\Resources\Qualifications\QualificationResource;
 use App\Filament\Resources\ReferenceForms\ReferenceFormResource;
+use App\Filament\Resources\SampleProfiles\SampleProfileResource;
 use App\Models\CandidatePool;
 use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
@@ -16,6 +17,7 @@ use App\Models\JobTitle;
 use App\Models\Qualification;
 use App\Models\QualificationJobTitle;
 use App\Models\ReferenceForm;
+use App\Models\SampleProfile;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Facades\Auth;
@@ -67,6 +69,11 @@ class CandidateSettingsOverview extends StatsOverviewWidget
             ->where('industry_id', active_industry_id())
             ->count();
 
+        $sampleProfilesCount = SampleProfile::query()
+            ->where('company_id', Auth::user()->company_id)
+            ->where('industry_id', active_industry_id())
+            ->count();
+
         return [
             Stat::make('Skills', $skillsCount)
                 ->description('Candidate skills configured')
@@ -109,6 +116,12 @@ class CandidateSettingsOverview extends StatsOverviewWidget
                 ->descriptionIcon('heroicon-m-document-text')
                 ->color('primary')
                 ->url(ReferenceFormResource::getUrl('index')),
+
+            Stat::make('Sample Profiles', $sampleProfilesCount.' / '.SampleProfileResource::MAX_PER_SECTOR)
+                ->description('Style references for AI-generated candidate profiles')
+                ->descriptionIcon('heroicon-m-sparkles')
+                ->color('primary')
+                ->url(SampleProfileResource::getUrl('index')),
         ];
     }
 }
