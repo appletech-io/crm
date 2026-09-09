@@ -75,6 +75,7 @@ trait HasPayrollBookingsTable
                 'booking.client' => fn ($query) => $query->withTrashed(),
                 'booking.candidate' => fn ($query) => $query->withTrashed(),
                 'booking.jobTitle',
+                'approvedBy:id,name',
             ]);
     }
 
