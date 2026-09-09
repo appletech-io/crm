@@ -28,6 +28,7 @@ class ReferenceForm extends Model
         return $this->belongsTo(Industry::class);
     }
 
+    /** @return HasMany<ReferenceFormField, $this> */
     public function fields(): HasMany
     {
         return $this->hasMany(ReferenceFormField::class)->orderBy('sort_order');

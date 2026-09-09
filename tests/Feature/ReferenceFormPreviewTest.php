@@ -5,6 +5,7 @@ use App\Models\Industry;
 use App\Models\ReferenceForm;
 use App\Models\ReferenceFormField;
 use App\Models\User;
+use App\Services\References\ReferenceFormDraft;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
 
@@ -77,6 +78,13 @@ test('the preview substitutes :company_name in a question the same way the refer
 test('the preview omits the position and organisation fields when the form does not ask for them', function () {
     $this->referenceForm->update(['needs_position_and_organisation' => false]);
 
+    ReferenceFormField::factory()->create([
+        'reference_form_id' => $this->referenceForm->id,
+        'label' => 'Worked From',
+        'field_type' => 'date',
+        'sort_order' => 1,
+    ]);
+
     $this->actingAs($this->user)
         ->get(route('reference-forms.preview', $this->referenceForm))
         ->assertOk()
@@ -125,4 +133,96 @@ test('an admin at another company cannot preview a reference form', function () 
     $this->actingAs($otherAdmin)
         ->get(route('reference-forms.preview', $this->referenceForm))
         ->assertNotFound();
+});
+
+test('the preview shows unsaved builder state in draft mode, and the saved form without it', function () {
+    ReferenceFormField::factory()->create([
+        'reference_form_id' => $this->referenceForm->id,
+        'label' => 'Saved question',
+        'field_type' => 'text',
+        'sort_order' => 1,
+    ]);
+
+    ReferenceFormDraft::store($this->user, $this->referenceForm, [
+        'name' => 'Renamed but not saved',
+        'is_statement_only' => false,
+        'needs_position_and_organisation' => true,
+        'fields' => [
+            ['label' => 'Unsaved question', 'field_type' => 'text', 'required' => true],
+        ],
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('reference-forms.preview', ['referenceForm' => $this->referenceForm, 'draft' => 1]))
+        ->assertOk()
+        ->assertSee('Unsaved question')
+        ->assertSee('Renamed but not saved')
+        ->assertDontSee('Saved question');
+
+    // Without ?draft=1 the same page is the saved form, untouched by whatever
+    // is parked in the draft.
+    $this->actingAs($this->user)
+        ->get(route('reference-forms.preview', $this->referenceForm))
+        ->assertOk()
+        ->assertSee('Saved question')
+        ->assertDontSee('Unsaved question');
+});
+
+test('a draft is only ever visible to the user who is editing', function () {
+    $colleague = User::factory()->create(['company_id' => $this->company->id]);
+    $colleague->industries()->attach($this->industry);
+    $colleague->assignRole('admin');
+
+    Cache::put("user.{$colleague->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$colleague->id}.active_industry_id", $this->industry->id);
+
+    ReferenceFormField::factory()->create([
+        'reference_form_id' => $this->referenceForm->id,
+        'label' => 'Saved question',
+        'field_type' => 'text',
+        'sort_order' => 1,
+    ]);
+
+    ReferenceFormDraft::store($this->user, $this->referenceForm, [
+        'fields' => [['label' => 'Half-written question', 'field_type' => 'text']],
+    ]);
+
+    $this->actingAs($colleague)
+        ->get(route('reference-forms.preview', ['referenceForm' => $this->referenceForm, 'draft' => 1]))
+        ->assertOk()
+        ->assertSee('Saved question')
+        ->assertDontSee('Half-written question');
+});
+
+test('a draft question that is still half-written is left out of the preview', function () {
+    ReferenceFormDraft::store($this->user, $this->referenceForm, [
+        'fields' => [
+            ['label' => 'Complete question', 'field_type' => 'text', 'required' => true],
+            ['label' => '', 'field_type' => 'text'],
+            ['label' => 'No answer type chosen yet', 'field_type' => ''],
+        ],
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('reference-forms.preview', ['referenceForm' => $this->referenceForm, 'draft' => 1]))
+        ->assertOk()
+        ->assertSee('Complete question')
+        ->assertDontSee('No answer type chosen yet');
+});
+
+test('the draft preview groups consecutive questions under a shared section heading', function () {
+    ReferenceFormDraft::store($this->user, $this->referenceForm, [
+        'fields' => [
+            ['label' => 'First', 'field_type' => 'text', 'section_heading' => 'About the role'],
+            ['label' => 'Second', 'field_type' => 'text', 'section_heading' => 'About the role'],
+            ['label' => 'Third', 'field_type' => 'text', 'section_heading' => null],
+        ],
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->get(route('reference-forms.preview', ['referenceForm' => $this->referenceForm, 'draft' => 1]))
+        ->assertOk()
+        ->assertSee('About the role');
+
+    expect(substr_count($response->content(), 'About the role'))->toBe(1);
 });
