@@ -75,3 +75,18 @@
 .fi-main-sidebar .fi-sidebar-header-ctn {
     background-color: transparent;
 }
+
+/* The manual collapse/expand chevrons are redundant now the sidebar
+   expands on hover (see filament/sidebar-hover-expand.blade.php), and
+   fought it: clicking one set a state the next hover immediately undid.
+
+   Hidden rather than switched off at the panel, because
+   ->sidebarCollapsibleOnDesktop() is what makes a collapsed sidebar
+   possible at all — without it Filament keeps the sidebar at full
+   --sidebar-width even when closed, and hover would have nothing to do.
+   Hiding the container takes both chevrons (they are its only children)
+   and its reserved 36px of topbar width with it. The mobile hamburger is
+   a different class and stays: there is no hover on touch. */
+.fi-topbar-collapse-sidebar-btn-ctn {
+    display: none;
+}

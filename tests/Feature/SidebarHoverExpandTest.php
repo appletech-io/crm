@@ -45,3 +45,30 @@ test('the client portal is left alone', function () {
         ->assertOk()
         ->assertDontSee("Alpine?.store('sidebar')", false);
 });
+
+/**
+ * The chevrons are hidden with CSS, which no HTTP assertion can see. What
+ * these guard is the pairing: if a Filament upgrade renames the classes,
+ * the rules would silently stop applying and the buttons would come back.
+ */
+test('the classes our CSS hides are the ones Filament still renders', function () {
+    $topbar = file_get_contents(base_path('vendor/filament/filament/resources/views/livewire/topbar.blade.php'));
+    $sidebar = file_get_contents(base_path('vendor/filament/filament/resources/views/livewire/sidebar.blade.php'));
+
+    // Both chevrons must stay inside the container we hide — if Filament
+    // ever moves one out of it, hiding the container stops being enough.
+    expect($topbar)->toMatch('/fi-topbar-collapse-sidebar-btn-ctn.*fi-topbar-open-collapse-sidebar-btn.*fi-topbar-close-collapse-sidebar-btn/s')
+        ->and($sidebar)->toContain('fi-sidebar');
+});
+
+test('the admin theme hides every collapse chevron but leaves the mobile hamburger', function () {
+    // Comments are stripped first: the block explaining these rules names
+    // the hamburger class in prose, which a plain substring check would
+    // read as a selector.
+    $theme = preg_replace('#/\*.*?\*/#s', '', file_get_contents(base_path('resources/css/filament/admin/theme.css')));
+
+    expect($theme)->toContain('.fi-topbar-collapse-sidebar-btn-ctn')
+        // .fi-topbar-open-sidebar-btn is the mobile hamburger — it must
+        // not be caught by this rule.
+        ->and($theme)->not->toContain('.fi-topbar-open-sidebar-btn');
+});
