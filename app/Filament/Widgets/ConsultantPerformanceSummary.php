@@ -110,25 +110,33 @@ class ConsultantPerformanceSummary extends StatsOverviewWidget
      * week as of now), not a trailing trend, so a history of past values
      * wouldn't mean the same thing week to week.
      *
+     * The cached payload is a plain array, not the Collection this returns —
+     * caching a Collection object directly risks it coming back as a
+     * __PHP_Incomplete_Class after a zero-downtime deploy swaps the
+     * autoloader out from under a value serialized moments earlier, so only
+     * plain arrays/scalars — which need no class resolution to unserialize —
+     * ever go into the cache itself.
+     *
      * @return Collection<int, array{gp: float, daysPlaced: int, candidates: int, clients: int}>
      */
     private function weeklyTrend(): Collection
     {
         $consultantId = $this->activeConsultantId();
 
-        return Cache::remember(
+        return collect(Cache::remember(
             $this->cacheKey('weekly-trend'),
             now()->addMinutes(10),
-            function () use ($consultantId): Collection {
+            function () use ($consultantId): array {
                 $end = Carbon::now();
                 $start = $end->copy()->subWeeks(5);
 
                 return PerformanceCalculator::weeklyBreakdown($consultantId, $start, $end)
                     ->mapWithKeys(fn (array $week): array => [
                         Carbon::parse($week['weekStart'])->format('d M') => $week,
-                    ]);
+                    ])
+                    ->all();
             },
-        );
+        ));
     }
 
     /**
