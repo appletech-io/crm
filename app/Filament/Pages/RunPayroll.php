@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Filament\Concerns\HasPayrollBookingsTable;
 use App\Filament\Concerns\HasTimesheetPeriodNavigation;
 use App\Filament\Support\ExportPayrollCsvAction;
+use App\Filament\Support\ExportPayrollTimesheetsZipAction;
 use App\Jobs\SendPayrollConfirmationEmail;
 use App\Models\Booking;
 use App\Models\BookingDay;
@@ -70,6 +71,11 @@ class RunPayroll extends Page implements HasTable
             ExportPayrollCsvAction::header(
                 fn () => $this->dayPeriodsQuery()->get(),
                 fn () => $this->currentPeriod(),
+            ),
+            ExportPayrollTimesheetsZipAction::header(
+                fn () => $this->dayPeriodsQuery()->get(),
+                fn () => $this->currentPeriod(),
+                fn () => $this->periodCompany(),
             ),
             Action::make('confirm')
                 ->label(fn (): string => $this->hasAnyConfirmationBeenSent() ? 'Resend' : 'Confirm')
