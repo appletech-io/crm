@@ -18,6 +18,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('/crm/ask-assistant', AskAssistant::class)->name('ask-assistant');
 
     Route::get('/documents/view', [CandidateDocumentController::class, 'show'])->name('documents.view');
+
+    // Staff-only dry run of a reference form, opened in a new tab from the
+    // form builder — see ⚡reference-form-preview.
+    Route::livewire('/crm/reference-forms/{referenceForm}/preview', 'reference.reference-form-preview')
+        ->name('reference-forms.preview');
 });
 
 Route::post('/impersonate/stop', [ImpersonationController::class, 'stop'])

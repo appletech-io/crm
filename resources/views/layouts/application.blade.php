@@ -3,7 +3,8 @@
     // by the Livewire component wrapped in this layout — see
     // PublicApplicationCompanyResolver for why.
     $applicationCompany = \App\Services\PublicApplicationCompanyResolver::forToken(request()->route('token'))
-        ?? \App\Services\PublicApplicationCompanyResolver::forVacancy(request()->route('vacancy'));
+        ?? \App\Services\PublicApplicationCompanyResolver::forVacancy(request()->route('vacancy'))
+        ?? \App\Services\PublicApplicationCompanyResolver::forReferenceForm(request()->route('referenceForm'));
     $logoUrl = $applicationCompany?->logoUrl();
 ?>
 <!DOCTYPE html>
