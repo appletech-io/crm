@@ -115,13 +115,20 @@ class ConsultantPerformanceSummary extends StatsOverviewWidget
     private function weeklyTrend(): Collection
     {
         $consultantId = $this->activeConsultantId();
-        $end = Carbon::now();
-        $start = $end->copy()->subWeeks(5);
 
-        return PerformanceCalculator::weeklyBreakdown($consultantId, $start, $end)
-            ->mapWithKeys(fn (array $week): array => [
-                Carbon::parse($week['weekStart'])->format('d M') => $week,
-            ]);
+        return Cache::remember(
+            $this->cacheKey('weekly-trend'),
+            now()->addMinutes(10),
+            function () use ($consultantId): Collection {
+                $end = Carbon::now();
+                $start = $end->copy()->subWeeks(5);
+
+                return PerformanceCalculator::weeklyBreakdown($consultantId, $start, $end)
+                    ->mapWithKeys(fn (array $week): array => [
+                        Carbon::parse($week['weekStart'])->format('d M') => $week,
+                    ]);
+            },
+        );
     }
 
     /**
@@ -169,23 +176,36 @@ class ConsultantPerformanceSummary extends StatsOverviewWidget
         return 5;
     }
 
-    /** @return array{clients: int, candidates: int, gp: float, avgMargin: float, daysPlaced: int, rebookRate: ?float} */
+    /**
+     * Cached for 10 minutes — this is queried repeatedly on every dashboard
+     * render (here and from summaryText() below) and doesn't need to-the-
+     * second freshness.
+     *
+     * @return array{clients: int, candidates: int, gp: float, avgMargin: float, daysPlaced: int, rebookRate: ?float}
+     */
     public function weekStats(): array
     {
         $consultantId = $this->activeConsultantId();
-        $weekStart = Carbon::now();
 
-        $stats = PerformanceCalculator::forWeek($consultantId, $weekStart);
-        $stats['rebookRate'] = PerformanceCalculator::rebookRate($consultantId, $weekStart);
+        return Cache::remember(
+            $this->cacheKey('week-stats'),
+            now()->addMinutes(10),
+            function () use ($consultantId): array {
+                $weekStart = Carbon::now();
 
-        return $stats;
+                $stats = PerformanceCalculator::forWeek($consultantId, $weekStart);
+                $stats['rebookRate'] = PerformanceCalculator::rebookRate($consultantId, $weekStart);
+
+                return $stats;
+            },
+        );
     }
 
     /**
-     * The figures are computed fresh every render, but the AI narration of
-     * them is cached per consultant for 2 hours — regenerating it on every
-     * dashboard view would be slow and needlessly expensive, and the
-     * underlying numbers don't need to-the-minute freshness in prose form.
+     * The AI narration built from these figures is cached separately, on top
+     * of this, for 2 hours — regenerating it on every dashboard view would
+     * be slow and needlessly expensive, and the underlying numbers don't
+     * need to-the-minute freshness in prose form.
      *
      * The cache key must include company and active industry — when
      * $consultantId is null ("All Consultants"), the underlying figures are
@@ -285,5 +305,23 @@ class ConsultantPerformanceSummary extends StatsOverviewWidget
         }
 
         return Auth::id();
+    }
+
+    /**
+     * Scoped by company + active industry for the same reason summaryText()'s
+     * own key is (see its doc comment) — "All Consultants" figures are
+     * scoped by Booking::scopeForActiveIndustry() to the viewer's own
+     * company/sector, so the cache has to match — and by the current week,
+     * so the cache rolls over naturally rather than serving last week's
+     * figures for up to 10 minutes into a new one.
+     */
+    private function cacheKey(string $suffix): string
+    {
+        $companyId = Auth::user()?->company_id;
+        $industryId = active_industry_id();
+        $consultantId = $this->activeConsultantId();
+        $weekStart = Carbon::now()->startOfWeek(Carbon::MONDAY)->toDateString();
+
+        return "consultant-performance:{$companyId}:{$industryId}:{$consultantId}:{$suffix}:{$weekStart}";
     }
 }
