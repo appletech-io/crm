@@ -8,6 +8,8 @@ use App\Models\User;
 use Filament\Widgets\Widget;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 
 class EducationConsultantLeaderboard extends Widget
 {
@@ -70,8 +72,28 @@ class EducationConsultantLeaderboard extends Widget
         return $weekStart->isSameDay(Carbon::now()->startOfWeek(Carbon::MONDAY));
     }
 
-    /** @return Collection<int, array{consultant: User, weeks: Collection<string, array{start: int, current: int, nextWeek: int}>, rankValue: int}> */
+    /**
+     * Cached for 10 minutes, keyed by company + active industry + the
+     * selected month — this loads every consultant's bookings company-wide
+     * (with day periods) and does the ranking in PHP, so it's one of the
+     * more expensive things rendered on the dashboard.
+     *
+     * @return Collection<int, array{consultant: User, weeks: Collection<string, array{start: int, current: int, nextWeek: int}>, rankValue: int}>
+     */
     public function leaderboard(): Collection
+    {
+        $companyId = Auth::user()?->company_id;
+        $industryId = active_industry_id();
+
+        return Cache::remember(
+            "education-consultant-leaderboard:{$companyId}:{$industryId}:{$this->selectedMonth}",
+            now()->addMinutes(10),
+            fn (): Collection => $this->buildLeaderboard(),
+        );
+    }
+
+    /** @return Collection<int, array{consultant: User, weeks: Collection<string, array{start: int, current: int, nextWeek: int}>, rankValue: int}> */
+    private function buildLeaderboard(): Collection
     {
         $weeks = $this->weeks();
 

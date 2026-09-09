@@ -9,6 +9,7 @@ use App\Models\JobTitle;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
 
@@ -49,6 +50,23 @@ function addLeaderboardDayPeriod(Booking $booking, string $date, array $attribut
         'date' => $date,
         'period' => BookingDayPeriod::FullDay,
     ], $attributes));
+}
+
+/**
+ * weeks() is a pure function of selectedMonth with no caching of its own —
+ * unlike leaderboard(), a plain (non-Livewire-rendered) instance can safely
+ * compute it without ever populating leaderboard()'s cache, which is what
+ * every test below needs to do before its booking data exists: the widget's
+ * Blade view calls $this->leaderboard() on every render, so a
+ * Livewire::test() mount made before the data is set up would otherwise
+ * cache a stale, empty result under the same key the test reads later.
+ */
+function leaderboardWeeks(string $month): Collection
+{
+    $widget = new EducationConsultantLeaderboard;
+    $widget->selectedMonth = $month;
+
+    return $widget->weeks();
 }
 
 test('month options include the current month, 11 months back, and 3 months ahead', function () {
@@ -96,10 +114,7 @@ test('it computes bookings booked in advance for the week, on for the week, and 
     $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
     $consultant->assignRole('consultant');
 
-    $component = Livewire::test(EducationConsultantLeaderboard::class);
-    $component->set('selectedMonth', '2026-06');
-
-    $weeks = $component->instance()->weeks();
+    $weeks = leaderboardWeeks('2026-06');
     $weekStart = $weeks[1];
     $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
     $nextWeekStart = $weekStart->copy()->addWeek();
@@ -120,6 +135,9 @@ test('it computes bookings booked in advance for the week, on for the week, and 
     $nextWeekBooking = createBookingCreatedAt($consultant, $this->client, $this->candidate, $this->jobTitle, $weekStart->copy()->subWeek()->toDateTimeString());
     addLeaderboardDayPeriod($nextWeekBooking, $nextWeekStart->toDateString());
 
+    $component = Livewire::test(EducationConsultantLeaderboard::class);
+    $component->set('selectedMonth', '2026-06');
+
     $row = $component->instance()->leaderboard()->firstWhere('consultant.id', $consultant->id);
     $weekData = $row['weeks']->get($weekStart->toDateString());
 
@@ -132,10 +150,7 @@ test('a single booking spanning multiple days in the same week counts once per d
     $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
     $consultant->assignRole('consultant');
 
-    $component = Livewire::test(EducationConsultantLeaderboard::class);
-    $component->set('selectedMonth', '2026-06');
-
-    $weeks = $component->instance()->weeks();
+    $weeks = leaderboardWeeks('2026-06');
     $weekStart = $weeks[1];
 
     // One booking, booked before the week started, with three day-periods
@@ -144,6 +159,9 @@ test('a single booking spanning multiple days in the same week counts once per d
     addLeaderboardDayPeriod($booking, $weekStart->toDateString());
     addLeaderboardDayPeriod($booking, $weekStart->copy()->addDay()->toDateString());
     addLeaderboardDayPeriod($booking, $weekStart->copy()->addDays(2)->toDateString());
+
+    $component = Livewire::test(EducationConsultantLeaderboard::class);
+    $component->set('selectedMonth', '2026-06');
 
     $row = $component->instance()->leaderboard()->firstWhere('consultant.id', $consultant->id);
     $weekData = $row['weeks']->get($weekStart->toDateString());
@@ -156,10 +174,7 @@ test('a single booking spanning two weeks contributes separately to each week it
     $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
     $consultant->assignRole('consultant');
 
-    $component = Livewire::test(EducationConsultantLeaderboard::class);
-    $component->set('selectedMonth', '2026-06');
-
-    $weeks = $component->instance()->weeks();
+    $weeks = leaderboardWeeks('2026-06');
     $weekStart = $weeks[1];
     $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
     $nextWeekStart = $weekStart->copy()->addWeek();
@@ -170,6 +185,9 @@ test('a single booking spanning two weeks contributes separately to each week it
     addLeaderboardDayPeriod($booking, $weekEnd->copy()->subDay()->toDateString());
     addLeaderboardDayPeriod($booking, $weekEnd->toDateString());
     addLeaderboardDayPeriod($booking, $nextWeekStart->toDateString());
+
+    $component = Livewire::test(EducationConsultantLeaderboard::class);
+    $component->set('selectedMonth', '2026-06');
 
     $row = $component->instance()->leaderboard()->firstWhere('consultant.id', $consultant->id);
     $weekData = $row['weeks']->get($weekStart->toDateString());
@@ -182,14 +200,14 @@ test('cancelled days do not count towards the current or next week totals', func
     $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
     $consultant->assignRole('consultant');
 
-    $component = Livewire::test(EducationConsultantLeaderboard::class);
-    $component->set('selectedMonth', '2026-06');
-
-    $weeks = $component->instance()->weeks();
+    $weeks = leaderboardWeeks('2026-06');
     $weekStart = $weeks[1];
 
     $booking = createBookingCreatedAt($consultant, $this->client, $this->candidate, $this->jobTitle, $weekStart->copy()->subWeek()->toDateTimeString());
     addLeaderboardDayPeriod($booking, $weekStart->toDateString(), ['cancelled_at' => now()]);
+
+    $component = Livewire::test(EducationConsultantLeaderboard::class);
+    $component->set('selectedMonth', '2026-06');
 
     $row = $component->instance()->leaderboard()->firstWhere('consultant.id', $consultant->id);
     $weekData = $row['weeks']->get($weekStart->toDateString());
@@ -236,11 +254,11 @@ test('the next-week rebook figure is only rendered for the current week column, 
     $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
     $consultant->assignRole('consultant');
 
-    $component = Livewire::test(EducationConsultantLeaderboard::class);
-    $instance = $component->instance();
+    $throwaway = new EducationConsultantLeaderboard;
+    $throwaway->mount();
 
     $currentWeekStart = Carbon::now()->startOfWeek(Carbon::MONDAY);
-    $otherWeekStart = $instance->weeks()->first(fn (Carbon $week): bool => ! $instance->isCurrentWeek($week));
+    $otherWeekStart = $throwaway->weeks()->first(fn (Carbon $week): bool => ! $throwaway->isCurrentWeek($week));
 
     // A booking scheduled for the week after $otherWeekStart gives that
     // (non-current) week column a nonzero "nextWeek" value in the
@@ -262,11 +280,11 @@ test('the before-this-week figure is only rendered for the current week column, 
     $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
     $consultant->assignRole('consultant');
 
-    $component = Livewire::test(EducationConsultantLeaderboard::class);
-    $instance = $component->instance();
+    $throwaway = new EducationConsultantLeaderboard;
+    $throwaway->mount();
 
     $currentWeekStart = Carbon::now()->startOfWeek(Carbon::MONDAY);
-    $otherWeekStart = $instance->weeks()->first(fn (Carbon $week): bool => ! $instance->isCurrentWeek($week));
+    $otherWeekStart = $throwaway->weeks()->first(fn (Carbon $week): bool => ! $throwaway->isCurrentWeek($week));
 
     // Booked before $otherWeekStart and scheduled to run during it — gives
     // that (non-current) week column a nonzero "start" value in the

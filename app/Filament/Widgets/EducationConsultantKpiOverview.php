@@ -16,6 +16,7 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\On;
 
 class EducationConsultantKpiOverview extends StatsOverviewWidget implements HasActions
@@ -51,14 +52,14 @@ class EducationConsultantKpiOverview extends StatsOverviewWidget implements HasA
         return [
             Stat::make('Calls This Month', $stats['calls'])
                 ->icon('heroicon-o-phone')
-                ->chart($this->monthlyTrend(fn (Carbon $start, Carbon $end): int => $this->activityCount(
+                ->chart($this->monthlyTrend('calls', fn (Carbon $start, Carbon $end): int => $this->activityCount(
                     ActivityType::Call, $start, $end, $this->activeConsultantId(), User::query()->pluck('id')
                 )))
                 ->chartColor('info')
                 ->extraAttributes($this->clickableStatAttributes(ActivityType::Call)),
             Stat::make('Meetings This Month', $stats['meetings'])
                 ->icon('heroicon-o-calendar')
-                ->chart($this->monthlyTrend(fn (Carbon $start, Carbon $end): int => $this->activityCount(
+                ->chart($this->monthlyTrend('meetings', fn (Carbon $start, Carbon $end): int => $this->activityCount(
                     ActivityType::Meeting, $start, $end, $this->activeConsultantId(), User::query()->pluck('id')
                 )))
                 ->chartColor('warning')
@@ -66,7 +67,7 @@ class EducationConsultantKpiOverview extends StatsOverviewWidget implements HasA
             Stat::make('Applications Completed This Month', $stats['completedApplications'])
                 ->description("({$stats['previousMonthCompletedApplications']})")
                 ->icon('heroicon-o-document-check')
-                ->chart($this->monthlyTrend(fn (Carbon $start, Carbon $end): int => $this->completedApplicationsCount(
+                ->chart($this->monthlyTrend('applications', fn (Carbon $start, Carbon $end): int => $this->completedApplicationsCount(
                     $start, $end, $this->activeConsultantId()
                 )))
                 ->chartColor('success')
@@ -81,19 +82,26 @@ class EducationConsultantKpiOverview extends StatsOverviewWidget implements HasA
      * The last 6 months (including the current, partial one), oldest first,
      * keyed by a short month label — feeds a stat's sparkline via
      * {@see Stat::chart()}. $counter receives the start/end of each month
-     * and returns whatever count that stat is tracking.
+     * and returns whatever count that stat is tracking. Cached for 10
+     * minutes — $statKey distinguishes calls/meetings/applications in the
+     * cache key, since each has its own $counter and can't share a cached
+     * result with the others.
      *
      * @return array<string, int>
      */
-    private function monthlyTrend(callable $counter): array
+    private function monthlyTrend(string $statKey, callable $counter): array
     {
-        return collect(range(5, 0))
-            ->mapWithKeys(function (int $monthsAgo) use ($counter): array {
-                $month = Carbon::now()->subMonths($monthsAgo);
+        return Cache::remember(
+            $this->cacheKey("monthly-trend:{$statKey}"),
+            now()->addMinutes(10),
+            fn (): array => collect(range(5, 0))
+                ->mapWithKeys(function (int $monthsAgo) use ($counter): array {
+                    $month = Carbon::now()->subMonths($monthsAgo);
 
-                return [$month->format('M Y') => $counter($month->copy()->startOfMonth(), $month->copy()->endOfMonth())];
-            })
-            ->all();
+                    return [$month->format('M Y') => $counter($month->copy()->startOfMonth(), $month->copy()->endOfMonth())];
+                })
+                ->all(),
+        );
     }
 
     /** @return array<string, string> */
@@ -223,30 +231,42 @@ class EducationConsultantKpiOverview extends StatsOverviewWidget implements HasA
         return 3;
     }
 
-    /** @return array{calls: int, meetings: int, completedApplications: int, previousMonthCompletedApplications: int} */
+    /**
+     * Cached for 10 minutes — the source of every headline number on this
+     * widget, queried on every dashboard render otherwise.
+     *
+     * @return array{calls: int, meetings: int, completedApplications: int, previousMonthCompletedApplications: int}
+     */
     public function monthStats(): array
     {
-        $start = Carbon::now()->startOfMonth();
-        $end = Carbon::now()->endOfMonth();
-
-        $previousStart = Carbon::now()->startOfMonth()->subMonth();
-        $previousEnd = $previousStart->copy()->endOfMonth();
-
         $consultantId = $this->activeConsultantId();
-        $companyUserIds = User::query()->pluck('id');
 
-        $calls = $this->activityCount(ActivityType::Call, $start, $end, $consultantId, $companyUserIds);
-        $meetings = $this->activityCount(ActivityType::Meeting, $start, $end, $consultantId, $companyUserIds);
+        return Cache::remember(
+            $this->cacheKey('month-stats'),
+            now()->addMinutes(10),
+            function () use ($consultantId): array {
+                $start = Carbon::now()->startOfMonth();
+                $end = Carbon::now()->endOfMonth();
 
-        $completedApplications = $this->completedApplicationsCount($start, $end, $consultantId);
-        $previousMonthCompletedApplications = $this->completedApplicationsCount($previousStart, $previousEnd, $consultantId);
+                $previousStart = Carbon::now()->startOfMonth()->subMonth();
+                $previousEnd = $previousStart->copy()->endOfMonth();
 
-        return [
-            'calls' => $calls,
-            'meetings' => $meetings,
-            'completedApplications' => $completedApplications,
-            'previousMonthCompletedApplications' => $previousMonthCompletedApplications,
-        ];
+                $companyUserIds = User::query()->pluck('id');
+
+                $calls = $this->activityCount(ActivityType::Call, $start, $end, $consultantId, $companyUserIds);
+                $meetings = $this->activityCount(ActivityType::Meeting, $start, $end, $consultantId, $companyUserIds);
+
+                $completedApplications = $this->completedApplicationsCount($start, $end, $consultantId);
+                $previousMonthCompletedApplications = $this->completedApplicationsCount($previousStart, $previousEnd, $consultantId);
+
+                return [
+                    'calls' => $calls,
+                    'meetings' => $meetings,
+                    'completedApplications' => $completedApplications,
+                    'previousMonthCompletedApplications' => $previousMonthCompletedApplications,
+                ];
+            },
+        );
     }
 
     private function completedApplicationsCount(Carbon $start, Carbon $end, ?int $consultantId): int
@@ -267,6 +287,20 @@ class EducationConsultantKpiOverview extends StatsOverviewWidget implements HasA
         }
 
         return Auth::id();
+    }
+
+    /**
+     * Scoped by company + consultant + the current month, so the cache
+     * rolls over naturally into a new month rather than serving last
+     * month's figures for up to 10 minutes into a new one.
+     */
+    private function cacheKey(string $suffix): string
+    {
+        $companyId = Auth::user()?->company_id;
+        $consultantId = $this->activeConsultantId();
+        $monthStart = Carbon::now()->startOfMonth()->toDateString();
+
+        return "education-consultant-kpi:{$companyId}:{$consultantId}:{$suffix}:{$monthStart}";
     }
 
     /** @param  Collection<int, int>  $companyUserIds */
