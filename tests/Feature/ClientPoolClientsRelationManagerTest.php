@@ -59,47 +59,28 @@ test('a client can be detached from a pool', function () {
     expect($this->pool->clients()->count())->toBe(0);
 });
 
-test('a consultant cannot add or remove clients on a company pool', function () {
-    $companyPool = ClientPool::factory()->create([
-        'company_id' => $this->company->id,
-        'industry_id' => $this->industry->id,
-        'user_id' => null,
-        'company_pool' => true,
-    ]);
-    $client = Client::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
-    $companyPool->clients()->attach($client);
+test('a client visible to the pool owner can be attached', function () {
+    $visibleClient = Client::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id, 'consultant_id' => $this->user->id]);
 
     Livewire::test(ClientsRelationManager::class, [
-        'ownerRecord' => $companyPool,
+        'ownerRecord' => $this->pool,
         'pageClass' => EditClientPool::class,
     ])
-        ->assertActionHidden(TestAction::make('attach')->table())
-        ->assertActionHidden(TestAction::make('detach')->table(record: $client));
+        ->callAction(TestAction::make('attach')->table(), data: ['recordId' => [$visibleClient->id]]);
+
+    expect($this->pool->clients()->pluck('clients.id')->all())->toBe([$visibleClient->id]);
 });
 
-test('an admin can add and remove clients on a company pool', function () {
-    $admin = User::factory()->create(['company_id' => $this->company->id]);
-    $admin->industries()->attach($this->industry);
-    $admin->assignRole('admin');
-    $this->actingAs($admin);
-
-    Cache::put("user.{$admin->id}.active_industry", $this->industry->slug);
-    Cache::put("user.{$admin->id}.active_industry_id", $this->industry->id);
-
-    $companyPool = ClientPool::factory()->create([
-        'company_id' => $this->company->id,
-        'industry_id' => $this->industry->id,
-        'user_id' => null,
-        'company_pool' => true,
-    ]);
-    $client = Client::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+test('a client not visible to the pool owner cannot be attached', function () {
+    $otherConsultant = User::factory()->create(['company_id' => $this->company->id]);
+    $otherConsultant->industries()->attach($this->industry);
+    $notVisibleClient = Client::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id, 'consultant_id' => $otherConsultant->id]);
 
     Livewire::test(ClientsRelationManager::class, [
-        'ownerRecord' => $companyPool,
+        'ownerRecord' => $this->pool,
         'pageClass' => EditClientPool::class,
     ])
-        ->assertActionVisible(TestAction::make('attach')->table())
-        ->callAction(TestAction::make('attach')->table(), data: ['recordId' => [$client->id]]);
+        ->callAction(TestAction::make('attach')->table(), data: ['recordId' => [$notVisibleClient->id]]);
 
-    expect($companyPool->clients()->pluck('clients.id')->all())->toBe([$client->id]);
+    expect($this->pool->clients()->count())->toBe(0);
 });

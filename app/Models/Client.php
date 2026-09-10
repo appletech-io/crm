@@ -98,7 +98,9 @@ class Client extends Model
             return $query;
         }
 
-        return $query->where('consultant_id', $user->id);
+        return $query->whereHas('pools', fn (Builder $q) => $q
+            ->where('client_pools.user_id', $user->id)
+            ->where('client_pools.is_primary', true));
     }
 
     /**
@@ -119,7 +121,9 @@ class Client extends Model
             return $query;
         }
 
-        return $query->where('consultant_id', $user->id);
+        return $query->whereHas('pools', fn (Builder $q) => $q
+            ->where('client_pools.user_id', $user->id)
+            ->where('client_pools.is_primary', true));
     }
 
     public function clientType(): BelongsTo

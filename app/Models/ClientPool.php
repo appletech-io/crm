@@ -21,7 +21,7 @@ class ClientPool extends Model
     protected function casts(): array
     {
         return [
-            'company_pool' => 'boolean',
+            'is_primary' => 'boolean',
         ];
     }
 

@@ -6,7 +6,6 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -21,13 +20,6 @@ class ClientPoolsTable
                 TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
-                IconColumn::make('company_pool')
-                    ->label('Company Pool')
-                    ->boolean()
-                    ->trueIcon('heroicon-o-building-office')
-                    ->falseIcon('')
-                    ->trueColor('primary')
-                    ->tooltip(fn ($state): ?string => $state ? 'Visible to all consultants' : null),
                 TextColumn::make('clients_count')
                     ->label('Clients')
                     ->badge()

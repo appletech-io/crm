@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\ClientPools\RelationManagers;
 
-use App\Models\ClientPool;
 use Filament\Actions\AttachAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DetachAction;
@@ -11,7 +10,7 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Database\Eloquent\Builder;
 
 class ClientsRelationManager extends RelationManager
 {
@@ -43,38 +42,18 @@ class ClientsRelationManager extends RelationManager
                     ->label('Add Client')
                     ->modalHeading('Add Client to Pool')
                     ->recordSelectSearchColumns(['name'])
-                    ->multiple()
-                    ->visible(fn (): bool => $this->canManageMembership()),
+                    ->recordSelectOptionsQuery(fn (Builder $query) => $query->visibleToCurrentUser())
+                    ->multiple(),
             ])
             ->recordActions([
                 DetachAction::make()
-                    ->label('Remove')
-                    ->visible(fn (): bool => $this->canManageMembership()),
+                    ->label('Remove'),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
                     DetachBulkAction::make()
-                        ->label('Remove selected')
-                        ->visible(fn (): bool => $this->canManageMembership()),
+                        ->label('Remove selected'),
                 ]),
             ]);
-    }
-
-    /**
-     * Anyone can manage their own personal pool's members (only its owner
-     * can even open it — see ClientPoolResource::getEloquentQuery()), but
-     * only admins may add/remove clients on a company-wide pool, since
-     * every consultant can see and open those.
-     */
-    private function canManageMembership(): bool
-    {
-        /** @var ClientPool $pool */
-        $pool = $this->getOwnerRecord();
-
-        if (! $pool->company_pool) {
-            return true;
-        }
-
-        return Auth::user()?->hasAnyRole(['admin', 'site_admin']) ?? false;
     }
 }

@@ -33,10 +33,8 @@ class ClientSettingsOverview extends StatsOverviewWidget
         $poolsCount = ClientPool::query()
             ->where('company_id', Auth::user()->company_id)
             ->where('industry_id', active_industry_id())
-            ->where(fn ($q) => $q
-                ->where('user_id', Auth::id())
-                ->orWhere(fn ($q) => $q->where('company_pool', true)->whereNull('user_id'))
-            )
+            ->where('user_id', Auth::id())
+            ->where('is_primary', false)
             ->count();
 
         return [
@@ -51,7 +49,7 @@ class ClientSettingsOverview extends StatsOverviewWidget
                 ->color('primary')
                 ->url(ClientTypeResource::getUrl('index')),
             Stat::make('Client Pools', $poolsCount)
-                ->description('Your pools and company pools')
+                ->description('Your extra pools for organising clients')
                 ->descriptionIcon('heroicon-m-user-group')
                 ->color('primary')
                 ->url(ClientPoolResource::getUrl('index')),
