@@ -18,6 +18,8 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
+use PhpOffice\PhpWord\IOFactory;
+use PhpOffice\PhpWord\PhpWord;
 
 beforeEach(function () {
     Storage::fake('local');
@@ -344,4 +346,101 @@ test('the job falls back to the filename and leaves email null when the CV has n
     expect($candidate)->not->toBeNull()
         ->and($candidate->email)->toBeNull()
         ->and($candidate->first_name)->toBe(pathinfo($path, PATHINFO_FILENAME));
+});
+
+test('the upload field accepts pdf and word documents', function () {
+    $field = Livewire::test(BulkUploadCvs::class)
+        ->instance()
+        ->form
+        ->getComponent('cvs');
+
+    expect($field->getAcceptedFileTypes())->toBe([
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ]);
+});
+
+test('submitting a word document dispatches a job just as a pdf does', function () {
+    Queue::fake();
+
+    $files = [
+        UploadedFile::fake()->create('candidate-one.pdf', 100, 'application/pdf'),
+        UploadedFile::fake()->create(
+            'candidate-two.docx',
+            100,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ),
+    ];
+
+    Livewire::test(BulkUploadCvs::class)
+        ->fillForm([
+            'cvs' => $files,
+            'candidate_status_id' => $this->status->id,
+            'send_application_email' => false,
+        ])
+        ->call('processCvUploads')
+        ->assertHasNoFormErrors();
+
+    Queue::assertPushed(ProcessBulkCvUpload::class, 2);
+
+    Queue::assertPushed(
+        ProcessBulkCvUpload::class,
+        fn (ProcessBulkCvUpload $job) => str_ends_with($job->filePath, '.docx'),
+    );
+});
+
+test('submitting an unsupported file type is rejected', function () {
+    Queue::fake();
+
+    Livewire::test(BulkUploadCvs::class)
+        ->fillForm([
+            'cvs' => [UploadedFile::fake()->create('candidate.doc', 100, 'application/msword')],
+            'candidate_status_id' => $this->status->id,
+            'send_application_email' => false,
+        ])
+        ->call('processCvUploads')
+        ->assertHasFormErrors(['cvs']);
+
+    Queue::assertNothingPushed();
+});
+
+test('the job creates a candidate from a word document CV and keeps it as the CV document', function () {
+    CvParser::fake(fn () => [
+        'firstName' => 'Jane',
+        'lastName' => 'Doe',
+        'email' => 'jane@example.com',
+    ]);
+
+    // A real .docx, so the PhpWord extraction in DocumentAttachment actually
+    // runs rather than failing on a zero-filled fake.
+    $source = tempnam(sys_get_temp_dir(), 'bulk-cv-').'.docx';
+    $word = new PhpWord;
+    $word->addSection()->addText('Jane Doe — jane@example.com');
+    IOFactory::createWriter($word, 'Word2007')->save($source);
+
+    $path = 'bulk-cv-uploads/cv.docx';
+    Storage::disk('local')->put($path, file_get_contents($source));
+    unlink($source);
+
+    (new ProcessBulkCvUpload(
+        filePath: $path,
+        companyId: $this->user->company_id,
+        industrySlug: 'education',
+        candidateStatusId: $this->status->id,
+        skillIds: [],
+        sendApplicationEmail: false,
+    ))->handle(app(CvParserService::class));
+
+    $candidate = EducationCandidate::first();
+
+    expect($candidate)->not->toBeNull()
+        ->and($candidate->email)->toBe('jane@example.com');
+
+    $document = $candidate->documents()->where('document_type', DocumentType::Cv)->first();
+
+    expect($document)->not->toBeNull()
+        ->and($document->path)->toEndWith('.docx');
+
+    Storage::disk('local')->assertExists($document->path);
+    Storage::disk('local')->assertMissing($path);
 });
