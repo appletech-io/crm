@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\EducationCandidates\Pages;
 
+use App\Enums\CvFileType;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Jobs\ProcessBulkCvUpload;
 use App\Models\CandidateSkill;
@@ -59,11 +60,12 @@ class BulkUploadCvs extends Page implements HasForms
                     ->multiple()
                     ->required()
                     ->preserveFilenames()
-                    ->acceptedFileTypes(['application/pdf'])
+                    ->acceptedFileTypes(CvFileType::mimeTypes())
+                    ->mimeTypeMap(CvFileType::mimeTypeMap())
                     ->maxSize(10240)
                     ->disk('local')
                     ->directory('bulk-cv-uploads')
-                    ->helperText('Upload one or more CVs (PDF, max 10MB each). A candidate will be created for each file.'),
+                    ->helperText('Upload one or more CVs (PDF or Word .docx, max 10MB each). A candidate will be created for each file.'),
                 Select::make('candidate_status_id')
                     ->label('Status')
                     ->options(fn (): array => CandidateStatus::query()

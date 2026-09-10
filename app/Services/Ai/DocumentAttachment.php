@@ -2,9 +2,11 @@
 
 namespace App\Services\Ai;
 
+use App\Enums\CvFileType;
 use Laravel\Ai\Files\Document;
 use PhpOffice\PhpWord\Element\AbstractContainer;
 use PhpOffice\PhpWord\IOFactory;
+use RuntimeException;
 
 /**
  * Builds an AI attachment from a local file path — shared between CvParser
@@ -19,21 +21,44 @@ class DocumentAttachment
 {
     public static function for(string $filePath): Document
     {
-        if (strtolower(pathinfo($filePath, PATHINFO_EXTENSION)) === 'docx') {
+        if (CvFileType::tryFromPath($filePath) === CvFileType::Docx) {
             return Document::fromString(self::extractDocxText($filePath), 'text/plain');
         }
 
         return Document::fromPath($filePath);
     }
 
+    /**
+     * PhpWord's reader deletes the file it is handed when the archive turns
+     * out to be unreadable, and reports the failure by returning a document
+     * with no content rather than by throwing. The caller's path is often the
+     * only copy of the upload — a bulk-uploaded CV has not been attached to a
+     * candidate yet — so the reader is always given a disposable copy, and an
+     * empty extraction is escalated to an exception so it is reported instead
+     * of silently reaching the model as a blank attachment.
+     */
     private static function extractDocxText(string $filePath): string
     {
-        $document = IOFactory::load($filePath, 'Word2007');
+        $workingCopy = tempnam(sys_get_temp_dir(), 'docx-extract-');
 
-        $text = '';
+        if ($workingCopy === false || ! copy($filePath, $workingCopy)) {
+            throw new RuntimeException("Could not stage a readable copy of the .docx at [{$filePath}].");
+        }
 
-        foreach ($document->getSections() as $section) {
-            $text .= self::extractContainerText($section);
+        try {
+            $document = IOFactory::load($workingCopy, 'Word2007');
+
+            $text = '';
+
+            foreach ($document->getSections() as $section) {
+                $text .= self::extractContainerText($section);
+            }
+        } finally {
+            @unlink($workingCopy);
+        }
+
+        if (trim($text) === '') {
+            throw new RuntimeException("No text could be extracted from the .docx at [{$filePath}].");
         }
 
         return $text;
