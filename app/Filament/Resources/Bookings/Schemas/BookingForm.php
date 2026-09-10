@@ -91,6 +91,7 @@ class BookingForm
             Section::make('Booking Details')
                 ->columnSpanFull()
                 ->columns(2)
+                ->disabled(fn (?Booking $record): bool => static::isSettled($record))
                 ->schema([
                     Select::make('client_id')
                         ->label('Client')
@@ -220,8 +221,12 @@ class BookingForm
             Section::make('Daily Schedule')
                 ->columnSpanFull()
                 ->visible(fn (Get $get): bool => filled($get('start_date')))
+                ->description(fn (?Booking $record): ?string => static::isSettled($record)
+                    ? 'Approved days, and days already sent to the payroll provider, are locked and cannot be selected. The remaining days can still be changed — e.g. mark a day N/A when the candidate calls in sick.'
+                    : null)
                 ->schema([
                     CheckboxList::make('days_of_week')
+                        ->disabled(fn (?Booking $record): bool => static::isSettled($record))
                         ->label('Repeat on')
                         ->helperText('Only these weekdays are included when the schedule below is (re)generated from the date range — e.g. pick Thursday and Friday only for a booking that runs every Thursday and Friday between the start and end date.')
                         ->options([
@@ -285,6 +290,21 @@ class BookingForm
 
                                     $fail("This candidate is not available on: {$dates}.");
                                 }
+
+                                if (! static::isSettled($record)) {
+                                    return;
+                                }
+
+                                $unrated = collect($value ?? [])
+                                    ->reject(fn (array $entry): bool => $entry['cancelled'] ?? false)
+                                    ->filter(fn (array $entry): bool => filled($entry['period'] ?? null))
+                                    ->filter(fn (array $entry): bool => blank($get(static::chargeRateFieldForPeriod($entry['period']))));
+
+                                if ($unrated->isNotEmpty()) {
+                                    $dates = $unrated->pluck('date')->map(fn (string $date): string => Carbon::parse($date)->format('jS M Y'))->implode(', ');
+
+                                    $fail("This booking's rates are locked and it has no charge rate for the period chosen on: {$dates}. Mark those days N/A instead, or raise a new booking for them.");
+                                }
                             };
                         })
                         ->columnSpanFull(),
@@ -292,6 +312,7 @@ class BookingForm
 
             Section::make('Pay & Charge Rates')
                 ->columnSpanFull()
+                ->disabled(fn (?Booking $record): bool => static::isSettled($record))
                 ->schema([
                     Grid::make(3)
                         ->schema([
@@ -328,7 +349,12 @@ class BookingForm
                             TextInput::make('day_charge_rate')
                                 ->label('Day Charge Rate')
                                 ->helperText('Defaults from the client\'s charge rate for this job title. Override if needed.')
-                                ->required()
+                                // A settled booking's rates are locked, so
+                                // requiring one here would be an error the
+                                // consultant has no field to fix. The Daily
+                                // Schedule rule enforces it instead, against
+                                // the day that needs the missing rate.
+                                ->required(fn (?Booking $record): bool => ! static::isSettled($record))
                                 ->numeric()
                                 ->prefix('£')
                                 ->step(0.01)
@@ -338,7 +364,7 @@ class BookingForm
                             TextInput::make('half_day_charge_rate')
                                 ->label('Half Day Charge Rate')
                                 ->helperText('Defaults from the client\'s charge rate for this job title. Override if needed.')
-                                ->required()
+                                ->required(fn (?Booking $record): bool => ! static::isSettled($record))
                                 ->numeric()
                                 ->prefix('£')
                                 ->step(0.01)
@@ -348,7 +374,7 @@ class BookingForm
                             TextInput::make('hourly_charge_rate')
                                 ->label('Hourly Charge Rate')
                                 ->helperText('Defaults from the client\'s charge rate for this job title. Override if needed.')
-                                ->required()
+                                ->required(fn (?Booking $record): bool => ! static::isSettled($record))
                                 ->numeric()
                                 ->prefix('£')
                                 ->step(0.01)
@@ -385,6 +411,7 @@ class BookingForm
 
             Section::make('Payroll Provider')
                 ->hidden()
+                ->disabled(fn (?Booking $record): bool => static::isSettled($record))
                 ->schema([
                     TextInput::make('payroll_provider_id')
                         ->label('Payroll Provider ID')
@@ -413,6 +440,30 @@ class BookingForm
                         ->placeholder('Not yet synced'),
                 ]),
         ];
+    }
+
+    /**
+     * Every section of the form bar the Daily Schedule is disabled once the
+     * booking is settled — see Booking::isSettled() for what that means and
+     * why. A create form has no record yet, so nothing is settled.
+     */
+    public static function isSettled(?Booking $record): bool
+    {
+        return $record?->isSettled() ?? false;
+    }
+
+    /**
+     * The charge rate field each day period is billed against. Used to tell
+     * a consultant which rate is missing when they pick a period on a
+     * settled booking, whose rate fields they can no longer fill in.
+     */
+    protected static function chargeRateFieldForPeriod(string $period): string
+    {
+        return match ($period) {
+            BookingDayPeriod::Hours->value => 'hourly_charge_rate',
+            BookingDayPeriod::Am->value, BookingDayPeriod::Pm->value => 'half_day_charge_rate',
+            default => 'day_charge_rate',
+        };
     }
 
     /** @return Collection<int, string> */
@@ -795,7 +846,7 @@ class BookingForm
             ->all();
     }
 
-    /** @return array<int, array{date: string, period: string, time_from: ?string, time_to: ?string, cancelled: bool, disputed: bool, dispute_reason: ?string}> */
+    /** @return array<int, array{date: string, period: string, time_from: ?string, time_to: ?string, cancelled: bool, disputed: bool, dispute_reason: ?string, locked: bool}> */
     public static function loadDayPeriods(Booking $record): array
     {
         return $record->dayPeriods()
@@ -808,6 +859,10 @@ class BookingForm
                 'cancelled' => $period->isCancelled(),
                 'disputed' => $period->isDisputed(),
                 'dispute_reason' => $period->dispute_reason,
+                // Drives the calendar's locked styling. It is display only:
+                // syncDayPeriods() re-checks each day against the database,
+                // so a tampered flag can't unlock anything.
+                'locked' => $period->isLockedForEditing(),
             ])
             ->values()
             ->all();
@@ -819,14 +874,23 @@ class BookingForm
         $items = collect($items ?? [])->filter(fn (array $item): bool => filled($item['date'] ?? null));
         $submittedDates = $items->pluck('date')->all();
 
+        // A locked day is never deleted or updated here, whatever the form
+        // submits for it — the client has approved it, or payroll already
+        // has it, so it is a record of what was worked rather than a plan
+        // that can still change. See BookingDay::isLockedForEditing().
         $record->dayPeriods()
             ->get()
-            ->reject(fn (BookingDay $dayPeriod): bool => in_array($dayPeriod->date->toDateString(), $submittedDates, true))
+            ->reject(fn (BookingDay $dayPeriod): bool => $dayPeriod->isLockedForEditing()
+                || in_array($dayPeriod->date->toDateString(), $submittedDates, true))
             ->each(fn (BookingDay $dayPeriod) => $dayPeriod->delete());
 
         foreach ($items as $item) {
             $isCancelled = (bool) ($item['cancelled'] ?? false);
             $existing = $record->dayPeriods()->whereDate('date', $item['date'])->first();
+
+            if ($existing?->isLockedForEditing()) {
+                continue;
+            }
 
             // A day marked N/A that was never actually booked (e.g. a
             // weekend on a schedule that only works weekdays) shouldn't

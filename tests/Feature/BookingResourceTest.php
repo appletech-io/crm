@@ -660,8 +660,8 @@ test('editing a booking loads its existing day periods and syncs changes back to
 
     expect(collect($test->instance()->form->getRawState()['day_periods'] ?? [])->values()->all())
         ->toBe([
-            ['date' => '2026-08-03', 'period' => 'am', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'disputed' => false, 'dispute_reason' => null],
-            ['date' => '2026-08-04', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'disputed' => false, 'dispute_reason' => null],
+            ['date' => '2026-08-03', 'period' => 'am', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'disputed' => false, 'dispute_reason' => null, 'locked' => false],
+            ['date' => '2026-08-04', 'period' => 'full_day', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'disputed' => false, 'dispute_reason' => null, 'locked' => false],
         ]);
 
     $test
@@ -2123,4 +2123,189 @@ test('the requests count only reflects the current users visible bookings', func
     $component = Livewire::test(ListBookings::class);
 
     expect($component->instance()->requestsCount())->toBe(1);
+});
+
+test('a part-approved booking locks its terms but keeps the schedule editable', function () {
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'status' => BookingStatus::Approved,
+        'start_date' => '2026-08-03',
+        'end_date' => '2026-08-05',
+    ]);
+
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-03',
+        'period' => 'full_day',
+        'payroll_confirmation_sent_at' => now(),
+        'approved_at' => now(),
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-04',
+        'period' => 'full_day',
+    ]);
+
+    Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+        ->assertSuccessful()
+        ->assertFormFieldDisabled('client_id')
+        ->assertFormFieldDisabled('candidate_id')
+        ->assertFormFieldDisabled('job_title_id')
+        ->assertFormFieldDisabled('start_date')
+        ->assertFormFieldDisabled('status')
+        ->assertFormFieldDisabled('day_rate')
+        ->assertFormFieldDisabled('days_of_week')
+        ->assertFormFieldEnabled('day_periods')
+        ->assertSee('Save changes');
+});
+
+test('a booking whose days are all approved stays entirely read-only', function () {
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'status' => BookingStatus::Approved,
+        'start_date' => '2026-08-03',
+    ]);
+
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-03',
+        'period' => 'full_day',
+        'payroll_confirmation_sent_at' => now(),
+        'approved_at' => now(),
+    ]);
+
+    Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+        ->assertSuccessful()
+        ->assertFormFieldDisabled('day_periods')
+        ->assertDontSee('Save changes');
+});
+
+test('a sick day can be dropped from a part-approved booking without touching the approved days or its terms', function () {
+    $otherClient = Client::factory()->create(['company_id' => $this->user->company_id]);
+
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'status' => BookingStatus::Approved,
+        'start_date' => '2026-08-03',
+        'end_date' => '2026-08-05',
+        'day_rate' => 100,
+        'day_charge_rate' => 320,
+    ]);
+
+    $approvedDay = $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-03',
+        'period' => 'full_day',
+        'payroll_confirmation_sent_at' => now(),
+        'approved_at' => now(),
+    ]);
+    $sickDay = $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-04',
+        'period' => 'full_day',
+    ]);
+
+    // The approved day is submitted as cancelled and the booking's terms as
+    // someone else's — neither is allowed through, because the whole of the
+    // form bar the schedule is disabled and locked days are re-checked
+    // against the database on save.
+    Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+        ->fillForm([
+            'client_id' => $otherClient->id,
+            'day_rate' => 999,
+            'day_periods' => [
+                ['date' => '2026-08-03', 'period' => 'full_day', 'cancelled' => true],
+                ['date' => '2026-08-04', 'period' => 'full_day', 'cancelled' => true],
+            ],
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($approvedDay->fresh()->period)->toBe(BookingDayPeriod::FullDay)
+        ->and($approvedDay->fresh()->cancelled_at)->toBeNull()
+        ->and($sickDay->fresh()->cancelled_at)->not->toBeNull()
+        ->and($booking->fresh()->client_id)->toBe($this->client->id)
+        ->and((float) $booking->fresh()->day_rate)->toBe(100.0);
+});
+
+test('a day already sent to the payroll provider is never deleted or updated by a schedule save', function () {
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'start_date' => '2026-08-03',
+    ]);
+
+    $sentDay = $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-03',
+        'period' => 'full_day',
+        'payroll_confirmation_sent_at' => now(),
+        'sent_to_provider_at' => now(),
+    ]);
+
+    // Omitted from the payload entirely, which for an unlocked day would
+    // delete the row.
+    BookingForm::syncDayPeriods($booking, [
+        ['date' => '2026-08-04', 'period' => 'am', 'cancelled' => false],
+    ]);
+
+    expect($sentDay->fresh())->not->toBeNull()
+        ->and($sentDay->fresh()->period)->toBe(BookingDayPeriod::FullDay)
+        ->and($booking->dayPeriods()->whereDate('date', '2026-08-04')->exists())->toBeTrue();
+});
+
+test('a settled booking rejects a day period it has no charge rate for, rather than failing on a locked rate field', function () {
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'status' => BookingStatus::Approved,
+        'start_date' => '2026-08-03',
+        'end_date' => '2026-08-04',
+        'day_charge_rate' => 320,
+        'half_day_charge_rate' => null,
+    ]);
+
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-03',
+        'period' => 'full_day',
+        'payroll_confirmation_sent_at' => now(),
+        'approved_at' => now(),
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => '2026-08-04',
+        'period' => 'full_day',
+    ]);
+
+    Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
+        ->fillForm([
+            'day_periods' => [
+                ['date' => '2026-08-03', 'period' => 'full_day', 'cancelled' => false],
+                ['date' => '2026-08-04', 'period' => 'am', 'cancelled' => false],
+            ],
+        ])
+        ->call('save')
+        ->assertHasFormErrors(['day_periods']);
+
+    expect($booking->dayPeriods()->whereDate('date', '2026-08-04')->first()->period)
+        ->toBe(BookingDayPeriod::FullDay);
 });

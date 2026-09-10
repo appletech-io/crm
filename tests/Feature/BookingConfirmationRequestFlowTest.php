@@ -212,6 +212,6 @@ test('a booking that already has day periods is not overwritten by the fallback 
         ->getRawState()['day_periods'];
 
     expect(array_values($dayPeriods))->toBe([
-        ['date' => '2026-09-01', 'period' => 'am', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'disputed' => false, 'dispute_reason' => null],
+        ['date' => '2026-09-01', 'period' => 'am', 'time_from' => null, 'time_to' => null, 'cancelled' => false, 'disputed' => false, 'dispute_reason' => null, 'locked' => false],
     ]);
 });
