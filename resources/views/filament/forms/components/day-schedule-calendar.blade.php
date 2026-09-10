@@ -1,5 +1,6 @@
 @php
     $disputedDays = collect($getState() ?? [])->filter(fn (array $day): bool => $day['disputed'] ?? false)->values();
+    $hasLockedDays = collect($getState() ?? [])->contains(fn (array $day): bool => $day['locked'] ?? false);
 @endphp
 
 <x-dynamic-component
@@ -10,6 +11,15 @@
         x-data="{
             days: $wire.{{ $applyStateBindingModifiers("\$entangle('{$getStatePath()}')") }},
             selected: [],
+            disabled: @js($isDisabled()),
+
+            // Approved days, and days already sent to the payroll provider,
+            // can't be changed — they're rendered read-only and kept out of
+            // every bulk action. BookingForm::syncDayPeriods() enforces the
+            // same rule server-side.
+            isLocked(day) {
+                return this.disabled || !! day.locked;
+            },
 
             get hoursDays() {
                 return this.days.filter((day) => day.period === 'hours' && ! day.cancelled);
@@ -70,23 +80,33 @@
             },
 
             toggleSelected(date) {
+                const day = this.days.find((entry) => entry.date === date);
+
+                if (day && this.isLocked(day)) {
+                    return;
+                }
+
                 this.selected = this.selected.includes(date)
                     ? this.selected.filter((d) => d !== date)
                     : [...this.selected, date];
             },
 
             selectAll() {
-                this.selected = this.days.map((day) => day.date);
+                this.selected = this.days.filter((day) => ! this.isLocked(day)).map((day) => day.date);
+            },
+
+            isSelected(day) {
+                return this.selected.includes(day.date) && ! this.isLocked(day);
             },
 
             applyPeriod(period) {
-                this.days = this.days.map((day) => this.selected.includes(day.date)
+                this.days = this.days.map((day) => this.isSelected(day)
                     ? { ...day, period, cancelled: false }
                     : day);
             },
 
             applyCancelled(cancelled) {
-                this.days = this.days.map((day) => this.selected.includes(day.date)
+                this.days = this.days.map((day) => this.isSelected(day)
                     ? { ...day, cancelled }
                     : day);
             },
@@ -100,8 +120,11 @@
             },
 
             cellClasses(day) {
-                const selected = this.selected.includes(day.date);
-                const ring = selected ? 'ring-2 ring-primary-500' : '';
+                const ring = this.isSelected(day) ? 'ring-2 ring-primary-500' : '';
+
+                if (this.isLocked(day)) {
+                    return 'cursor-not-allowed bg-gray-100 text-gray-500 ring-1 ring-inset ring-gray-300 dark:bg-white/5 dark:text-gray-400 dark:ring-white/20';
+                }
 
                 if (day.cancelled) {
                     return `${ring} bg-gray-200 text-gray-400 line-through dark:bg-white/10 dark:text-gray-500`;
@@ -154,12 +177,16 @@
                                                 <button
                                                     type="button"
                                                     x-on:click="toggleSelected(cell.date)"
+                                                    :disabled="isLocked(cell)"
                                                     :class="cellClasses(cell)"
                                                     class="relative flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-lg text-xs transition"
                                                 >
                                                     <span x-text="cell.date.slice(-2)"></span>
                                                     <span class="text-[10px] font-medium" x-text="periodLabel(cell)"></span>
                                                     <span x-show="cell.disputed" class="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-red-500" title="Disputed"></span>
+                                                    <svg x-show="isLocked(cell)" class="absolute left-0.5 top-0.5 h-2.5 w-2.5 text-gray-500 dark:text-gray-400" viewBox="0 0 20 20" fill="currentColor" title="Locked">
+                                                        <path fill-rule="evenodd" d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" clip-rule="evenodd" />
+                                                    </svg>
                                                 </button>
                                             </template>
                                         </div>
@@ -193,13 +220,21 @@
                             <span class="h-2 w-2 rounded-full bg-red-500"></span> Disputed
                         </span>
                     @endif
+                    @if ($hasLockedDays)
+                        <span class="flex items-center gap-1">
+                            <svg class="h-3 w-3 text-gray-500 dark:text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" clip-rule="evenodd" />
+                            </svg>
+                            Locked (approved or sent to payroll)
+                        </span>
+                    @endif
                     <span class="ml-auto text-gray-500 dark:text-gray-400">
                         <span x-text="selected.length"></span> day(s) selected
                     </span>
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
-                    <button type="button" x-on:click="selectAll()" class="rounded-full border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5">
+                    <button type="button" x-on:click="selectAll()" :disabled="disabled" class="rounded-full border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5">
                         Select all
                     </button>
                     <button type="button" x-on:click="selected = []" class="rounded-full border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5">
@@ -208,24 +243,24 @@
 
                     <span class="mx-1 h-4 w-px bg-gray-200 dark:bg-white/10"></span>
 
-                    <button type="button" x-on:click="applyPeriod('full_day')" :disabled="selected.length === 0" class="rounded-full bg-primary-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
+                    <button type="button" x-on:click="applyPeriod('full_day')" :disabled="disabled || selected.length === 0" class="rounded-full bg-primary-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
                         Set Full Day
                     </button>
-                    <button type="button" x-on:click="applyPeriod('am')" :disabled="selected.length === 0" class="rounded-full bg-blue-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
+                    <button type="button" x-on:click="applyPeriod('am')" :disabled="disabled || selected.length === 0" class="rounded-full bg-blue-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
                         Set AM
                     </button>
-                    <button type="button" x-on:click="applyPeriod('pm')" :disabled="selected.length === 0" class="rounded-full bg-purple-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
+                    <button type="button" x-on:click="applyPeriod('pm')" :disabled="disabled || selected.length === 0" class="rounded-full bg-purple-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
                         Set PM
                     </button>
                     @if ($isHoursEnabled())
-                        <button type="button" x-on:click="applyPeriod('hours')" :disabled="selected.length === 0" class="rounded-full bg-orange-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
+                        <button type="button" x-on:click="applyPeriod('hours')" :disabled="disabled || selected.length === 0" class="rounded-full bg-orange-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
                             Set Hours
                         </button>
                     @endif
-                    <button type="button" x-on:click="applyCancelled(true)" :disabled="selected.length === 0" class="rounded-full bg-gray-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
+                    <button type="button" x-on:click="applyCancelled(true)" :disabled="disabled || selected.length === 0" class="rounded-full bg-gray-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
                         Set N/A
                     </button>
-                    <button type="button" x-on:click="applyCancelled(false)" :disabled="selected.length === 0" class="rounded-full bg-green-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
+                    <button type="button" x-on:click="applyCancelled(false)" :disabled="disabled || selected.length === 0" class="rounded-full bg-green-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
                         Include
                     </button>
                 </div>
@@ -238,9 +273,9 @@
                             <template x-for="day in hoursDays" :key="day.date">
                                 <div class="flex items-center gap-3 text-sm">
                                     <span class="w-28 text-gray-600 dark:text-gray-300" x-text="day.date"></span>
-                                    <input type="time" x-model="day.time_from" class="fi-input rounded-lg border-gray-300 text-sm dark:border-white/10 dark:bg-white/5" />
+                                    <input type="time" x-model="day.time_from" :disabled="isLocked(day)" class="fi-input rounded-lg border-gray-300 text-sm disabled:opacity-50 dark:border-white/10 dark:bg-white/5" />
                                     <span class="text-gray-400">to</span>
-                                    <input type="time" x-model="day.time_to" class="fi-input rounded-lg border-gray-300 text-sm dark:border-white/10 dark:bg-white/5" />
+                                    <input type="time" x-model="day.time_to" :disabled="isLocked(day)" class="fi-input rounded-lg border-gray-300 text-sm disabled:opacity-50 dark:border-white/10 dark:bg-white/5" />
                                 </div>
                             </template>
                         </div>

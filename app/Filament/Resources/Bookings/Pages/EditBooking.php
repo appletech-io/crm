@@ -33,12 +33,12 @@ class EditBooking extends EditRecord
     public function form(Schema $schema): Schema
     {
         return parent::form($schema)
-            ->disabled(fn (): bool => $this->isApproved());
+            ->disabled(fn (): bool => $this->isReadOnly());
     }
 
     protected function getFormActions(): array
     {
-        if ($this->isApproved()) {
+        if ($this->isReadOnly()) {
             return [$this->getCancelFormAction()];
         }
 
@@ -227,6 +227,22 @@ class EditBooking extends EditRecord
         return $record->status === BookingStatus::Approved;
     }
 
+    /**
+     * A settled booking is only fully read-only once nothing on it can
+     * change any more — every day has been approved or sent to the payroll
+     * provider. While unlocked days remain the page stays saveable so a
+     * consultant can still adjust them (e.g. mark today and tomorrow N/A for
+     * a sick candidate); everything else is locked down by the form itself,
+     * which disables every section except the schedule.
+     */
+    protected function isReadOnly(): bool
+    {
+        /** @var Booking $record */
+        $record = $this->record;
+
+        return $record->isSettled() && ! $record->hasEditableDayPeriods();
+    }
+
     protected function isRequested(): bool
     {
         /** @var Booking $record */
@@ -326,7 +342,17 @@ class EditBooking extends EditRecord
 
     protected function afterSave(): void
     {
-        BookingForm::syncDayPeriods($this->record, $this->form->getRawState()['day_periods'] ?? []);
+        /** @var Booking $record */
+        $record = $this->record;
+
+        BookingForm::syncDayPeriods($record, $this->form->getRawState()['day_periods'] ?? []);
+
+        // The Payroll Provider section is disabled on a settled booking, so
+        // its state is only what was hydrated — writing it back would be a
+        // no-op at best, and must not be the way a locked field gets through.
+        if ($record->isSettled()) {
+            return;
+        }
 
         // Only admins can see the Payroll Provider ID field (see the form's
         // matching isAdmin() gate) — this mirrors it so a consultant saving
@@ -339,7 +365,7 @@ class EditBooking extends EditRecord
         $provider = Auth::user()->company->payroll_provider;
 
         if ($provider) {
-            $this->record->setProviderExternalId($provider, $this->form->getRawState()['payroll_provider_id'] ?? null);
+            $record->setProviderExternalId($provider, $this->form->getRawState()['payroll_provider_id'] ?? null);
         }
     }
 }

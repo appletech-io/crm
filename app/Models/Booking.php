@@ -74,6 +74,37 @@ class Booking extends Model
             ->exists();
     }
 
+    /**
+     * Whether this booking's commercial terms are final: the client has
+     * approved it, or at least one of its days has been approved or pushed
+     * to the payroll provider. From that point the client, candidate, job
+     * title, status and rates have been billed against and must not move —
+     * only the days that aren't locked yet can still be changed, so a
+     * consultant can drop a day the candidate is off sick for.
+     */
+    public function isSettled(): bool
+    {
+        return $this->isApproved() || $this->hasLockedDayPeriods();
+    }
+
+    /**
+     * Whether any of this booking's days have been approved by the client or
+     * pushed to the payroll provider.
+     */
+    public function hasLockedDayPeriods(): bool
+    {
+        return $this->dayPeriods()->lockedForEditing()->exists();
+    }
+
+    /**
+     * Whether any day on this booking can still be changed. A booking with
+     * none left is entirely read-only; one with some is editable schedule-only.
+     */
+    public function hasEditableDayPeriods(): bool
+    {
+        return $this->dayPeriods()->editable()->exists();
+    }
+
     public function isRated(): bool
     {
         return $this->candidate_rated_at !== null;
