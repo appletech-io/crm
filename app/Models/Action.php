@@ -31,6 +31,7 @@ class Action extends Model
             'todo_priority' => TodoPriority::class,
             'email_recipient' => ActionEmailRecipient::class,
             'is_active' => 'boolean',
+            'one_off' => 'boolean',
         ];
     }
 
@@ -67,5 +68,23 @@ class Action extends Model
             ->where('model_type', $record->getMorphClass())
             ->where('model_id', $record->getKey())
             ->first();
+    }
+
+    /**
+     * Whether this action should be treated as already having fired for this
+     * record, and so shouldn't fire again right now. A one-off action never
+     * fires twice for the same record, even once its trigger resolves — for
+     * everything else, only a currently open (unresolved) trigger blocks it.
+     */
+    public function hasAlreadyFiredFor(Model $record): bool
+    {
+        if ($this->one_off) {
+            return $this->triggers()
+                ->where('model_type', $record->getMorphClass())
+                ->where('model_id', $record->getKey())
+                ->exists();
+        }
+
+        return $this->openTriggerFor($record) !== null;
     }
 }

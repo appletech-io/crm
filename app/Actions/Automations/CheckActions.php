@@ -32,10 +32,7 @@ class CheckActions
             ->get()
             ->filter(fn (Action $action): bool => $this->matchesIndustry($action, $record))
             ->each(function (Action $action) use ($record): void {
-                $openTrigger = $action->openTriggerFor($record);
-                $isSatisfied = $action->isSatisfiedBy($record);
-
-                if ($isSatisfied && ! $openTrigger) {
+                if ($action->isSatisfiedBy($record) && ! $action->hasAlreadyFiredFor($record)) {
                     $this->fireAction($action, $record);
                 }
             });

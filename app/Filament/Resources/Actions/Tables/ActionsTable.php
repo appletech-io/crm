@@ -62,6 +62,10 @@ class ActionsTable
                     ->label('Active')
                     ->boolean(),
 
+                IconColumn::make('one_off')
+                    ->label('Fire Once')
+                    ->boolean(),
+
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
