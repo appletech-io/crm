@@ -185,6 +185,170 @@ test('does not fire again even after the condition clears and becomes true again
         ->and($triggers->first()->isOpen())->toBeTrue();
 });
 
+test('completing a todo resolves its trigger', function () {
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $this->consultant->id,
+        'notes' => 'Needs a follow up call',
+    ]);
+
+    $action = Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'conditions' => [
+            ['field' => 'notes', 'operator' => 'filled'],
+        ],
+    ]);
+
+    CheckActions::run($client);
+
+    $trigger = ActionTrigger::where('action_id', $action->id)->where('model_id', $client->id)->first();
+    expect($trigger->isOpen())->toBeTrue();
+
+    $trigger->todoItems->first()->update(['completed_at' => now()]);
+
+    expect($trigger->refresh()->isOpen())->toBeFalse();
+});
+
+test('reopening a completed todo reopens its trigger', function () {
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $this->consultant->id,
+        'notes' => 'Needs a follow up call',
+    ]);
+
+    Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'conditions' => [
+            ['field' => 'notes', 'operator' => 'filled'],
+        ],
+    ]);
+
+    CheckActions::run($client);
+
+    $trigger = ActionTrigger::where('model_id', $client->id)->first();
+    $todo = $trigger->todoItems->first();
+
+    $todo->update(['completed_at' => now()]);
+    expect($trigger->refresh()->isOpen())->toBeFalse();
+
+    $todo->update(['completed_at' => null]);
+    expect($trigger->refresh()->isOpen())->toBeTrue();
+});
+
+test('a non-one_off action fires again once its trigger resolves and the condition is satisfied again', function () {
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $this->consultant->id,
+        'notes' => 'Needs a follow up call',
+    ]);
+
+    $action = Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'conditions' => [
+            ['field' => 'notes', 'operator' => 'filled'],
+        ],
+        'one_off' => false,
+    ]);
+
+    // First occurrence — resolved by completing its todo.
+    CheckActions::run($client);
+    ActionTrigger::where('action_id', $action->id)->where('model_id', $client->id)->first()
+        ->todoItems->first()->update(['completed_at' => now()]);
+
+    // Condition clears, then becomes true again months later.
+    $client->update(['notes' => null]);
+    CheckActions::run($client);
+    $client->update(['notes' => 'Needs another follow up call']);
+    CheckActions::run($client);
+
+    expect(TodoItem::count())->toBe(2);
+
+    $triggers = ActionTrigger::where('action_id', $action->id)->where('model_id', $client->id)->orderBy('id')->get();
+    expect($triggers)->toHaveCount(2)
+        ->and($triggers->first()->isOpen())->toBeFalse()
+        ->and($triggers->last()->isOpen())->toBeTrue();
+});
+
+test('a one_off action never fires again once it has fired, even after its trigger resolves', function () {
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $this->consultant->id,
+        'notes' => 'Needs a follow up call',
+    ]);
+
+    $action = Action::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'conditions' => [
+            ['field' => 'notes', 'operator' => 'filled'],
+        ],
+        'one_off' => true,
+    ]);
+
+    CheckActions::run($client);
+    ActionTrigger::where('action_id', $action->id)->where('model_id', $client->id)->first()
+        ->todoItems->first()->update(['completed_at' => now()]);
+
+    $client->update(['notes' => null]);
+    CheckActions::run($client);
+    $client->update(['notes' => 'Needs another follow up call']);
+    CheckActions::run($client);
+
+    expect(TodoItem::count())->toBe(1)
+        ->and(ActionTrigger::where('action_id', $action->id)->where('model_id', $client->id)->count())->toBe(1);
+});
+
+test('completing any one of several todos on a role-based trigger resolves it, without completing the others', function () {
+    $this->seed(RoleSeeder::class);
+
+    $compliance1 = User::factory()->create(['company_id' => $this->company->id]);
+    $compliance1->industries()->attach($this->industry);
+    $compliance1->assignRole('compliance');
+
+    $compliance2 = User::factory()->create(['company_id' => $this->company->id]);
+    $compliance2->industries()->attach($this->industry);
+    $compliance2->assignRole('compliance');
+
+    $client = Client::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => null,
+        'notes' => 'Needs a follow up call',
+    ]);
+
+    $action = Action::factory()->roleBased('compliance')->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'model_type' => Client::class,
+        'conditions' => [
+            ['field' => 'notes', 'operator' => 'filled'],
+        ],
+    ]);
+
+    CheckActions::run($client);
+
+    $trigger = $action->openTriggerFor($client);
+    $todos = $trigger->todoItems;
+    expect($todos)->toHaveCount(2);
+
+    $todos->first()->update(['completed_at' => now()]);
+
+    expect($trigger->refresh()->isOpen())->toBeFalse()
+        ->and($todos->first()->refresh()->isComplete())->toBeTrue()
+        ->and($todos->last()->refresh()->isComplete())->toBeFalse();
+});
+
 test('does not create a todo when the record has no consultant', function () {
     $client = Client::factory()->create([
         'company_id' => $this->company->id,

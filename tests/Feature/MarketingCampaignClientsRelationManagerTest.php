@@ -144,7 +144,7 @@ test('the contact match column breaks down which clients have, lack, or fall bac
         ->assertTableColumnStateSet('contact_match', 'none', $none);
 });
 
-test('add from pool only offers pools the current user can see', function () {
+test('add from pool only offers the current user\'s own pools, not their main pool or anyone else\'s', function () {
     $someoneElse = User::factory()->create(['company_id' => $this->company->id]);
     $someoneElse->industries()->attach($this->industry);
 
@@ -154,12 +154,12 @@ test('add from pool only offers pools the current user can see', function () {
         'user_id' => $this->user->id,
         'name' => 'My Pool',
     ]);
-    $sharedPool = ClientPool::factory()->create([
+    $myMainPool = ClientPool::factory()->create([
         'company_id' => $this->company->id,
         'industry_id' => $this->industry->id,
-        'user_id' => null,
-        'company_pool' => true,
-        'name' => 'Shared Pool',
+        'user_id' => $this->user->id,
+        'is_primary' => true,
+        'name' => 'My Main Pool',
     ]);
     $othersPool = ClientPool::factory()->create([
         'company_id' => $this->company->id,
@@ -174,6 +174,6 @@ test('add from pool only offers pools the current user can see', function () {
     ])
         ->mountAction(TestAction::make('addFromPool')->table())
         ->assertMountedActionModalSee('My Pool')
-        ->assertMountedActionModalSee('Shared Pool')
+        ->assertMountedActionModalDontSee('My Main Pool')
         ->assertMountedActionModalDontSee('Not Mine');
 });

@@ -59,6 +59,12 @@ class ActionForm
                                 ->label('Active')
                                 ->default(true)
                                 ->columnSpanFull(),
+
+                            Toggle::make('one_off')
+                                ->label('Fire Once')
+                                ->helperText('Off: can fire again once resolved and its conditions are met again (e.g. an expiring DBS being renewed, then expiring again). On: never fires again for the same record once it has, even after resolving (e.g. a one-time welcome email).')
+                                ->default(false)
+                                ->columnSpanFull(),
                         ]),
 
                     Tab::make('Conditions')

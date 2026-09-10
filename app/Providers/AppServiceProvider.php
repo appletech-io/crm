@@ -10,6 +10,7 @@ use App\Models\Client;
 use App\Models\ClientContact;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
+use App\Models\TodoItem;
 use App\Models\User;
 use App\Models\Vacancy;
 use App\Models\VacancyPlacement;
@@ -21,6 +22,7 @@ use App\Observers\ClientContactObserver;
 use App\Observers\ClientObserver;
 use App\Observers\EducationCandidateObserver;
 use App\Observers\HealthcareCandidateObserver;
+use App\Observers\TodoItemObserver;
 use App\Observers\UserObserver;
 use App\Observers\VacancyObserver;
 use App\Observers\VacancyPlacementObserver;
@@ -64,6 +66,7 @@ class AppServiceProvider extends ServiceProvider
         CandidateReference::observe(CandidateReferenceObserver::class);
         CandidateCandidateStatus::observe(CandidateCandidateStatusObserver::class);
         VacancyPlacement::observe(VacancyPlacementObserver::class);
+        TodoItem::observe(TodoItemObserver::class);
     }
 
     /**

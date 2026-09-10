@@ -18,7 +18,6 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 
 class ClientsRelationManager extends RelationManager
@@ -90,10 +89,8 @@ class ClientsRelationManager extends RelationManager
                             ->required()
                             ->options(fn (): array => ClientPool::query()
                                 ->where('industry_id', active_industry_id())
-                                ->where(fn (Builder $query) => $query
-                                    ->where('user_id', Auth::id())
-                                    ->orWhere(fn (Builder $q) => $q->where('company_pool', true)->whereNull('user_id'))
-                                )
+                                ->where('user_id', Auth::id())
+                                ->where('is_primary', false)
                                 ->orderBy('name')
                                 ->pluck('name', 'id')
                                 ->toArray()),

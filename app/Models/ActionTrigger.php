@@ -48,4 +48,20 @@ class ActionTrigger extends Model
     {
         return $this->resolved_at === null;
     }
+
+    /**
+     * Recomputes resolved_at from this trigger's own to-dos — resolved
+     * (keeping the original resolved_at if already set) as soon as any one
+     * of them is completed, reopened if none of them are complete anymore.
+     * Driven entirely by a person completing/reopening a to-do, never by
+     * re-evaluating the action's conditions — see CheckActions::handle().
+     */
+    public function syncResolution(): void
+    {
+        $isResolved = $this->todoItems()->whereNotNull('completed_at')->exists();
+
+        $this->update([
+            'resolved_at' => $isResolved ? ($this->resolved_at ?? now()) : null,
+        ]);
+    }
 }

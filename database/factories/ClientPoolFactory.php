@@ -23,7 +23,6 @@ class ClientPoolFactory extends Factory
             'company_id' => Company::factory(),
             'industry_id' => Industry::factory(),
             'name' => $this->faker->words(3, true),
-            'company_pool' => false,
         ];
     }
 }

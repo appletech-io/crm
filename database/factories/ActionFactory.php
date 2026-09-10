@@ -36,6 +36,7 @@ class ActionFactory extends Factory
             'todo_description' => null,
             'todo_priority' => 'medium',
             'is_active' => true,
+            'one_off' => false,
         ];
     }
 

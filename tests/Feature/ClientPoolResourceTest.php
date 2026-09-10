@@ -41,7 +41,7 @@ test('list page renders', function () {
     Livewire::test(ListClientPools::class)->assertSuccessful();
 });
 
-test('a consultant creating a pool always gets a personal pool, with no company-pool toggle available', function () {
+test('a consultant creating a pool always gets a personal pool, with no company-pool option available', function () {
     $consultant = actingAsClientPoolUser('consultant');
 
     Livewire::test(ListClientPools::class)
@@ -54,24 +54,23 @@ test('a consultant creating a pool always gets a personal pool, with no company-
 
     expect($pool)->not->toBeNull()
         ->and($pool->user_id)->toBe($consultant->id)
-        ->and($pool->company_pool)->toBeFalse()
+        ->and($pool->is_primary)->toBeFalse()
         ->and($pool->industry_id)->toBe($this->industry->id);
 });
 
-test('an admin can create a company-wide pool visible to everyone', function () {
-    actingAsClientPoolUser('admin');
+test('an admin creating a pool also only ever gets a personal pool — no company-wide pools exist', function () {
+    $admin = actingAsClientPoolUser('admin');
 
     Livewire::test(ListClientPools::class)
         ->mountAction('create')
-        ->assertMountedActionModalSee('Company Pool')
-        ->setActionData(['name' => 'Company Pool', 'company_pool' => true])
+        ->assertMountedActionModalDontSee('Company Pool')
+        ->setActionData(['name' => 'Admin Pool'])
         ->callMountedAction();
 
-    $pool = ClientPool::where('name', 'Company Pool')->first();
+    $pool = ClientPool::where('name', 'Admin Pool')->first();
 
     expect($pool)->not->toBeNull()
-        ->and($pool->user_id)->toBeNull()
-        ->and($pool->company_pool)->toBeTrue();
+        ->and($pool->user_id)->toBe($admin->id);
 });
 
 test('edit page renders', function () {
@@ -86,7 +85,7 @@ test('edit page renders', function () {
         ->assertSuccessful();
 });
 
-test('a user sees their own pools and company pools, but not another users personal pool', function () {
+test('a user sees only their own extra pools, not another users pools or their own main pool', function () {
     $me = actingAsClientPoolUser('consultant');
     $someoneElse = User::factory()->create(['company_id' => $this->company->id]);
     $someoneElse->industries()->attach($this->industry);
@@ -97,12 +96,12 @@ test('a user sees their own pools and company pools, but not another users perso
         'user_id' => $me->id,
         'name' => 'Mine',
     ]);
-    $companyWide = ClientPool::factory()->create([
+    $myMainPool = ClientPool::factory()->create([
         'company_id' => $this->company->id,
         'industry_id' => $this->industry->id,
-        'user_id' => null,
-        'company_pool' => true,
-        'name' => 'Shared',
+        'user_id' => $me->id,
+        'is_primary' => true,
+        'name' => 'My Main Pool',
     ]);
     $someoneElsesPersonalPool = ClientPool::factory()->create([
         'company_id' => $this->company->id,
@@ -112,8 +111,8 @@ test('a user sees their own pools and company pools, but not another users perso
     ]);
 
     Livewire::test(ListClientPools::class)
-        ->assertCanSeeTableRecords([$mine, $companyWide])
-        ->assertCanNotSeeTableRecords([$someoneElsesPersonalPool]);
+        ->assertCanSeeTableRecords([$mine])
+        ->assertCanNotSeeTableRecords([$myMainPool, $someoneElsesPersonalPool]);
 });
 
 test('client pools resource is hidden from the main navigation', function () {

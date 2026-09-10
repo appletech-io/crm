@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Actions\Automations\CheckActions;
 use App\Actions\Clients\EnsureClientCandidatePool;
+use App\Actions\Clients\SyncClientConsultantPool;
 use App\Jobs\GeocodeClient;
 use App\Jobs\SyncPayrollProviderRecord;
 use App\Models\Client;
@@ -19,6 +20,10 @@ class ClientObserver
     {
         if ($client->wasChanged('postcode') || ($client->wasRecentlyCreated && filled($client->postcode))) {
             GeocodeClient::dispatch($client);
+        }
+
+        if ($client->wasChanged('consultant_id') || $client->wasRecentlyCreated) {
+            SyncClientConsultantPool::run($client);
         }
 
         CheckActions::run($client);
