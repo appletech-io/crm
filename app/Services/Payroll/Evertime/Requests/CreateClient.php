@@ -25,7 +25,7 @@ class CreateClient
             'Name' => $client->name,
             'ClientId' => $clientId,
             'Locations' => [$this->locationPayload($client, $locationId)],
-            'Contacts' => [$this->contactPayload($client, $contact, $contactId, default: true)],
+            'Contacts' => [$this->contactPayload($client, $contact, $contactId, default: true, locationId: $locationId)],
             'Financials' => $this->financialsPayload(),
         ]);
     }

@@ -16,7 +16,7 @@ use App\Models\ClientContact;
 trait BuildsClientPayloads
 {
     /** @return array<string, mixed> */
-    private function contactPayload(Client $client, ?ClientContact $contact, string $contactId, bool $default): array
+    private function contactPayload(Client $client, ?ClientContact $contact, string $contactId, bool $default, string $locationId): array
     {
         return [
             'ContactId' => $contactId,
@@ -27,6 +27,21 @@ trait BuildsClientPayloads
             'Active' => true,
             'Forename' => $contact?->first_name ?? $client->name,
             'Surname' => $contact?->last_name ?? 'Contact',
+            // Without Email/CanAuthoriseFromEmail, a contact we create is
+            // left with no real email on file at all — worth sending
+            // regardless, though confirmed live this alone still isn't
+            // enough to make a contact eligible as a placement's approver
+            // (still rejected: "ApproverContactId ... does not match the
+            // Primary or Secondary Approver"). LocationId is sent too, but
+            // confirmed live that /clients/contacts silently ignores it —
+            // a contact's Location can only be set via CreateClient's full
+            // /clients overwrite, which isn't safe to use on an
+            // already-known client (see EvertimeProvider::upsertClient()).
+            // A contact created by this app for an existing client may
+            // therefore never be usable as a placement approver at all.
+            'LocationId' => $locationId,
+            'CanAuthoriseFromEmail' => true,
+            'Email' => $contact?->email,
         ];
     }
 
