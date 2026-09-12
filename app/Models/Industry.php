@@ -30,6 +30,7 @@ class Industry extends Model
         'healthcare' => HealthcareCandidate::class,
         'generic' => Candidate::class,
         'it' => Candidate::class,
+        'construction' => Candidate::class,
     ];
 
     /** @return class-string<Model>|null */
@@ -50,6 +51,20 @@ class Industry extends Model
         return array_search($model, static::$candidateModelMap, strict: true) ?: null;
     }
 
+    /**
+     * Whether more than one industry slug maps to this candidate model (e.g.
+     * 'generic', 'construction' and 'it' all currently point at the plain
+     * Candidate::class). Callers that scope by candidate_type alone — like
+     * Booking::scopeForActiveIndustry() — can't tell those industries apart
+     * without an extra check when this is true.
+     *
+     * @param  class-string<Model>  $model
+     */
+    public static function candidateModelIsShared(string $model): bool
+    {
+        return count(array_keys(static::$candidateModelMap, $model, strict: true)) > 1;
+    }
+
     /** @return array<string, array{label: string, type: string}> */
     public function candidateFieldSuggestions(): array
     {
@@ -64,7 +79,9 @@ class Industry extends Model
 
     public function companies(): BelongsToMany
     {
-        return $this->belongsToMany(Company::class, 'company_industry');
+        return $this->belongsToMany(Company::class, 'company_industry')
+            ->using(CompanyIndustry::class)
+            ->withPivot('uses_bookings');
     }
 
     public function users(): BelongsToMany

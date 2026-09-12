@@ -12,6 +12,7 @@ use App\Jobs\SendBookingConfirmationEmail;
 use App\Jobs\SendClientBookingConfirmationEmail;
 use App\Models\Booking;
 use App\Models\BookingDay;
+use App\Models\Candidate;
 use App\Models\CandidateAvailability;
 use App\Models\CandidateCandidateStatus;
 use App\Models\CandidateStatus;
@@ -901,6 +902,50 @@ test('the excludingRequests scope filters out requested bookings but keeps every
     expect($visible)->toContain($upcoming->id)
         ->toContain($approved->id)
         ->not->toContain($requested->id);
+});
+
+test('bookings do not leak between industries that share the generic Candidate model (construction vs it)', function () {
+    $construction = Industry::factory()->create(['slug' => 'construction']);
+    $it = Industry::factory()->create(['slug' => 'it']);
+    $this->user->industries()->attach([$construction->id, $it->id]);
+
+    $constructionClient = Client::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $construction->id]);
+    $itClient = Client::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $it->id]);
+
+    $constructionCandidate = Candidate::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $construction->id]);
+    $itCandidate = Candidate::factory()->create(['company_id' => $this->user->company_id, 'industry_id' => $it->id]);
+
+    $constructionBooking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $constructionClient->id,
+        'candidate_id' => $constructionCandidate->id,
+        'candidate_type' => Candidate::class,
+        'consultant_id' => $this->user->id,
+    ]);
+
+    $itBooking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $itClient->id,
+        'candidate_id' => $itCandidate->id,
+        'candidate_type' => Candidate::class,
+        'consultant_id' => $this->user->id,
+    ]);
+
+    Cache::put("user.{$this->user->id}.active_industry", $it->slug);
+    Cache::put("user.{$this->user->id}.active_industry_id", $it->id);
+
+    Livewire::test(ListBookings::class)
+        ->set('activeSection', 'all')
+        ->assertCanSeeTableRecords([$itBooking])
+        ->assertCanNotSeeTableRecords([$constructionBooking]);
+
+    Cache::put("user.{$this->user->id}.active_industry", $construction->slug);
+    Cache::put("user.{$this->user->id}.active_industry_id", $construction->id);
+
+    Livewire::test(ListBookings::class)
+        ->set('activeSection', 'all')
+        ->assertCanSeeTableRecords([$constructionBooking])
+        ->assertCanNotSeeTableRecords([$itBooking]);
 });
 
 test('the edit form does not crash and flags the candidate as deleted when the candidate is soft-deleted', function () {

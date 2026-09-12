@@ -1,0 +1,332 @@
+<?php
+
+namespace App\Filament\Widgets;
+
+use App\Enums\ActivityType;
+use App\Filament\Resources\Candidates\CandidateResource;
+use App\Models\Candidate;
+use App\Models\CandidateActivity;
+use App\Models\Client;
+use App\Models\ClientActivity;
+use App\Models\User;
+use Filament\Actions\Action;
+use Filament\Actions\Concerns\InteractsWithActions;
+use Filament\Actions\Contracts\HasActions;
+use Filament\Widgets\StatsOverviewWidget;
+use Filament\Widgets\StatsOverviewWidget\Stat;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Livewire\Attributes\On;
+
+/**
+ * The same Calls/Meetings/Applications Completed shape as
+ * EducationConsultantKpiOverview/HealthcareConsultantKpiOverview, but for
+ * any industry whose candidate model resolves to the generic Candidate
+ * (Industry::candidateModelForSlug()) — Construction and IT at the time of
+ * writing. Unlike those two, a single Candidate model instance can belong to
+ * more than one such industry, so every query here is explicitly scoped to
+ * active_industry_id() rather than relying on the model class alone to
+ * separate them.
+ */
+class GenericConsultantKpiOverview extends StatsOverviewWidget implements HasActions
+{
+    use InteractsWithActions;
+
+    protected string $view = 'filament.widgets.education-consultant-kpi-overview';
+
+    protected static ?int $sort = 1;
+
+    public ?int $consultantId = null;
+
+    public function isAdmin(): bool
+    {
+        return Auth::user()?->isAdmin() ?? false;
+    }
+
+    /**
+     * Consultant selection lives on the Performance Summary widget's
+     * dropdown — the only one on the dashboard — so this just follows it.
+     */
+    #[On('dashboard-consultant-changed')]
+    public function onDashboardConsultantChanged(?int $consultantId): void
+    {
+        $this->consultantId = $consultantId;
+    }
+
+    /** @return array<Stat> */
+    protected function getStats(): array
+    {
+        $stats = $this->monthStats();
+
+        return [
+            Stat::make('Calls This Month', $stats['calls'])
+                ->icon('heroicon-o-phone')
+                ->chart($this->monthlyTrend('calls', fn (Carbon $start, Carbon $end): int => $this->activityCount(
+                    ActivityType::Call, $start, $end, $this->activeConsultantId(), User::query()->pluck('id')
+                )))
+                ->chartColor('info')
+                ->extraAttributes($this->clickableStatAttributes(ActivityType::Call)),
+            Stat::make('Meetings This Month', $stats['meetings'])
+                ->icon('heroicon-o-calendar')
+                ->chart($this->monthlyTrend('meetings', fn (Carbon $start, Carbon $end): int => $this->activityCount(
+                    ActivityType::Meeting, $start, $end, $this->activeConsultantId(), User::query()->pluck('id')
+                )))
+                ->chartColor('warning')
+                ->extraAttributes($this->clickableStatAttributes(ActivityType::Meeting)),
+            Stat::make('Applications Completed This Month', $stats['completedApplications'])
+                ->description("({$stats['previousMonthCompletedApplications']})")
+                ->icon('heroicon-o-document-check')
+                ->chart($this->monthlyTrend('applications', fn (Carbon $start, Carbon $end): int => $this->completedApplicationsCount(
+                    $start, $end, $this->activeConsultantId()
+                )))
+                ->chartColor('success')
+                ->extraAttributes([
+                    'class' => 'cursor-pointer transition hover:opacity-75',
+                    'wire:click' => "mountAction('viewCompletedApplications')",
+                ]),
+        ];
+    }
+
+    /**
+     * The last 6 months (including the current, partial one), oldest first,
+     * keyed by a short month label — feeds a stat's sparkline via
+     * {@see Stat::chart()}.
+     *
+     * @return array<string, int>
+     */
+    private function monthlyTrend(string $statKey, callable $counter): array
+    {
+        return Cache::remember(
+            $this->cacheKey("monthly-trend:{$statKey}"),
+            now()->addMinutes(10),
+            fn (): array => collect(range(5, 0))
+                ->mapWithKeys(function (int $monthsAgo) use ($counter): array {
+                    $month = Carbon::now()->subMonths($monthsAgo);
+
+                    return [$month->format('M Y') => $counter($month->copy()->startOfMonth(), $month->copy()->endOfMonth())];
+                })
+                ->all(),
+        );
+    }
+
+    /** @return array<string, string> */
+    private function clickableStatAttributes(ActivityType $type): array
+    {
+        return [
+            'class' => 'cursor-pointer transition hover:opacity-75',
+            'wire:click' => "mountAction('viewActivities', { type: '{$type->value}' })",
+        ];
+    }
+
+    public function viewActivitiesAction(): Action
+    {
+        return Action::make('viewActivities')
+            ->label(fn (array $arguments): string => ActivityType::from($arguments['type'])->label().'s this month')
+            ->modalHeading(fn (array $arguments): string => ActivityType::from($arguments['type'])->label().'s this month — '.
+                ($this->activeConsultantId() ? $this->consultant()?->name : 'the whole team'))
+            ->slideOver()
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Close')
+            ->modalContent(fn (array $arguments) => view('filament.widgets.partials.activity-drilldown', [
+                'activities' => $this->activitiesForModal(ActivityType::from($arguments['type'])),
+            ]));
+    }
+
+    private function consultant(): ?User
+    {
+        return User::find($this->activeConsultantId());
+    }
+
+    /** @return Collection<int, array{note: ?string, created_at: Carbon, consultant: string, subject: string, kind: string}> */
+    public function activitiesForModal(ActivityType $type): Collection
+    {
+        $start = Carbon::now()->startOfMonth();
+        $end = Carbon::now()->endOfMonth();
+        $consultantId = $this->activeConsultantId();
+        $companyUserIds = User::query()->pluck('id');
+        $industryId = active_industry_id();
+
+        $candidateActivities = CandidateActivity::query()
+            ->where('type', $type->value)
+            ->whereHasMorph('model', [Candidate::class], fn ($query) => $query->where('industry_id', $industryId))
+            ->whereBetween('created_at', [$start, $end])
+            ->whereIn('user_id', $companyUserIds)
+            ->when($consultantId, fn ($query) => $query->where('user_id', $consultantId))
+            ->with(['model', 'user'])
+            ->get()
+            ->map(fn (CandidateActivity $activity): array => [
+                'note' => $activity->note,
+                'created_at' => $activity->created_at,
+                'consultant' => $activity->user?->name ?? 'Unknown',
+                'subject' => $activity->model ? trim("{$activity->model->first_name} {$activity->model->last_name}") : 'Unknown candidate',
+                'kind' => 'Candidate',
+            ]);
+
+        $clientActivities = ClientActivity::query()
+            ->where('type', $type->value)
+            ->whereHasMorph('model', [Client::class], fn ($query) => $query->where('industry_id', $industryId))
+            ->whereBetween('created_at', [$start, $end])
+            ->whereIn('user_id', $companyUserIds)
+            ->when($consultantId, fn ($query) => $query->where('user_id', $consultantId))
+            ->with(['model', 'user'])
+            ->get()
+            ->map(fn (ClientActivity $activity): array => [
+                'note' => $activity->note,
+                'created_at' => $activity->created_at,
+                'consultant' => $activity->user?->name ?? 'Unknown',
+                'subject' => $activity->model?->name ?? 'Unknown client',
+                'kind' => 'Client',
+            ]);
+
+        return $candidateActivities->concat($clientActivities)
+            ->sortByDesc('created_at')
+            ->values();
+    }
+
+    public function viewCompletedApplicationsAction(): Action
+    {
+        return Action::make('viewCompletedApplications')
+            ->label('Applications completed this month')
+            ->modalHeading('Applications completed this month — '.
+                ($this->activeConsultantId() ? $this->consultant()?->name : 'the whole team'))
+            ->slideOver()
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Close')
+            ->modalContent(fn () => view('filament.widgets.partials.completed-applications-drilldown', [
+                'candidates' => $this->completedApplicationsForModal(),
+            ]));
+    }
+
+    /** @return Collection<int, array{name: string, consultant: string, completed_at: ?Carbon, url: string}> */
+    public function completedApplicationsForModal(): Collection
+    {
+        $start = Carbon::now()->startOfMonth();
+        $end = Carbon::now()->endOfMonth();
+        $consultantId = $this->activeConsultantId();
+
+        return Candidate::query()
+            ->where('industry_id', active_industry_id())
+            ->when($consultantId, fn ($query) => $query->where('consultant_id', $consultantId))
+            ->whereHas('application', function ($query) use ($start, $end): void {
+                $query->where('status', 'completed')
+                    ->whereBetween('completed_at', [$start, $end]);
+            })
+            ->with(['application', 'consultant'])
+            ->get()
+            ->map(fn (Candidate $candidate): array => [
+                'name' => trim("{$candidate->first_name} {$candidate->last_name}"),
+                'consultant' => $candidate->consultant?->name ?? 'Unassigned',
+                'completed_at' => $candidate->application?->completed_at,
+                'url' => CandidateResource::getUrl('edit', ['record' => $candidate]),
+            ])
+            ->sortByDesc('completed_at')
+            ->values();
+    }
+
+    /** @return int | array<string, ?int> | null */
+    protected function getColumns(): int|array|null
+    {
+        return 3;
+    }
+
+    /**
+     * Cached for 10 minutes — the source of every headline number on this
+     * widget, queried on every dashboard render otherwise.
+     *
+     * @return array{calls: int, meetings: int, completedApplications: int, previousMonthCompletedApplications: int}
+     */
+    public function monthStats(): array
+    {
+        $consultantId = $this->activeConsultantId();
+
+        return Cache::remember(
+            $this->cacheKey('month-stats'),
+            now()->addMinutes(10),
+            function () use ($consultantId): array {
+                $start = Carbon::now()->startOfMonth();
+                $end = Carbon::now()->endOfMonth();
+
+                $previousStart = Carbon::now()->startOfMonth()->subMonth();
+                $previousEnd = $previousStart->copy()->endOfMonth();
+
+                $companyUserIds = User::query()->pluck('id');
+
+                $calls = $this->activityCount(ActivityType::Call, $start, $end, $consultantId, $companyUserIds);
+                $meetings = $this->activityCount(ActivityType::Meeting, $start, $end, $consultantId, $companyUserIds);
+
+                $completedApplications = $this->completedApplicationsCount($start, $end, $consultantId);
+                $previousMonthCompletedApplications = $this->completedApplicationsCount($previousStart, $previousEnd, $consultantId);
+
+                return [
+                    'calls' => $calls,
+                    'meetings' => $meetings,
+                    'completedApplications' => $completedApplications,
+                    'previousMonthCompletedApplications' => $previousMonthCompletedApplications,
+                ];
+            },
+        );
+    }
+
+    private function completedApplicationsCount(Carbon $start, Carbon $end, ?int $consultantId): int
+    {
+        return Candidate::query()
+            ->where('industry_id', active_industry_id())
+            ->when($consultantId, fn ($query) => $query->where('consultant_id', $consultantId))
+            ->whereHas('application', function ($query) use ($start, $end): void {
+                $query->where('status', 'completed')
+                    ->whereBetween('completed_at', [$start, $end]);
+            })
+            ->count();
+    }
+
+    private function activeConsultantId(): ?int
+    {
+        if ($this->isAdmin()) {
+            return $this->consultantId;
+        }
+
+        return Auth::id();
+    }
+
+    /**
+     * Scoped by company + active industry + consultant + the current month
+     * — active industry matters here in a way it doesn't for the Education/
+     * Healthcare versions, since Construction and IT share this same
+     * Candidate model and would otherwise collide on the same cache entry.
+     */
+    private function cacheKey(string $suffix): string
+    {
+        $companyId = Auth::user()?->company_id;
+        $industryId = active_industry_id();
+        $consultantId = $this->activeConsultantId();
+        $monthStart = Carbon::now()->startOfMonth()->toDateString();
+
+        return "generic-consultant-kpi:{$companyId}:{$industryId}:{$consultantId}:{$suffix}:{$monthStart}";
+    }
+
+    /** @param  Collection<int, int>  $companyUserIds */
+    private function activityCount(ActivityType $type, Carbon $start, Carbon $end, ?int $consultantId, $companyUserIds): int
+    {
+        $industryId = active_industry_id();
+
+        $candidateActivities = CandidateActivity::query()
+            ->where('type', $type->value)
+            ->whereHasMorph('model', [Candidate::class], fn ($query) => $query->where('industry_id', $industryId))
+            ->whereBetween('created_at', [$start, $end])
+            ->whereIn('user_id', $companyUserIds)
+            ->when($consultantId, fn ($query) => $query->where('user_id', $consultantId))
+            ->count();
+
+        $clientActivities = ClientActivity::query()
+            ->where('type', $type->value)
+            ->whereHasMorph('model', [Client::class], fn ($query) => $query->where('industry_id', $industryId))
+            ->whereBetween('created_at', [$start, $end])
+            ->whereIn('user_id', $companyUserIds)
+            ->when($consultantId, fn ($query) => $query->where('user_id', $consultantId))
+            ->count();
+
+        return $candidateActivities + $clientActivities;
+    }
+}
