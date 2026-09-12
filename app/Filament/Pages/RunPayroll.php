@@ -123,7 +123,7 @@ class RunPayroll extends Page implements HasTable
                         ->success()
                         ->send();
                 }),
-        ])
+        ], collapseGroupsByDefault: true)
             ->recordActions([$this->approveDayAction()])
             ->toolbarActions([$this->approveSelectedDaysAction()])
             ->checkIfRecordIsSelectableUsing(fn (BookingDay $record): bool => $this->canApprove($record));
