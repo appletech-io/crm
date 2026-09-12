@@ -5,10 +5,13 @@ namespace App\Filament\Resources\Companies;
 use App\Filament\Resources\Companies\Pages\CreateCompany;
 use App\Filament\Resources\Companies\Pages\EditCompany;
 use App\Filament\Resources\Companies\Pages\ListCompanies;
+use App\Filament\Resources\Companies\Pages\ManageCompanyFeatures;
 use App\Filament\Resources\Companies\Schemas\CompanyForm;
 use App\Filament\Resources\Companies\Tables\CompaniesTable;
 use App\Models\Company;
 use BackedEnum;
+use Filament\Pages\Enums\SubNavigationPosition;
+use Filament\Resources\Pages\Page;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -23,6 +26,8 @@ class CompanyResource extends Resource
     protected static \UnitEnum|string|null $navigationGroup = 'Site Settings';
 
     protected static ?string $recordTitleAttribute = 'name';
+
+    protected static ?SubNavigationPosition $subNavigationPosition = SubNavigationPosition::Top;
 
     public static function canAccess(): bool
     {
@@ -50,6 +55,20 @@ class CompanyResource extends Resource
             'index' => ListCompanies::route('/'),
             'create' => CreateCompany::route('/create'),
             'edit' => EditCompany::route('/{record}/edit'),
+            'features' => ManageCompanyFeatures::route('/{record}/features'),
         ];
+    }
+
+    /**
+     * Tabs across the top of every page for a specific company — currently
+     * just Edit and Features, with room to add more per-record pages here
+     * later without cluttering the main Edit form.
+     */
+    public static function getRecordSubNavigation(Page $page): array
+    {
+        return $page->generateNavigationItems([
+            EditCompany::class,
+            ManageCompanyFeatures::class,
+        ]);
     }
 }

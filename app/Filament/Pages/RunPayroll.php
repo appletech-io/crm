@@ -41,7 +41,7 @@ class RunPayroll extends Page implements HasTable
         // Impersonation logs the site_admin in as the target company's actual
         // admin user, so this excludes their own site_admin account without
         // needing to check the impersonation session state directly.
-        return auth()->user()?->hasRole('admin') ?? false;
+        return (auth()->user()?->hasRole('admin') ?? false) && active_industry_uses_bookings();
     }
 
     public function mount(): void

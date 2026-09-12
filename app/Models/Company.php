@@ -105,7 +105,19 @@ class Company extends Model
 
     public function industries(): BelongsToMany
     {
-        return $this->belongsToMany(Industry::class, 'company_industry');
+        return $this->belongsToMany(Industry::class, 'company_industry')
+            ->using(CompanyIndustry::class)
+            ->withPivot('uses_bookings');
+    }
+
+    /**
+     * The company_industry pivot rows themselves, for editing per-industry
+     * pivot data (uses_bookings) via a Repeater — see
+     * App\Filament\Resources\Companies\Schemas\CompanyForm.
+     */
+    public function companyIndustries(): HasMany
+    {
+        return $this->hasMany(CompanyIndustry::class);
     }
 
     /**
