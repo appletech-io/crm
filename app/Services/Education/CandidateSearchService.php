@@ -18,16 +18,16 @@ class CandidateSearchService
      *     email?: ?string,
      *     skill_ids?: ?array<int, int|string>,
      *     days?: ?array<int, int|string>,
+     *     week_start?: ?string,
      *     lat?: ?float,
      *     lng?: ?float,
      *     radius_miles?: ?float,
      *     pool_ids?: ?array<int, int|string>,
-     *     status_ids?: ?array<int, int|string>,
      * }  $filters
-     * @param  bool  $restrictToOwnLiveCandidates  The dedicated "Search" tab is a booking tool — it only
-     *                                             makes sense to search your own Live candidates there. The "All Candidates" tab's search is a
-     *                                             general lookup across every consultant's candidates regardless of status, so it passes false to
-     *                                             keep that "all" scope and only apply the actual filter criteria below.
+     * @param  bool  $restrictToOwnLiveCandidates  This service backs only the dedicated "Search" tab's
+     *                                             booking search (the "All Candidates" tab uses the resource's own table/filters instead), which only
+     *                                             ever makes sense scoped to the consultant's own Live candidates — kept as a parameter, defaulting
+     *                                             to true, rather than hardcoded, since a caller may still want to search more broadly in future.
      */
     public function search(array $filters, bool $restrictToOwnLiveCandidates = true): Builder
     {
@@ -41,10 +41,9 @@ class CandidateSearchService
         $this->applyName($query, $filters['name'] ?? null);
         $this->applyEmail($query, $filters['email'] ?? null);
         $this->applySkills($query, $filters['skill_ids'] ?? null);
-        $this->applyDays($query, $filters['days'] ?? null);
+        $this->applyDays($query, $filters['days'] ?? null, $filters['week_start'] ?? null);
         $this->applyLocation($query, $filters['lat'] ?? null, $filters['lng'] ?? null, $filters['radius_miles'] ?? null);
         $this->applyPools($query, $filters['pool_ids'] ?? null);
-        $this->applyStatuses($query, $filters['status_ids'] ?? null);
 
         return $query;
     }
@@ -88,14 +87,18 @@ class CandidateSearchService
      * day is still included — no data isn't the same as unavailable.
      *
      * @param  ?array<int, int|string>  $days  ISO-8601 weekday numbers (1 = Monday .. 5 = Friday)
+     * @param  ?string  $weekStart  The Monday to resolve $days against — defaults to the real current
+     *                              week when omitted, but the Education Candidates list page passes the
+     *                              week its availability grid is currently navigated to, so this filter
+     *                              stays in sync with whichever week is on screen.
      */
-    private function applyDays(Builder $query, ?array $days): void
+    private function applyDays(Builder $query, ?array $days, ?string $weekStart = null): void
     {
         if (blank($days)) {
             return;
         }
 
-        foreach ($this->datesForWeekdays($days) as $date) {
+        foreach ($this->datesForWeekdays($days, $weekStart) as $date) {
             $query->whereDoesntHave('bookings', fn (Builder $q) => $q
                 ->whereHas('dayPeriods', fn (Builder $q2) => $q2
                     ->whereDate('date', $date)
@@ -116,23 +119,6 @@ class CandidateSearchService
 
         $query->whereHas('candidatePools', fn (Builder $q) => $q
             ->whereIn('candidate_pools.id', $poolIds));
-    }
-
-    /**
-     * Matched against the candidate's current status only (latestStatus),
-     * not their full status history — a candidate who was once Live but has
-     * since moved on shouldn't still surface for a "Live" status filter.
-     *
-     * @param  ?array<int, int|string>  $statusIds
-     */
-    private function applyStatuses(Builder $query, ?array $statusIds): void
-    {
-        if (blank($statusIds)) {
-            return;
-        }
-
-        $query->whereHas('latestStatus', fn (Builder $q) => $q
-            ->whereIn('candidate_status_id', $statusIds));
     }
 
     private function applyLocation(Builder $query, ?float $lat, ?float $lng, ?float $radiusMiles): void
@@ -173,9 +159,9 @@ class CandidateSearchService
      * @param  array<int, int|string>  $weekdays  ISO-8601 weekday numbers (1 = Monday .. 5 = Friday)
      * @return array<int, string>
      */
-    private function datesForWeekdays(array $weekdays): array
+    private function datesForWeekdays(array $weekdays, ?string $weekStart = null): array
     {
-        $weekStart = now()->startOfWeek(Carbon::MONDAY);
+        $weekStart = $weekStart !== null ? Carbon::parse($weekStart) : now()->startOfWeek(Carbon::MONDAY);
 
         return collect($weekdays)
             ->map(fn (int|string $weekday): string => $weekStart->copy()->addDays(((int) $weekday) - 1)->toDateString())

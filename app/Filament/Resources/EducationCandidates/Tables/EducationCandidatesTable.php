@@ -7,6 +7,7 @@ use App\Filament\Support\AddToCandidatePoolAction;
 use App\Filament\Support\CandidateSummaryAction;
 use App\Filament\Support\ExportCandidatesCsvAction;
 use App\Filament\Support\SendCustomEmailAction;
+use App\Models\CandidatePool;
 use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
 use App\Models\EducationCandidate;
@@ -109,6 +110,23 @@ class EducationCandidatesTable
                     ->query(fn (Builder $query, array $data) => $query->when(
                         $data['values'],
                         fn ($q, $values) => $q->whereHas('skills', fn ($q) => $q->whereIn('candidate_skill_candidates.candidate_skill_id', $values))
+                    )),
+                SelectFilter::make('pools')
+                    ->label('Pool')
+                    ->multiple()
+                    ->options(fn (): array => CandidatePool::query()
+                        ->where('industry_id', active_industry_id())
+                        ->where(fn (Builder $query) => $query
+                            ->where('user_id', Auth::id())
+                            ->orWhere(fn (Builder $q) => $q->where('company_pool', true)->whereNull('user_id'))
+                        )
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->toArray()
+                    )
+                    ->query(fn (Builder $query, array $data) => $query->when(
+                        $data['values'],
+                        fn ($q, $values) => $q->whereHas('candidatePools', fn ($q) => $q->whereIn('candidate_pools.id', $values))
                     )),
                 SelectFilter::make('consultant_id')
                     ->label('Consultant')
