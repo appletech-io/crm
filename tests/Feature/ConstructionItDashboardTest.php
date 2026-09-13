@@ -25,7 +25,10 @@ beforeEach(function () {
     $this->company = Company::factory()->create();
     $this->construction = Industry::factory()->create(['slug' => 'construction']);
     $this->it = Industry::factory()->create(['slug' => 'it']);
-    $this->company->industries()->attach([$this->construction->id, $this->it->id]);
+    $this->company->industries()->attach([
+        $this->construction->id => ['uses_bookings' => true],
+        $this->it->id => ['uses_bookings' => false],
+    ]);
 
     $this->admin = User::factory()->create(['company_id' => $this->company->id]);
     $this->admin->industries()->attach([$this->construction->id, $this->it->id]);
@@ -50,7 +53,7 @@ test('the dashboard resolves ConstructionDashboard for the construction industry
     ]);
 });
 
-test('the dashboard resolves ItDashboard for the it industry, with no booking-based widgets', function () {
+test('the dashboard resolves NoBookingsDashboard for the it industry, with no booking-based widgets', function () {
     ($this->setActiveIndustry)($this->it);
 
     $dashboard = new Dashboard;
@@ -61,6 +64,18 @@ test('the dashboard resolves ItDashboard for the it industry, with no booking-ba
     ])
         ->and($dashboard->getWidgets())->not->toContain(ConsultantPerformanceSummary::class)
         ->and($dashboard->getWidgets())->not->toContain(EducationConsultantLeaderboard::class);
+});
+
+test('the dashboard resolves NoBookingsDashboard for any industry with bookings toggled off, not just it', function () {
+    $this->company->industries()->updateExistingPivot($this->construction->id, ['uses_bookings' => false]);
+    ($this->setActiveIndustry)($this->construction);
+
+    $dashboard = new Dashboard;
+
+    expect($dashboard->getWidgets())->toBe([
+        ItPlacementsOverview::class,
+        GenericConsultantKpiOverview::class,
+    ]);
 });
 
 test('the construction dashboard renders successfully for an admin', function () {

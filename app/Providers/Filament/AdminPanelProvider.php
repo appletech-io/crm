@@ -15,6 +15,7 @@ use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\Integrations\EvertimeIntegration;
 use App\Filament\Pages\Integrations\ListIntegrations;
 use App\Filament\Pages\Invoicing;
+use App\Filament\Pages\JobPipeline;
 use App\Filament\Pages\JobSettings;
 use App\Filament\Pages\Reports;
 use App\Filament\Pages\RunPayroll;
@@ -120,6 +121,7 @@ class AdminPanelProvider extends PanelProvider
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->pages([
                 Dashboard::class,
+                JobPipeline::class,
                 ComplianceDashboard::class,
                 ConsultantMonthlyReport::class,
                 CandidateSettings::class,

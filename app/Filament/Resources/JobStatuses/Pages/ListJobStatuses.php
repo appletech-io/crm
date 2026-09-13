@@ -41,6 +41,10 @@ class ListJobStatuses extends ListRecords
                 ->mutateDataUsing(function (array $data): array {
                     $data['company_id'] = Auth::user()->company_id;
                     $data['industry_id'] = active_industry_id();
+                    $data['sort_order'] = (JobStatus::query()
+                        ->where('company_id', $data['company_id'])
+                        ->where('industry_id', $data['industry_id'])
+                        ->max('sort_order') ?? -1) + 1;
 
                     return $data;
                 }),

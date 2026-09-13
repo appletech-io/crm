@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Traits\BelongsToCompany;
 use Database\Factories\JobStatusFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -62,5 +63,17 @@ class JobStatus extends Model
     public function automations(): HasMany
     {
         return $this->hasMany(JobStatusAutomation::class);
+    }
+
+    /**
+     * The order a site admin has deliberately arranged these in (see
+     * JobStatusesTable's ->reorderable('sort_order')) — every caller that
+     * displays statuses in a left-to-right/top-to-bottom sequence (the Job
+     * Pipeline Flow widget, the Job Pipeline report chart) should use this
+     * rather than default id order.
+     */
+    public function scopeOrdered(Builder $query): Builder
+    {
+        return $query->orderBy('sort_order');
     }
 }

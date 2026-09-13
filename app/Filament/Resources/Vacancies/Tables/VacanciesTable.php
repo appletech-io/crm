@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Vacancies\Tables;
 
 use App\Enums\VacancyEmploymentType;
+use App\Models\JobStatus;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -63,6 +64,13 @@ class VacanciesTable
                 SelectFilter::make('employment_type')
                     ->label('Type')
                     ->options(VacancyEmploymentType::options()),
+                SelectFilter::make('job_status_id')
+                    ->label('Status')
+                    ->options(fn (): array => JobStatus::query()
+                        ->where('industry_id', active_industry_id())
+                        ->ordered()
+                        ->pluck('name', 'id')
+                        ->all()),
                 TrashedFilter::make(),
             ])
             ->recordActions([

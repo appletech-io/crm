@@ -6,12 +6,13 @@ use App\Filament\Widgets\GenericConsultantKpiOverview;
 use App\Filament\Widgets\ItPlacementsOverview;
 
 /**
- * No Bookings exist for this industry — every widget here is Vacancy/
+ * Used for any industry that has Bookings toggled off (see
+ * active_industry_uses_bookings()) — every widget here is Vacancy/
  * Application/Placement-derived instead of the booking-based figures
  * (Gross Profit, candidate days out, rebook rate, booking-day leaderboard)
- * the Education/Healthcare/Construction dashboards show.
+ * a bookings-enabled industry's dashboard shows.
  */
-class ItDashboard implements DashboardInterface
+class NoBookingsDashboard implements DashboardInterface
 {
     /** @return array<int, class-string> */
     public function getWidgets(): array
