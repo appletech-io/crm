@@ -251,23 +251,32 @@ class VantagePointDemoSeeder extends Seeder
         }
     }
 
+    /**
+     * A candidate-progress pipeline (Shortlisted → ... → Placed) rather than
+     * a vacancy-state list (Open/On Hold/Filled/Cancelled) — matches how the
+     * Job Pipeline Flow dashboard widget is meant to read for an industry
+     * with no Bookings, where "job status" tracks where the placement
+     * process for that role has got to.
+     */
     private function seedJobStatuses(): void
     {
         $statuses = [
-            'Open' => 'green',
-            'On Hold' => 'amber',
-            'Filled' => 'sky',
-            'Cancelled' => 'red',
+            'Shortlisted' => ['color' => 'gray', 'is_filled_status' => false],
+            'Sent' => ['color' => 'blue', 'is_filled_status' => false],
+            'Interview Stage 1' => ['color' => 'indigo', 'is_filled_status' => false],
+            'Interview Stage 2+' => ['color' => 'violet', 'is_filled_status' => false],
+            'Offered' => ['color' => 'amber', 'is_filled_status' => false],
+            'Placed' => ['color' => 'emerald', 'is_filled_status' => true],
         ];
 
-        foreach ($statuses as $name => $color) {
+        foreach (array_keys($statuses) as $sortOrder => $name) {
             JobStatus::firstOrCreate([
                 'company_id' => $this->company->id,
                 'industry_id' => $this->it->id,
                 'name' => $name,
             ], [
-                'color' => $color,
-                'is_filled_status' => $name === 'Filled',
+                ...$statuses[$name],
+                'sort_order' => $sortOrder,
             ]);
         }
     }
@@ -824,7 +833,7 @@ class VantagePointDemoSeeder extends Seeder
      * each with several applications (some merely applied, some
      * shortlisted), and about half fully placed: a VacancyPlacement per
      * position, the placed candidate's status flipped to "Placed", and the
-     * vacancy itself marked Filled.
+     * vacancy itself marked Placed.
      *
      * @param  Collection<int, Client>  $clients
      * @param  Collection<int, Candidate>  $candidates
@@ -871,7 +880,7 @@ class VantagePointDemoSeeder extends Seeder
                 'employment_type' => $config['type']->value,
                 'placement_fee_percentage' => $isTemp ? null : fake()->randomFloat(2, 15, 22),
                 'open_for_applications' => ! $config['filled'],
-                'job_status_id' => $jobStatuses->get($config['filled'] ? 'Filled' : 'Open')?->id,
+                'job_status_id' => $jobStatuses->get($config['filled'] ? 'Placed' : 'Shortlisted')?->id,
                 'filled_at' => $config['filled'] ? now()->subDays(random_int(1, 20)) : null,
             ]);
 
