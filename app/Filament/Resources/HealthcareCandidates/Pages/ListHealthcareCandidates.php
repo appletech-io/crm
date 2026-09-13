@@ -350,12 +350,6 @@ class ListHealthcareCandidates extends ListRecords implements HasForms
             ->recordUrl(null)
             ->filters([])
             ->recordActions([
-                // Registered but never rendered as its own row button — kept
-                // here purely so its name is resolvable when the "name"
-                // column's own ->action() (see the "name" column below)
-                // mounts it by name. The visible trigger is the candidate's
-                // name text, not a separate icon.
-                $quickViewAction->hidden(),
                 ActionGroup::make([
                     Action::make('book')
                         ->label('Book')
@@ -879,12 +873,20 @@ class ListHealthcareCandidates extends ListRecords implements HasForms
         return $record->bookings
             ->flatMap(fn (Booking $booking) => $booking->dayPeriods
                 ->filter(fn (BookingDay $dayPeriod): bool => $dayPeriod->date->isSameDay($date))
-                ->map(fn (BookingDay $dayPeriod): array => [
-                    'client' => $booking->client?->name,
-                    'period' => $dayPeriod->period,
-                    'pay_rate' => $dayPeriod->payRate(),
-                    'charge_rate' => $dayPeriod->chargeRate(),
-                ]))
+                ->map(function (BookingDay $dayPeriod) use ($booking): array {
+                    // dayPeriods is eager-loaded off Booking, but Eloquent
+                    // doesn't populate the inverse belongsTo for free — set
+                    // it here so payRate()/chargeRate() don't each trigger a
+                    // fresh query per booked cell rendered on the page.
+                    $dayPeriod->setRelation('booking', $booking);
+
+                    return [
+                        'client' => $booking->client?->name,
+                        'period' => $dayPeriod->period,
+                        'pay_rate' => $dayPeriod->payRate(),
+                        'charge_rate' => $dayPeriod->chargeRate(),
+                    ];
+                }))
             ->all();
     }
 
