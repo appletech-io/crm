@@ -67,6 +67,18 @@ test('an admin can access the run payroll page', function () {
     Livewire::test(RunPayroll::class)->assertSuccessful();
 });
 
+test('a compliance user can access the run payroll page', function () {
+    $complianceUser = User::factory()->create(['company_id' => $this->user->company_id]);
+    $complianceUser->assignRole('compliance');
+    $this->actingAs($complianceUser);
+    Cache::put("user.{$complianceUser->id}.active_industry", 'education');
+    Cache::put("user.{$complianceUser->id}.active_industry_id", 1);
+
+    expect(RunPayroll::canAccess())->toBeTrue();
+
+    Livewire::test(RunPayroll::class)->assertSuccessful();
+});
+
 test('a site_admin cannot access the run payroll page unless impersonating', function () {
     $siteAdmin = User::factory()->create();
     $siteAdmin->assignRole('site_admin');
