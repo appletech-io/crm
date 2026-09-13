@@ -16,7 +16,10 @@
 >
     <button
         type="button"
-        title="{{ $pendingLabel !== null ? "Pending: {$pendingLabel} — click Save in the row menu" : $cell['tooltip'] }}"
+        x-tooltip="{
+            content: @js($pendingLabel !== null ? "Pending: {$pendingLabel} — click Save in the row menu" : $cell['tooltip']),
+            theme: $store.theme,
+        }"
         @if ($cell['isSelectable'])
             wire:click="handleDayClick({{ $cell['candidateId'] }}, {{ $cell['isoWeekday'] }})"
         @endif

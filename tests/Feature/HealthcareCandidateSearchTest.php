@@ -1083,14 +1083,32 @@ test('the name column shows first and last name together and links to quick view
         ->and($column->getAction())->not->toBeNull();
 
     $test->mountTableAction('viewCandidateSummary', $candidate)->assertSuccessful();
+
+    // A silent no-op (e.g. calling ->hidden() on the very same Action
+    // instance the "name" column's ->action() also uses — Action::isDisabled()
+    // checks isHidden() internally, so a shared, hidden instance can never
+    // actually mount) still returns a 200 response, so assertSuccessful()
+    // alone doesn't prove the action opened. mountedActions is the real
+    // signal Filament uses to render the slideover.
+    expect($test->instance()->mountedActions)->not->toBeEmpty();
 });
 
-test('there is no separate quick-view row icon, only the name link', function () {
+test('the quick view action is not disabled by a stray hidden() call sharing the name column\'s action instance', function () {
+    // Filament's Action::isDisabled() checks isHidden() internally, so if
+    // the shared $quickViewAction instance the "name" column's ->action()
+    // uses is ever also registered elsewhere with ->hidden() (e.g. to keep
+    // it off the row-actions dropdown), that hides — and so disables — the
+    // one instance the name column depends on too. mountAction() then
+    // silently no-ops on isDisabled(), even though the request still
+    // succeeds. Guards directly against that regression.
     $candidate = makeHealthcareSearchCandidate();
 
-    Livewire::test(ListHealthcareCandidates::class)
-        ->set('activeSection', 'search')
-        ->assertTableActionHidden('viewCandidateSummary', record: $candidate);
+    $test = Livewire::test(ListHealthcareCandidates::class)->set('activeSection', 'search');
+
+    $action = $test->instance()->getTable()->getAction('viewCandidateSummary');
+    $action->record($candidate);
+
+    expect($action->isDisabled())->toBeFalse();
 });
 
 test('Book, Set Week, and Save sit inside a single actions dropdown, Book and Save only visible when relevant', function () {
