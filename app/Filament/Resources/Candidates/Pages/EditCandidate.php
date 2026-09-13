@@ -7,12 +7,14 @@ use App\Filament\Resources\Candidates\CandidateResource;
 use App\Filament\Resources\Candidates\Schemas\CandidateComplianceForm;
 use App\Jobs\SyncPayrollProviderRecord;
 use App\Models\Candidate;
+use App\Services\Candidates\ComplianceRequirements;
 use App\Services\Candidates\FormattedCvGenerator;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Auth;
 
 class EditCandidate extends EditRecord
 {
@@ -23,6 +25,26 @@ class EditCandidate extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('markComplianceComplete')
+                ->label(fn (): string => $this->record->compliance_completed_at ? 'Compliance Complete' : 'Mark Compliance Complete')
+                ->icon('heroicon-o-check-badge')
+                ->color('success')
+                ->disabled(fn (): bool => $this->record->compliance_completed_at !== null || ! $this->isComplianceComplete())
+                ->requiresConfirmation()
+                ->action(function (): void {
+                    /** @var Candidate $record */
+                    $record = $this->record;
+
+                    $record->update([
+                        'compliance_completed_at' => now(),
+                        'compliance_completed_by' => Auth::id(),
+                    ]);
+
+                    Notification::make()
+                        ->title('Compliance marked complete')
+                        ->success()
+                        ->send();
+                }),
             Action::make('retryPayrollSync')
                 ->label('Retry Payroll Sync')
                 ->icon('heroicon-o-arrow-path')
@@ -87,5 +109,12 @@ class EditCandidate extends EditRecord
         if ($formattedCv && filled($formattedCv->content)) {
             app(FormattedCvGenerator::class)->regeneratePdf($this->record, $formattedCv);
         }
+    }
+
+    private function isComplianceComplete(): bool
+    {
+        $checks = ComplianceRequirements::for($this->record);
+
+        return $checks !== [] && collect($checks)->every(fn (array $check): bool => $check['complete']);
     }
 }

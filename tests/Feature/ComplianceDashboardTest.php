@@ -2,6 +2,7 @@
 
 use App\Filament\Pages\ComplianceDashboard;
 use App\Filament\Pages\Dashboard;
+use App\Filament\Pages\Dashboards\ComplianceGenericDashboard;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
@@ -67,6 +68,18 @@ test('the compliance dashboard shows the compliance view for the active industry
 
     expect($page->getTitle())->toBe('Compliance')
         ->and($page->getWidgets())->not->toBeEmpty();
+});
+
+test('the compliance dashboard falls back to the generic compliance dashboard for a non-education/healthcare industry', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+    Cache::put("user.{$admin->id}.active_industry", 'construction');
+    Cache::put("user.{$admin->id}.active_industry_id", 3);
+
+    $page = new ComplianceDashboard;
+
+    expect($page->getWidgets())->toEqual((new ComplianceGenericDashboard)->getWidgets());
 });
 
 test('an admin still sees their own regular dashboard alongside the compliance dashboard', function () {

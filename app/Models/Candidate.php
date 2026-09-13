@@ -39,6 +39,7 @@ class Candidate extends Model
         'ratings_count' => 'integer',
         'latitude' => 'float',
         'longitude' => 'float',
+        'compliance_completed_at' => 'datetime',
     ];
 
     public function industry(): BelongsTo
@@ -49,6 +50,11 @@ class Candidate extends Model
     public function consultant(): BelongsTo
     {
         return $this->belongsTo(User::class, 'consultant_id');
+    }
+
+    public function complianceCompletedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'compliance_completed_by');
     }
 
     public function jobTitle(): BelongsTo

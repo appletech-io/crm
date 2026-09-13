@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Pages\Dashboards\ComplianceGenericDashboard;
 use App\Filament\Pages\Dashboards\DashboardInterface;
 use App\Filament\Pages\Dashboards\NoSectorDashboard;
 use Filament\Pages\Dashboard as BaseDashboard;
@@ -22,17 +23,23 @@ class ComplianceDashboard extends BaseDashboard
 
         if (! $industry) {
             $this->dashboard = new NoSectorDashboard;
-        } else {
-            $dashboardClass = 'App\\Filament\\Pages\\Dashboards\\Compliance'.ucfirst($industry).'Dashboard';
 
-            if (class_exists($dashboardClass)) {
-                $dashboard = app($dashboardClass);
-
-                if ($dashboard instanceof DashboardInterface) {
-                    $this->dashboard = $dashboard;
-                }
-            }
+            return;
         }
+
+        $dashboardClass = 'App\\Filament\\Pages\\Dashboards\\Compliance'.ucfirst($industry).'Dashboard';
+
+        if (class_exists($dashboardClass)) {
+            $dashboard = app($dashboardClass);
+
+            if ($dashboard instanceof DashboardInterface) {
+                $this->dashboard = $dashboard;
+            }
+
+            return;
+        }
+
+        $this->dashboard = app(ComplianceGenericDashboard::class);
     }
 
     /**
