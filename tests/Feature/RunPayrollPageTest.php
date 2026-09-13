@@ -286,3 +286,50 @@ test('the subheading shows the current period range', function () {
         ->assertSuccessful()
         ->assertSee($this->periodStart->format('jS M Y'));
 });
+
+test('client groups are collapsed by default', function () {
+    createPayrollBooking($this->user, $this->jobTitle, $this->periodStart->toDateString());
+
+    expect(Livewire::test(RunPayroll::class)->instance()->getTable()->areGroupsCollapsedByDefault())->toBeTrue();
+});
+
+test('a client group with any unapproved day shows the "Bookings to confirm" badge', function () {
+    createPayrollBooking($this->user, $this->jobTitle, $this->periodStart->toDateString(), [
+        'payroll_confirmation_sent_at' => now(),
+    ]);
+
+    Livewire::test(RunPayroll::class)
+        ->assertSee('Bookings to confirm')
+        ->assertDontSee('Fully approved');
+});
+
+test('a client group with every day approved shows the "Fully approved" badge', function () {
+    $booking = createPayrollBooking($this->user, $this->jobTitle, $this->periodStart->toDateString(), [
+        'payroll_confirmation_sent_at' => now(),
+        'approved_at' => now(),
+    ]);
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => $this->periodStart->copy()->addDay()->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+        'payroll_confirmation_sent_at' => now(),
+        'approved_at' => now(),
+    ]);
+
+    Livewire::test(RunPayroll::class)
+        ->assertSee('Fully approved')
+        ->assertDontSee('Bookings to confirm');
+});
+
+test('two clients in the same period each get their own badge, independent of the other', function () {
+    createPayrollBooking($this->user, $this->jobTitle, $this->periodStart->toDateString(), [
+        'payroll_confirmation_sent_at' => now(),
+        'approved_at' => now(),
+    ]);
+    createPayrollBooking($this->user, $this->jobTitle, $this->periodStart->toDateString());
+
+    $html = Livewire::test(RunPayroll::class)->html();
+
+    expect($html)->toContain('Fully approved')
+        ->and($html)->toContain('Bookings to confirm');
+});

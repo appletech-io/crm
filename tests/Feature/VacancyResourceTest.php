@@ -563,6 +563,32 @@ test('the create form is prefilled with the client from the query string', funct
         ->assertFormSet(['client_id' => $this->client->id]);
 });
 
+test('the job status filter narrows the list to vacancies with that status', function () {
+    $filled = JobStatus::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    $openVacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+    ]);
+
+    $filledVacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $filled->id,
+    ]);
+
+    Livewire::test(ListVacancies::class)
+        ->filterTable('job_status_id', $filled->id)
+        ->assertCanSeeTableRecords([$filledVacancy])
+        ->assertCanNotSeeTableRecords([$openVacancy]);
+});
+
 test('a non-admin only sees their own vacancies, admin sees all', function () {
     $consultant = User::factory()->create(['company_id' => $this->company->id]);
     $consultant->industries()->attach($this->industry);

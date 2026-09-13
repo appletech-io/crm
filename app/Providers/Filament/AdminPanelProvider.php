@@ -14,6 +14,8 @@ use App\Filament\Pages\ConsultantMonthlyReport;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\Integrations\EvertimeIntegration;
 use App\Filament\Pages\Integrations\ListIntegrations;
+use App\Filament\Pages\Invoicing;
+use App\Filament\Pages\JobPipeline;
 use App\Filament\Pages\JobSettings;
 use App\Filament\Pages\Reports;
 use App\Filament\Pages\RunPayroll;
@@ -113,11 +115,13 @@ class AdminPanelProvider extends PanelProvider
                 NavigationGroup::make('Settings')->collapsed(),
                 NavigationGroup::make('Admin')->collapsed(),
                 NavigationGroup::make('Marketing')->collapsed(),
+                NavigationGroup::make('Payroll'),
                 NavigationGroup::make('Site Settings'),
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->pages([
                 Dashboard::class,
+                JobPipeline::class,
                 ComplianceDashboard::class,
                 ConsultantMonthlyReport::class,
                 CandidateSettings::class,
@@ -128,6 +132,7 @@ class AdminPanelProvider extends PanelProvider
                 EvertimeIntegration::class,
                 RunPayroll::class,
                 ViewPayroll::class,
+                Invoicing::class,
                 Reports::class,
                 RevenueMarginReport::class,
                 VacanciesReport::class,

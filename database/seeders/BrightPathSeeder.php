@@ -481,6 +481,15 @@ class BrightPathSeeder extends Seeder
                 'status' => $isPast ? 'completed' : 'upcoming',
                 'hourly_rate' => fake()->randomFloat(2, 11, 20),
                 'day_rate' => fake()->randomFloat(2, 90, 160),
+                // The charge rate billed to the client — every day period
+                // created below is 'full_day', so day_charge_rate is the
+                // only one that's ever actually used. Kept comfortably above
+                // day_rate (mirroring the range seedClients() already gives
+                // each client's own PayRate) so every booking nets a
+                // positive margin, rather than the pay-only rows this used
+                // to create (gross profit always negative, since nothing
+                // was ever billed to cover the cost).
+                'day_charge_rate' => fake()->randomFloat(2, 130, 220),
             ]);
 
             $booking->dayPeriods()->create([

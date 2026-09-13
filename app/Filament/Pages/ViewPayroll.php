@@ -62,7 +62,7 @@ class ViewPayroll extends Page implements HasTable
      */
     public static function canAccess(): bool
     {
-        return ! (auth()->user()?->isComplianceOnly() ?? false);
+        return ! (auth()->user()?->isComplianceOnly() ?? false) && active_industry_uses_bookings();
     }
 
     /**

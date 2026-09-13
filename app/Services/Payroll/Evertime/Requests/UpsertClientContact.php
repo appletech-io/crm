@@ -19,11 +19,11 @@ class UpsertClientContact
 
     public function __construct(private readonly EvertimeClient $client) {}
 
-    public function handle(Client $client, string $clientId, string $contactId, ?ClientContact $contact, bool $default): void
+    public function handle(Client $client, string $clientId, string $contactId, ?ClientContact $contact, bool $default, string $locationId): void
     {
         $this->client->post('/clients/contacts', [
             'ClientId' => $clientId,
-            'Contacts' => [$this->contactPayload($client, $contact, $contactId, $default)],
+            'Contacts' => [$this->contactPayload($client, $contact, $contactId, $default, $locationId)],
         ]);
     }
 }

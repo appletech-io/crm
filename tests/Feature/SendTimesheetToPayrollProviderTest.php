@@ -459,6 +459,25 @@ test('the client contact who actually approved the days is registered and used a
 
     Http::assertSent(fn ($request) => str_ends_with($request->url(), '/timesheets')
         && $request['ApproverContactId'] === "CONTACT-{$approverContact->id}");
+
+    // A contact existing on the client isn't enough on its own — Evertime
+    // checks ApproverContactId against the placement's own registered
+    // Primary/Secondary approver, so the portal approver must also be
+    // registered there before the timesheet is submitted.
+    Http::assertSent(fn ($request) => str_ends_with($request->url(), '/placements')
+        && ($request->data()['SecondayApproverContactId'] ?? null) === "CONTACT-{$approverContact->id}");
+});
+
+test('the placement is not re-sent with a secondary approver when no portal approver was recorded', function () {
+    Http::fake(['*' => Http::response(['HasErrors' => false, 'Errors' => []], 200)]);
+
+    $company = fakeEvertimeCompany();
+    $booking = makePayrollBooking($company);
+
+    $booking->update(['status' => BookingStatus::Approved]);
+
+    Http::assertSent(fn ($request) => str_ends_with($request->url(), '/placements')
+        && ! array_key_exists('SecondayApproverContactId', $request->data()));
 });
 
 test('the most recent approver wins when different days in a period were approved by different contacts', function () {

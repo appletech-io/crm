@@ -3,6 +3,7 @@
 use App\Http\Controllers\BookingConfirmationController;
 use App\Http\Controllers\CandidateDocumentController;
 use App\Http\Controllers\CompanyLogoController;
+use App\Http\Controllers\DemoQuickLoginController;
 use App\Http\Controllers\EmailImageController;
 use App\Http\Controllers\ImpersonationController;
 use App\Livewire\AskAssistant;
@@ -28,6 +29,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::post('/impersonate/stop', [ImpersonationController::class, 'stop'])
     ->middleware('auth')
     ->name('impersonate.stop');
+
+// Deliberately unauthenticated — it's a login-page shortcut, used before any
+// session exists. The controller itself hard-gates on APP_ENV=demo, so this
+// 403s outside the demo environment rather than the route not existing.
+Route::post('/demo-quick-login', [DemoQuickLoginController::class, 'login'])
+    ->name('demo-quick-login');
 
 // Exposed to public routes for application verification
 Route::livewire('/application/{token}', 'application.verify-application')->name('application.verify');

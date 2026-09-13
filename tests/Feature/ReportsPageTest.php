@@ -1,9 +1,14 @@
 <?php
 
 use App\Filament\Pages\Reports;
+use App\Filament\Pages\Reports\ConstructionReports;
 use App\Filament\Pages\Reports\EducationReports;
 use App\Filament\Pages\Reports\HealthcareReports;
+use App\Filament\Pages\Reports\ItReports;
 use App\Filament\Pages\Reports\NoSectorReports;
+use App\Filament\Widgets\Reports\BookingRevenueChart;
+use App\Filament\Widgets\Reports\TempBookingStats;
+use App\Filament\Widgets\Reports\TopClientsTable;
 use App\Models\Industry;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
@@ -64,6 +69,35 @@ test('it resolves the healthcare reports class when healthcare is the active sec
     expect($page->getWidgets())->toBe((new HealthcareReports)->getWidgets());
 });
 
+test('it resolves the construction reports class when construction is the active sector', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+
+    Industry::factory()->create(['slug' => 'construction']);
+    Cache::put("user.{$admin->id}.active_industry", 'construction');
+
+    $page = app(Reports::class);
+
+    expect($page->getWidgets())->toBe((new ConstructionReports)->getWidgets());
+});
+
+test('it resolves the it reports class when it is the active sector, dropping every booking-revenue widget', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+
+    Industry::factory()->create(['slug' => 'it']);
+    Cache::put("user.{$admin->id}.active_industry", 'it');
+
+    $page = app(Reports::class);
+
+    expect($page->getWidgets())->toBe((new ItReports)->getWidgets())
+        ->and($page->getWidgets())->not->toContain(TempBookingStats::class)
+        ->and($page->getWidgets())->not->toContain(BookingRevenueChart::class)
+        ->and($page->getWidgets())->not->toContain(TopClientsTable::class);
+});
+
 test('it falls back to the no-sector reports when no industry is active', function () {
     $admin = User::factory()->create();
     $admin->assignRole('admin');
@@ -84,6 +118,18 @@ test('the reports page renders successfully for an admin', function () {
     Industry::factory()->create(['slug' => 'education']);
     Cache::put("user.{$admin->id}.active_industry", 'education');
     Cache::put("user.{$admin->id}.active_industry_id", 1);
+
+    Livewire::test(Reports::class)->assertSuccessful();
+});
+
+test('the it reports page renders successfully for an admin', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+
+    $industry = Industry::factory()->create(['slug' => 'it']);
+    Cache::put("user.{$admin->id}.active_industry", 'it');
+    Cache::put("user.{$admin->id}.active_industry_id", $industry->id);
 
     Livewire::test(Reports::class)->assertSuccessful();
 });

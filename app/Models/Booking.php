@@ -229,7 +229,17 @@ class Booking extends Model
             return $query;
         }
 
-        return $query->where('candidate_type', $candidateModel);
+        $query->where('candidate_type', $candidateModel);
+
+        // Several industries can share the same generic Candidate model
+        // (see Industry::$candidateModelMap) — candidate_type alone can't
+        // tell those apart, so fall back to the candidate row's own
+        // industry_id whenever that ambiguity is possible.
+        if (Industry::candidateModelIsShared($candidateModel)) {
+            $query->whereHasMorph('candidate', [$candidateModel], fn (Builder $q) => $q->where('industry_id', active_industry_id()));
+        }
+
+        return $query;
     }
 
     /**

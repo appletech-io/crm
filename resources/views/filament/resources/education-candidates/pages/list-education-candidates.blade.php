@@ -17,15 +17,17 @@
         </x-filament::tabs.item>
     </x-filament::tabs>
 
-    <form wire:submit="search" class="flex flex-col gap-4">
-        {{ $this->form }}
+    @if ($activeSection === 'search')
+        <form wire:submit="search" class="flex flex-col gap-4">
+            {{ $this->form }}
 
-        <div class="flex justify-end">
-            <x-filament::button type="submit">
-                Search
-            </x-filament::button>
-        </div>
-    </form>
+            <div class="flex justify-end">
+                <x-filament::button type="submit">
+                    Search
+                </x-filament::button>
+            </div>
+        </form>
+    @endif
 
     <div class="mt-6">
         {{ $this->table }}

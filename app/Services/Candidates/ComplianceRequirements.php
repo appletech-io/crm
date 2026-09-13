@@ -78,10 +78,34 @@ class ComplianceRequirements
         return collect(static::forJobTitle($candidate, $jobTitle))->every(fn (array $check): bool => $check['complete']);
     }
 
+    /**
+     * Same check as forJobTitle(), but for a caller that already has the
+     * job title's Compliance Items (with their fields) loaded — a list of
+     * many candidates who mostly share a handful of job titles would
+     * otherwise refetch identical item/field rows once per candidate. See
+     * CandidateComplianceTable for the actual N+1 this exists to avoid.
+     *
+     * @param  Collection<int, ComplianceItem>  $items
+     * @return array<int, array{
+     *     item: ComplianceItem,
+     *     fields: array<int, array{field: ComplianceItemField, value: ?CandidateComplianceValue, complete: bool}>,
+     *     complete: bool,
+     * }>
+     */
+    public static function usingItems(Candidate $candidate, Collection $items): array
+    {
+        return static::checksFor($items, $candidate);
+    }
+
     /** @param Collection<int, ComplianceItem> $items */
     private static function checksFor(Collection $items, Candidate $candidate): array
     {
-        $values = $candidate->complianceValues()->get()->keyBy('compliance_item_field_id');
+        // Prefers an already-eager-loaded relation over firing a fresh
+        // query per candidate — same N+1 concern as the items themselves.
+        $values = ($candidate->relationLoaded('complianceValues')
+            ? $candidate->complianceValues
+            : $candidate->complianceValues()->get())
+            ->keyBy('compliance_item_field_id');
 
         return $items
             ->map(function (ComplianceItem $item) use ($values): array {

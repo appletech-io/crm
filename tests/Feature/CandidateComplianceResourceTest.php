@@ -12,6 +12,7 @@ use App\Models\JobTitle;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
@@ -75,6 +76,47 @@ test('the list only shows candidates with incomplete compliance', function () {
         ->assertSuccessful()
         ->assertCanSeeTableRecords([$incompleteCandidate])
         ->assertCanNotSeeTableRecords([$completeCandidate, $otherIndustryCandidate]);
+});
+
+test('listing many candidates does not scale query count with the number of candidates (N+1 regression)', function () {
+    $itemA = ComplianceItem::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+    ComplianceItemField::factory()->create(['compliance_item_id' => $itemA->id, 'data_type' => 'text']);
+    $this->jobTitle->complianceItems()->attach($itemA->id, [
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    $secondJobTitle = JobTitle::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+    $itemB = ComplianceItem::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+    ComplianceItemField::factory()->create(['compliance_item_id' => $itemB->id, 'data_type' => 'text']);
+    $secondJobTitle->complianceItems()->attach($itemB->id, [
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    // Every one of these is left incomplete on purpose, so all of them
+    // reach the per-candidate compliance check this test is timing.
+    Candidate::factory()->count(8)->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'job_title_id' => $this->jobTitle->id,
+    ]);
+    Candidate::factory()->count(8)->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'job_title_id' => $secondJobTitle->id,
+    ]);
+
+    DB::enableQueryLog();
+
+    Livewire::test(ListCandidateCompliance::class)
+        ->assertSuccessful()
+        ->assertCountTableRecords(16);
+
+    // Two distinct job titles among 16 candidates — a per-candidate N+1
+    // would scale with 16, not stay flat regardless of how many share a
+    // job title. A generous fixed ceiling, not a brittle exact count.
+    expect(count(DB::getQueryLog()))->toBeLessThan(20);
 });
 
 test('a candidate with no job title is trivially complete and does not appear in the list', function () {

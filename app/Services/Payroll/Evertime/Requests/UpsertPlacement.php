@@ -18,6 +18,7 @@ class UpsertPlacement
         string $locationId,
         string $contactId,
         ?string $consultantId,
+        ?string $secondaryApproverContactId = null,
     ): void {
         $startDate = ($booking->start_date ?? now())->toDateString();
 
@@ -58,6 +59,18 @@ class UpsertPlacement
                 'ConsultantId' => $consultantId,
                 'Share' => 100,
             ]];
+        }
+
+        // Only sent when a client-portal approver other than the client's
+        // default contact has approved this placement's days — omitted
+        // (rather than sent as null) so a routine placement sync at booking
+        // creation, before anyone has approved anything, never clears an
+        // already-registered secondary approver. Note the field name below
+        // is spelled to match Evertime's own (typo'd) API exactly —
+        // confirmed live via GET /placements returning "SecondayApprover
+        // ContactId", not "Secondary...".
+        if ($secondaryApproverContactId) {
+            $payload['SecondayApproverContactId'] = $secondaryApproverContactId;
         }
 
         $this->client->post('/placements', $payload);

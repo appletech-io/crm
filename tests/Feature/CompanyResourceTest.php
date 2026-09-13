@@ -4,8 +4,10 @@ use App\Enums\EmailProvider;
 use App\Enums\TimesheetFrequency;
 use App\Filament\Resources\Companies\Pages\EditCompany;
 use App\Models\Company;
+use App\Models\Industry;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -122,4 +124,66 @@ test('timesheet frequency and day of month can be saved via the edit page', func
 
     expect($fresh->timesheet_frequency)->toBe(TimesheetFrequency::Monthly)
         ->and($fresh->timesheet_day_of_month)->toBe(15);
+});
+
+test('sectors can be added via the edit page', function () {
+    $company = Company::factory()->create(['email_provider' => EmailProvider::Mailgun]);
+    $industry = Industry::factory()->create(['slug' => 'construction']);
+
+    Livewire::test(EditCompany::class, ['record' => $company->getRouteKey()])
+        ->fillForm([
+            'industries' => [$industry->id],
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($company->fresh()->industries->pluck('id')->all())->toBe([$industry->id]);
+});
+
+test('a sector can be removed via the edit page', function () {
+    $company = Company::factory()->create(['email_provider' => EmailProvider::Mailgun]);
+    $keptIndustry = Industry::factory()->create(['slug' => 'education']);
+    $removedIndustry = Industry::factory()->create(['slug' => 'healthcare']);
+    $company->industries()->attach([$keptIndustry->id, $removedIndustry->id]);
+
+    Livewire::test(EditCompany::class, ['record' => $company->getRouteKey()])
+        ->fillForm([
+            'industries' => [$keptIndustry->id],
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $fresh = $company->fresh();
+
+    expect($fresh->industries)->toHaveCount(1)
+        ->and($fresh->industries->first()->id)->toBe($keptIndustry->id);
+});
+
+test('a new sector added via the edit page defaults to uses bookings on', function () {
+    $company = Company::factory()->create(['email_provider' => EmailProvider::Mailgun]);
+    $industry = Industry::factory()->create(['slug' => 'construction']);
+
+    Livewire::test(EditCompany::class, ['record' => $company->getRouteKey()])
+        ->fillForm(['industries' => [$industry->id]])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($company->industries()->first()->pivot->uses_bookings)->toBeTrue();
+});
+
+test('the company_industry pivot rejects a duplicate company/industry pair at the database level', function () {
+    $company = Company::factory()->create();
+    $industry = Industry::factory()->create();
+    $company->industries()->attach($industry->id);
+
+    expect(fn () => $company->industries()->attach($industry->id))
+        ->toThrow(QueryException::class);
+});
+
+test('the Features tab appears in the sub-navigation', function () {
+    $company = Company::factory()->create();
+
+    Livewire::test(EditCompany::class, ['record' => $company->getRouteKey()])
+        ->assertSuccessful()
+        ->assertSee('Features');
 });

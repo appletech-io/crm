@@ -3,6 +3,7 @@
 use App\Filament\Resources\EducationCandidates\Pages\ListEducationCandidates;
 use App\Filament\Resources\HealthcareCandidates\Pages\ListHealthcareCandidates;
 use App\Models\CandidateCandidateStatus;
+use App\Models\CandidatePool;
 use App\Models\CandidateStatus;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
@@ -67,44 +68,31 @@ test('the education All Candidates tab shows every consultants candidates by def
         ->assertCanSeeTableRecords([$ownCandidate, $otherCandidate]);
 });
 
-test('filling the education search form on the All Candidates tab still matches every consultants candidates of any status', function () {
+test('the education All Candidates tab has no search box, so filling the (search-tab-only) form has no effect there', function () {
     $industry = activateAllTabIndustry('education');
 
-    $liveOwnMatch = EducationCandidate::factory()->create([
+    $jane = EducationCandidate::factory()->create([
         'company_id' => $this->consultant->company_id,
         'consultant_id' => $this->consultant->id,
         'first_name' => 'Jane',
     ]);
-    assignAllTabStatus($liveOwnMatch, $industry, 'Live');
+    assignAllTabStatus($jane, $industry, 'Live');
 
-    $otherConsultant = User::factory()->create(['company_id' => $this->consultant->company_id]);
-    $liveOtherConsultant = EducationCandidate::factory()->create([
-        'company_id' => $this->consultant->company_id,
-        'consultant_id' => $otherConsultant->id,
-        'first_name' => 'Jane',
-    ]);
-    assignAllTabStatus($liveOtherConsultant, $industry, 'Live');
-
-    $ownNotLive = EducationCandidate::factory()->create([
-        'company_id' => $this->consultant->company_id,
-        'consultant_id' => $this->consultant->id,
-        'first_name' => 'Jane',
-    ]);
-    assignAllTabStatus($ownNotLive, $industry, 'Onboarding');
-
-    $unrelatedName = EducationCandidate::factory()->create([
+    $robert = EducationCandidate::factory()->create([
         'company_id' => $this->consultant->company_id,
         'consultant_id' => $this->consultant->id,
         'first_name' => 'Robert',
     ]);
-    assignAllTabStatus($unrelatedName, $industry, 'Live');
+    assignAllTabStatus($robert, $industry, 'Onboarding');
 
+    // The "name" field belongs to the dedicated Search tab's form, which
+    // isn't rendered on All Candidates at all (see the page's blade) — the
+    // All Candidates tab always uses EducationCandidatesTable's own native
+    // filters, never this form, regardless of what's in it.
     Livewire::test(ListEducationCandidates::class)
         ->fillForm(['name' => 'Jane'])
         ->set('activeSection', 'all')
-        ->call('search')
-        ->assertCanSeeTableRecords([$liveOwnMatch, $liveOtherConsultant, $ownNotLive])
-        ->assertCanNotSeeTableRecords([$unrelatedName]);
+        ->assertCanSeeTableRecords([$jane, $robert]);
 });
 
 test('filling the education search form on the dedicated Search tab still restricts to own Live candidates', function () {
@@ -140,6 +128,28 @@ test('filling the education search form on the dedicated Search tab still restri
         ->assertCanNotSeeTableRecords([$liveOtherConsultant, $ownNotLive]);
 });
 
+test("the education All Candidates tab's native pool filter narrows to candidates in that pool", function () {
+    $industry = activateAllTabIndustry('education');
+
+    $pool = CandidatePool::create([
+        'company_id' => $this->consultant->company_id,
+        'industry_id' => $industry->id,
+        'user_id' => $this->consultant->id,
+        'name' => 'Shortlist',
+    ]);
+
+    $inPool = EducationCandidate::factory()->create(['company_id' => $this->consultant->company_id]);
+    $pool->candidatesOfType(EducationCandidate::class)->attach($inPool->id);
+
+    $notInPool = EducationCandidate::factory()->create(['company_id' => $this->consultant->company_id]);
+
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'all')
+        ->filterTable('pools', [$pool->id])
+        ->assertCanSeeTableRecords([$inPool])
+        ->assertCanNotSeeTableRecords([$notInPool]);
+});
+
 test('the healthcare All Candidates tab shows every consultants candidates by default, unfiltered', function () {
     $industry = activateAllTabIndustry('healthcare');
 
@@ -160,44 +170,31 @@ test('the healthcare All Candidates tab shows every consultants candidates by de
         ->assertCanSeeTableRecords([$ownCandidate, $otherCandidate]);
 });
 
-test('filling the healthcare search form on the All Candidates tab still matches every consultants candidates of any status', function () {
+test('the healthcare All Candidates tab has no search box, so filling the (search-tab-only) form has no effect there', function () {
     $industry = activateAllTabIndustry('healthcare');
 
-    $liveOwnMatch = HealthcareCandidate::factory()->create([
+    $jane = HealthcareCandidate::factory()->create([
         'company_id' => $this->consultant->company_id,
         'consultant_id' => $this->consultant->id,
         'first_name' => 'Jane',
     ]);
-    assignAllTabStatus($liveOwnMatch, $industry, 'Live');
+    assignAllTabStatus($jane, $industry, 'Live');
 
-    $otherConsultant = User::factory()->create(['company_id' => $this->consultant->company_id]);
-    $liveOtherConsultant = HealthcareCandidate::factory()->create([
-        'company_id' => $this->consultant->company_id,
-        'consultant_id' => $otherConsultant->id,
-        'first_name' => 'Jane',
-    ]);
-    assignAllTabStatus($liveOtherConsultant, $industry, 'Live');
-
-    $ownNotLive = HealthcareCandidate::factory()->create([
-        'company_id' => $this->consultant->company_id,
-        'consultant_id' => $this->consultant->id,
-        'first_name' => 'Jane',
-    ]);
-    assignAllTabStatus($ownNotLive, $industry, 'Onboarding');
-
-    $unrelatedName = HealthcareCandidate::factory()->create([
+    $robert = HealthcareCandidate::factory()->create([
         'company_id' => $this->consultant->company_id,
         'consultant_id' => $this->consultant->id,
         'first_name' => 'Robert',
     ]);
-    assignAllTabStatus($unrelatedName, $industry, 'Live');
+    assignAllTabStatus($robert, $industry, 'Onboarding');
 
+    // The "name" field belongs to the dedicated Search tab's form, which
+    // isn't rendered on All Candidates at all (see the page's blade) — the
+    // All Candidates tab always uses HealthcareCandidatesTable's own native
+    // filters, never this form, regardless of what's in it.
     Livewire::test(ListHealthcareCandidates::class)
         ->fillForm(['name' => 'Jane'])
         ->set('activeSection', 'all')
-        ->call('search')
-        ->assertCanSeeTableRecords([$liveOwnMatch, $liveOtherConsultant, $ownNotLive])
-        ->assertCanNotSeeTableRecords([$unrelatedName]);
+        ->assertCanSeeTableRecords([$jane, $robert]);
 });
 
 test('filling the healthcare search form on the dedicated Search tab still restricts to own Live candidates', function () {
@@ -233,7 +230,7 @@ test('filling the healthcare search form on the dedicated Search tab still restr
         ->assertCanNotSeeTableRecords([$liveOtherConsultant, $ownNotLive]);
 });
 
-test('the status filter on the education All Candidates tab narrows to the selected status, across every consultant', function () {
+test("the education All Candidates tab's native status table filter narrows to the selected status, across every consultant", function () {
     $industry = activateAllTabIndustry('education');
 
     $otherConsultant = User::factory()->create(['company_id' => $this->consultant->company_id]);
@@ -245,15 +242,13 @@ test('the status filter on the education All Candidates tab narrows to the selec
     assignAllTabStatus($liveNonMatch, $industry, 'Live');
 
     Livewire::test(ListEducationCandidates::class)
-        ->fillForm(['status_ids' => [$onboardingStatus->id]])
         ->set('activeSection', 'all')
-        ->assertFormFieldIsVisible('status_ids', 'form')
-        ->call('search')
+        ->filterTable('status', [$onboardingStatus->id])
         ->assertCanSeeTableRecords([$onboardingMatch])
         ->assertCanNotSeeTableRecords([$liveNonMatch]);
 });
 
-test('the status filter on the healthcare All Candidates tab narrows to the selected status, across every consultant', function () {
+test("the healthcare All Candidates tab's native status table filter narrows to the selected status, across every consultant", function () {
     $industry = activateAllTabIndustry('healthcare');
 
     $otherConsultant = User::factory()->create(['company_id' => $this->consultant->company_id]);
@@ -265,10 +260,30 @@ test('the status filter on the healthcare All Candidates tab narrows to the sele
     assignAllTabStatus($liveNonMatch, $industry, 'Live');
 
     Livewire::test(ListHealthcareCandidates::class)
-        ->fillForm(['status_ids' => [$onboardingStatus->id]])
         ->set('activeSection', 'all')
-        ->assertFormFieldIsVisible('status_ids', 'form')
-        ->call('search')
+        ->filterTable('status', [$onboardingStatus->id])
         ->assertCanSeeTableRecords([$onboardingMatch])
         ->assertCanNotSeeTableRecords([$liveNonMatch]);
+});
+
+test("the healthcare All Candidates tab's native pool filter narrows to candidates in that pool", function () {
+    $industry = activateAllTabIndustry('healthcare');
+
+    $pool = CandidatePool::create([
+        'company_id' => $this->consultant->company_id,
+        'industry_id' => $industry->id,
+        'user_id' => $this->consultant->id,
+        'name' => 'Shortlist',
+    ]);
+
+    $inPool = HealthcareCandidate::factory()->create(['company_id' => $this->consultant->company_id]);
+    $pool->candidatesOfType(HealthcareCandidate::class)->attach($inPool->id);
+
+    $notInPool = HealthcareCandidate::factory()->create(['company_id' => $this->consultant->company_id]);
+
+    Livewire::test(ListHealthcareCandidates::class)
+        ->set('activeSection', 'all')
+        ->filterTable('pools', [$pool->id])
+        ->assertCanSeeTableRecords([$inPool])
+        ->assertCanNotSeeTableRecords([$notInPool]);
 });

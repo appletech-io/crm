@@ -91,7 +91,7 @@ class EvertimeProvider implements PayrollTimesheetProvider
         // PUT ran first and pointed at a contact that hadn't been
         // registered yet.
         (new UpsertClientLocation($this->client))->handle($client, $clientId, $locationId);
-        (new UpsertClientContact($this->client))->handle($client, $clientId, $contactId, $contact, default: true);
+        (new UpsertClientContact($this->client))->handle($client, $clientId, $contactId, $contact, default: true, locationId: $locationId);
         (new UpdateClient($this->client))->handle($client, $clientId, $contactId, $locationId);
     }
 
@@ -131,7 +131,7 @@ class EvertimeProvider implements PayrollTimesheetProvider
         return (new GetConsultant($this->client))->handle($consultantId);
     }
 
-    public function upsertPlacement(Booking $booking): void
+    public function upsertPlacement(Booking $booking, ?ClientContact $secondaryApprover = null): void
     {
         $client = $booking->client;
         $contact = $this->defaultContact($client);
@@ -144,6 +144,7 @@ class EvertimeProvider implements PayrollTimesheetProvider
             $this->locationId($client),
             $this->contactId($contact, $client),
             $booking->consultant ? $this->consultantId($booking->consultant) : null,
+            $secondaryApprover && $secondaryApprover->isNot($contact) ? $this->contactId($secondaryApprover, $client) : null,
         );
     }
 
@@ -184,7 +185,15 @@ class EvertimeProvider implements PayrollTimesheetProvider
                 $this->contactId($approver, $booking->client),
                 $approver,
                 default: false,
+                locationId: $this->locationId($booking->client),
             );
+
+            // Existing on the client isn't enough — Evertime checks a
+            // timesheet's ApproverContactId against the placement's own
+            // Primary/Secondary approver, not just the client's contact
+            // list, confirmed live via "ApproverContactId value ... does not
+            // match the Primary or Secondary Approver for PlacementId ...".
+            $this->upsertPlacement($booking, $approver);
         }
 
         (new SubmitTimesheet($this->client))->handle(

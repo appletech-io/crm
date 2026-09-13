@@ -330,3 +330,9 @@ test('the client and status filters narrow the table together', function () {
             $otherClient->dayPeriods()->first(),
         ]);
 });
+
+test('client groups are not collapsed by default, unlike Run Payroll — this page is a chase list meant to stay visible', function () {
+    createConsultantPayrollBooking($this->consultant, $this->jobTitle, $this->periodStart->toDateString());
+
+    expect(Livewire::test(ViewPayroll::class)->instance()->getTable()->areGroupsCollapsedByDefault())->toBeFalse();
+});

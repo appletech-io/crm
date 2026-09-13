@@ -2,6 +2,7 @@
 
 use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\Dashboards\ComplianceEducationDashboard;
+use App\Filament\Pages\Dashboards\ComplianceGenericDashboard;
 use App\Filament\Pages\Dashboards\ComplianceHealthcareDashboard;
 use App\Filament\Pages\Dashboards\EducationDashboard;
 use App\Filament\Pages\Dashboards\HealthcareDashboard;
@@ -83,6 +84,14 @@ test('the dashboard shows the compliance healthcare dashboard for a compliance-o
     $dashboard = (new Dashboard)->getWidgets();
 
     expect($dashboard)->toEqual((new ComplianceHealthcareDashboard)->getWidgets());
+});
+
+test('the dashboard shows the compliance generic dashboard for a compliance-only user in a non-education/healthcare industry', function () {
+    actAsComplianceUser('construction');
+
+    $dashboard = (new Dashboard)->getWidgets();
+
+    expect($dashboard)->toEqual((new ComplianceGenericDashboard)->getWidgets());
 });
 
 test('the dashboard falls back to the standard education dashboard when the user has more than the compliance role', function () {

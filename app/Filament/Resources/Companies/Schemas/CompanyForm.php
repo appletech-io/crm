@@ -55,6 +55,7 @@ class CompanyForm
                             ->searchable()
                             ->label('Sectors')
                             ->columnSpanFull()
+                            ->helperText('Per-sector settings, e.g. whether it uses Bookings, live on the Features tab once a sector is added here.')
                             ->createOptionForm([
                                 TextInput::make('name')
                                     ->required()
