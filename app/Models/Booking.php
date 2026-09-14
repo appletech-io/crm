@@ -209,7 +209,7 @@ class Booking extends Model
     {
         $query->forActiveIndustry();
 
-        if (auth()->user()?->isAdmin()) {
+        if (auth()->user()?->isAdmin() || auth()->user()?->hasRole('compliance')) {
             return $query;
         }
 

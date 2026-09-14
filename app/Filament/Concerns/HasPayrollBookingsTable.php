@@ -94,9 +94,9 @@ trait HasPayrollBookingsTable
     }
 
     /**
-     * Which bookings this table is allowed to show — RunPayroll (admin-only)
-     * uses the normal visibleToCurrentUser() scope (everyone at the
-     * company), while ViewPayroll overrides this to always scope to the
+     * Which bookings this table is allowed to show — RunPayroll (admin and
+     * compliance) uses the normal visibleToCurrentUser() scope (everyone at
+     * the company), while ViewPayroll overrides this to always scope to the
      * viewer's own bookings regardless of role, admin included.
      */
     protected function scopePayrollBookingsQuery(Builder $query): Builder
