@@ -56,11 +56,11 @@ test('isComplianceOnly is false for a user without the compliance role', functio
     expect($user->isComplianceOnly())->toBeFalse();
 });
 
-test('compliance-only users cannot view bookings or clients', function () {
+test('compliance-only users cannot view bookings but can view clients', function () {
     actAsComplianceUser('education');
 
     expect(BookingResource::canViewAny())->toBeFalse();
-    expect(ClientResource::canViewAny())->toBeFalse();
+    expect(ClientResource::canViewAny())->toBeTrue();
 });
 
 test('a compliance user with an additional role can still view bookings and clients', function () {

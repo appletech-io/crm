@@ -146,6 +146,32 @@ test('an admin cannot directly open another consultants client edit page unless 
         ->assertSuccessful();
 });
 
+test('a compliance user sees every client regardless of pool assignment', function () {
+    $otherConsultant = User::factory()->create(['company_id' => $this->user->company_id]);
+
+    $ownClient = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $this->user->id,
+    ]);
+
+    $otherClient = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $otherConsultant->id,
+    ]);
+
+    $compliance = User::factory()->create(['company_id' => $this->user->company_id]);
+    $compliance->assignRole('compliance');
+
+    $this->actingAs($compliance);
+    Cache::put("user.{$compliance->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$compliance->id}.active_industry_id", $this->industry->id);
+
+    Livewire::test(ListClients::class)
+        ->assertCanSeeTableRecords([$ownClient, $otherClient]);
+});
+
 test('creating a client assigns the logged in consultant', function () {
     $consultant = User::factory()->create(['company_id' => $this->user->company_id]);
     $consultant->assignRole('consultant');
