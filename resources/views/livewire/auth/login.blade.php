@@ -49,63 +49,6 @@
             <div class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
                 {{ __('Demo credentials are pre-filled — just click Log in.') }}
             </div>
-
-            @if ($quickLoginCompanies->isNotEmpty() || $siteAdmin)
-                <div
-                    x-data="{ companyId: '', userId: '', companies: @js($quickLoginCompanies) }"
-                    class="flex flex-col gap-3 rounded-lg border border-gray-200 p-4 dark:border-white/10"
-                >
-                    <p class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ __('Quick login') }}</p>
-
-                    <div class="flex flex-col gap-2 sm:flex-row">
-                        <select
-                            x-model="companyId"
-                            @change="userId = ''"
-                            class="w-full rounded-md border-gray-300 text-sm dark:border-white/10 dark:bg-white/5 dark:text-white"
-                        >
-                            <option value="">{{ __('Choose a company…') }}</option>
-                            <template x-for="company in companies" x-bind:key="company.id">
-                                <option x-bind:value="company.id" x-text="company.name"></option>
-                            </template>
-                        </select>
-
-                        <select
-                            x-model="userId"
-                            x-bind:disabled="! companyId"
-                            class="w-full rounded-md border-gray-300 text-sm disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                        >
-                            <option value="">{{ __('Choose a user…') }}</option>
-                            <template x-for="user in (companies.find((c) => c.id == companyId)?.users ?? [])" x-bind:key="user.id">
-                                <option x-bind:value="user.id" x-text="user.label"></option>
-                            </template>
-                        </select>
-                    </div>
-
-                    <form method="POST" action="{{ route('demo-quick-login') }}">
-                        @csrf
-                        <input type="hidden" name="user_id" x-bind:value="userId">
-                        <flux:button type="submit" variant="filled" class="w-full" x-bind:disabled="! userId">
-                            {{ __('Log in as selected user') }}
-                        </flux:button>
-                    </form>
-
-                    @if ($siteAdmin)
-                        <form method="POST" action="{{ route('demo-quick-login') }}">
-                            @csrf
-                            <input type="hidden" name="user_id" value="{{ $siteAdmin->id }}">
-                            <flux:button type="submit" variant="ghost" class="w-full">
-                                {{ __('Log in as Site Admin') }}
-                            </flux:button>
-                        </form>
-                    @endif
-                </div>
-
-                <div class="relative flex items-center py-1">
-                    <div class="grow border-t border-gray-200 dark:border-white/10"></div>
-                    <span class="mx-3 text-xs text-gray-400 dark:text-gray-500">{{ __('or log in manually') }}</span>
-                    <div class="grow border-t border-gray-200 dark:border-white/10"></div>
-                </div>
-            @endif
         @endif
 
         <!-- Session Status -->
@@ -158,4 +101,57 @@
             </div>
         </form>
     </div>
+
+    @if ($isDemo && ($quickLoginCompanies->isNotEmpty() || $siteAdmin))
+        <x-slot:below>
+            <div x-data="{ companyId: '', userId: '', companies: @js($quickLoginCompanies) }" class="flex flex-col gap-4">
+                <div>
+                    <p class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ __('Demo quick login') }}</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('Skip the password — log straight in as any demo user.') }}</p>
+                </div>
+
+                <div class="flex flex-col gap-2 sm:flex-row">
+                    <select
+                        x-model="companyId"
+                        @change="userId = ''"
+                        class="w-full rounded-md border-gray-300 text-sm dark:border-white/10 dark:bg-white/5 dark:text-white"
+                    >
+                        <option value="">{{ __('Choose a company…') }}</option>
+                        <template x-for="company in companies" x-bind:key="company.id">
+                            <option x-bind:value="company.id" x-text="company.name"></option>
+                        </template>
+                    </select>
+
+                    <select
+                        x-model="userId"
+                        x-bind:disabled="! companyId"
+                        class="w-full rounded-md border-gray-300 text-sm disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                    >
+                        <option value="">{{ __('Choose a user…') }}</option>
+                        <template x-for="user in (companies.find((c) => c.id == companyId)?.users ?? [])" x-bind:key="user.id">
+                            <option x-bind:value="user.id" x-text="user.label"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <form method="POST" action="{{ route('demo-quick-login') }}">
+                    @csrf
+                    <input type="hidden" name="user_id" x-bind:value="userId">
+                    <flux:button type="submit" variant="filled" class="w-full" x-bind:disabled="! userId">
+                        {{ __('Log in as selected user') }}
+                    </flux:button>
+                </form>
+
+                @if ($siteAdmin)
+                    <form method="POST" action="{{ route('demo-quick-login') }}">
+                        @csrf
+                        <input type="hidden" name="user_id" value="{{ $siteAdmin->id }}">
+                        <flux:button type="submit" variant="ghost" class="w-full">
+                            {{ __('Log in as Site Admin') }}
+                        </flux:button>
+                    </form>
+                @endif
+            </div>
+        </x-slot:below>
+    @endif
 </x-layouts::auth.card>

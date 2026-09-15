@@ -130,7 +130,7 @@ test('the login page shows the quick-login picker only in the demo environment',
     $siteAdmin->assignRole('site_admin');
 
     $this->get('/login')
-        ->assertSee('Quick login')
+        ->assertSee('Demo quick login')
         ->assertSee('Acme Recruitment')
         ->assertSee('Log in as Site Admin');
 });
@@ -141,6 +141,6 @@ test('the login page does not show the quick-login picker outside the demo envir
     Company::factory()->create(['name' => 'Acme Recruitment']);
 
     $this->get('/login')
-        ->assertDontSee('Quick login')
+        ->assertDontSee('Demo quick login')
         ->assertDontSee('Acme Recruitment');
 });
