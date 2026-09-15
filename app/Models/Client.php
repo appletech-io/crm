@@ -94,6 +94,10 @@ class Client extends Model
             return $query;
         }
 
+        if ($user->hasRole('compliance')) {
+            return $query;
+        }
+
         if ($user->isAdmin() && session(self::ADMIN_VIEWING_ALL_CLIENTS_SESSION_KEY, false)) {
             return $query;
         }

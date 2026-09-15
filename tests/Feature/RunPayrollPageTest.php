@@ -79,6 +79,36 @@ test('a compliance user can access the run payroll page', function () {
     Livewire::test(RunPayroll::class)->assertSuccessful();
 });
 
+test('a compliance user sees every consultants bookings on the run payroll table', function () {
+    $otherConsultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $client = Client::factory()->create(['company_id' => $this->user->company_id]);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    $booking = Booking::factory()->create([
+        'company_id' => $this->user->company_id,
+        'client_id' => $client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $this->jobTitle->id,
+        'consultant_id' => $otherConsultant->id,
+    ]);
+
+    $booking->dayPeriods()->create([
+        'company_id' => $this->user->company_id,
+        'date' => $this->periodStart->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+
+    $complianceUser = User::factory()->create(['company_id' => $this->user->company_id]);
+    $complianceUser->assignRole('compliance');
+    $this->actingAs($complianceUser);
+    Cache::put("user.{$complianceUser->id}.active_industry", 'education');
+    Cache::put("user.{$complianceUser->id}.active_industry_id", 1);
+
+    Livewire::test(RunPayroll::class)
+        ->assertCanSeeTableRecords($booking->dayPeriods);
+});
+
 test('a site_admin cannot access the run payroll page unless impersonating', function () {
     $siteAdmin = User::factory()->create();
     $siteAdmin->assignRole('site_admin');

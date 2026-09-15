@@ -118,6 +118,38 @@ class BookingRevenuePeriodCalculator
         ];
     }
 
+    /**
+     * If the last week in $weeks is still in progress as of $periodEnd,
+     * scale its partial total up to a full week — lets the chart plot a
+     * projected figure for the current week instead of an artificially low
+     * dip caused by the period filter cutting the week off early.
+     *
+     * @param  Collection<int, array{weekStart: Carbon, revenue: float, cost: float, margin: float, bookings: int}>  $weeks
+     * @return ?array{revenue: float, cost: float, margin: float}
+     */
+    public static function projectCurrentWeek(Collection $weeks, Carbon $periodEnd): ?array
+    {
+        if ($weeks->isEmpty()) {
+            return null;
+        }
+
+        $lastWeek = $weeks->last();
+        $weekEnd = $lastWeek['weekStart']->copy()->endOfWeek(Carbon::SUNDAY);
+
+        if ($periodEnd->gte($weekEnd)) {
+            return null;
+        }
+
+        $daysElapsed = min(7, max(1, $lastWeek['weekStart']->diffInDays($periodEnd) + 1));
+        $scale = 7 / $daysElapsed;
+
+        return [
+            'revenue' => round($lastWeek['revenue'] * $scale, 2),
+            'cost' => round($lastWeek['cost'] * $scale, 2),
+            'margin' => round($lastWeek['margin'] * $scale, 2),
+        ];
+    }
+
     private static function dayPeriodsQuery(Carbon $start, Carbon $end, ?int $consultantId, ?int $clientId): Builder
     {
         return BookingDay::query()

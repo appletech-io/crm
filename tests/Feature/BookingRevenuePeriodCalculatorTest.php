@@ -176,6 +176,47 @@ test('byBooking returns one row per booking with its own revenue, cost and margi
         ->and($rows[0]['days'])->toBe(1);
 });
 
+test('projectCurrentWeek scales up the in-progress week to a full-week estimate', function () {
+    $client = Client::factory()->create(['company_id' => $this->company->id]);
+
+    createReportBookingWithDay($this->user, $client, $this->jobTitle, '2026-01-05', [
+        'day_rate' => 100,
+        'day_charge_rate' => 150,
+    ]);
+
+    createReportBookingWithDay($this->user, $client, $this->jobTitle, '2026-01-12', [
+        'day_rate' => 80,
+        'day_charge_rate' => 120,
+    ]);
+
+    // 2026-01-12 is a Monday, so filtering the period to end on the
+    // following Tuesday leaves the week (Mon 12 - Sun 18) with only 2 of
+    // its 7 days counted.
+    $periodEnd = Carbon::parse('2026-01-13');
+    $weeks = BookingRevenuePeriodCalculator::byWeek(Carbon::parse('2026-01-01'), $periodEnd);
+
+    $projected = BookingRevenuePeriodCalculator::projectCurrentWeek($weeks, $periodEnd);
+
+    expect($projected)->not->toBeNull()
+        ->and($projected['revenue'])->toBe(420.0)
+        ->and($projected['cost'])->toBe(280.0)
+        ->and($projected['margin'])->toBe(140.0);
+});
+
+test('projectCurrentWeek returns null when the last week has already finished', function () {
+    $client = Client::factory()->create(['company_id' => $this->company->id]);
+
+    createReportBookingWithDay($this->user, $client, $this->jobTitle, '2026-01-05', [
+        'day_rate' => 100,
+        'day_charge_rate' => 150,
+    ]);
+
+    $periodEnd = Carbon::parse('2026-01-31');
+    $weeks = BookingRevenuePeriodCalculator::byWeek(Carbon::parse('2026-01-01'), $periodEnd);
+
+    expect(BookingRevenuePeriodCalculator::projectCurrentWeek($weeks, $periodEnd))->toBeNull();
+});
+
 test('byClient ranks clients by revenue descending', function () {
     $bigClient = Client::factory()->create(['company_id' => $this->company->id, 'name' => 'Big Client']);
     $smallClient = Client::factory()->create(['company_id' => $this->company->id, 'name' => 'Small Client']);
