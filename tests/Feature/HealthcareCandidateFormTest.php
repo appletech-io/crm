@@ -1,6 +1,8 @@
 <?php
 
 use App\Filament\Resources\HealthcareCandidates\Pages\EditHealthcareCandidate;
+use App\Models\Booking;
+use App\Models\Client;
 use App\Models\HealthcareCandidate;
 use App\Models\Industry;
 use App\Models\ReferenceForm;
@@ -18,6 +20,33 @@ beforeEach(function () {
     $this->industry = Industry::factory()->create(['slug' => 'healthcare']);
     Cache::put("user.{$this->user->id}.active_industry", 'healthcare');
     Cache::put("user.{$this->user->id}.active_industry_id", $this->industry->id);
+});
+
+test('the bookings tab is hidden for a candidate with no bookings', function () {
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertDontSee('Bookings');
+});
+
+test('the bookings tab lists the client, dates worked, and agency for each booking', function () {
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id]);
+    $client = Client::factory()->create(['company_id' => $candidate->company_id]);
+    Booking::factory()->create([
+        'company_id' => $candidate->company_id,
+        'client_id' => $client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => $candidate::class,
+        'start_date' => '2026-09-07',
+        'end_date' => '2026-09-11',
+    ]);
+
+    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertSee('Bookings')
+        ->assertSee($client->name)
+        ->assertSee($candidate->company->name)
+        ->assertSee('Sep 7, 2026')
+        ->assertSee('Sep 11, 2026');
 });
 
 test('the formatted CV content can be edited and saved from its tab', function () {

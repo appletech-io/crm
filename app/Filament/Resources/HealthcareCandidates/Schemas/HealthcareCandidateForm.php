@@ -14,6 +14,7 @@ use App\Filament\Concerns\HasPayrollProviderErrorAlert;
 use App\Filament\Resources\HealthcareVetting\HealthcareVettingResource;
 use App\Filament\Widgets\CandidateActivityTimeline;
 use App\Filament\Widgets\CandidateAvailabilityCalendar;
+use App\Filament\Widgets\CandidateBookingsTable;
 use App\Filament\Widgets\CandidateDocumentManager;
 use App\Jobs\GenerateCandidateProfile;
 use App\Jobs\GenerateFormattedCv;
@@ -106,6 +107,13 @@ class HealthcareCandidateForm
                                 LivewireComponent::make(CandidateActivityTimeline::class)
                                     ->key('candidate-activity-timeline')
                                     ->hidden(fn (?Model $record): bool => $record === null),
+                            ]),
+
+                        Tab::make('Bookings')
+                            ->visible(fn (?HealthcareCandidate $record): bool => $record && $record->bookings()->exists())
+                            ->schema([
+                                LivewireComponent::make(CandidateBookingsTable::class)
+                                    ->key('candidate-bookings-table'),
                             ]),
 
                         Tab::make('Personal Details')

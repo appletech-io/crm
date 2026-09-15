@@ -5,9 +5,11 @@ use App\Filament\Resources\Candidates\CandidateResource;
 use App\Filament\Resources\Candidates\Pages\CreateCandidate;
 use App\Filament\Resources\Candidates\Pages\EditCandidate;
 use App\Filament\Resources\Candidates\Pages\ListCandidates;
+use App\Models\Booking;
 use App\Models\Candidate;
 use App\Models\CandidatePool;
 use App\Models\CandidateSkill;
+use App\Models\Client;
 use App\Models\Company;
 use App\Models\ComplianceItem;
 use App\Models\ComplianceItemField;
@@ -106,6 +108,39 @@ test('staff can create a candidate, which stamps company, industry, and consulta
         ->and($candidate->industry_id)->toBe($this->industry->id)
         ->and($candidate->consultant_id)->toBe($this->user->id)
         ->and($candidate->job_title_id)->toBe($this->jobTitle->id);
+});
+
+test('the bookings tab is hidden for a candidate with no bookings', function () {
+    $candidate = Candidate::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    Livewire::test(EditCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertDontSee('Bookings');
+});
+
+test('the bookings tab lists the client, dates worked, and agency for each booking', function () {
+    $candidate = Candidate::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+    $client = Client::factory()->create(['company_id' => $this->company->id]);
+    Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => $candidate::class,
+        'start_date' => '2026-09-07',
+        'end_date' => '2026-09-11',
+    ]);
+
+    Livewire::test(EditCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertSee('Bookings')
+        ->assertSee($client->name)
+        ->assertSee($this->company->name)
+        ->assertSee('Sep 7, 2026')
+        ->assertSee('Sep 11, 2026');
 });
 
 test('staff can update a candidate\'s basic details', function () {
