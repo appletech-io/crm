@@ -9,6 +9,7 @@ use App\Enums\ReferenceStatus;
 use App\Filament\Concerns\HasPayrollProviderErrorAlert;
 use App\Filament\Widgets\CandidateActivityTimeline;
 use App\Filament\Widgets\CandidateAvailabilityCalendar;
+use App\Filament\Widgets\CandidateBookingsTable;
 use App\Filament\Widgets\CandidateDocumentManager;
 use App\Jobs\GenerateFormattedCv;
 use App\Models\Candidate;
@@ -96,6 +97,13 @@ class CandidateForm
                                 LivewireComponent::make(CandidateActivityTimeline::class)
                                     ->key('candidate-activity-timeline')
                                     ->hidden(fn (?Model $record): bool => $record === null),
+                            ]),
+
+                        Tab::make('Bookings')
+                            ->visible(fn (?Candidate $record): bool => $record && $record->bookings()->exists())
+                            ->schema([
+                                LivewireComponent::make(CandidateBookingsTable::class)
+                                    ->key('candidate-bookings-table'),
                             ]),
 
                         Tab::make('Personal Details')

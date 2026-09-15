@@ -5,9 +5,8 @@ namespace App\Filament\Resources\Vacancies\Schemas;
 use App\Enums\VacancyEmploymentType;
 use App\Enums\VacancyLocation;
 use App\Filament\Widgets\VacancyActivityTimeline;
-use App\Filament\Widgets\VacancyApplicantsTable;
+use App\Filament\Widgets\VacancyApplicantsBoard;
 use App\Filament\Widgets\VacancyMatchesTable;
-use App\Filament\Widgets\VacancyPlacementsTable;
 use App\Models\Client;
 use App\Models\JobStatus;
 use App\Models\JobTitle;
@@ -217,15 +216,8 @@ class VacancyForm
 
                         Tab::make('Applicants')
                             ->schema([
-                                LivewireComponent::make(VacancyApplicantsTable::class)
-                                    ->key('vacancy-applicants-table')
-                                    ->hidden(fn (?Model $record): bool => $record === null),
-                            ]),
-
-                        Tab::make('Shortlisted')
-                            ->schema([
-                                LivewireComponent::make(VacancyApplicantsTable::class, ['onlyShortlisted' => true])
-                                    ->key('vacancy-shortlisted-table')
+                                LivewireComponent::make(VacancyApplicantsBoard::class)
+                                    ->key('vacancy-applicants-board')
                                     ->hidden(fn (?Model $record): bool => $record === null),
                             ]),
 
@@ -233,13 +225,6 @@ class VacancyForm
                             ->schema([
                                 LivewireComponent::make(VacancyMatchesTable::class)
                                     ->key('vacancy-matches-table')
-                                    ->hidden(fn (?Model $record): bool => $record === null),
-                            ]),
-
-                        Tab::make('Placements')
-                            ->schema([
-                                LivewireComponent::make(VacancyPlacementsTable::class)
-                                    ->key('vacancy-placements-table')
                                     ->hidden(fn (?Model $record): bool => $record === null),
                             ]),
 

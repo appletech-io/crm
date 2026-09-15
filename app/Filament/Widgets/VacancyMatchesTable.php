@@ -8,6 +8,7 @@ use App\Filament\Resources\HealthcareCandidates\HealthcareCandidateResource;
 use App\Filament\Support\CandidateSummaryAction;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
+use App\Models\JobStatus;
 use App\Models\Vacancy;
 use App\Models\VacancyApplication;
 use App\Models\VacancyCandidateMatch;
@@ -16,6 +17,7 @@ use App\Services\Booking\BookingEligibility;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
+use Filament\Tables\Columns\SelectColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
@@ -59,32 +61,38 @@ class VacancyMatchesTable extends TableWidget
                     ->label('Matched')
                     ->dateTime('d M Y, H:i')
                     ->sortable(),
-            ])
-            ->recordActions([
-                Action::make('addToShortlist')
-                    ->label('Add to Shortlist')
-                    ->icon('heroicon-o-star')
-                    ->color('gray')
-                    ->visible(fn (VacancyCandidateMatch $record): bool => ! $this->isShortlisted($record))
-                    ->action(function (VacancyCandidateMatch $record): void {
+                SelectColumn::make('job_status_id')
+                    ->label('Status')
+                    ->placeholder('Not in pipeline')
+                    ->options(fn (): array => JobStatus::query()
+                        ->where('company_id', $this->record->company_id)
+                        ->where('industry_id', $this->record->industry_id)
+                        ->ordered()
+                        ->pluck('name', 'id')
+                        ->toArray())
+                    ->getStateUsing(fn (VacancyCandidateMatch $record): ?int => $this->applicationFor($record)?->job_status_id)
+                    ->updateStateUsing(function (VacancyCandidateMatch $record, mixed $state): void {
                         VacancyApplication::updateOrCreate([
                             'vacancy_id' => $this->record->id,
                             'candidate_type' => $record->candidate_type,
                             'candidate_id' => $record->candidate_id,
                         ], [
                             'match_strength' => $record->score,
-                            'shortlisted_at' => now(),
+                            'job_status_id' => $state,
                         ]);
 
                         $candidateName = trim("{$record->candidate?->first_name} {$record->candidate?->last_name}") ?: 'Candidate';
+                        $statusName = JobStatus::withoutGlobalScope('company')->find($state)?->name ?? 'no status';
 
                         $this->record->activities()->create([
                             'user_id' => Auth::id(),
                             'type' => ActivityType::Note->value,
-                            'note' => "Shortlisted: {$candidateName}",
+                            'note' => "Moved to {$statusName}: {$candidateName}",
                             'contacted' => false,
                         ]);
                     }),
+            ])
+            ->recordActions([
                 Action::make('markPlaced')
                     ->label('Mark as Placed')
                     ->icon('heroicon-o-check-badge')
@@ -118,6 +126,22 @@ class VacancyMatchesTable extends TableWidget
                             'placed_at' => now(),
                         ]);
 
+                        // Keep the Applicants board's card (if one exists,
+                        // or create one) consistent with the placement this
+                        // just made — otherwise a candidate placed straight
+                        // from Matches shows up in the wrong column, or not
+                        // at all, on the board.
+                        if ($filledStatusId = $this->filledStatusId()) {
+                            VacancyApplication::updateOrCreate([
+                                'vacancy_id' => $this->record->id,
+                                'candidate_type' => $record->candidate_type,
+                                'candidate_id' => $record->candidate_id,
+                            ], [
+                                'match_strength' => $record->score,
+                                'job_status_id' => $filledStatusId,
+                            ]);
+                        }
+
                         $candidateName = trim("{$record->candidate?->first_name} {$record->candidate?->last_name}") ?: 'Candidate';
 
                         $this->record->activities()->create([
@@ -149,14 +173,13 @@ class VacancyMatchesTable extends TableWidget
             ->emptyStateDescription('Run a match from this vacancy\'s edit page to rank your candidate pool against it.');
     }
 
-    private function isShortlisted(VacancyCandidateMatch $record): bool
+    private function applicationFor(VacancyCandidateMatch $record): ?VacancyApplication
     {
         return VacancyApplication::query()
             ->where('vacancy_id', $this->record->id)
             ->where('candidate_type', $record->candidate_type)
             ->where('candidate_id', $record->candidate_id)
-            ->whereNotNull('shortlisted_at')
-            ->exists();
+            ->first();
     }
 
     private function isPlaced(VacancyCandidateMatch $record): bool
@@ -166,5 +189,15 @@ class VacancyMatchesTable extends TableWidget
             ->where('candidate_type', $record->candidate_type)
             ->where('candidate_id', $record->candidate_id)
             ->exists();
+    }
+
+    private function filledStatusId(): ?int
+    {
+        return JobStatus::query()
+            ->where('company_id', $this->record->company_id)
+            ->where('industry_id', $this->record->industry_id)
+            ->where('is_filled_status', true)
+            ->ordered()
+            ->value('id');
     }
 }

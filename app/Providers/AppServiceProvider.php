@@ -13,6 +13,7 @@ use App\Models\HealthcareCandidate;
 use App\Models\TodoItem;
 use App\Models\User;
 use App\Models\Vacancy;
+use App\Models\VacancyApplication;
 use App\Models\VacancyPlacement;
 use App\Observers\BookingObserver;
 use App\Observers\CandidateCandidateStatusObserver;
@@ -24,6 +25,7 @@ use App\Observers\EducationCandidateObserver;
 use App\Observers\HealthcareCandidateObserver;
 use App\Observers\TodoItemObserver;
 use App\Observers\UserObserver;
+use App\Observers\VacancyApplicationObserver;
 use App\Observers\VacancyObserver;
 use App\Observers\VacancyPlacementObserver;
 use Carbon\CarbonImmutable;
@@ -66,6 +68,7 @@ class AppServiceProvider extends ServiceProvider
         CandidateReference::observe(CandidateReferenceObserver::class);
         CandidateCandidateStatus::observe(CandidateCandidateStatusObserver::class);
         VacancyPlacement::observe(VacancyPlacementObserver::class);
+        VacancyApplication::observe(VacancyApplicationObserver::class);
         TodoItem::observe(TodoItemObserver::class);
     }
 

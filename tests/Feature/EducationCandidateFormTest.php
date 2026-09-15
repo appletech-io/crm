@@ -2,6 +2,8 @@
 
 use App\Enums\ReferenceStatus;
 use App\Filament\Resources\EducationCandidates\Pages\EditEducationCandidate;
+use App\Models\Booking;
+use App\Models\Client;
 use App\Models\EducationCandidate;
 use App\Models\Industry;
 use App\Models\ReferenceForm;
@@ -28,6 +30,33 @@ test('edit page renders with tabs', function () {
 
     Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
         ->assertSuccessful();
+});
+
+test('the bookings tab is hidden for a candidate with no bookings', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertDontSee('Bookings');
+});
+
+test('the bookings tab lists the client, dates worked, and agency for each booking', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+    $client = Client::factory()->create(['company_id' => $candidate->company_id]);
+    Booking::factory()->create([
+        'company_id' => $candidate->company_id,
+        'client_id' => $client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => $candidate::class,
+        'start_date' => '2026-09-07',
+        'end_date' => '2026-09-11',
+    ]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertSee('Bookings')
+        ->assertSee($client->name)
+        ->assertSee($candidate->company->name)
+        ->assertSee('Sep 7, 2026')
+        ->assertSee('Sep 11, 2026');
 });
 
 test('personal details can be saved on candidate', function () {
