@@ -183,6 +183,72 @@ test('the right to work expiry date field is hidden and not saved when right to 
     expect($candidate->refresh()->right_to_work_expiry_date)->toBeNull();
 });
 
+test('right to work, dbs, and professional registration compliance fields can be edited inline from the candidate edit page', function () {
+    $candidate = HealthcareCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'right_to_work_type' => 'visa',
+    ]);
+
+    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm([
+            'visa_share_code' => 'ABC123DEF456',
+            'visa_issue_date' => '2024-01-01',
+            'visa_notes' => 'Skilled worker visa.',
+            'right_to_work_checked' => 'yes',
+            'right_to_work_checked_date' => '2024-01-15',
+            'has_naric' => 'yes',
+            'has_dbs' => 'yes',
+            'dbs_checked_date' => '2024-02-01',
+            'dbs_certificate_number' => '001234567890',
+            'professional_registration_body' => 'NMC',
+            'professional_registration_number' => 'NM123456A',
+            'professional_registration_checked_at' => '2024-03-01',
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $candidate->refresh();
+    expect($candidate->visa_share_code)->toBe('ABC123DEF456');
+    expect($candidate->visa_issue_date->toDateString())->toBe('2024-01-01');
+    expect($candidate->visa_notes)->toBe('Skilled worker visa.');
+    expect($candidate->right_to_work_checked)->toBe('yes');
+    expect($candidate->right_to_work_checked_date->toDateString())->toBe('2024-01-15');
+    expect($candidate->has_naric)->toBe('yes');
+    expect($candidate->has_dbs)->toBe('yes');
+    expect($candidate->dbs_checked_date->toDateString())->toBe('2024-02-01');
+    expect($candidate->dbs_certificate_number)->toBe('001234567890');
+    expect($candidate->professional_registration_body)->toBe('NMC');
+    expect($candidate->professional_registration_number)->toBe('NM123456A');
+    expect($candidate->professional_registration_checked_at->toDateString())->toBe('2024-03-01');
+});
+
+test('visa fields are hidden and not saved when right to work type is passport', function () {
+    $candidate = HealthcareCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'right_to_work_type' => 'passport',
+    ]);
+
+    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertFormFieldDoesNotExist('visa_share_code')
+        ->assertFormFieldDoesNotExist('visa_notes')
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($candidate->refresh()->visa_share_code)->toBeNull();
+});
+
+test('the overseas police clearance check field only appears once lived overseas six months is set to yes', function () {
+    $candidate = HealthcareCandidate::factory()->create([
+        'company_id' => $this->user->company_id,
+        'lived_overseas_six_months' => 'no',
+    ]);
+
+    Livewire::test(EditHealthcareCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertFormFieldDoesNotExist('overseas_police_clearance_check')
+        ->fillForm(['lived_overseas_six_months' => 'yes'])
+        ->assertFormFieldExists('overseas_police_clearance_check');
+});
+
 test('a gap/statement reference does not require a name when saving via the repeater', function () {
     $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->user->company_id, 'phone' => '07700900000']);
 

@@ -28,6 +28,7 @@ use App\Models\ReferenceForm;
 use App\Models\SampleProfile;
 use App\Models\User;
 use App\Services\Candidates\Document;
+use App\Services\Healthcare\DbsUpdateService;
 use App\Services\References\ReferenceResponsePdfService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
@@ -56,7 +57,6 @@ use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -778,14 +778,69 @@ class HealthcareCandidateForm
     {
         return Section::make('Right to Work')
             ->schema([
-                TextEntry::make('right_to_work_type')
+                Select::make('right_to_work_type')
                     ->label('Right to Work Type')
-                    ->placeholder('Not set'),
+                    ->options([
+                        'passport' => 'UK Passport',
+                        'visa' => 'Visa',
+                        'birth_certificate' => 'UK Birth Certificate',
+                    ])
+                    ->native(false)
+                    ->live(),
+
+                TextInput::make('visa_share_code')
+                    ->label('Visa Share Code')
+                    ->maxLength(255)
+                    ->visible(fn (Get $get): bool => $get('right_to_work_type') === 'visa'),
+
+                DatePicker::make('visa_issue_date')
+                    ->label('Issue Date')
+                    ->native(false)
+                    ->visible(fn (Get $get): bool => $get('right_to_work_type') === 'visa'),
+
+                DatePicker::make('visa_expiry_date')
+                    ->label('Expiry Date')
+                    ->native(false)
+                    ->visible(fn (Get $get): bool => $get('right_to_work_type') === 'visa'),
+
+                Textarea::make('visa_notes')
+                    ->label('Notes')
+                    ->visible(fn (Get $get): bool => $get('right_to_work_type') === 'visa')
+                    ->columnSpanFull(),
 
                 DatePicker::make('right_to_work_expiry_date')
                     ->label('Right to Work Document Expiry Date')
                     ->native(false)
-                    ->visible(fn (?HealthcareCandidate $record): bool => in_array($record?->right_to_work_type, ['visa', 'passport'], true)),
+                    ->visible(fn (Get $get): bool => in_array($get('right_to_work_type'), ['visa', 'passport'], true)),
+
+                Select::make('right_to_work_checked')
+                    ->label('Right to Work Checked')
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->live(),
+
+                DatePicker::make('right_to_work_checked_date')
+                    ->label('Checked Date')
+                    ->native(false)
+                    ->visible(fn (Get $get): bool => $get('right_to_work_checked') === 'yes'),
+
+                static::documentEntry(
+                    'Right to Work Document',
+                    DocumentType::Passport,
+                    visible: fn (?HealthcareCandidate $record): bool => $record?->right_to_work_type === 'passport',
+                ),
+                static::documentEntry(
+                    'Right to Work Document',
+                    DocumentType::BirthCertificate,
+                    visible: fn (?HealthcareCandidate $record): bool => $record?->right_to_work_type === 'birth_certificate',
+                ),
+
+                Select::make('has_naric')
+                    ->label('UK Naric')
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false),
+
+                static::documentEntry('UK Naric Document', DocumentType::UkNaric),
             ])
             ->columns(2);
     }
@@ -794,9 +849,22 @@ class HealthcareCandidateForm
     {
         return Section::make('DBS Checks')
             ->schema([
-                TextEntry::make('dbs_certificate_number')
+                Select::make('has_dbs')
+                    ->label('Has DBS')
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false),
+
+                DatePicker::make('dbs_checked_date')
+                    ->label('Checked Date')
+                    ->native(false),
+
+                TextInput::make('dbs_certificate_number')
                     ->label('DBS No')
-                    ->placeholder('Not set'),
+                    ->maxLength(255),
+
+                DatePicker::make('dbs_expiry_date')
+                    ->label('Expiry Date')
+                    ->native(false),
 
                 TextEntry::make('update_service_checked_at')
                     ->label('Update Service Issue Date')
@@ -809,9 +877,54 @@ class HealthcareCandidateForm
                     ->badge()
                     ->color(fn (?string $state): string => filled($state) ? 'success' : 'gray'),
 
-                DatePicker::make('dbs_expiry_date')
-                    ->label('Expiry Date')
-                    ->native(false),
+                Select::make('overseas_police_clearance_check')
+                    ->label('Has Overseas Police Check')
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->visible(fn (Get $get): bool => $get('lived_overseas_six_months') === 'yes'),
+
+                DatePicker::make('overseas_police_clearance_check_date')
+                    ->label('Overseas Police Check Date')
+                    ->native(false)
+                    ->visible(fn (Get $get): bool => $get('lived_overseas_six_months') === 'yes'),
+
+                Actions::make([
+                    Action::make('callUpdateService')
+                        ->label('Call Update Service')
+                        ->icon('heroicon-o-arrow-path')
+                        ->color('primary')
+                        ->visible(fn (?HealthcareCandidate $record): bool => filled($record?->dbs_certificate_number))
+                        ->action(function (?HealthcareCandidate $record): void {
+                            if (! $record) {
+                                return;
+                            }
+
+                            try {
+                                $status = app(DbsUpdateService::class)->check($record);
+
+                                Notification::make()
+                                    ->success()
+                                    ->title('DBS Update Service checked')
+                                    ->body("Status: {$status}")
+                                    ->send();
+                            } catch (\RuntimeException $exception) {
+                                Notification::make()
+                                    ->danger()
+                                    ->title('DBS Update Service check failed')
+                                    ->body($exception->getMessage())
+                                    ->send();
+                            } catch (\Throwable) {
+                                Notification::make()
+                                    ->danger()
+                                    ->title('DBS Update Service check failed')
+                                    ->body('Unable to reach the DBS Update Service. Please try again later.')
+                                    ->send();
+                            }
+                        }),
+                ])->columnSpanFull(),
+
+                static::documentEntry('DBS File (Front)', DocumentType::DbsFront),
+                static::documentEntry('DBS File (Back)', DocumentType::DbsBack),
             ])
             ->columns(2);
     }
@@ -820,18 +933,19 @@ class HealthcareCandidateForm
     {
         return Section::make('Professional Registration')
             ->schema([
-                TextEntry::make('professional_registration_body')
+                TextInput::make('professional_registration_body')
                     ->label('Registration Body')
-                    ->placeholder('Not set'),
+                    ->maxLength(255),
 
-                TextEntry::make('professional_registration_number')
+                TextInput::make('professional_registration_number')
                     ->label('Registration Number')
-                    ->placeholder('Not set'),
+                    ->maxLength(255),
 
-                TextEntry::make('professional_registration_checked_at')
+                DatePicker::make('professional_registration_checked_at')
                     ->label('Checked On')
-                    ->date('d/m/Y')
-                    ->placeholder('Not set'),
+                    ->native(false),
+
+                static::documentEntry('Certificate', DocumentType::ProfessionalRegistration),
             ])
             ->columns(2);
     }
@@ -840,21 +954,19 @@ class HealthcareCandidateForm
     {
         return Section::make('Medical Information')
             ->schema([
-                TextEntry::make('has_health_condition_or_disability')
+                Select::make('has_health_condition_or_disability')
                     ->label('Health Condition or Disability')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set')
-                    ->badge()
-                    ->color(fn (?string $state): string => $state === 'yes' ? 'warning' : 'success'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->live(),
 
-                TextEntry::make('health_condition_details')
+                Textarea::make('health_condition_details')
                     ->label('Details')
-                    ->placeholder('None recorded')
+                    ->visible(fn (Get $get): bool => $get('has_health_condition_or_disability') === 'yes')
                     ->columnSpanFull(),
 
-                TextEntry::make('reasonable_accommodations')
+                Textarea::make('reasonable_accommodations')
                     ->label('Reasonable Accommodations Needed')
-                    ->placeholder('None recorded')
                     ->columnSpanFull(),
             ])
             ->columns(2);
@@ -864,34 +976,38 @@ class HealthcareCandidateForm
     {
         return Section::make('Employment & Conduct')
             ->schema([
-                TextEntry::make('retired_early')
+                Select::make('retired_early')
                     ->label('Retired Early')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->live(),
 
-                TextEntry::make('retired_early_medical_grounds')
+                Select::make('retired_early_medical_grounds')
                     ->label('On Medical Grounds')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->visible(fn (Get $get): bool => $get('retired_early') === 'yes'),
 
-                TextEntry::make('dismissed_from_relevant_position')
+                Select::make('dismissed_from_relevant_position')
                     ->label('Dismissed from a Relevant Position')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->live(),
 
-                TextEntry::make('dismissal_details')
+                Textarea::make('dismissal_details')
                     ->label('Dismissal Details')
-                    ->placeholder('None recorded')
+                    ->visible(fn (Get $get): bool => $get('dismissed_from_relevant_position') === 'yes')
                     ->columnSpanFull(),
 
-                TextEntry::make('subject_to_disciplinary_action')
+                Select::make('subject_to_disciplinary_action')
                     ->label('Subject to Disciplinary Action')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->live(),
 
-                TextEntry::make('disciplinary_action_details')
+                Textarea::make('disciplinary_action_details')
                     ->label('Disciplinary Action Details')
-                    ->placeholder('None recorded')
+                    ->visible(fn (Get $get): bool => $get('subject_to_disciplinary_action') === 'yes')
                     ->columnSpanFull(),
             ])
             ->columns(2);
@@ -901,41 +1017,51 @@ class HealthcareCandidateForm
     {
         return Section::make('Disclosure & Rehabilitation of Offenders')
             ->schema([
-                TextEntry::make('lived_overseas_six_months')
+                Select::make('lived_overseas_six_months')
                     ->label('Lived Overseas 6+ Months')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->live(),
 
-                TextEntry::make('overseas_details')
+                Textarea::make('overseas_details')
                     ->label('Overseas Details')
-                    ->placeholder('None recorded')
+                    ->visible(fn (Get $get): bool => $get('lived_overseas_six_months') === 'yes')
                     ->columnSpanFull(),
 
-                TextEntry::make('unspent_convictions')
+                Select::make('unspent_convictions')
                     ->label('Unspent Convictions')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false)
+                    ->live(),
 
-                TextEntry::make('unspent_convictions_details')
+                Textarea::make('unspent_convictions_details')
                     ->label('Conviction Details')
-                    ->placeholder('None recorded')
+                    ->visible(fn (Get $get): bool => $get('unspent_convictions') === 'yes')
                     ->columnSpanFull(),
 
-                TextEntry::make('spent_convictions_not_protected')
+                Select::make('spent_convictions_not_protected')
                     ->label('Spent Convictions Not Protected')
-                    ->formatStateUsing(fn (?string $state): string => static::formatYesNo($state))
-                    ->placeholder('Not set'),
+                    ->options(['yes' => 'Yes', 'no' => 'No'])
+                    ->native(false),
             ])
             ->columns(2);
     }
 
-    protected static function formatYesNo(?string $value): string
+    protected static function documentEntry(string $label, DocumentType $documentType, ?\Closure $visible = null): TextEntry
     {
-        return match ($value) {
-            'yes' => 'Yes',
-            'no' => 'No',
-            default => 'Not set',
-        };
+        $entry = TextEntry::make("document_{$documentType->value}")
+            ->label($label)
+            ->getStateUsing(fn (?HealthcareCandidate $record): string => static::document($record, $documentType) ? 'Uploaded' : 'Not uploaded')
+            ->badge()
+            ->color(fn (?HealthcareCandidate $record): string => static::document($record, $documentType) ? 'success' : 'gray')
+            ->url(fn (?HealthcareCandidate $record): ?string => static::documentUrl($record, $documentType))
+            ->openUrlInNewTab();
+
+        if ($visible) {
+            $entry->visible($visible);
+        }
+
+        return $entry;
     }
 
     protected static function document(?HealthcareCandidate $record, DocumentType $documentType): ?CandidateDocument
@@ -948,7 +1074,7 @@ class HealthcareCandidateForm
         $document = static::document($record, $documentType);
 
         return $document
-            ? Storage::disk(config('filesystems.default'))->temporaryUrl($document->path, now()->addMinutes(10))
+            ? Document::viewUrl($document->path)
             : null;
     }
 }
