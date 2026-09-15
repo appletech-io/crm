@@ -1,6 +1,6 @@
 <?php
 
-use App\Filament\Widgets\VacancyApplicantsTable;
+use App\Filament\Widgets\VacancyApplicantsBoard;
 use App\Filament\Widgets\VacancyMatchesTable;
 use App\Models\Candidate;
 use App\Models\Company;
@@ -65,8 +65,8 @@ test('a candidate missing required compliance items cannot be marked as placed f
         'candidate_id' => $candidate->id,
     ]);
 
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $this->vacancy])
-        ->callTableAction('markPlaced', $application, data: ['actual_salary' => 25000])
+    Livewire::test(VacancyApplicantsBoard::class, ['record' => $this->vacancy])
+        ->callAction('markPlaced', data: ['actual_salary' => 25000], arguments: ['applicationId' => $application->id])
         ->assertNotified('Cannot mark as placed');
 
     expect(VacancyPlacement::where('vacancy_id', $this->vacancy->id)->exists())->toBeFalse();
@@ -82,8 +82,8 @@ test('a fully compliant candidate can be marked as placed from the applicants wi
         'candidate_id' => $candidate->id,
     ]);
 
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $this->vacancy])
-        ->callTableAction('markPlaced', $application, data: ['actual_salary' => 25000]);
+    Livewire::test(VacancyApplicantsBoard::class, ['record' => $this->vacancy])
+        ->callAction('markPlaced', data: ['actual_salary' => 25000], arguments: ['applicationId' => $application->id]);
 
     expect(VacancyPlacement::where('vacancy_id', $this->vacancy->id)->where('candidate_id', $candidate->id)->exists())->toBeTrue();
 });
@@ -106,8 +106,8 @@ test('an Education candidate can still be marked as placed from the applicants w
         'candidate_id' => $candidate->id,
     ]);
 
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
-        ->callTableAction('markPlaced', $application, data: ['actual_salary' => 28000]);
+    Livewire::test(VacancyApplicantsBoard::class, ['record' => $vacancy])
+        ->callAction('markPlaced', data: ['actual_salary' => 28000], arguments: ['applicationId' => $application->id]);
 
     expect(VacancyPlacement::where('vacancy_id', $vacancy->id)->where('candidate_id', $candidate->id)->exists())->toBeTrue();
 });

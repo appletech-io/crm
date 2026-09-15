@@ -5,7 +5,7 @@ use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\Vacancies\Pages\CreateVacancy;
 use App\Filament\Resources\Vacancies\Pages\EditVacancy;
 use App\Filament\Resources\Vacancies\Pages\ListVacancies;
-use App\Filament\Widgets\VacancyApplicantsTable;
+use App\Filament\Widgets\VacancyApplicantsBoard;
 use App\Filament\Widgets\VacancyMatchesTable;
 use App\Jobs\MatchCandidatesToVacancy;
 use App\Models\CandidateSkill;
@@ -256,7 +256,7 @@ test('the matches widget shows an empty state when nothing has been matched yet'
         ->assertSee('No matches yet');
 });
 
-test('a matched candidate can be added to the shortlist from the matches widget', function () {
+test('a matched candidate can be set to a status from the matches widget, creating their application', function () {
     $vacancy = Vacancy::factory()->create([
         'company_id' => $this->company->id,
         'client_id' => $this->client->id,
@@ -278,28 +278,30 @@ test('a matched candidate can be added to the shortlist from the matches widget'
     ]);
 
     Livewire::test(VacancyMatchesTable::class, ['record' => $vacancy])
-        ->callTableAction('addToShortlist', $match);
+        ->call('updateTableColumnState', 'job_status_id', (string) $match->getKey(), (string) $this->jobStatus->id);
 
     $application = VacancyApplication::where('vacancy_id', $vacancy->id)
         ->where('candidate_id', $matchedCandidate->id)
         ->first();
 
     expect($application)->not->toBeNull()
-        ->and($application->isShortlisted())->toBeTrue()
+        ->and($application->job_status_id)->toBe($this->jobStatus->id)
         ->and($application->match_strength)->toBe(82);
 
-    expect($vacancy->activities()->where('note', 'Shortlisted: Jane Doe')->exists())->toBeTrue();
-
-    Livewire::test(VacancyMatchesTable::class, ['record' => $vacancy])
-        ->assertTableActionHidden('addToShortlist', $match);
+    expect($vacancy->activities()->where('note', "Moved to {$this->jobStatus->name}: Jane Doe")->exists())->toBeTrue();
 });
 
-test('shortlisting a match who already applied shortlists their existing application instead of duplicating it', function () {
+test('setting a status for a match who already applied updates their existing application instead of duplicating it', function () {
     $vacancy = Vacancy::factory()->create([
         'company_id' => $this->company->id,
         'client_id' => $this->client->id,
         'job_title_id' => $this->jobTitle->id,
         'job_status_id' => $this->jobStatus->id,
+    ]);
+
+    $otherStatus = JobStatus::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
     ]);
 
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
@@ -318,13 +320,13 @@ test('shortlisting a match who already applied shortlists their existing applica
     ]);
 
     Livewire::test(VacancyMatchesTable::class, ['record' => $vacancy])
-        ->callTableAction('addToShortlist', $match);
+        ->call('updateTableColumnState', 'job_status_id', (string) $match->getKey(), (string) $otherStatus->id);
 
     expect(VacancyApplication::where('vacancy_id', $vacancy->id)->where('candidate_id', $candidate->id)->count())->toBe(1);
-    expect($application->refresh()->isShortlisted())->toBeTrue();
+    expect($application->refresh()->job_status_id)->toBe($otherStatus->id);
 });
 
-test('the applicants widget lists candidates who applied to the vacancy, with a link to their profile', function () {
+test('the applicants board lists candidates who applied to the vacancy, with a link to their profile', function () {
     $vacancy = Vacancy::factory()->create([
         'company_id' => $this->company->id,
         'client_id' => $this->client->id,
@@ -351,21 +353,24 @@ test('the applicants widget lists candidates who applied to the vacancy, with a 
         'job_title_id' => $this->jobTitle->id,
         'job_status_id' => $this->jobStatus->id,
     ]);
-    $otherApplicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
-    $otherApplication = VacancyApplication::create([
+    $otherApplicant = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'John',
+        'last_name' => 'Smith',
+    ]);
+    VacancyApplication::create([
         'vacancy_id' => $otherVacancy->id,
         'candidate_type' => EducationCandidate::class,
         'candidate_id' => $otherApplicant->id,
     ]);
 
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
-        ->assertCanSeeTableRecords([VacancyApplication::where('candidate_id', $applicant->id)->first()])
-        ->assertCanNotSeeTableRecords([$otherApplication])
+    Livewire::test(VacancyApplicantsBoard::class, ['record' => $vacancy])
         ->assertSee('Jane Doe')
-        ->assertSee('jane.doe@example.com');
+        ->assertSee('jane.doe@example.com')
+        ->assertDontSee('John Smith');
 });
 
-test('the applicants widget shows an empty state when nobody has applied yet', function () {
+test('the applicants board shows every configured status as a column with no cards when nobody has applied yet', function () {
     $vacancy = Vacancy::factory()->create([
         'company_id' => $this->company->id,
         'client_id' => $this->client->id,
@@ -373,16 +378,48 @@ test('the applicants widget shows an empty state when nobody has applied yet', f
         'job_status_id' => $this->jobStatus->id,
     ]);
 
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
-        ->assertSee('No applicants yet');
+    Livewire::test(VacancyApplicantsBoard::class, ['record' => $vacancy])
+        ->assertSuccessful()
+        ->assertSee($this->jobStatus->name);
 });
 
-test('an applicant can be shortlisted and un-shortlisted, logging an activity on the vacancy each time', function () {
+test('a new application defaults to the first ordered job status', function () {
+    $secondStatus = JobStatus::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'sort_order' => $this->jobStatus->sort_order + 1,
+    ]);
+
     $vacancy = Vacancy::factory()->create([
         'company_id' => $this->company->id,
         'client_id' => $this->client->id,
         'job_title_id' => $this->jobTitle->id,
         'job_status_id' => $this->jobStatus->id,
+    ]);
+
+    $applicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+
+    $application = VacancyApplication::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $applicant->id,
+    ]);
+
+    expect($application->job_status_id)->toBe($this->jobStatus->id)
+        ->and($application->job_status_id)->not->toBe($secondStatus->id);
+});
+
+test('dragging a candidate\'s card to a different status column moves it and logs an activity on the vacancy', function () {
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+    ]);
+
+    $nextStatus = JobStatus::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
     ]);
 
     $applicant = EducationCandidate::factory()->create([
@@ -397,22 +434,14 @@ test('an applicant can be shortlisted and un-shortlisted, logging an activity on
         'candidate_id' => $applicant->id,
     ]);
 
-    expect($application->isShortlisted())->toBeFalse();
+    Livewire::test(VacancyApplicantsBoard::class, ['record' => $vacancy])
+        ->call('moveApplication', $application->id, $nextStatus->id);
 
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
-        ->callTableAction('toggleShortlist', $application);
-
-    expect($application->refresh()->isShortlisted())->toBeTrue();
-    expect($vacancy->activities()->where('note', 'Shortlisted: Jane Doe')->exists())->toBeTrue();
-
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
-        ->callTableAction('toggleShortlist', $application);
-
-    expect($application->refresh()->isShortlisted())->toBeFalse();
-    expect($vacancy->activities()->where('note', 'Removed from shortlist: Jane Doe')->exists())->toBeTrue();
+    expect($application->refresh()->job_status_id)->toBe($nextStatus->id);
+    expect($vacancy->activities()->where('note', "Moved to {$nextStatus->name}: Jane Doe")->exists())->toBeTrue();
 });
 
-test('the shortlisted filter narrows the applicants list to only shortlisted candidates', function () {
+test('a card cannot be moved to a status belonging to another company', function () {
     $vacancy = Vacancy::factory()->create([
         'company_id' => $this->company->id,
         'client_id' => $this->client->id,
@@ -420,73 +449,19 @@ test('the shortlisted filter narrows the applicants list to only shortlisted can
         'job_status_id' => $this->jobStatus->id,
     ]);
 
-    $shortlistedApplicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
-    $shortlistedApplication = VacancyApplication::create([
-        'vacancy_id' => $vacancy->id,
-        'candidate_type' => EducationCandidate::class,
-        'candidate_id' => $shortlistedApplicant->id,
-        'shortlisted_at' => now(),
-    ]);
-
-    $otherApplicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
-    $otherApplication = VacancyApplication::create([
-        'vacancy_id' => $vacancy->id,
-        'candidate_type' => EducationCandidate::class,
-        'candidate_id' => $otherApplicant->id,
-    ]);
-
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
-        ->filterTable('shortlisted_at', true)
-        ->assertCanSeeTableRecords([$shortlistedApplication])
-        ->assertCanNotSeeTableRecords([$otherApplication]);
-});
-
-test('the shortlisted tab only ever shows shortlisted candidates, with no filter needed', function () {
-    $vacancy = Vacancy::factory()->create([
-        'company_id' => $this->company->id,
-        'client_id' => $this->client->id,
-        'job_title_id' => $this->jobTitle->id,
-        'job_status_id' => $this->jobStatus->id,
-    ]);
-
-    $shortlistedApplicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
-    $shortlistedApplication = VacancyApplication::create([
-        'vacancy_id' => $vacancy->id,
-        'candidate_type' => EducationCandidate::class,
-        'candidate_id' => $shortlistedApplicant->id,
-        'shortlisted_at' => now(),
-    ]);
-
-    $otherApplicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
-    $otherApplication = VacancyApplication::create([
-        'vacancy_id' => $vacancy->id,
-        'candidate_type' => EducationCandidate::class,
-        'candidate_id' => $otherApplicant->id,
-    ]);
-
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy, 'onlyShortlisted' => true])
-        ->assertCanSeeTableRecords([$shortlistedApplication])
-        ->assertCanNotSeeTableRecords([$otherApplication])
-        ->assertDontSee('Not shortlisted');
-});
-
-test('the shortlisted tab shows its own empty state when nobody has been shortlisted yet', function () {
-    $vacancy = Vacancy::factory()->create([
-        'company_id' => $this->company->id,
-        'client_id' => $this->client->id,
-        'job_title_id' => $this->jobTitle->id,
-        'job_status_id' => $this->jobStatus->id,
-    ]);
+    $otherCompanyStatus = JobStatus::factory()->create();
 
     $applicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
-    VacancyApplication::create([
+    $application = VacancyApplication::create([
         'vacancy_id' => $vacancy->id,
         'candidate_type' => EducationCandidate::class,
         'candidate_id' => $applicant->id,
     ]);
 
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy, 'onlyShortlisted' => true])
-        ->assertSee('No candidates shortlisted yet');
+    Livewire::test(VacancyApplicantsBoard::class, ['record' => $vacancy])
+        ->call('moveApplication', $application->id, $otherCompanyStatus->id);
+
+    expect($application->refresh()->job_status_id)->toBe($this->jobStatus->id);
 });
 
 test('client, job title, status and title are required', function () {
@@ -695,7 +670,7 @@ test('a vacancy can be created as a temp role', function () {
     expect($vacancy->employment_type)->toBe(VacancyEmploymentType::Temp);
 });
 
-test('a shortlisted applicant can be marked as placed from the applicants widget', function () {
+test('an applicant can be marked as placed from the applicants board', function () {
     $vacancy = Vacancy::factory()->create([
         'company_id' => $this->company->id,
         'client_id' => $this->client->id,
@@ -716,8 +691,8 @@ test('a shortlisted applicant can be marked as placed from the applicants widget
         'candidate_id' => $applicant->id,
     ]);
 
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
-        ->callTableAction('markPlaced', $application, data: ['actual_salary' => 28000]);
+    Livewire::test(VacancyApplicantsBoard::class, ['record' => $vacancy])
+        ->callAction('markPlaced', data: ['actual_salary' => 28000], arguments: ['applicationId' => $application->id]);
 
     $placement = VacancyPlacement::where('vacancy_id', $vacancy->id)
         ->where('candidate_id', $applicant->id)
@@ -726,6 +701,34 @@ test('a shortlisted applicant can be marked as placed from the applicants widget
     expect($placement)->not->toBeNull()
         ->and($placement->actual_salary)->toBe(28000.0);
     expect($vacancy->activities()->where('note', 'Marked as placed: Jane Doe')->exists())->toBeTrue();
+});
+
+test('marking an applicant as placed moves their card to the filled status column', function () {
+    $filledStatus = JobStatus::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'is_filled_status' => true,
+    ]);
+
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+    ]);
+
+    $applicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $application = VacancyApplication::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $applicant->id,
+        'job_status_id' => $this->jobStatus->id,
+    ]);
+
+    Livewire::test(VacancyApplicantsBoard::class, ['record' => $vacancy])
+        ->callAction('markPlaced', data: ['actual_salary' => 28000], arguments: ['applicationId' => $application->id]);
+
+    expect($application->refresh()->job_status_id)->toBe($filledStatus->id);
 });
 
 test('the mark as placed action is hidden for temp vacancies', function () {
@@ -745,8 +748,8 @@ test('the mark as placed action is hidden for temp vacancies', function () {
         'candidate_id' => $applicant->id,
     ]);
 
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
-        ->assertTableActionHidden('markPlaced', $application);
+    Livewire::test(VacancyApplicantsBoard::class, ['record' => $vacancy])
+        ->assertActionHidden('markPlaced', arguments: ['applicationId' => $application->id]);
 });
 
 test('a matched candidate can be marked as placed from the matches widget', function () {
@@ -782,7 +785,13 @@ test('a matched candidate can be marked as placed from the matches widget', func
         ->and($placement->actual_salary)->toBe(30000.0);
 });
 
-test('the send application form action is hidden for an applicant who is not shortlisted', function () {
+test('marking a matched candidate as placed creates their application in the filled status column', function () {
+    $filledStatus = JobStatus::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'is_filled_status' => true,
+    ]);
+
     $vacancy = Vacancy::factory()->create([
         'company_id' => $this->company->id,
         'client_id' => $this->client->id,
@@ -790,18 +799,27 @@ test('the send application form action is hidden for an applicant who is not sho
         'job_status_id' => $this->jobStatus->id,
     ]);
 
-    $applicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
-    $application = VacancyApplication::create([
+    $matchedCandidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+
+    $match = VacancyCandidateMatch::create([
         'vacancy_id' => $vacancy->id,
         'candidate_type' => EducationCandidate::class,
-        'candidate_id' => $applicant->id,
+        'candidate_id' => $matchedCandidate->id,
+        'score' => 82,
     ]);
 
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
-        ->assertTableActionHidden('sendApplicationForm', $application);
+    Livewire::test(VacancyMatchesTable::class, ['record' => $vacancy])
+        ->callTableAction('markPlaced', $match, data: ['actual_salary' => 30000]);
+
+    $application = VacancyApplication::where('vacancy_id', $vacancy->id)
+        ->where('candidate_id', $matchedCandidate->id)
+        ->first();
+
+    expect($application)->not->toBeNull()
+        ->and($application->job_status_id)->toBe($filledStatus->id);
 });
 
-test('the send application form action is visible for a shortlisted applicant with no application yet', function () {
+test('the send application form action is hidden for an applicant still in the first pipeline stage', function () {
     $vacancy = Vacancy::factory()->create([
         'company_id' => $this->company->id,
         'client_id' => $this->client->id,
@@ -814,11 +832,35 @@ test('the send application form action is visible for a shortlisted applicant wi
         'vacancy_id' => $vacancy->id,
         'candidate_type' => EducationCandidate::class,
         'candidate_id' => $applicant->id,
-        'shortlisted_at' => now(),
     ]);
 
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
-        ->assertTableActionVisible('sendApplicationForm', $application);
+    Livewire::test(VacancyApplicantsBoard::class, ['record' => $vacancy])
+        ->assertActionHidden('sendApplicationForm', arguments: ['applicationId' => $application->id]);
+});
+
+test('the send application form action is visible for an applicant who has moved past the first pipeline stage, with no application yet', function () {
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'job_status_id' => $this->jobStatus->id,
+    ]);
+
+    $nextStatus = JobStatus::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    $applicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $application = VacancyApplication::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => EducationCandidate::class,
+        'candidate_id' => $applicant->id,
+        'job_status_id' => $nextStatus->id,
+    ]);
+
+    Livewire::test(VacancyApplicantsBoard::class, ['record' => $vacancy])
+        ->assertActionVisible('sendApplicationForm', arguments: ['applicationId' => $application->id]);
 });
 
 test('the send application form action is hidden once the candidate already has an application', function () {
@@ -827,6 +869,11 @@ test('the send application form action is hidden once the candidate already has 
         'client_id' => $this->client->id,
         'job_title_id' => $this->jobTitle->id,
         'job_status_id' => $this->jobStatus->id,
+    ]);
+
+    $nextStatus = JobStatus::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
     ]);
 
     $applicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
@@ -841,14 +888,14 @@ test('the send application form action is hidden once the candidate already has 
         'vacancy_id' => $vacancy->id,
         'candidate_type' => EducationCandidate::class,
         'candidate_id' => $applicant->id,
-        'shortlisted_at' => now(),
+        'job_status_id' => $nextStatus->id,
     ]);
 
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
-        ->assertTableActionHidden('sendApplicationForm', $application);
+    Livewire::test(VacancyApplicantsBoard::class, ['record' => $vacancy])
+        ->assertActionHidden('sendApplicationForm', arguments: ['applicationId' => $application->id]);
 });
 
-test('clicking send application form on a shortlisted applicant creates an application and sends the email immediately', function () {
+test('clicking send application form on an applicant past the first stage creates an application and sends the email immediately', function () {
     $this->company->update([
         'ms_tenant_id' => 'tenant',
         'ms_client_id' => 'client',
@@ -877,16 +924,21 @@ test('clicking send application form on a shortlisted applicant creates an appli
         'job_status_id' => $this->jobStatus->id,
     ]);
 
+    $nextStatus = JobStatus::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
     $applicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
     $application = VacancyApplication::create([
         'vacancy_id' => $vacancy->id,
         'candidate_type' => EducationCandidate::class,
         'candidate_id' => $applicant->id,
-        'shortlisted_at' => now(),
+        'job_status_id' => $nextStatus->id,
     ]);
 
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
-        ->callTableAction('sendApplicationForm', $application)
+    Livewire::test(VacancyApplicantsBoard::class, ['record' => $vacancy])
+        ->callAction('sendApplicationForm', arguments: ['applicationId' => $application->id])
         ->assertNotified('Application form sent');
 
     expect($applicant->application()->exists())->toBeTrue();
@@ -997,7 +1049,7 @@ test('a temp vacancy persists its day rate range', function () {
         ->and($vacancy->salary_max)->toBeNull();
 });
 
-test('the create booking action is hidden for a permanent vacancy even if the applicant is shortlisted', function () {
+test('the create booking link is hidden for a permanent vacancy even if the applicant has moved past the first stage', function () {
     $vacancy = Vacancy::factory()->create([
         'company_id' => $this->company->id,
         'client_id' => $this->client->id,
@@ -1005,19 +1057,25 @@ test('the create booking action is hidden for a permanent vacancy even if the ap
         'job_status_id' => $this->jobStatus->id,
     ]);
 
+    $nextStatus = JobStatus::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
     $applicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
     $application = VacancyApplication::create([
         'vacancy_id' => $vacancy->id,
         'candidate_type' => EducationCandidate::class,
         'candidate_id' => $applicant->id,
-        'shortlisted_at' => now(),
+        'job_status_id' => $nextStatus->id,
     ]);
 
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
-        ->assertTableActionHidden('createBooking', $application);
+    $board = Livewire::test(VacancyApplicantsBoard::class, ['record' => $vacancy])->instance();
+
+    expect($board->canCreateBooking($application))->toBeFalse();
 });
 
-test('the create booking action is hidden for a temp vacancy applicant who is not shortlisted', function () {
+test('the create booking link is hidden for a temp vacancy applicant still in the first pipeline stage', function () {
     $vacancy = Vacancy::factory()->create([
         'company_id' => $this->company->id,
         'client_id' => $this->client->id,
@@ -1033,11 +1091,12 @@ test('the create booking action is hidden for a temp vacancy applicant who is no
         'candidate_id' => $applicant->id,
     ]);
 
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
-        ->assertTableActionHidden('createBooking', $application);
+    $board = Livewire::test(VacancyApplicantsBoard::class, ['record' => $vacancy])->instance();
+
+    expect($board->canCreateBooking($application))->toBeFalse();
 });
 
-test('the create booking action is visible for a shortlisted applicant on a temp vacancy and links to a prefilled create booking url', function () {
+test('the create booking link is visible for an applicant on a temp vacancy who has moved past the first pipeline stage, and points at a prefilled create booking url', function () {
     $vacancy = Vacancy::factory()->create([
         'company_id' => $this->company->id,
         'client_id' => $this->client->id,
@@ -1048,20 +1107,26 @@ test('the create booking action is visible for a shortlisted applicant on a temp
         'end_date' => '2026-09-03',
     ]);
 
+    $nextStatus = JobStatus::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
     $applicant = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
     $application = VacancyApplication::create([
         'vacancy_id' => $vacancy->id,
         'candidate_type' => EducationCandidate::class,
         'candidate_id' => $applicant->id,
-        'shortlisted_at' => now(),
+        'job_status_id' => $nextStatus->id,
     ]);
 
-    Livewire::test(VacancyApplicantsTable::class, ['record' => $vacancy])
-        ->assertTableActionVisible('createBooking', $application)
-        ->assertTableActionHasUrl('createBooking', BookingResource::getUrl('create', [
+    $board = Livewire::test(VacancyApplicantsBoard::class, ['record' => $vacancy])->instance();
+
+    expect($board->canCreateBooking($application))->toBeTrue()
+        ->and($board->createBookingUrl($application))->toBe(BookingResource::getUrl('create', [
             'candidate_id' => $applicant->id,
             'client_id' => $this->client->id,
             'job_title_id' => $this->jobTitle->id,
             'dates' => ['2026-09-01', '2026-09-02', '2026-09-03'],
-        ]), record: $application);
+        ]));
 });

@@ -28,6 +28,11 @@ class VacancyApplication extends Model
         return $this->morphTo();
     }
 
+    public function jobStatus(): BelongsTo
+    {
+        return $this->belongsTo(JobStatus::class);
+    }
+
     public function isShortlisted(): bool
     {
         return $this->shortlisted_at !== null;
