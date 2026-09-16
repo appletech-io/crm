@@ -47,14 +47,12 @@
 
         @if ($isDemo)
             <div class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                {{ __('Demo credentials are pre-filled — just click Log in.') }}
+                {{ __('Demo credentials are pre-filled — just click Log in, or select a user below to jump straight into any demo account.') }}
             </div>
         @endif
 
         <!-- Session Status -->
         <x-auth-session-status class="text-center" :status="session('status')" />
-
-        <x-passkey-verify />
 
         <form method="POST" action="{{ route('login.store') }}" class="flex flex-col gap-6">
             @csrf
@@ -137,7 +135,7 @@
                 <form method="POST" action="{{ route('demo-quick-login') }}">
                     @csrf
                     <input type="hidden" name="user_id" x-bind:value="userId">
-                    <flux:button type="submit" variant="filled" class="w-full" x-bind:disabled="! userId">
+                    <flux:button type="submit" variant="filled" class="w-full" :loading="false" x-bind:disabled="! userId">
                         {{ __('Log in as selected user') }}
                     </flux:button>
                 </form>
