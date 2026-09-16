@@ -76,6 +76,6 @@ test('it renders successfully and totals a booking within the default period', f
 
     expect($stats['Bookings'])->toBe(1)
         ->and($stats['Revenue'])->toBe('£150.00')
-        ->and($stats['Cost'])->toBe('£100.00')
-        ->and($stats['Margin'])->toBe('£50.00');
+        ->and($stats['Cost'])->toBe('£115.00')
+        ->and($stats['Margin'])->toBe('£35.00');
 });

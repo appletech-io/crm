@@ -69,8 +69,8 @@ test('forWeek counts distinct clients, candidates, days placed, and gp for the g
     expect($stats['clients'])->toBe(1)
         ->and($stats['candidates'])->toBe(1)
         ->and($stats['daysPlaced'])->toBe(2)
-        ->and($stats['gp'])->toBe(100.0)
-        ->and($stats['avgMargin'])->toBe(0.3333);
+        ->and($stats['gp'])->toBe(70.0)
+        ->and($stats['avgMargin'])->toBe(0.2333);
 });
 
 test('forWeek excludes cancelled days and only counts the given consultant', function () {
@@ -175,7 +175,7 @@ test('forRange totals figures across an arbitrary date range, not just a calenda
     $stats = ConsultantPerformanceSummary::forRange($this->user->id, $start, $end);
 
     expect($stats['daysPlaced'])->toBe(2)
-        ->and($stats['gp'])->toBe(100.0);
+        ->and($stats['gp'])->toBe(70.0);
 });
 
 test('weeklyBreakdown returns one row per calendar week touching the range, oldest first', function () {

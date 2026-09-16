@@ -5,7 +5,7 @@ namespace App\Services\Reporting;
 use App\Filament\Resources\Bookings\Widgets\BookingWeekStats;
 use App\Models\Booking;
 use App\Models\BookingDay;
-use App\Services\Booking\BookingDayPeriods;
+use App\Services\Booking\MarginCalculator;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -47,25 +47,20 @@ class ConsultantPerformanceSummary
                     $query->where('consultant_id', $consultantId);
                 }
             })
-            ->with('booking')
+            ->with('booking.candidate')
             ->get();
 
         $bookings = $dayPeriods->pluck('booking')->unique('id');
 
         $totalCharge = 0.0;
-        $gp = $dayPeriods->groupBy('booking_id')->sum(function ($periods) use (&$totalCharge) {
+        $gp = $dayPeriods->groupBy('booking_id')->sum(function (Collection $periods) use (&$totalCharge) {
             /** @var Booking $booking */
             $booking = $periods->first()->booking;
-            $payRates = BookingDayPeriods::ratesFor($booking, 'pay');
-            $chargeRates = BookingDayPeriods::ratesFor($booking, 'charge');
+            $breakdown = MarginCalculator::forBooking($booking, $periods);
 
-            $totalCharge += $periods->sum(
-                fn (BookingDay $period): float => $chargeRates[$period->period->value] ?? 0
-            );
+            $totalCharge += $breakdown['totalCharge'];
 
-            return $periods->sum(
-                fn (BookingDay $period): float => ($chargeRates[$period->period->value] ?? 0) - ($payRates[$period->period->value] ?? 0)
-            );
+            return $breakdown['totalCharge'] - $breakdown['totalPay'] - $breakdown['oncosts'];
         });
 
         return [

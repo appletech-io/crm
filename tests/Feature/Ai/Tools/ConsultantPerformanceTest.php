@@ -64,9 +64,9 @@ test('a consultant sees their own bookings and margin for this week', function (
     expect($result)->toContain($consultant->name)
         ->and($result)->toContain('1 bookings')
         ->and($result)->toContain('revenue £150.00')
-        ->and($result)->toContain('cost £100.00')
-        ->and($result)->toContain('margin £50.00')
-        ->and($result)->toContain('33.3% avg margin');
+        ->and($result)->toContain('cost £115.00')
+        ->and($result)->toContain('margin £35.00')
+        ->and($result)->toContain('23.3% avg margin');
 });
 
 test('a non-admin cannot view another consultant\'s figures', function () {

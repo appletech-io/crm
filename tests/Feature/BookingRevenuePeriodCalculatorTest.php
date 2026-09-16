@@ -78,9 +78,9 @@ test('totals sums revenue, cost and margin across the range and excludes cancell
 
     expect($totals['bookings'])->toBe(2)
         ->and($totals['revenue'])->toBe(270.0)
-        ->and($totals['cost'])->toBe(180.0)
-        ->and($totals['margin'])->toBe(90.0)
-        ->and($totals['avgMargin'])->toBe(0.3333);
+        ->and($totals['cost'])->toBe(207.0)
+        ->and($totals['margin'])->toBe(63.0)
+        ->and($totals['avgMargin'])->toBe(0.2333);
 });
 
 test('byWeek buckets revenue into the correct weeks', function () {
@@ -171,8 +171,8 @@ test('byBooking returns one row per booking with its own revenue, cost and margi
         ->and($rows[0]['clientName'])->toBe('Acme Ltd')
         ->and($rows[0]['consultantName'])->toBe('Jo Consultant')
         ->and($rows[0]['revenue'])->toBe(150.0)
-        ->and($rows[0]['cost'])->toBe(100.0)
-        ->and($rows[0]['margin'])->toBe(50.0)
+        ->and($rows[0]['cost'])->toBe(115.0)
+        ->and($rows[0]['margin'])->toBe(35.0)
         ->and($rows[0]['days'])->toBe(1);
 });
 
@@ -199,8 +199,8 @@ test('projectCurrentWeek scales up the in-progress week to a full-week estimate'
 
     expect($projected)->not->toBeNull()
         ->and($projected['revenue'])->toBe(420.0)
-        ->and($projected['cost'])->toBe(280.0)
-        ->and($projected['margin'])->toBe(140.0);
+        ->and($projected['cost'])->toBe(322.0)
+        ->and($projected['margin'])->toBe(98.0);
 });
 
 test('projectCurrentWeek returns null when the last week has already finished', function () {

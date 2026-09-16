@@ -5,7 +5,7 @@ namespace App\Services\Reporting;
 use App\Filament\Resources\Bookings\Widgets\BookingWeekStats;
 use App\Models\Booking;
 use App\Models\BookingDay;
-use App\Services\Booking\BookingDayPeriods;
+use App\Services\Booking\MarginCalculator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -166,10 +166,14 @@ class BookingRevenuePeriodCalculator
                     $query->where('client_id', $clientId);
                 }
             })
-            ->with('booking.client');
+            ->with('booking.client', 'booking.candidate');
     }
 
     /**
+     * Cost includes each booking's PAYE employer on-costs where applicable
+     * (see {@see MarginCalculator}), on top of the raw pay rate, so the
+     * margin this produces matches the booking form's own calculator.
+     *
      * @param  Collection<int, BookingDay>  $periods
      * @return array{0: float, 1: float}
      */
@@ -181,11 +185,10 @@ class BookingRevenuePeriodCalculator
         foreach ($periods->groupBy('booking_id') as $bookingPeriods) {
             /** @var Booking $booking */
             $booking = $bookingPeriods->first()->booking;
-            $payRates = BookingDayPeriods::ratesFor($booking, 'pay');
-            $chargeRates = BookingDayPeriods::ratesFor($booking, 'charge');
+            $breakdown = MarginCalculator::forBooking($booking, $bookingPeriods);
 
-            $revenue += $bookingPeriods->sum(fn (BookingDay $period): float => $chargeRates[$period->period->value] ?? 0);
-            $cost += $bookingPeriods->sum(fn (BookingDay $period): float => $payRates[$period->period->value] ?? 0);
+            $revenue += $breakdown['totalCharge'];
+            $cost += $breakdown['totalPay'] + $breakdown['oncosts'];
         }
 
         return [$revenue, $cost];
