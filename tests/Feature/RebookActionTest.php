@@ -104,7 +104,16 @@ test('the Rebook action is visible on a booking row whose candidate has nothing 
 
 test('the Rebook action is hidden on a booking row whose candidate already has next week covered', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
-    $row = bookingForNextWeek($candidate, $this->client, $this->jobTitle);
+    $row = bookingOnDate($candidate, $this->client, $this->jobTitle, now()->toDateString());
+    bookingForNextWeek($candidate, $this->client, $this->jobTitle);
+
+    Livewire::test(ListBookings::class)
+        ->assertTableActionHidden('rebook', record: $row);
+});
+
+test('the Rebook action is hidden on a row that is not this week, even when the candidate has nothing booked next week', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $row = bookingOnDate($candidate, $this->client, $this->jobTitle, now()->subMonth()->toDateString());
 
     Livewire::test(ListBookings::class)
         ->assertTableActionHidden('rebook', record: $row);
