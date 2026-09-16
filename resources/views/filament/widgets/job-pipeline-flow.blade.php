@@ -71,9 +71,11 @@
 
         <div class="flex flex-col gap-2 rounded-lg border border-gray-200 p-2 dark:border-white/10">
             @if ($this->viewingCandidates)
-                @forelse ($this->selectedCandidates() as $candidate)
+                @php $candidates = $this->selectedCandidates(); @endphp
+
+                @forelse ($candidates as $candidate)
                     <a
-                        href="{{ \App\Filament\Resources\Candidates\CandidateResource::getUrl('edit', ['record' => $candidate]) }}"
+                        href="{{ $this->candidateEditUrl($candidate) }}"
                         class="flex items-center justify-between gap-4 rounded-md px-3 py-2 transition hover:bg-gray-100 dark:hover:bg-white/5"
                     >
                         <div class="flex flex-col">
@@ -93,13 +95,19 @@
                     <p class="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">No candidates here yet.</p>
                 @endforelse
 
-                @if ($this->candidatesCount() > count($this->selectedCandidates()))
-                    <a href="{{ $this->candidatesUrl() }}" class="px-3 py-1 text-sm font-medium text-primary-600 hover:underline dark:text-primary-400">
-                        View all {{ $this->candidatesCount() }} candidates
-                    </a>
+                @if ($this->candidatesCount() > $candidates->count())
+                    <div
+                        wire:key="candidates-sentinel-{{ $this->candidatesLimit }}"
+                        x-intersect.once="$wire.loadMoreCandidates()"
+                        class="px-3 py-2 text-center text-sm text-gray-500 dark:text-gray-400"
+                    >
+                        Loading more…
+                    </div>
                 @endif
             @else
-                @forelse ($this->selectedJobs() as $vacancy)
+                @php $jobs = $this->selectedJobs(); @endphp
+
+                @forelse ($jobs as $vacancy)
                     <a
                         href="{{ \App\Filament\Resources\Vacancies\VacancyResource::getUrl('edit', ['record' => $vacancy]) }}"
                         class="flex items-center justify-between gap-4 rounded-md px-3 py-2 transition hover:bg-gray-100 dark:hover:bg-white/5"
@@ -122,10 +130,14 @@
                     <p class="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">No jobs here yet.</p>
                 @endforelse
 
-                @if ($this->selectedJobsCount() > count($this->selectedJobs()))
-                    <a href="{{ $this->selectedJobsUrl() }}" class="px-3 py-1 text-sm font-medium text-primary-600 hover:underline dark:text-primary-400">
-                        View all {{ $this->selectedJobsCount() }} jobs
-                    </a>
+                @if ($this->selectedJobsCount() > $jobs->count())
+                    <div
+                        wire:key="jobs-sentinel-{{ $this->jobsLimit }}"
+                        x-intersect.once="$wire.loadMoreJobs()"
+                        class="px-3 py-2 text-center text-sm text-gray-500 dark:text-gray-400"
+                    >
+                        Loading more…
+                    </div>
                 @endif
             @endif
         </div>

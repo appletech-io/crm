@@ -1,7 +1,5 @@
 <?php
 
-use App\Filament\Resources\CandidatePools\CandidatePoolResource;
-use App\Filament\Resources\Candidates\CandidateResource;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Filament\Resources\Vacancies\VacancyResource;
 use App\Filament\Widgets\JobPipelineFlow;
@@ -141,7 +139,7 @@ test('the consultant filter, set via the shared dashboard-consultant-changed eve
         ->and($widget->jobsCount())->toBe(1);
 });
 
-test('the jobs segment counts every vacancy in the active industry and links to the vacancy list', function () {
+test('the jobs segment counts every vacancy in the active industry', function () {
     Vacancy::factory()->count(3)->create([
         'company_id' => $this->company->id,
         'industry_id' => $this->industry->id,
@@ -149,8 +147,7 @@ test('the jobs segment counts every vacancy in the active industry and links to 
 
     $widget = new JobPipelineFlow;
 
-    expect($widget->jobsCount())->toBe(3)
-        ->and($widget->jobsUrl())->toBe(VacancyResource::getUrl('index'));
+    expect($widget->jobsCount())->toBe(3);
 });
 
 test('with no pool selected, the candidates segment counts every candidate in the active industry', function () {
@@ -161,11 +158,10 @@ test('with no pool selected, the candidates segment counts every candidate in th
 
     $widget = new JobPipelineFlow;
 
-    expect($widget->candidatesCount())->toBe(2)
-        ->and($widget->candidatesUrl())->toBe(CandidateResource::getUrl('index'));
+    expect($widget->candidatesCount())->toBe(2);
 });
 
-test('selecting a pool scopes the candidates segment to that pool and links to it', function () {
+test('selecting a pool scopes the candidates segment to that pool', function () {
     $pool = CandidatePool::create([
         'company_id' => $this->company->id,
         'industry_id' => $this->industry->id,
@@ -181,8 +177,7 @@ test('selecting a pool scopes the candidates segment to that pool and links to i
     $widget = new JobPipelineFlow;
     $widget->poolId = $pool->id;
 
-    expect($widget->candidatesCount())->toBe(1)
-        ->and($widget->candidatesUrl())->toBe(CandidatePoolResource::getUrl('edit', ['record' => $pool->id]));
+    expect($widget->candidatesCount())->toBe(1);
 });
 
 test('picking a pool from the dropdown switches to the candidates view, so the effect is visible', function () {
@@ -344,8 +339,7 @@ test('with no status selected, the inline jobs list shows every vacancy in the a
 
     expect($widget->selectedStatusId)->toBeNull()
         ->and($widget->selectedJobs())->toHaveCount(2)
-        ->and($widget->selectedJobsCount())->toBe(2)
-        ->and($widget->selectedJobsUrl())->toBe(VacancyResource::getUrl('index'));
+        ->and($widget->selectedJobsCount())->toBe(2);
 });
 
 test('selecting a status filters the inline jobs list to just that status', function () {
@@ -368,10 +362,7 @@ test('selecting a status filters the inline jobs list to just that status', func
         ->assertSet('selectedStatusId', $open->id);
 
     expect($component->instance()->selectedJobs()->pluck('id')->all())->toBe([$openVacancy->id])
-        ->and($component->instance()->selectedJobsCount())->toBe(1)
-        ->and($component->instance()->selectedJobsUrl())->toBe(VacancyResource::getUrl('index', [
-            'tableFilters' => ['job_status_id' => ['value' => $open->id]],
-        ]));
+        ->and($component->instance()->selectedJobsCount())->toBe(1);
 });
 
 test('selecting the jobs step clears the status filter', function () {
@@ -414,15 +405,16 @@ test('for an Education company, the candidates segment counts EducationCandidate
     Cache::put("user.{$this->admin->id}.active_industry", $educationIndustry->slug);
     Cache::put("user.{$this->admin->id}.active_industry_id", $educationIndustry->id);
 
-    EducationCandidate::factory()->count(2)->create(['company_id' => $this->company->id]);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    EducationCandidate::factory()->create(['company_id' => $this->company->id]);
     // A decoy in the generic Candidate model must not be counted here.
     Candidate::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
 
     $widget = new JobPipelineFlow;
 
     expect($widget->candidatesCount())->toBe(2)
-        ->and($widget->candidatesUrl())->toBe(EducationCandidateResource::getUrl('index'))
-        ->and($widget->selectedCandidates())->toHaveCount(2);
+        ->and($widget->selectedCandidates())->toHaveCount(2)
+        ->and($widget->candidateEditUrl($candidate))->toBe(EducationCandidateResource::getUrl('edit', ['record' => $candidate]));
 });
 
 test('for an Education company, rendering the candidates step does not throw for a candidate with no jobTitle relation', function () {
@@ -438,4 +430,64 @@ test('for an Education company, rendering the candidates step does not throw for
     Livewire::test(JobPipelineFlow::class)
         ->call('selectCandidates')
         ->assertSuccessful();
+});
+
+test('the inline jobs list caps at 20 and loadMoreJobs reveals more, 20 at a time', function () {
+    Vacancy::factory()->count(25)->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    $widget = new JobPipelineFlow;
+
+    expect($widget->selectedJobs())->toHaveCount(20);
+
+    $widget->loadMoreJobs();
+
+    expect($widget->jobsLimit)->toBe(40)
+        ->and($widget->selectedJobs())->toHaveCount(25);
+});
+
+test('the inline candidates list caps at 20 and loadMoreCandidates reveals more, 20 at a time', function () {
+    Candidate::factory()->count(25)->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+    ]);
+
+    $widget = new JobPipelineFlow;
+
+    expect($widget->selectedCandidates())->toHaveCount(20);
+
+    $widget->loadMoreCandidates();
+
+    expect($widget->candidatesLimit)->toBe(40)
+        ->and($widget->selectedCandidates())->toHaveCount(25);
+});
+
+test('selecting a different status resets the jobs list back to the first 20', function () {
+    $status = JobStatus::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+
+    Livewire::test(JobPipelineFlow::class)
+        ->call('loadMoreJobs')
+        ->assertSet('jobsLimit', 40)
+        ->call('selectStatus', $status->id)
+        ->assertSet('jobsLimit', 20);
+});
+
+test('changing the pool resets both lists back to the first 20', function () {
+    $pool = CandidatePool::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'user_id' => $this->admin->id,
+        'name' => 'Shortlisted',
+    ]);
+
+    Livewire::test(JobPipelineFlow::class)
+        ->call('loadMoreJobs')
+        ->call('loadMoreCandidates')
+        ->assertSet('jobsLimit', 40)
+        ->assertSet('candidatesLimit', 40)
+        ->set('poolId', $pool->id)
+        ->assertSet('jobsLimit', 20)
+        ->assertSet('candidatesLimit', 20);
 });

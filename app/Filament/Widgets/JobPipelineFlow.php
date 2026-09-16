@@ -35,9 +35,7 @@ class JobPipelineFlow extends Widget
 
     protected static ?int $sort = 1;
 
-    private const JOBS_LIMIT = 10;
-
-    private const CANDIDATES_LIMIT = 10;
+    private const LOAD_INCREMENT = 20;
 
     public ?int $consultantId = null;
 
@@ -47,10 +45,15 @@ class JobPipelineFlow extends Widget
 
     public bool $viewingCandidates = false;
 
+    public int $jobsLimit = self::LOAD_INCREMENT;
+
+    public int $candidatesLimit = self::LOAD_INCREMENT;
+
     public function selectStatus(?int $statusId): void
     {
         $this->selectedStatusId = $statusId;
         $this->viewingCandidates = false;
+        $this->jobsLimit = self::LOAD_INCREMENT;
     }
 
     public function selectCandidates(): void
@@ -66,6 +69,24 @@ class JobPipelineFlow extends Widget
     public function updatedPoolId(): void
     {
         $this->viewingCandidates = true;
+        $this->jobsLimit = self::LOAD_INCREMENT;
+        $this->candidatesLimit = self::LOAD_INCREMENT;
+    }
+
+    /**
+     * Each scrolls its own list 20 further — see the x-intersect sentinel
+     * at the bottom of job-pipeline-flow.blade.php, which fires this once
+     * it comes into view rather than the list linking out to a separate
+     * Jobs/Candidates page.
+     */
+    public function loadMoreJobs(): void
+    {
+        $this->jobsLimit += self::LOAD_INCREMENT;
+    }
+
+    public function loadMoreCandidates(): void
+    {
+        $this->candidatesLimit += self::LOAD_INCREMENT;
     }
 
     public function isAdmin(): bool
@@ -77,6 +98,7 @@ class JobPipelineFlow extends Widget
     public function onDashboardConsultantChanged(?int $consultantId): void
     {
         $this->consultantId = $consultantId;
+        $this->jobsLimit = self::LOAD_INCREMENT;
     }
 
     /** @return array<int, string> */
@@ -95,11 +117,6 @@ class JobPipelineFlow extends Widget
             ->when($this->consultantId, fn ($query) => $query->where('consultant_id', $this->consultantId))
             ->when($this->selectedPoolClientId(), fn ($query, int $clientId) => $query->where('client_id', $clientId))
             ->count();
-    }
-
-    public function jobsUrl(): string
-    {
-        return VacancyResource::getUrl('index');
     }
 
     public function candidatesCount(): int
@@ -122,19 +139,6 @@ class JobPipelineFlow extends Widget
             ->count();
     }
 
-    public function candidatesUrl(): string
-    {
-        if ($this->poolId) {
-            return CandidatePoolResource::getUrl('edit', ['record' => $this->poolId]);
-        }
-
-        return match ($this->candidateModelClass()) {
-            EducationCandidate::class => EducationCandidateResource::getUrl('index'),
-            HealthcareCandidate::class => HealthcareCandidateResource::getUrl('index'),
-            default => CandidateResource::getUrl('index'),
-        };
-    }
-
     /**
      * The generic Candidate model is the only one with a single, fixed
      * job title to show on a card — Education/Healthcare candidates work
@@ -154,7 +158,7 @@ class JobPipelineFlow extends Widget
             return $this->selectedPool()?->candidates()
                 ->when($eagerLoadJobTitle, fn ($query) => $query->with('jobTitle'))
                 ->latest()
-                ->limit(self::CANDIDATES_LIMIT)
+                ->limit($this->candidatesLimit)
                 ->get() ?? collect();
         }
 
@@ -169,7 +173,7 @@ class JobPipelineFlow extends Widget
             )
             ->when($eagerLoadJobTitle, fn ($query) => $query->with('jobTitle'))
             ->latest()
-            ->limit(self::CANDIDATES_LIMIT)
+            ->limit($this->candidatesLimit)
             ->get();
     }
 
@@ -177,6 +181,15 @@ class JobPipelineFlow extends Widget
     private function candidateModelClass(): ?string
     {
         return Industry::candidateModelForSlug(active_industry() ?? '');
+    }
+
+    public function candidateEditUrl(Model $candidate): string
+    {
+        return match ($candidate::class) {
+            EducationCandidate::class => EducationCandidateResource::getUrl('edit', ['record' => $candidate]),
+            HealthcareCandidate::class => HealthcareCandidateResource::getUrl('edit', ['record' => $candidate]),
+            default => CandidateResource::getUrl('edit', ['record' => $candidate]),
+        };
     }
 
     /** @return Collection<int, array{status: JobStatus, open: int, total: int, url: string}> */
@@ -218,7 +231,7 @@ class JobPipelineFlow extends Widget
             ->when($this->selectedPoolClientId(), fn ($query, int $clientId) => $query->where('client_id', $clientId))
             ->with(['client', 'consultant', 'jobStatus'])
             ->latest()
-            ->limit(self::JOBS_LIMIT)
+            ->limit($this->jobsLimit)
             ->get();
     }
 
@@ -227,17 +240,6 @@ class JobPipelineFlow extends Widget
         return $this->selectedStatusId === null
             ? $this->jobsCount()
             : ($this->statuses()->firstWhere('status.id', $this->selectedStatusId)['total'] ?? 0);
-    }
-
-    public function selectedJobsUrl(): string
-    {
-        if ($this->selectedStatusId === null) {
-            return $this->jobsUrl();
-        }
-
-        return VacancyResource::getUrl('index', [
-            'tableFilters' => ['job_status_id' => ['value' => $this->selectedStatusId]],
-        ]);
     }
 
     private function selectedPool(): ?CandidatePool
