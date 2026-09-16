@@ -37,10 +37,10 @@ test('the page is accessible for an industry with bookings toggled off', functio
     expect(JobPipeline::canAccess())->toBeTrue();
 });
 
-test('the page is not accessible for an industry with bookings toggled on', function () {
+test('the page is also accessible for an industry with bookings toggled on', function () {
     ($this->setActiveIndustry)($this->construction);
 
-    expect(JobPipeline::canAccess())->toBeFalse();
+    expect(JobPipeline::canAccess())->toBeTrue();
 });
 
 test('the page is not accessible for a user with no active industry', function () {
