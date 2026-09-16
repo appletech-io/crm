@@ -4,12 +4,18 @@ namespace App\Filament\Widgets;
 
 use App\Filament\Resources\CandidatePools\CandidatePoolResource;
 use App\Filament\Resources\Candidates\CandidateResource;
+use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
+use App\Filament\Resources\HealthcareCandidates\HealthcareCandidateResource;
 use App\Filament\Resources\Vacancies\VacancyResource;
 use App\Models\Candidate;
 use App\Models\CandidatePool;
+use App\Models\EducationCandidate;
+use App\Models\HealthcareCandidate;
+use App\Models\Industry;
 use App\Models\JobStatus;
 use App\Models\Vacancy;
 use Filament\Widgets\Widget;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\On;
@@ -102,7 +108,18 @@ class JobPipelineFlow extends Widget
             return $this->selectedPool()?->candidates()->count() ?? 0;
         }
 
-        return Candidate::query()->where('industry_id', active_industry_id())->count();
+        $candidateModelClass = $this->candidateModelClass();
+
+        if (! $candidateModelClass) {
+            return 0;
+        }
+
+        return $candidateModelClass::query()
+            ->when(
+                Industry::candidateModelIsShared($candidateModelClass),
+                fn ($query) => $query->where('industry_id', active_industry_id()),
+            )
+            ->count();
     }
 
     public function candidatesUrl(): string
@@ -111,26 +128,55 @@ class JobPipelineFlow extends Widget
             return CandidatePoolResource::getUrl('edit', ['record' => $this->poolId]);
         }
 
-        return CandidateResource::getUrl('index');
+        return match ($this->candidateModelClass()) {
+            EducationCandidate::class => EducationCandidateResource::getUrl('index'),
+            HealthcareCandidate::class => HealthcareCandidateResource::getUrl('index'),
+            default => CandidateResource::getUrl('index'),
+        };
     }
 
-    /** @return Collection<int, Candidate> */
+    /**
+     * The generic Candidate model is the only one with a single, fixed
+     * job title to show on a card — Education/Healthcare candidates work
+     * across whichever roles their skills/qualifications cover instead, so
+     * eager-loading a jobTitle relation neither of those models has would
+     * throw. The blade's `$candidate->jobTitle?->name` already falls back
+     * to "No job title" for them without it.
+     *
+     * @return Collection<int, Model>
+     */
     public function selectedCandidates(): Collection
     {
+        $candidateModelClass = $this->candidateModelClass();
+        $eagerLoadJobTitle = $candidateModelClass === Candidate::class;
+
         if ($this->poolId) {
             return $this->selectedPool()?->candidates()
-                ->with('jobTitle')
+                ->when($eagerLoadJobTitle, fn ($query) => $query->with('jobTitle'))
                 ->latest()
                 ->limit(self::CANDIDATES_LIMIT)
                 ->get() ?? collect();
         }
 
-        return Candidate::query()
-            ->where('industry_id', active_industry_id())
-            ->with('jobTitle')
+        if (! $candidateModelClass) {
+            return collect();
+        }
+
+        return $candidateModelClass::query()
+            ->when(
+                Industry::candidateModelIsShared($candidateModelClass),
+                fn ($query) => $query->where('industry_id', active_industry_id()),
+            )
+            ->when($eagerLoadJobTitle, fn ($query) => $query->with('jobTitle'))
             ->latest()
             ->limit(self::CANDIDATES_LIMIT)
             ->get();
+    }
+
+    /** @return class-string<Model>|null */
+    private function candidateModelClass(): ?string
+    {
+        return Industry::candidateModelForSlug(active_industry() ?? '');
     }
 
     /** @return Collection<int, array{status: JobStatus, open: int, total: int, url: string}> */
