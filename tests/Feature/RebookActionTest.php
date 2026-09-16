@@ -3,12 +3,10 @@
 use App\Enums\BookingDayPeriod;
 use App\Enums\BookingStatus;
 use App\Filament\Resources\Bookings\BookingResource;
-use App\Filament\Resources\EducationCandidates\Pages\ListEducationCandidates;
-use App\Filament\Resources\HealthcareCandidates\Pages\ListHealthcareCandidates;
+use App\Filament\Resources\Bookings\Pages\ListBookings;
 use App\Models\Booking;
 use App\Models\Client;
 use App\Models\EducationCandidate;
-use App\Models\HealthcareCandidate;
 use App\Models\Industry;
 use App\Models\JobTitle;
 use App\Models\User;
@@ -32,7 +30,7 @@ beforeEach(function () {
     $this->jobTitle = JobTitle::factory()->create(['company_id' => $this->company->id]);
 });
 
-function bookingForNextWeek(EducationCandidate $candidate, Client $client, JobTitle $jobTitle, array $bookingAttributes = []): Booking
+function bookingOnDate(EducationCandidate $candidate, Client $client, JobTitle $jobTitle, string $date, array $bookingAttributes = []): Booking
 {
     $booking = Booking::factory()->create(array_merge([
         'company_id' => $candidate->company_id,
@@ -40,15 +38,24 @@ function bookingForNextWeek(EducationCandidate $candidate, Client $client, JobTi
         'candidate_id' => $candidate->id,
         'candidate_type' => EducationCandidate::class,
         'job_title_id' => $jobTitle->id,
+        // ListBookings' consultant filter defaults to "just the current
+        // user's bookings" for an admin — see BookingFilters::consultant()
+        // — so a row must belong to the acting admin to show up at all.
+        'consultant_id' => auth()->id(),
     ], $bookingAttributes));
 
     $booking->dayPeriods()->create([
         'company_id' => $candidate->company_id,
-        'date' => now()->addWeek()->startOfWeek(Carbon::MONDAY)->toDateString(),
+        'date' => $date,
         'period' => BookingDayPeriod::FullDay,
     ]);
 
     return $booking;
+}
+
+function bookingForNextWeek(EducationCandidate $candidate, Client $client, JobTitle $jobTitle, array $bookingAttributes = []): Booking
+{
+    return bookingOnDate($candidate, $client, $jobTitle, now()->addWeek()->startOfWeek(Carbon::MONDAY)->toDateString(), $bookingAttributes);
 }
 
 test('needsRebookForWeek is true for a candidate with nothing booked next week', function () {
@@ -87,42 +94,38 @@ test('needsRebookForWeek is candidate-level: a booking with a different client s
     expect($candidate->needsRebookForWeek(now()->addWeek()))->toBeFalse();
 });
 
-test('the Rebook action is visible for a candidate with nothing booked next week and hidden once booked', function () {
-    $unbooked = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
-    $booked = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
-    bookingForNextWeek($booked, $this->client, $this->jobTitle);
+test('the Rebook action is visible on a booking row whose candidate has nothing booked next week', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $row = bookingOnDate($candidate, $this->client, $this->jobTitle, now()->toDateString());
 
-    Livewire::test(ListEducationCandidates::class)
-        ->set('activeSection', 'all')
-        ->assertTableActionVisible('rebook', record: $unbooked)
-        ->assertTableActionHidden('rebook', record: $booked);
+    Livewire::test(ListBookings::class)
+        ->assertTableActionVisible('rebook', record: $row);
 });
 
-test('the Rebook action links to a booking-creation form pre-filled with the candidate and next Monday', function () {
+test('the Rebook action is hidden on a booking row whose candidate already has next week covered', function () {
     $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $row = bookingForNextWeek($candidate, $this->client, $this->jobTitle);
+
+    Livewire::test(ListBookings::class)
+        ->assertTableActionHidden('rebook', record: $row);
+});
+
+test('the Rebook action links to a booking-creation form pre-filled with this row\'s candidate, client, job title, and next Monday', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+    $row = bookingOnDate($candidate, $this->client, $this->jobTitle, now()->toDateString());
     $nextMonday = now()->addWeek()->startOfWeek(Carbon::MONDAY);
 
-    $url = Livewire::test(ListEducationCandidates::class)
-        ->set('activeSection', 'all')
+    $url = Livewire::test(ListBookings::class)
         ->instance()
         ->getTable()
         ->getAction('rebook')
-        ->record($candidate)
+        ->record($row)
         ->getUrl();
 
     expect($url)->toBe(BookingResource::getUrl('create', [
         'candidate_id' => $candidate->id,
+        'client_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
         'start_date' => $nextMonday->toDateString(),
     ]));
-});
-
-test('the Rebook action is also wired up on the Healthcare candidates table', function () {
-    $this->industry->update(['slug' => 'healthcare']);
-    Cache::put("user.{$this->user->id}.active_industry", 'healthcare');
-
-    $unbooked = HealthcareCandidate::factory()->create(['company_id' => $this->company->id]);
-
-    Livewire::test(ListHealthcareCandidates::class)
-        ->set('activeSection', 'all')
-        ->assertTableActionVisible('rebook', record: $unbooked);
 });

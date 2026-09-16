@@ -6,7 +6,6 @@ use App\Enums\EmailTemplateAudience;
 use App\Filament\Support\AddToCandidatePoolAction;
 use App\Filament\Support\CandidateSummaryAction;
 use App\Filament\Support\ExportCandidatesCsvAction;
-use App\Filament\Support\RebookAction;
 use App\Filament\Support\SendCustomEmailAction;
 use App\Models\CandidatePool;
 use App\Models\CandidateSkill;
@@ -156,7 +155,6 @@ class EducationCandidatesTable
             ])
             ->recordActions([
                 CandidateSummaryAction::make(),
-                RebookAction::make(),
                 SendCustomEmailAction::record(EmailTemplateAudience::Candidate),
                 EditAction::make(),
             ])

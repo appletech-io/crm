@@ -6,6 +6,7 @@ use App\Enums\BookingStatus;
 use App\Filament\Resources\Bookings\BookingFilters;
 use App\Filament\Support\CandidateSummaryAction;
 use App\Filament\Support\ClientSummaryAction;
+use App\Filament\Support\RebookAction;
 use App\Models\Booking;
 use App\Models\Industry;
 use Filament\Actions\BulkActionGroup;
@@ -84,6 +85,7 @@ class BookingsTable
             ->recordActions([
                 ClientSummaryAction::make(fn (Booking $record) => $record->client),
                 CandidateSummaryAction::make(fn (Booking $record) => $record->candidate()->withTrashed()->first()),
+                RebookAction::make(),
                 EditAction::make(),
             ])
             ->toolbarActions([

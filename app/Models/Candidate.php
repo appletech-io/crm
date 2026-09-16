@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Traits\BelongsToCompany;
 use App\Models\Traits\HasFieldSuggestions;
 use App\Models\Traits\HasProviderExternalId;
+use App\Models\Traits\HasRebookStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -30,6 +31,7 @@ class Candidate extends Model
     use HasFactory;
     use HasFieldSuggestions;
     use HasProviderExternalId;
+    use HasRebookStatus;
     use SoftDeletes;
 
     protected $guarded = [];
