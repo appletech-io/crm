@@ -43,6 +43,7 @@
 
                             <div class="fi-sc-wizard-header-step-text">
                                 <span class="fi-sc-wizard-header-step-label">{{ $segment['status']->name }}</span>
+                                <span class="block text-[11px] text-gray-400 dark:text-gray-500">{{ $segment['applicants'] }} {{ \Illuminate\Support\Str::plural('candidate', $segment['applicants']) }}</span>
                             </div>
                         </button>
 
@@ -82,14 +83,26 @@
                             <span class="text-sm font-medium text-gray-950 dark:text-white">{{ $candidate->first_name }} {{ $candidate->last_name }}</span>
                             <span class="text-xs text-gray-500 dark:text-gray-400">
                                 {{ $candidate->jobTitle?->name ?? 'No job title' }}
+                                @if ($candidate->consultant)
+                                    · {{ $candidate->consultant->name }}
+                                @endif
+                                @if ($candidate->average_rating !== null)
+                                    · ★ {{ number_format($candidate->average_rating, 1) }} ({{ $candidate->ratings_count }})
+                                @endif
                             </span>
                         </div>
 
-                        @if ($candidate->current_status)
-                            <x-filament::badge color="gray">
-                                {{ $candidate->current_status }}
+                        <div class="flex shrink-0 items-center gap-2">
+                            <x-filament::badge :color="$candidate->compliance_completed_at ? 'success' : 'gray'">
+                                {{ $candidate->compliance_completed_at ? 'Compliant' : 'Incomplete' }}
                             </x-filament::badge>
-                        @endif
+
+                            @if ($candidate->current_status)
+                                <x-filament::badge color="gray">
+                                    {{ $candidate->current_status }}
+                                </x-filament::badge>
+                            @endif
+                        </div>
                     </a>
                 @empty
                     <p class="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">No candidates here yet.</p>
@@ -119,6 +132,8 @@
                                 @if ($vacancy->consultant)
                                     · {{ $vacancy->consultant->name }}
                                 @endif
+                                · {{ $vacancy->employment_type?->label() ?? 'Unknown type' }}
+                                · {{ $vacancy->placements_count }}/{{ $vacancy->positions_available }} filled
                             </span>
                         </div>
 

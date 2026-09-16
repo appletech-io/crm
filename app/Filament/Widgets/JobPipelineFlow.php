@@ -14,6 +14,7 @@ use App\Models\HealthcareCandidate;
 use App\Models\Industry;
 use App\Models\JobStatus;
 use App\Models\Vacancy;
+use App\Models\VacancyApplication;
 use Filament\Widgets\Widget;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -156,6 +157,7 @@ class JobPipelineFlow extends Widget
 
         if ($this->poolId) {
             return $this->selectedPool()?->candidates()
+                ->with('consultant')
                 ->when($eagerLoadJobTitle, fn ($query) => $query->with('jobTitle'))
                 ->latest()
                 ->limit($this->candidatesLimit)
@@ -171,6 +173,7 @@ class JobPipelineFlow extends Widget
                 Industry::candidateModelIsShared($candidateModelClass),
                 fn ($query) => $query->where('industry_id', active_industry_id()),
             )
+            ->with('consultant')
             ->when($eagerLoadJobTitle, fn ($query) => $query->with('jobTitle'))
             ->latest()
             ->limit($this->candidatesLimit)
@@ -192,7 +195,7 @@ class JobPipelineFlow extends Widget
         };
     }
 
-    /** @return Collection<int, array{status: JobStatus, open: int, total: int, url: string}> */
+    /** @return Collection<int, array{status: JobStatus, open: int, total: int, applicants: int, url: string}> */
     public function statuses(): Collection
     {
         return JobStatus::query()
@@ -214,11 +217,30 @@ class JobPipelineFlow extends Widget
                     'open' => $vacancies->filter(
                         fn (Vacancy $vacancy): bool => $vacancy->placements_count < $vacancy->positions_available
                     )->count(),
+                    'applicants' => $this->applicantsAtStatus($status),
                     'url' => VacancyResource::getUrl('index', [
                         'tableFilters' => ['job_status_id' => ['value' => $status->id]],
                     ]),
                 ];
             });
+    }
+
+    /**
+     * How many candidates (across every vacancy the current filters allow)
+     * are sitting at this pipeline stage right now — the "pipeline
+     * position" detail alongside each status's job count, since a status
+     * step otherwise only ever said how many jobs were at it, not how many
+     * people.
+     */
+    private function applicantsAtStatus(JobStatus $status): int
+    {
+        return VacancyApplication::query()
+            ->where('job_status_id', $status->id)
+            ->whereHas('vacancy', fn ($query) => $query
+                ->forActiveIndustry()
+                ->when($this->consultantId, fn ($query) => $query->where('consultant_id', $this->consultantId))
+                ->when($this->selectedPoolClientId(), fn ($query, int $clientId) => $query->where('client_id', $clientId)))
+            ->count();
     }
 
     /** @return Collection<int, Vacancy> */
@@ -230,6 +252,7 @@ class JobPipelineFlow extends Widget
             ->when($this->selectedStatusId, fn ($query) => $query->where('job_status_id', $this->selectedStatusId))
             ->when($this->selectedPoolClientId(), fn ($query, int $clientId) => $query->where('client_id', $clientId))
             ->with(['client', 'consultant', 'jobStatus'])
+            ->withCount('placements')
             ->latest()
             ->limit($this->jobsLimit)
             ->get();

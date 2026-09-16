@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\VacancyEmploymentType;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Filament\Resources\Vacancies\VacancyResource;
 use App\Filament\Widgets\JobPipelineFlow;
@@ -12,6 +13,7 @@ use App\Models\Industry;
 use App\Models\JobStatus;
 use App\Models\User;
 use App\Models\Vacancy;
+use App\Models\VacancyApplication;
 use App\Models\VacancyPlacement;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
@@ -490,4 +492,92 @@ test('changing the pool resets both lists back to the first 20', function () {
         ->set('poolId', $pool->id)
         ->assertSet('jobsLimit', 20)
         ->assertSet('candidatesLimit', 20);
+});
+
+test('each status step counts candidates whose application sits at that stage', function () {
+    $status = JobStatus::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+    $otherStatus = JobStatus::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+
+    $vacancy = Vacancy::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+
+    foreach (range(1, 2) as $i) {
+        VacancyApplication::create([
+            'vacancy_id' => $vacancy->id,
+            'candidate_type' => Candidate::class,
+            'candidate_id' => Candidate::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id])->id,
+            'job_status_id' => $status->id,
+        ]);
+    }
+
+    VacancyApplication::create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => Candidate::class,
+        'candidate_id' => Candidate::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id])->id,
+        'job_status_id' => $otherStatus->id,
+    ]);
+
+    $widget = new JobPipelineFlow;
+    $segments = $widget->statuses();
+
+    expect($segments->firstWhere('status.id', $status->id)['applicants'])->toBe(2)
+        ->and($segments->firstWhere('status.id', $otherStatus->id)['applicants'])->toBe(1);
+});
+
+test('the inline jobs list shows positions filled and employment type', function () {
+    $vacancy = Vacancy::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'title' => 'Senior Engineer',
+        'positions_available' => 3,
+        'employment_type' => VacancyEmploymentType::Permanent,
+    ]);
+
+    VacancyPlacement::factory()->create([
+        'vacancy_id' => $vacancy->id,
+        'candidate_type' => Candidate::class,
+        'candidate_id' => Candidate::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id])->id,
+        'placed_at' => now(),
+    ]);
+
+    Livewire::test(JobPipelineFlow::class)
+        ->assertSee('Senior Engineer')
+        ->assertSee('1/3 filled')
+        ->assertSee('Permanent');
+});
+
+test('the inline candidates list shows consultant, rating, and compliance status', function () {
+    $consultant = User::factory()->create(['company_id' => $this->company->id]);
+
+    Candidate::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'first_name' => 'Compliant',
+        'last_name' => 'Candidate',
+        'consultant_id' => $consultant->id,
+        'average_rating' => 4.5,
+        'ratings_count' => 3,
+        'compliance_completed_at' => now(),
+    ]);
+
+    Livewire::test(JobPipelineFlow::class)
+        ->call('selectCandidates')
+        ->assertSee('Compliant Candidate')
+        ->assertSee($consultant->name)
+        ->assertSee('4.5 (3)')
+        ->assertSee('Compliant');
+});
+
+test('an incomplete candidate is shown as Incomplete rather than Compliant', function () {
+    Candidate::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'first_name' => 'Pending',
+        'last_name' => 'Candidate',
+        'compliance_completed_at' => null,
+    ]);
+
+    Livewire::test(JobPipelineFlow::class)
+        ->call('selectCandidates')
+        ->assertSee('Pending Candidate')
+        ->assertSee('Incomplete');
 });
