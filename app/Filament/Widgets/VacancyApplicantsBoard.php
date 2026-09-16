@@ -21,11 +21,13 @@ use Carbon\CarbonPeriod;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Concerns\InteractsWithSchemas;
 use Filament\Schemas\Contracts\HasSchemas;
 use Filament\Widgets\Widget;
+use Illuminate\Database\Eloquent\Model as EloquentModel;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 
@@ -114,6 +116,83 @@ class VacancyApplicantsBoard extends Widget implements HasActions, HasSchemas
                 ->title("Don't forget to record {$candidateName}'s placement to log their salary.")
                 ->send();
         }
+    }
+
+    /**
+     * Lets a consultant put any candidate from their pool straight onto this
+     * board, rather than only ever via a public application or a Matches
+     * row — e.g. someone they already know is right for the role. Left
+     * without a job_status_id so VacancyApplicationObserver lands it in the
+     * pipeline's first column, same as any other new application.
+     */
+    public function addCandidateAction(): Action
+    {
+        return Action::make('addCandidate')
+            ->label('Add Candidate')
+            ->icon('heroicon-o-user-plus')
+            ->schema([
+                Select::make('candidate_id')
+                    ->label('Candidate')
+                    ->options(fn (): array => $this->addableCandidateOptions())
+                    ->searchable()
+                    ->required(),
+            ])
+            ->action(function (array $data): void {
+                $candidateModelClass = $this->record->industry?->candidateModel();
+
+                if (! $candidateModelClass) {
+                    return;
+                }
+
+                $application = VacancyApplication::firstOrCreate([
+                    'vacancy_id' => $this->record->id,
+                    'candidate_type' => $candidateModelClass,
+                    'candidate_id' => $data['candidate_id'],
+                ]);
+
+                $application->load('candidate');
+                $candidateName = $this->candidateName($application);
+
+                $this->record->activities()->create([
+                    'user_id' => Auth::id(),
+                    'type' => ActivityType::Note->value,
+                    'note' => "Added to pipeline: {$candidateName}",
+                    'contacted' => false,
+                ]);
+
+                Notification::make()
+                    ->success()
+                    ->title("{$candidateName} added to the pipeline")
+                    ->send();
+            });
+    }
+
+    /** @return array<int, string> */
+    private function addableCandidateOptions(): array
+    {
+        $candidateModelClass = $this->record->industry?->candidateModel();
+
+        if (! $candidateModelClass) {
+            return [];
+        }
+
+        $alreadyApplied = $this->record->applications()
+            ->where('candidate_type', $candidateModelClass)
+            ->pluck('candidate_id');
+
+        return $candidateModelClass::query()
+            ->where('company_id', $this->record->company_id)
+            ->when(
+                $candidateModelClass === Candidate::class,
+                fn ($query) => $query->where('industry_id', $this->record->industry_id),
+            )
+            ->whereNotIn('id', $alreadyApplied)
+            ->orderBy('first_name')
+            ->get()
+            ->mapWithKeys(fn (EloquentModel $candidate): array => [
+                $candidate->id => trim("{$candidate->first_name} {$candidate->last_name}"),
+            ])
+            ->all();
     }
 
     public function isPlaced(VacancyApplication $application): bool

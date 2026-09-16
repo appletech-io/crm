@@ -9,6 +9,16 @@
             No Job Statuses have been configured for this industry yet — add some under Settings &rarr; Job Statuses to build this board.
         </div>
     @else
+        <div class="mb-3 flex justify-end">
+            <x-filament::button
+                icon="heroicon-o-user-plus"
+                size="sm"
+                wire:click="mountAction('addCandidate')"
+            >
+                Add Candidate
+            </x-filament::button>
+        </div>
+
         <div
             x-data="{
                 init() {
