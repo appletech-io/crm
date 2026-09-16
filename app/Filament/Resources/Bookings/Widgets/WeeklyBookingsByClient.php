@@ -6,6 +6,7 @@ use App\Filament\Resources\Bookings\BookingFilters;
 use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Support\CandidateSummaryAction;
 use App\Filament\Support\ClientSummaryAction;
+use App\Filament\Support\RebookAction;
 use App\Models\Booking;
 use App\Models\BookingDay;
 use Filament\Actions\Action;
@@ -87,6 +88,7 @@ class WeeklyBookingsByClient extends BaseWidget
             ->recordActions([
                 CandidateSummaryAction::make(fn (Booking $record) => $record->candidate),
                 ClientSummaryAction::make(fn (Booking $record) => $record->client),
+                RebookAction::make(),
             ])
             ->headerActions([
                 Action::make('previousWeek')
