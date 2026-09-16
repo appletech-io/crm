@@ -2,12 +2,14 @@
 
 use App\Filament\Resources\CandidatePools\CandidatePoolResource;
 use App\Filament\Resources\Candidates\CandidateResource;
+use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Filament\Resources\Vacancies\VacancyResource;
 use App\Filament\Widgets\JobPipelineFlow;
 use App\Models\Candidate;
 use App\Models\CandidatePool;
 use App\Models\Client;
 use App\Models\Company;
+use App\Models\EducationCandidate;
 use App\Models\Industry;
 use App\Models\JobStatus;
 use App\Models\User;
@@ -402,4 +404,38 @@ test('the pool options only include pools visible to the current user', function
     $widget = new JobPipelineFlow;
 
     expect($widget->poolOptions())->toBe([$ownPool->id => 'Mine']);
+});
+
+test('for an Education company, the candidates segment counts EducationCandidate records instead of the generic Candidate model', function () {
+    $educationIndustry = Industry::factory()->create(['slug' => 'education']);
+    $this->company->industries()->attach($educationIndustry->id, ['uses_bookings' => true]);
+    $this->admin->industries()->attach($educationIndustry);
+
+    Cache::put("user.{$this->admin->id}.active_industry", $educationIndustry->slug);
+    Cache::put("user.{$this->admin->id}.active_industry_id", $educationIndustry->id);
+
+    EducationCandidate::factory()->count(2)->create(['company_id' => $this->company->id]);
+    // A decoy in the generic Candidate model must not be counted here.
+    Candidate::factory()->create(['company_id' => $this->company->id, 'industry_id' => $this->industry->id]);
+
+    $widget = new JobPipelineFlow;
+
+    expect($widget->candidatesCount())->toBe(2)
+        ->and($widget->candidatesUrl())->toBe(EducationCandidateResource::getUrl('index'))
+        ->and($widget->selectedCandidates())->toHaveCount(2);
+});
+
+test('for an Education company, rendering the candidates step does not throw for a candidate with no jobTitle relation', function () {
+    $educationIndustry = Industry::factory()->create(['slug' => 'education']);
+    $this->company->industries()->attach($educationIndustry->id, ['uses_bookings' => true]);
+    $this->admin->industries()->attach($educationIndustry);
+
+    Cache::put("user.{$this->admin->id}.active_industry", $educationIndustry->slug);
+    Cache::put("user.{$this->admin->id}.active_industry_id", $educationIndustry->id);
+
+    EducationCandidate::factory()->create(['company_id' => $this->company->id]);
+
+    Livewire::test(JobPipelineFlow::class)
+        ->call('selectCandidates')
+        ->assertSuccessful();
 });
