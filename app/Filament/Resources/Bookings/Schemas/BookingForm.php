@@ -195,9 +195,6 @@ class BookingForm
                         ->required()
                         ->live()
                         ->afterStateUpdated(fn (Set $set, Get $get) => static::regenerateDayPeriods($set, $get)),
-                    DatePicker::make('end_date')
-                        ->live()
-                        ->afterStateUpdated(fn (Set $set, Get $get) => static::regenerateDayPeriods($set, $get)),
                     Select::make('status')
                         ->options(BookingStatus::options())
                         ->required()
@@ -225,6 +222,9 @@ class BookingForm
                     ? 'Approved days, and days already sent to the payroll provider, are locked and cannot be selected. The remaining days can still be changed — e.g. mark a day N/A when the candidate calls in sick.'
                     : null)
                 ->schema([
+                    DatePicker::make('end_date')
+                        ->live()
+                        ->afterStateUpdated(fn (Set $set, Get $get) => static::regenerateDayPeriods($set, $get)),
                     CheckboxList::make('days_of_week')
                         ->disabled(fn (?Booking $record): bool => static::isSettled($record))
                         ->label('Repeat on')

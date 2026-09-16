@@ -2201,6 +2201,7 @@ test('a part-approved booking locks its terms but keeps the schedule editable', 
         ->assertFormFieldDisabled('candidate_id')
         ->assertFormFieldDisabled('job_title_id')
         ->assertFormFieldDisabled('start_date')
+        ->assertFormFieldEnabled('end_date')
         ->assertFormFieldDisabled('status')
         ->assertFormFieldDisabled('day_rate')
         ->assertFormFieldDisabled('days_of_week')
@@ -2230,6 +2231,7 @@ test('a booking whose days are all approved stays entirely read-only', function 
     Livewire::test(EditBooking::class, ['record' => $booking->getRouteKey()])
         ->assertSuccessful()
         ->assertFormFieldDisabled('day_periods')
+        ->assertFormFieldDisabled('end_date')
         ->assertDontSee('Save changes');
 });
 
