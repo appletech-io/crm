@@ -71,25 +71,139 @@ class ClientForm
 
                 Tabs::make('Tabs')
                     ->tabs([
-                        Tab::make('Activity')
+                        Tab::make('Contacts')
                             ->schema([
-                                LivewireComponent::make(ClientActivityTimeline::class)
-                                    ->key('client-activity-timeline')
-                                    ->hidden(fn (?Model $record): bool => $record === null),
-                            ]),
+                                Repeater::make('contacts')
+                                    ->relationship()
+                                    ->hiddenLabel()
+                                    ->schema([
+                                        TextInput::make('title')
+                                            ->maxLength(255),
+                                        Select::make('client_contact_job_title_id')
+                                            ->label('Job Title')
+                                            ->options(fn (): array => ClientContactJobTitle::query()
+                                                ->where('company_id', Auth::user()->company_id)
+                                                ->where('industry_id', active_industry_id())
+                                                ->pluck('name', 'id')
+                                                ->toArray()
+                                            )
+                                            ->searchable(),
+                                        TextInput::make('first_name')
+                                            ->required()
+                                            ->maxLength(255),
+                                        TextInput::make('last_name')
+                                            ->maxLength(255),
+                                        TextInput::make('email')
+                                            ->email()
+                                            // This repeater collapses each contact by default, so a
+                                            // malformed legacy email (e.g. from an old import) sitting
+                                            // in a collapsed row can't be focused by the browser's own
+                                            // type="email" constraint check — it just blocks saving
+                                            // the whole client with an inscrutable error. Forcing the
+                                            // input back to type="text" keeps ->email()'s validation
+                                            // rule (so Livewire still catches and reports it, expanding
+                                            // the offending row) without the native browser check.
+                                            ->extraInputAttributes(['type' => 'text'])
+                                            ->maxLength(255)
+                                            // Only bites on a brand new contact — an already-saved one
+                                            // can be edited freely even without an email, since the
+                                            // toggle below no longer does anything for them anyway.
+                                            ->required(fn (Get $get): bool => blank($get('id')) && (bool) $get('wants_portal_access'))
+                                            ->columnSpanFull(),
+                                        TextInput::make('direct_dial')
+                                            ->label('Direct Dial')
+                                            ->tel()
+                                            ->maxLength(255),
+                                        TextInput::make('extension')
+                                            ->label('Extension')
+                                            ->maxLength(255),
+                                        TextInput::make('mobile')
+                                            ->label('Mobile')
+                                            ->tel()
+                                            ->maxLength(255),
+                                        Toggle::make('wants_portal_access')
+                                            ->label('Create User Account')
+                                            ->helperText(fn (Get $get): string => filled($get('id'))
+                                                ? 'Only takes effect when the contact is created — use "Create User Account" below for an existing contact.'
+                                                : 'Sends this contact a login to the client portal with an auto-generated password.'
+                                            )
+                                            ->default(true)
+                                            ->disabled(fn (Get $get): bool => filled($get('id')))
+                                            ->live()
+                                            ->columnSpanFull(),
+                                        Toggle::make('main_contact')
+                                            ->label('Main Contact')
+                                            ->live(),
+                                        Toggle::make('timesheet_contact')
+                                            ->label('Timesheet Contact')
+                                            ->live(),
+                                        Toggle::make('invoice_contact')
+                                            ->label('Invoice Contact')
+                                            ->live(),
+                                        Toggle::make('booking_contact')
+                                            ->label('Booking Contact')
+                                            ->live(),
+                                        Text::make(function (Get $get): string {
+                                            $roles = collect([
+                                                'main_contact' => 'Main Contact',
+                                                'timesheet_contact' => 'Timesheet Contact',
+                                                'invoice_contact' => 'Invoice Contact',
+                                                'booking_contact' => 'Booking Contact',
+                                            ])->filter(fn (string $label, string $key): bool => (bool) $get($key))
+                                                ->values();
 
-                        Tab::make('Bookings')
-                            ->schema([
-                                LivewireComponent::make(ClientTimesheetOverview::class)
-                                    ->key('client-timesheet-overview')
-                                    ->hidden(fn (?Model $record): bool => $record === null),
-                            ]),
+                                            return $roles->isNotEmpty() ? $roles->implode(', ') : 'No roles assigned';
+                                        })
+                                            ->color(fn (Get $get): string => $get('main_contact') ? 'success' : 'gray')
+                                            ->columnSpanFull(),
+                                        Actions::make([
+                                            Action::make('create_portal_account')
+                                                ->label('Create User Account')
+                                                ->icon('heroicon-o-key')
+                                                ->color('gray')
+                                                ->requiresConfirmation()
+                                                ->modalDescription('This emails the contact a login to the client portal with an auto-generated password.')
+                                                ->visible(fn (Get $get): bool => filled($get('id'))
+                                                    && filled($get('email'))
+                                                    && ! User::withoutGlobalScope('company')->where('client_contact_id', $get('id'))->exists()
+                                                )
+                                                ->action(function (Get $get): void {
+                                                    $contact = ClientContact::find($get('id'));
 
-                        Tab::make('Pipeline')
-                            ->schema([
-                                LivewireComponent::make(ClientPipelineOverview::class)
-                                    ->key('client-pipeline-overview')
-                                    ->hidden(fn (?Model $record): bool => $record === null),
+                                                    if (! $contact) {
+                                                        return;
+                                                    }
+
+                                                    $user = CreateClientContactPortalAccount::run($contact);
+
+                                                    $notification = Notification::make()
+                                                        ->title($user ? 'Portal account created' : 'Could not create a portal account — that email may already be in use');
+
+                                                    $user ? $notification->success() : $notification->warning();
+
+                                                    $notification->send();
+                                                }),
+                                        ])
+                                            ->visible(fn (Get $get): bool => filled($get('id')))
+                                            ->columnSpanFull(),
+                                    ])
+                                    ->columns(2)
+                                    ->itemLabel(function (array $state): ?string {
+                                        $name = trim(($state['first_name'] ?? '').' '.($state['last_name'] ?? '')) ?: 'Contact';
+
+                                        $roles = collect([
+                                            'main_contact' => 'Main',
+                                            'timesheet_contact' => 'Timesheet',
+                                            'invoice_contact' => 'Invoice',
+                                            'booking_contact' => 'Booking',
+                                        ])->filter(fn (string $label, string $key): bool => (bool) ($state[$key] ?? false))
+                                            ->values();
+
+                                        return $roles->isNotEmpty() ? "{$name} — {$roles->implode(', ')}" : $name;
+                                    })
+                                    ->collapsible()
+                                    ->collapsed()
+                                    ->columnSpanFull(),
                             ]),
 
                         Tab::make('Details')
@@ -316,128 +430,25 @@ class ClientForm
 
                             ]),
 
-                        Tab::make('Contacts')
+                        Tab::make('Activity')
                             ->schema([
-                                Repeater::make('contacts')
-                                    ->relationship()
-                                    ->hiddenLabel()
-                                    ->schema([
-                                        TextInput::make('title')
-                                            ->maxLength(255),
-                                        Select::make('client_contact_job_title_id')
-                                            ->label('Job Title')
-                                            ->options(fn (): array => ClientContactJobTitle::query()
-                                                ->where('company_id', Auth::user()->company_id)
-                                                ->where('industry_id', active_industry_id())
-                                                ->pluck('name', 'id')
-                                                ->toArray()
-                                            )
-                                            ->searchable(),
-                                        TextInput::make('first_name')
-                                            ->required()
-                                            ->maxLength(255),
-                                        TextInput::make('last_name')
-                                            ->maxLength(255),
-                                        TextInput::make('email')
-                                            ->email()
-                                            // This repeater collapses each contact by default, so a
-                                            // malformed legacy email (e.g. from an old import) sitting
-                                            // in a collapsed row can't be focused by the browser's own
-                                            // type="email" constraint check — it just blocks saving
-                                            // the whole client with an inscrutable error. Forcing the
-                                            // input back to type="text" keeps ->email()'s validation
-                                            // rule (so Livewire still catches and reports it, expanding
-                                            // the offending row) without the native browser check.
-                                            ->extraInputAttributes(['type' => 'text'])
-                                            ->maxLength(255)
-                                            // Only bites on a brand new contact — an already-saved one
-                                            // can be edited freely even without an email, since the
-                                            // toggle below no longer does anything for them anyway.
-                                            ->required(fn (Get $get): bool => blank($get('id')) && (bool) $get('wants_portal_access'))
-                                            ->columnSpanFull(),
-                                        Toggle::make('wants_portal_access')
-                                            ->label('Create User Account')
-                                            ->helperText(fn (Get $get): string => filled($get('id'))
-                                                ? 'Only takes effect when the contact is created — use "Create User Account" below for an existing contact.'
-                                                : 'Sends this contact a login to the client portal with an auto-generated password.'
-                                            )
-                                            ->default(true)
-                                            ->disabled(fn (Get $get): bool => filled($get('id')))
-                                            ->live()
-                                            ->columnSpanFull(),
-                                        Toggle::make('main_contact')
-                                            ->label('Main Contact')
-                                            ->live(),
-                                        Toggle::make('timesheet_contact')
-                                            ->label('Timesheet Contact')
-                                            ->live(),
-                                        Toggle::make('invoice_contact')
-                                            ->label('Invoice Contact')
-                                            ->live(),
-                                        Toggle::make('booking_contact')
-                                            ->label('Booking Contact')
-                                            ->live(),
-                                        Text::make(function (Get $get): string {
-                                            $roles = collect([
-                                                'main_contact' => 'Main Contact',
-                                                'timesheet_contact' => 'Timesheet Contact',
-                                                'invoice_contact' => 'Invoice Contact',
-                                                'booking_contact' => 'Booking Contact',
-                                            ])->filter(fn (string $label, string $key): bool => (bool) $get($key))
-                                                ->values();
+                                LivewireComponent::make(ClientActivityTimeline::class)
+                                    ->key('client-activity-timeline')
+                                    ->hidden(fn (?Model $record): bool => $record === null),
+                            ]),
 
-                                            return $roles->isNotEmpty() ? $roles->implode(', ') : 'No roles assigned';
-                                        })
-                                            ->color(fn (Get $get): string => $get('main_contact') ? 'success' : 'gray')
-                                            ->columnSpanFull(),
-                                        Actions::make([
-                                            Action::make('create_portal_account')
-                                                ->label('Create User Account')
-                                                ->icon('heroicon-o-key')
-                                                ->color('gray')
-                                                ->requiresConfirmation()
-                                                ->modalDescription('This emails the contact a login to the client portal with an auto-generated password.')
-                                                ->visible(fn (Get $get): bool => filled($get('id'))
-                                                    && filled($get('email'))
-                                                    && ! User::withoutGlobalScope('company')->where('client_contact_id', $get('id'))->exists()
-                                                )
-                                                ->action(function (Get $get): void {
-                                                    $contact = ClientContact::find($get('id'));
+                        Tab::make('Bookings')
+                            ->schema([
+                                LivewireComponent::make(ClientTimesheetOverview::class)
+                                    ->key('client-timesheet-overview')
+                                    ->hidden(fn (?Model $record): bool => $record === null),
+                            ]),
 
-                                                    if (! $contact) {
-                                                        return;
-                                                    }
-
-                                                    $user = CreateClientContactPortalAccount::run($contact);
-
-                                                    $notification = Notification::make()
-                                                        ->title($user ? 'Portal account created' : 'Could not create a portal account — that email may already be in use');
-
-                                                    $user ? $notification->success() : $notification->warning();
-
-                                                    $notification->send();
-                                                }),
-                                        ])
-                                            ->visible(fn (Get $get): bool => filled($get('id')))
-                                            ->columnSpanFull(),
-                                    ])
-                                    ->columns(2)
-                                    ->itemLabel(function (array $state): ?string {
-                                        $name = trim(($state['first_name'] ?? '').' '.($state['last_name'] ?? '')) ?: 'Contact';
-
-                                        $roles = collect([
-                                            'main_contact' => 'Main',
-                                            'timesheet_contact' => 'Timesheet',
-                                            'invoice_contact' => 'Invoice',
-                                            'booking_contact' => 'Booking',
-                                        ])->filter(fn (string $label, string $key): bool => (bool) ($state[$key] ?? false))
-                                            ->values();
-
-                                        return $roles->isNotEmpty() ? "{$name} — {$roles->implode(', ')}" : $name;
-                                    })
-                                    ->collapsible()
-                                    ->collapsed()
-                                    ->columnSpanFull(),
+                        Tab::make('Pipeline')
+                            ->schema([
+                                LivewireComponent::make(ClientPipelineOverview::class)
+                                    ->key('client-pipeline-overview')
+                                    ->hidden(fn (?Model $record): bool => $record === null),
                             ]),
 
                         Tab::make('Charge Rates')
