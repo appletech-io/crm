@@ -207,4 +207,41 @@ class Client extends Model
     {
         return $this->hasMany(ProviderError::class);
     }
+
+    public function bookings(): HasMany
+    {
+        return $this->hasMany(Booking::class);
+    }
+
+    /**
+     * Mirrors EducationCandidate/HealthcareCandidate::lastBookingDate() — the
+     * end (or, for an open-ended booking, start) date of this client's most
+     * recent non-Requested booking. Null for a client who's never had one,
+     * so ClientStatusColour never conflates "never booked" with "booked a
+     * while ago".
+     */
+    protected function lastBookingDate(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->bookings()
+                ->excludingRequests()
+                ->selectRaw('MAX(COALESCE(end_date, start_date)) as last_date')
+                ->value('last_date'),
+        );
+    }
+
+    /**
+     * Whether this client has at least one non-cancelled, non-Requested
+     * booked day today — the "currently working with schools" signal
+     * ClientStatusColour uses for its Green state.
+     */
+    public function hasActiveBookingToday(): bool
+    {
+        return $this->bookings()
+            ->excludingRequests()
+            ->whereHas('dayPeriods', fn (Builder $query) => $query
+                ->whereDate('date', now()->toDateString())
+                ->whereNull('cancelled_at'))
+            ->exists();
+    }
 }

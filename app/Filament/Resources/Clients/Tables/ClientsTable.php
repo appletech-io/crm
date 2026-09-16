@@ -7,6 +7,7 @@ use App\Filament\Support\ClientSummaryAction;
 use App\Filament\Support\SendCustomEmailAction;
 use App\Models\Client;
 use App\Models\User;
+use App\Services\Clients\ClientStatusColour;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -31,7 +32,8 @@ class ClientsTable
             ->columns([
                 TextColumn::make('name')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->color(fn (Client $record): ?string => ClientStatusColour::for($record)),
                 TextColumn::make('clientType.name')
                     ->label('Client Type')
                     ->searchable()
