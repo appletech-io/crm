@@ -9,9 +9,9 @@ use Filament\Support\Icons\Heroicon;
 
 /**
  * A standalone home for {@see JobPipelineFlow}, separate from the main
- * Dashboard — same "no Bookings" industries the widget itself was built
- * for (see Dashboard::__construct()), since Jobs → Candidates → Status only
- * means anything where Bookings/Payroll aren't the industry's own pipeline.
+ * Dashboard — available for every company and sector, unlike Bookings/
+ * Payroll, which a company can turn off per industry (see
+ * CompanyFeaturesForm's uses_bookings toggle).
  */
 class JobPipeline extends Page
 {
@@ -32,7 +32,7 @@ class JobPipeline extends Page
 
     public static function canAccess(): bool
     {
-        return active_industry() !== null && ! active_industry_uses_bookings();
+        return active_industry() !== null;
     }
 
     public function getMaxContentWidth(): Width
