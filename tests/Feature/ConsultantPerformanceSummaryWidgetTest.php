@@ -69,7 +69,7 @@ test('it reports gross profit, days out, working candidates, clients booked, and
 
     $stats = Livewire::test(ConsultantPerformanceSummary::class)->instance()->weekStats();
 
-    expect($stats['gp'])->toBe(50.0)
+    expect($stats['gp'])->toBe(35.0)
         ->and($stats['daysPlaced'])->toBe(1)
         ->and($stats['candidates'])->toBe(1)
         ->and($stats['clients'])->toBe(1)
@@ -252,7 +252,7 @@ test('a stat is colored green when this week\'s actual meets or exceeds the cons
     ConsultantKpiTarget::factory()->create([
         'user_id' => $consultant->id,
         'industry_id' => $industry->id,
-        'gp_target' => 40,
+        'gp_target' => 30,
     ]);
 
     $client = Client::factory()->create(['company_id' => $this->company->id]);
@@ -279,7 +279,7 @@ test('a stat is colored amber between 80% and 100% of the consultant\'s target',
     ConsultantKpiTarget::factory()->create([
         'user_id' => $consultant->id,
         'industry_id' => $industry->id,
-        'gp_target' => 60,
+        'gp_target' => 40,
     ]);
 
     $client = Client::factory()->create(['company_id' => $this->company->id]);

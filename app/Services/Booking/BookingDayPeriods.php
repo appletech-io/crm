@@ -36,6 +36,16 @@ class BookingDayPeriods
         return round(abs(Carbon::parse($dayPeriod->time_from)->diffInMinutes(Carbon::parse($dayPeriod->time_to))) / 60, 2);
     }
 
+    /**
+     * The number of rate units a day period represents: the hours scheduled
+     * for an Hours-period day (its rate is per hour), or 1 for a day that's
+     * billed as a single unit (full day / half day) regardless of duration.
+     */
+    public static function unitsFor(BookingDay $dayPeriod): float
+    {
+        return self::totalHours($dayPeriod) ?? 1.0;
+    }
+
     private static function formatTimes(BookingDay $dayPeriod): string
     {
         if (! $dayPeriod->time_from) {

@@ -16,6 +16,7 @@ use App\Models\JobTitle;
 use App\Models\PayRate;
 use App\Services\Booking\BookingEligibility;
 use App\Services\Booking\BookingOverlap;
+use App\Services\Booking\MarginCalculator;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Closure;
@@ -488,15 +489,6 @@ class BookingForm
     }
 
     /**
-     * Applied to the pay cost only for a PAYE candidate — this agency's
-     * standard approximation of employer's National Insurance and other
-     * statutory on-costs. An umbrella company candidate is invoiced as a
-     * single fee that already covers their own employment costs, so there's
-     * no additional on-cost to the agency on top of the pay rate for them.
-     */
-    private const PAYE_ONCOST_RATE = 0.15;
-
-    /**
      * @return array{
      *     paymentMethod: ?PaymentMethod,
      *     paymentMethodLabel: string,
@@ -511,13 +503,9 @@ class BookingForm
     protected static function marginBreakdown(Get $get): array
     {
         $dayAmounts = static::activeDayAmounts($get);
-
-        $totalPay = $dayAmounts->sum('pay');
-        $totalCharge = $dayAmounts->sum('charge');
-
         $paymentMethod = static::candidatePaymentMethod($get('candidate_id'));
-        $oncosts = $paymentMethod === PaymentMethod::Paye ? round($totalPay * self::PAYE_ONCOST_RATE, 2) : 0.0;
-        $margin = round($totalCharge - $totalPay - $oncosts, 2);
+
+        $breakdown = MarginCalculator::breakdown($dayAmounts->sum('pay'), $dayAmounts->sum('charge'), $paymentMethod);
 
         $paymentMethodLabel = match ($paymentMethod) {
             PaymentMethod::Paye => 'PAYE',
@@ -526,23 +514,20 @@ class BookingForm
         };
 
         $oncostsLabel = match (true) {
-            $paymentMethod === PaymentMethod::Paye => '£'.number_format($oncosts, 2).' ('.(self::PAYE_ONCOST_RATE * 100).'% of pay, PAYE)',
+            $paymentMethod === PaymentMethod::Paye => '£'.number_format($breakdown['oncosts'], 2).' ('.(MarginCalculator::PAYE_ONCOST_RATE * 100).'% of pay, PAYE)',
             $paymentMethod === PaymentMethod::Umbrella => '£0.00 (umbrella company invoices their own costs)',
             default => '£0.00 (no payment method set on the candidate)',
         };
 
-        $marginPercent = $totalCharge > 0 ? round(($margin / $totalCharge) * 100, 1) : 0.0;
-        $marginLabel = '£'.number_format($margin, 2)." ({$marginPercent}%)";
-
         return [
             'paymentMethod' => $paymentMethod,
             'paymentMethodLabel' => $paymentMethodLabel,
-            'totalPay' => round($totalPay, 2),
-            'totalCharge' => round($totalCharge, 2),
-            'oncosts' => $oncosts,
+            'totalPay' => $breakdown['totalPay'],
+            'totalCharge' => $breakdown['totalCharge'],
+            'oncosts' => $breakdown['oncosts'],
             'oncostsLabel' => $oncostsLabel,
-            'margin' => $margin,
-            'marginLabel' => $marginLabel,
+            'margin' => $breakdown['margin'],
+            'marginLabel' => '£'.number_format($breakdown['margin'], 2)." ({$breakdown['marginPercent']}%)",
         ];
     }
 
@@ -597,8 +582,7 @@ class BookingForm
         return static::activeDayAmounts($get)
             ->sortBy('date')
             ->map(function (array $day) use ($paymentMethod, $periodLabels): array {
-                $oncost = $paymentMethod === PaymentMethod::Paye ? round($day['pay'] * self::PAYE_ONCOST_RATE, 2) : 0.0;
-                $margin = round($day['charge'] - $day['pay'] - $oncost, 2);
+                $margin = MarginCalculator::breakdown($day['pay'], $day['charge'], $paymentMethod)['margin'];
 
                 return [
                     'date' => $day['date'] ? Carbon::parse($day['date'])->format('D j M Y') : 'Unknown date',
