@@ -11,6 +11,7 @@ use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
 
 /**
@@ -24,8 +25,8 @@ use Illuminate\Support\HtmlString;
  */
 trait HasPayrollBookingsTable
 {
-    /** @var array<int, bool> Memoized per client_id — see clientHasUnapprovedDays(). */
-    private array $clientHasUnapprovedDaysCache = [];
+    /** @var array<int, array{total: int, approved: int, disputed: int, awaiting: int}> Memoized per client_id — see clientPeriodStats(). */
+    private array $clientPeriodStatsCache = [];
 
     /**
      * @param  array<int, Action>  $headerActions
@@ -43,8 +44,8 @@ trait HasPayrollBookingsTable
             ->groups([
                 Group::make('booking.client_id')
                     ->label('Client')
-                    ->getTitleFromRecordUsing(fn (BookingDay $record): string => $this->clientLabel($record))
-                    ->getDescriptionFromRecordUsing(fn (BookingDay $record): Htmlable => $this->clientApprovalStatusMarker($record))
+                    ->getTitleFromRecordUsing(fn (BookingDay $record): Htmlable => $this->clientGroupTitle($record))
+                    ->getDescriptionFromRecordUsing(fn (BookingDay $record): ?Htmlable => $this->clientGroupDescription($record))
                     ->collapsible(),
             ])
             ->defaultGroup('booking.client_id')
@@ -116,48 +117,113 @@ trait HasPayrollBookingsTable
     }
 
     /**
-     * A visually-hidden marker (no visible badge text — just the group
-     * header's red/green tint) carrying a data-payroll-group-status
-     * attribute so CSS (see run-payroll.blade.php) can colour the whole
-     * group header row to match, since Filament's table Group has no
-     * colour/class API of its own. Still readable by screen readers.
+     * A warning-triangle/check-circle icon next to the client's name — a
+     * saturated colour that's actually visible at a glance, replacing the
+     * previous pale red/green group-header background tint that could wash
+     * out the row text it sat behind. The icon is aria-hidden with an
+     * adjacent sr-only label carrying the same meaning for screen readers.
      */
-    private function clientApprovalStatusMarker(BookingDay $record): Htmlable
+    private function clientGroupTitle(BookingDay $record): Htmlable
+    {
+        $clientId = $record->booking?->client_id;
+        $needsAttention = $clientId === null || $this->clientHasUnapprovedDays($clientId);
+
+        return new HtmlString(Blade::render(
+            <<<'BLADE'
+                <x-filament::icon
+                    :icon="$icon"
+                    :class="$class"
+                    aria-hidden="true"
+                /><span class="sr-only">{{ $srLabel }}</span> {{ $name }}
+                BLADE,
+            [
+                'icon' => $needsAttention ? 'heroicon-o-exclamation-triangle' : 'heroicon-o-check-circle',
+                'class' => $needsAttention
+                    ? 'inline h-4 w-4 shrink-0 align-text-bottom text-red-600 dark:text-red-400'
+                    : 'inline h-4 w-4 shrink-0 align-text-bottom text-green-600 dark:text-green-400',
+                'srLabel' => $needsAttention ? 'Bookings to confirm' : 'Fully approved',
+                'name' => $this->clientLabel($record),
+            ]
+        ));
+    }
+
+    /**
+     * The visible line under the client's name — how many days this client
+     * has this period and, when relevant, how many of those are disputed or
+     * still awaiting a response, so the consultant can gauge the size of
+     * what's outstanding without expanding the (collapsed-by-default) group.
+     */
+    private function clientGroupDescription(BookingDay $record): ?Htmlable
     {
         $clientId = $record->booking?->client_id;
 
-        if ($clientId === null || $this->clientHasUnapprovedDays($clientId)) {
-            return new HtmlString(
-                '<span data-payroll-group-status="awaiting" class="sr-only">Bookings to confirm</span>'
-            );
+        if ($clientId === null) {
+            return null;
         }
 
-        return new HtmlString(
-            '<span data-payroll-group-status="approved" class="sr-only">Fully approved</span>'
-        );
+        $stats = $this->clientPeriodStats($clientId);
+        $dayWord = $stats['total'] === 1 ? 'day' : 'days';
+        $parts = ["{$stats['total']} {$dayWord} this period"];
+
+        if ($stats['disputed'] > 0) {
+            $parts[] = "{$stats['disputed']} disputed";
+        }
+
+        if ($stats['awaiting'] > 0) {
+            $parts[] = "{$stats['awaiting']} awaiting response";
+        }
+
+        if ($stats['disputed'] === 0 && $stats['awaiting'] === 0) {
+            $parts[] = 'all approved';
+        }
+
+        return new HtmlString(e(implode(' · ', $parts)));
     }
 
     /**
      * Whether this client has at least one day this period that isn't
-     * cleanly Approved — memoized per client_id so a period with many rows
-     * per client doesn't re-run this for every group header re-render.
+     * cleanly Approved.
      */
     private function clientHasUnapprovedDays(int $clientId): bool
     {
-        if (array_key_exists($clientId, $this->clientHasUnapprovedDaysCache)) {
-            return $this->clientHasUnapprovedDaysCache[$clientId];
+        $stats = $this->clientPeriodStats($clientId);
+
+        return $stats['approved'] !== $stats['total'];
+    }
+
+    /**
+     * Day counts for a client's current period, broken down by payroll
+     * status — memoized per client_id so a period with many rows per client
+     * doesn't re-run the underlying query for every group header re-render.
+     *
+     * @return array{total: int, approved: int, disputed: int, awaiting: int}
+     */
+    private function clientPeriodStats(int $clientId): array
+    {
+        if (array_key_exists($clientId, $this->clientPeriodStatsCache)) {
+            return $this->clientPeriodStatsCache[$clientId];
         }
 
         $period = $this->currentPeriod();
 
-        return $this->clientHasUnapprovedDaysCache[$clientId] = BookingDay::query()
+        $statuses = BookingDay::query()
             ->whereHas('booking', fn ($query) => $this->scopePayrollBookingsQuery($query)
                 ->excludingRequests()
                 ->where('client_id', $clientId))
             ->whereBetween('date', [$period['start']->toDateString(), $period['end']->toDateString()])
             ->whereNull('cancelled_at')
             ->get()
-            ->contains(fn (BookingDay $day): bool => $day->payrollStatus()->isAwaitingApproval());
+            ->map(fn (BookingDay $day): PayrollStatus => $day->payrollStatus());
+
+        $approved = $statuses->filter(fn (PayrollStatus $status): bool => $status === PayrollStatus::Approved)->count();
+        $disputed = $statuses->filter(fn (PayrollStatus $status): bool => $status === PayrollStatus::Disputed)->count();
+
+        return $this->clientPeriodStatsCache[$clientId] = [
+            'total' => $statuses->count(),
+            'approved' => $approved,
+            'disputed' => $disputed,
+            'awaiting' => $statuses->count() - $approved - $disputed,
+        ];
     }
 
     private function candidateLabel(BookingDay $record): string
