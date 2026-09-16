@@ -6,6 +6,7 @@ use App\Enums\PaymentMethod;
 use App\Models\Traits\BelongsToCompany;
 use App\Models\Traits\HasFieldSuggestions;
 use App\Models\Traits\HasProviderExternalId;
+use App\Models\Traits\HasRebookStatus;
 use Database\Factories\HealthcareCandidateFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -26,6 +27,7 @@ class HealthcareCandidate extends Model
     use HasFactory;
     use HasFieldSuggestions;
     use HasProviderExternalId;
+    use HasRebookStatus;
     use SoftDeletes;
 
     protected $guarded = [];
