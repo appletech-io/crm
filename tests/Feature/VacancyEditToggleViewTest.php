@@ -73,3 +73,23 @@ test('a detail field still saves correctly after switching to the details view',
 
     expect($this->vacancy->fresh()->placement_fee_percentage)->toBe(22.0);
 });
+
+test('the details content actually renders once toggled, not just the boolean flipping', function () {
+    Livewire::test(EditVacancy::class, ['record' => $this->vacancy->getRouteKey()])
+        ->assertDontSee('Vacancy Details')
+        ->callAction('toggleDetailsView')
+        ->assertSee('Vacancy Details');
+});
+
+test('the save/cancel form actions are hidden while the board view is showing', function () {
+    Livewire::test(EditVacancy::class, ['record' => $this->vacancy->getRouteKey()])
+        ->assertDontSee('Save changes')
+        ->assertDontSee('Cancel');
+});
+
+test('the save/cancel form actions appear once switched to the details view', function () {
+    Livewire::test(EditVacancy::class, ['record' => $this->vacancy->getRouteKey()])
+        ->callAction('toggleDetailsView')
+        ->assertSee('Save changes')
+        ->assertSee('Cancel');
+});

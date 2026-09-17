@@ -39,24 +39,24 @@ class VacancyForm
                 // button toggles $livewire->viewingDetails to swap over to
                 // the Tabs below instead. Never shown on the create form,
                 // since there's no vacancy yet for the board to belong to.
-                // CSS-hidden (extraAttributes) rather than Filament-hidden
-                // (visible()) for the viewingDetails half of this, since the
-                // board holds no schema-bound fields of its own — unlike the
-                // Tabs below, which do, and can't use visible() for the same
-                // toggle without their fields silently failing to save.
                 LivewireComponent::make(VacancyApplicantsBoard::class)
                     ->key('vacancy-applicants-board')
-                    ->hidden(fn (?Model $record): bool => $record === null)
-                    ->extraAttributes(fn ($livewire): array => ($livewire->viewingDetails ?? false) ? ['class' => 'hidden'] : []),
+                    ->visible(fn (?Model $record, $livewire): bool => $record !== null && ! ($livewire->viewingDetails ?? false)),
 
-                // Always Filament-"visible" (and therefore always dehydrated
-                // and saved) regardless of which view is showing — only
-                // CSS-hidden while the board is what's on screen. Using
-                // visible()/hidden() here instead would make Filament skip
-                // extracting this schema's state on save whenever the board
-                // was the active view, silently dropping any Details changes.
+                // dehydratedWhenHidden() is the reason this still saves
+                // correctly while the board view is showing — without it,
+                // Filament skips extracting state from a hidden component
+                // entirely on submit, silently dropping any Details changes
+                // (placement fee, skills, etc.) made before switching back
+                // to the board. A CSS-only hide was tried first instead of
+                // visible(), to sidestep that, but broke Filament's own
+                // Alpine-driven Details/Matches/Activity tab switching when
+                // revealed from a `display: none` ancestor — this is the
+                // properly-supported way to hide-but-still-save instead.
                 Tabs::make('Tabs')
-                    ->extraAttributes(fn (?Model $record, $livewire): array => ($record !== null && ! ($livewire->viewingDetails ?? false)) ? ['class' => 'hidden'] : [])
+                    ->visible(fn (?Model $record, $livewire): bool => $record === null || ($livewire->viewingDetails ?? false))
+                    ->dehydratedWhenHidden()
+                    ->saveRelationshipsWhenHidden()
                     ->tabs([
                         Tab::make('Details')
                             ->schema([
@@ -117,6 +117,7 @@ class VacancyForm
                                                     ->where('industry_id', active_industry_id())
                                                     ->orderBy('name'),
                                             )
+                                            ->saveRelationshipsWhenHidden()
                                             ->multiple()
                                             ->searchable()
                                             ->preload()
