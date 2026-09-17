@@ -50,6 +50,11 @@ class CandidateResource extends Resource
         return ['first_name', 'last_name', 'phone', 'mobile', 'email'];
     }
 
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        return trim("{$record->first_name} {$record->last_name}");
+    }
+
     /** @return array<string, string> */
     public static function getGlobalSearchResultDetails(Model $record): array
     {

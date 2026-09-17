@@ -39,7 +39,12 @@ class HealthcareCandidateResource extends Resource
     /** @return array<string> */
     public static function getGloballySearchableAttributes(): array
     {
-        return ['first_name', 'phone', 'mobile', 'email'];
+        return ['first_name', 'last_name', 'phone', 'mobile', 'email'];
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        return trim("{$record->first_name} {$record->last_name}");
     }
 
     /** @return array<string, string> */
