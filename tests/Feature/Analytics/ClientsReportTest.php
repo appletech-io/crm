@@ -35,12 +35,86 @@ test('a site admin cannot access the clients report', function () {
     expect(ClientsReport::canAccess())->toBeFalse();
 });
 
-test('a non-admin cannot access the clients report', function () {
+test('a consultant can access the clients report, seeing only their own data', function () {
     $consultant = User::factory()->create();
     $consultant->assignRole('consultant');
     $this->actingAs($consultant);
 
+    expect(ClientsReport::canAccess())->toBeTrue();
+});
+
+test('a resourcer cannot access the clients report', function () {
+    $resourcer = User::factory()->create();
+    $resourcer->assignRole('resourcer');
+    $this->actingAs($resourcer);
+
     expect(ClientsReport::canAccess())->toBeFalse();
+});
+
+test('a consultant only sees their own booking revenue, and the consultant filter is hidden', function () {
+    $consultant = User::factory()->create();
+    $consultant->assignRole('consultant');
+    $this->actingAs($consultant);
+
+    $industry = Industry::factory()->create(['slug' => 'education']);
+    Cache::put("user.{$consultant->id}.active_industry", 'education');
+    Cache::put("user.{$consultant->id}.active_industry_id", $industry->id);
+
+    $company = $consultant->company;
+    $otherConsultant = User::factory()->create(['company_id' => $company->id]);
+    $otherConsultant->assignRole('consultant');
+    $jobTitle = JobTitle::factory()->create(['company_id' => $company->id]);
+    $client = Client::factory()->create(['company_id' => $company->id, 'industry_id' => $industry->id]);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $company->id]);
+
+    $ownBooking = Booking::factory()->create([
+        'company_id' => $company->id,
+        'client_id' => $client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $jobTitle->id,
+        'consultant_id' => $consultant->id,
+        'day_rate' => 100,
+        'day_charge_rate' => 150,
+    ]);
+    $ownBooking->dayPeriods()->create([
+        'company_id' => $company->id,
+        'date' => now()->startOfMonth()->addDays(2),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+
+    $othersBooking = Booking::factory()->create([
+        'company_id' => $company->id,
+        'client_id' => $client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'job_title_id' => $jobTitle->id,
+        'consultant_id' => $otherConsultant->id,
+        'day_rate' => 200,
+        'day_charge_rate' => 300,
+    ]);
+    $othersBooking->dayPeriods()->create([
+        'company_id' => $company->id,
+        'date' => now()->startOfMonth()->addDays(3),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+
+    $component = Livewire::test(ClientsReport::class)
+        ->assertSuccessful()
+        ->assertTableFilterHidden('consultant_id');
+
+    $stats = $component->instance()->stats();
+
+    expect($stats['Booking revenue'])->toBe('£150.00');
+
+    $admin = User::factory()->create(['company_id' => $company->id]);
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+    Cache::put("user.{$admin->id}.active_industry", 'education');
+    Cache::put("user.{$admin->id}.active_industry_id", $industry->id);
+
+    Livewire::test(ClientsReport::class)
+        ->assertTableFilterVisible('consultant_id');
 });
 
 test('it renders successfully and combines booking revenue with placements per client', function () {

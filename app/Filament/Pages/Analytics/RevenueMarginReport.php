@@ -36,7 +36,7 @@ class RevenueMarginReport extends Page implements HasTable
 
     public static function canAccess(): bool
     {
-        return (auth()->user()?->hasRole('admin') ?? false) && active_industry_uses_bookings();
+        return (auth()->user()?->hasAnyRole(['admin', 'consultant']) ?? false) && active_industry_uses_bookings();
     }
 
     /** @return array<string, int|string|float|null> */
@@ -102,6 +102,7 @@ class RevenueMarginReport extends Page implements HasTable
                 SelectFilter::make('consultant_id')
                     ->label('Consultant')
                     ->placeholder('All Consultants')
+                    ->visible(fn (): bool => auth()->user()?->isAdmin() ?? false)
                     ->options(fn (): array => User::role('consultant')
                         ->whereHas('industries', fn ($query) => $query->where('industries.id', active_industry_id()))
                         ->orderBy('name')
@@ -141,8 +142,19 @@ class RevenueMarginReport extends Page implements HasTable
         return Carbon::parse($this->getTableFilterState('period')['until'] ?? now()->toDateString());
     }
 
+    /**
+     * A non-admin only ever sees their own figures here — the Consultant
+     * filter is hidden from them, so this ignores whatever's in table
+     * filter state and forces their own id instead.
+     */
     private function filterConsultantId(): ?int
     {
+        $user = auth()->user();
+
+        if ($user && ! $user->isAdmin()) {
+            return $user->id;
+        }
+
         $value = $this->getTableFilterState('consultant_id')['value'] ?? null;
 
         return $value ? (int) $value : null;

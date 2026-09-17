@@ -30,12 +30,59 @@ test('a site admin cannot access the candidates report', function () {
     expect(CandidatesReport::canAccess())->toBeFalse();
 });
 
-test('a non-admin cannot access the candidates report', function () {
+test('a consultant can access the candidates report, seeing only their own data', function () {
     $consultant = User::factory()->create();
     $consultant->assignRole('consultant');
     $this->actingAs($consultant);
 
+    expect(CandidatesReport::canAccess())->toBeTrue();
+});
+
+test('a resourcer cannot access the candidates report', function () {
+    $resourcer = User::factory()->create();
+    $resourcer->assignRole('resourcer');
+    $this->actingAs($resourcer);
+
     expect(CandidatesReport::canAccess())->toBeFalse();
+});
+
+test('a consultant only sees their own candidates, and the consultant filter is hidden', function () {
+    $consultant = User::factory()->create();
+    $consultant->assignRole('consultant');
+    $this->actingAs($consultant);
+
+    $industry = Industry::factory()->create(['slug' => 'education']);
+    Cache::put("user.{$consultant->id}.active_industry", 'education');
+    Cache::put("user.{$consultant->id}.active_industry_id", $industry->id);
+
+    $company = $consultant->company;
+    $otherConsultant = User::factory()->create(['company_id' => $company->id]);
+    $otherConsultant->assignRole('consultant');
+
+    $ownCandidate = EducationCandidate::factory()->create([
+        'company_id' => $company->id,
+        'consultant_id' => $consultant->id,
+    ]);
+
+    $othersCandidate = EducationCandidate::factory()->create([
+        'company_id' => $company->id,
+        'consultant_id' => $otherConsultant->id,
+    ]);
+
+    Livewire::test(CandidatesReport::class)
+        ->assertSuccessful()
+        ->assertTableFilterHidden('consultant_id')
+        ->assertCanSeeTableRecords([$ownCandidate])
+        ->assertCanNotSeeTableRecords([$othersCandidate]);
+
+    $admin = User::factory()->create(['company_id' => $company->id]);
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+    Cache::put("user.{$admin->id}.active_industry", 'education');
+    Cache::put("user.{$admin->id}.active_industry_id", $industry->id);
+
+    Livewire::test(CandidatesReport::class)
+        ->assertTableFilterVisible('consultant_id');
 });
 
 test('it shows a placeholder when no sector is active', function () {

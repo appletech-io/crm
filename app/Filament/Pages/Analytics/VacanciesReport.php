@@ -39,7 +39,7 @@ class VacanciesReport extends Page implements HasTable
 
     public static function canAccess(): bool
     {
-        return (auth()->user()?->hasRole('admin') ?? false) && active_industry_uses_perm();
+        return (auth()->user()?->hasAnyRole(['admin', 'consultant']) ?? false) && active_industry_uses_perm();
     }
 
     /** @return array<string, int|string> */
@@ -80,7 +80,9 @@ class VacanciesReport extends Page implements HasTable
     public function table(Table $table): Table
     {
         return $table
-            ->query(Vacancy::query()->forActiveIndustry()->with(['client', 'jobTitle', 'jobStatus', 'consultant']))
+            // visibleToCurrentUser() already covers forActiveIndustry() plus
+            // restricting a non-admin to their own consultant_id.
+            ->query(Vacancy::query()->visibleToCurrentUser()->with(['client', 'jobTitle', 'jobStatus', 'consultant']))
             ->columns([
                 TextColumn::make('jobTitle.name')->label('Role')->searchable()->sortable(),
                 TextColumn::make('client.name')->label('Client')->placeholder('General cover')->searchable()->sortable(),
@@ -146,6 +148,7 @@ class VacanciesReport extends Page implements HasTable
                 SelectFilter::make('consultant_id')
                     ->label('Consultant')
                     ->placeholder('All Consultants')
+                    ->visible(fn (): bool => auth()->user()?->isAdmin() ?? false)
                     ->options(fn (): array => User::role('consultant')
                         ->whereHas('industries', fn ($query) => $query->where('industries.id', active_industry_id()))
                         ->orderBy('name')

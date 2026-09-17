@@ -35,10 +35,18 @@ test('a site admin cannot access the reports page', function () {
     expect(Reports::canAccess())->toBeFalse();
 });
 
-test('a non-admin cannot access the reports page', function () {
+test('a consultant can access the reports page, seeing only their own data', function () {
     $consultant = User::factory()->create();
     $consultant->assignRole('consultant');
     $this->actingAs($consultant);
+
+    expect(Reports::canAccess())->toBeTrue();
+});
+
+test('a resourcer cannot access the reports page', function () {
+    $resourcer = User::factory()->create();
+    $resourcer->assignRole('resourcer');
+    $this->actingAs($resourcer);
 
     expect(Reports::canAccess())->toBeFalse();
 });
@@ -108,6 +116,57 @@ test('it falls back to the no-sector reports when no industry is active', functi
     $page = app(Reports::class);
 
     expect($page->getWidgets())->toBe((new NoSectorReports)->getWidgets());
+});
+
+test('the consultant filter on the filters form is hidden from a consultant but visible to an admin', function () {
+    Industry::factory()->create(['slug' => 'education']);
+
+    $consultant = User::factory()->create();
+    $consultant->assignRole('consultant');
+    $this->actingAs($consultant);
+    Cache::put("user.{$consultant->id}.active_industry", 'education');
+
+    Livewire::test(Reports::class)
+        ->assertFormFieldHidden('consultant_id', 'filtersForm');
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+    Cache::put("user.{$admin->id}.active_industry", 'education');
+
+    Livewire::test(Reports::class)
+        ->assertFormFieldVisible('consultant_id', 'filtersForm');
+});
+
+function callFilterConsultantId(TempBookingStats $widget): ?int
+{
+    $method = new ReflectionMethod($widget, 'filterConsultantId');
+
+    return $method->invoke($widget);
+}
+
+test('ReadsReportFilters forces a non-admin\'s own id regardless of page filter state, but lets an admin choose', function () {
+    $widget = new TempBookingStats;
+
+    $consultant = User::factory()->create();
+    $consultant->assignRole('consultant');
+    $this->actingAs($consultant);
+
+    // Even with another consultant's id sitting in filter state (e.g. a
+    // stale value from before the field was hidden), a non-admin's own id
+    // always wins.
+    $widget->pageFilters = ['consultant_id' => 99999];
+    expect(callFilterConsultantId($widget))->toBe($consultant->id);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+
+    $widget->pageFilters = ['consultant_id' => 42];
+    expect(callFilterConsultantId($widget))->toBe(42);
+
+    $widget->pageFilters = [];
+    expect(callFilterConsultantId($widget))->toBeNull();
 });
 
 test('the reports page renders successfully for an admin', function () {
