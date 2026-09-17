@@ -1,21 +1,23 @@
 <x-filament-panels::page>
-    <x-filament::tabs label="Sections">
-        <x-filament::tabs.item
-            :active="$activeSection === 'search'"
-            wire:click="$set('activeSection', 'search')"
-            icon="heroicon-o-magnifying-glass"
-        >
-            Search
-        </x-filament::tabs.item>
+    @if ($this->searchTabVisible())
+        <x-filament::tabs label="Sections">
+            <x-filament::tabs.item
+                :active="$activeSection === 'search'"
+                wire:click="$set('activeSection', 'search')"
+                icon="heroicon-o-magnifying-glass"
+            >
+                Search
+            </x-filament::tabs.item>
 
-        <x-filament::tabs.item
-            :active="$activeSection === 'all'"
-            wire:click="$set('activeSection', 'all')"
-            icon="heroicon-o-user-group"
-        >
-            All Candidates
-        </x-filament::tabs.item>
-    </x-filament::tabs>
+            <x-filament::tabs.item
+                :active="$activeSection === 'all'"
+                wire:click="$set('activeSection', 'all')"
+                icon="heroicon-o-user-group"
+            >
+                All Candidates
+            </x-filament::tabs.item>
+        </x-filament::tabs>
+    @endif
 
     @if ($activeSection === 'search')
         <form wire:submit="search" class="flex flex-col gap-4">

@@ -4,6 +4,7 @@ namespace App\Filament\Client\Pages;
 
 use App\Filament\Support\RequestCandidateBookingAction;
 use App\Models\Client;
+use App\Models\CompanyIndustry;
 use App\Models\EducationCandidate;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
@@ -28,6 +29,14 @@ class MyCandidates extends Page implements HasTable
     protected static ?string $title = 'My Candidates';
 
     protected static ?int $navigationSort = 3;
+
+    /** @see MyBookings::canAccess() */
+    public static function canAccess(): bool
+    {
+        $client = Auth::user()?->client();
+
+        return $client && CompanyIndustry::usesBookings($client->company_id, $client->industry_id);
+    }
 
     public function getSubheading(): ?string
     {

@@ -49,7 +49,7 @@ class Invoicing extends Page implements HasTable
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->hasRole('admin') ?? false;
+        return (auth()->user()?->hasRole('admin') ?? false) && active_industry_uses_bookings();
     }
 
     public function mount(): void

@@ -53,7 +53,7 @@ class CandidatesReport extends Page implements HasTable
     {
         $modelClass = $this->candidateModelClass();
 
-        return $modelClass && method_exists($modelClass, 'bookings');
+        return $modelClass && method_exists($modelClass, 'bookings') && active_industry_uses_bookings();
     }
 
     /** @return array<string, int|string> */

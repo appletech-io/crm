@@ -107,13 +107,13 @@ class Company extends Model
     {
         return $this->belongsToMany(Industry::class, 'company_industry')
             ->using(CompanyIndustry::class)
-            ->withPivot('uses_bookings');
+            ->withPivot(['uses_bookings', 'uses_perm']);
     }
 
     /**
      * The company_industry pivot rows themselves, for editing per-industry
-     * pivot data (uses_bookings) via a Repeater — see
-     * App\Filament\Resources\Companies\Schemas\CompanyForm.
+     * pivot data (uses_bookings, uses_perm) via a Repeater — see
+     * App\Filament\Resources\Companies\Schemas\CompanyFeaturesForm.
      */
     public function companyIndustries(): HasMany
     {

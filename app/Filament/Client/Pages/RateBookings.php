@@ -4,6 +4,7 @@ namespace App\Filament\Client\Pages;
 
 use App\Models\Booking;
 use App\Models\Client;
+use App\Models\CompanyIndustry;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
@@ -28,6 +29,14 @@ class RateBookings extends Page implements HasTable
     protected static ?string $title = 'Rate Candidates';
 
     protected static ?int $navigationSort = 2;
+
+    /** @see MyBookings::canAccess() */
+    public static function canAccess(): bool
+    {
+        $client = Auth::user()?->client();
+
+        return $client && CompanyIndustry::usesBookings($client->company_id, $client->industry_id);
+    }
 
     public function getSubheading(): ?string
     {

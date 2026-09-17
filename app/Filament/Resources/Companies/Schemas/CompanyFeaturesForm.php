@@ -9,11 +9,11 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
 /**
- * Per-sector feature toggles for a company — currently just Bookings, with
- * room for more here later (hence its own tab rather than living inline on
- * the main Edit form). Which sectors a company has is still managed on the
- * main Edit page's "Sectors" field; this only edits settings for sectors
- * that already exist, so add/delete/reorder are disabled here.
+ * Per-sector feature toggles for a company — Bookings and Perm, with room
+ * for more here later (hence its own tab rather than living inline on the
+ * main Edit form). Which sectors a company has is still managed on the main
+ * Edit page's "Sectors" field; this only edits settings for sectors that
+ * already exist, so add/delete/reorder are disabled here.
  */
 class CompanyFeaturesForm
 {
@@ -21,8 +21,8 @@ class CompanyFeaturesForm
     {
         return $schema
             ->components([
-                Section::make('Bookings')
-                    ->description('Turn Bookings off for a sector where this agency only ever places permanent or contract roles — this hides Bookings, Run Payroll, and Timesheets for it.')
+                Section::make('Sector Features')
+                    ->description('Turn Bookings off for a sector that only ever places permanent or contract roles, or turn Perm off for a sector that only does temp/day bookings — this hides the respective features (Bookings/Run Payroll/Timesheets/Availability, or Job Pipeline/Jobs/Vacancy reporting) for it.')
                     ->schema([
                         Repeater::make('companyIndustries')
                             ->relationship()
@@ -31,7 +31,7 @@ class CompanyFeaturesForm
                             ->addable(false)
                             ->deletable(false)
                             ->reorderable(false)
-                            ->columns(2)
+                            ->columns(3)
                             ->schema([
                                 Select::make('industry_id')
                                     ->label('Sector')
@@ -40,6 +40,9 @@ class CompanyFeaturesForm
                                     ->saved(),
                                 Toggle::make('uses_bookings')
                                     ->label('Uses Bookings')
+                                    ->default(true),
+                                Toggle::make('uses_perm')
+                                    ->label('Uses Perm')
                                     ->default(true),
                             ]),
                     ]),

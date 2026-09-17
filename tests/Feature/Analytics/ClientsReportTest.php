@@ -106,3 +106,41 @@ test('it renders successfully and combines booking revenue with placements per c
         ->and($stats['Booking revenue'])->toBe('£150.00')
         ->and($stats['Placements'])->toBe(1);
 });
+
+test('booking stats and columns are omitted when the active industry has bookings switched off', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+
+    $industry = Industry::factory()->create(['slug' => 'education']);
+    $admin->company->industries()->attach($industry->id, ['uses_bookings' => false]);
+    Cache::put("user.{$admin->id}.active_industry", 'education');
+    Cache::put("user.{$admin->id}.active_industry_id", $industry->id);
+
+    $component = Livewire::test(ClientsReport::class)->assertSuccessful();
+
+    $stats = $component->instance()->stats();
+
+    expect($stats)->not->toHaveKey('Booking revenue')
+        ->and($stats)->not->toHaveKey('Booking margin')
+        ->and($stats)->toHaveKey('Placements');
+});
+
+test('placement stats and columns are omitted when the active industry has perm switched off', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+
+    $industry = Industry::factory()->create(['slug' => 'education']);
+    $admin->company->industries()->attach($industry->id, ['uses_perm' => false]);
+    Cache::put("user.{$admin->id}.active_industry", 'education');
+    Cache::put("user.{$admin->id}.active_industry_id", $industry->id);
+
+    $component = Livewire::test(ClientsReport::class)->assertSuccessful();
+
+    $stats = $component->instance()->stats();
+
+    expect($stats)->not->toHaveKey('Placements')
+        ->and($stats)->not->toHaveKey('Placement value')
+        ->and($stats)->toHaveKey('Booking revenue');
+});
