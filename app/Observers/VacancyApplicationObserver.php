@@ -33,4 +33,50 @@ class VacancyApplicationObserver
             ->ordered()
             ->value('id');
     }
+
+    public function saved(VacancyApplication $application): void
+    {
+        $this->syncVacancyToFurthestCandidate($application->vacancy_id);
+    }
+
+    public function deleted(VacancyApplication $application): void
+    {
+        $this->syncVacancyToFurthestCandidate($application->vacancy_id);
+    }
+
+    /**
+     * A vacancy's own status isn't tracked separately from where its
+     * candidates actually are — it always matches whichever candidate has
+     * progressed furthest through the pipeline (by JobStatus::sort_order),
+     * so "Interview Stage 2" on the Job Pipeline reflects a real job the
+     * moment any candidate reaches it, rather than needing someone to also
+     * update the vacancy's own status by hand. Resolved without the company
+     * global scopes for the same reason as creating() above.
+     */
+    private function syncVacancyToFurthestCandidate(int $vacancyId): void
+    {
+        $vacancy = Vacancy::withoutGlobalScope('company')->find($vacancyId);
+
+        if (! $vacancy) {
+            return;
+        }
+
+        $applicationStatusIds = VacancyApplication::query()
+            ->where('vacancy_id', $vacancyId)
+            ->whereNotNull('job_status_id')
+            ->pluck('job_status_id');
+
+        if ($applicationStatusIds->isEmpty()) {
+            return;
+        }
+
+        $furthestStatusId = JobStatus::withoutGlobalScope('company')
+            ->whereIn('id', $applicationStatusIds)
+            ->orderByDesc('sort_order')
+            ->value('id');
+
+        if ($furthestStatusId && $furthestStatusId !== $vacancy->job_status_id) {
+            $vacancy->update(['job_status_id' => $furthestStatusId]);
+        }
+    }
 }
