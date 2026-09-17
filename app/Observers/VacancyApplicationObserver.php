@@ -33,4 +33,46 @@ class VacancyApplicationObserver
             ->ordered()
             ->value('id');
     }
+
+    public function saved(VacancyApplication $application): void
+    {
+        $this->advanceVacancyIfFurtherAlong($application);
+    }
+
+    /**
+     * If this candidate now sits at a later pipeline stage than the
+     * vacancy's own current status, the vacancy moves up to match — never
+     * backward, so an earlier-stage candidate (new, or moved back) never
+     * regresses a job that's already moved on. Resolved without the
+     * company global scopes for the same reason as creating() above.
+     */
+    private function advanceVacancyIfFurtherAlong(VacancyApplication $application): void
+    {
+        if (! $application->job_status_id) {
+            return;
+        }
+
+        $vacancy = Vacancy::withoutGlobalScope('company')->find($application->vacancy_id);
+
+        if (! $vacancy) {
+            return;
+        }
+
+        $sortOrders = JobStatus::withoutGlobalScope('company')
+            ->whereIn('id', array_filter([$application->job_status_id, $vacancy->job_status_id]))
+            ->pluck('sort_order', 'id');
+
+        $candidateSortOrder = $sortOrders[$application->job_status_id] ?? null;
+        $vacancySortOrder = $sortOrders[$vacancy->job_status_id] ?? null;
+
+        if ($candidateSortOrder === null) {
+            return;
+        }
+
+        if ($vacancySortOrder !== null && $candidateSortOrder <= $vacancySortOrder) {
+            return;
+        }
+
+        $vacancy->update(['job_status_id' => $application->job_status_id]);
+    }
 }
