@@ -88,10 +88,19 @@ class AdminPanelProvider extends PanelProvider
                     ->label('Password & 2FA')
                     ->icon('heroicon-o-shield-check')
                     ->url(fn () => route('security.edit')),
+                Action::make('user_guide')
+                    ->label('User Guide')
+                    ->icon('heroicon-o-book-open')
+                    ->url(fn () => route('guide'))
+                    ->openUrlInNewTab(),
             ])
             ->renderHook(
                 PanelsRenderHook::TOPBAR_AFTER,
                 fn () => view('filament.impersonation-banner'),
+            )
+            ->renderHook(
+                PanelsRenderHook::GLOBAL_SEARCH_AFTER,
+                fn () => view('filament.user-guide-icon'),
             )
             ->renderHook(
                 PanelsRenderHook::GLOBAL_SEARCH_AFTER,

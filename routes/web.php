@@ -6,6 +6,7 @@ use App\Http\Controllers\CompanyLogoController;
 use App\Http\Controllers\DemoQuickLoginController;
 use App\Http\Controllers\EmailImageController;
 use App\Http\Controllers\ImpersonationController;
+use App\Http\Controllers\UserGuideController;
 use App\Livewire\AskAssistant;
 use Illuminate\Support\Facades\Route;
 
@@ -19,6 +20,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('/crm/ask-assistant', AskAssistant::class)->name('ask-assistant');
 
     Route::get('/documents/view', [CandidateDocumentController::class, 'show'])->name('documents.view');
+
+    Route::get('/guide', [UserGuideController::class, 'show'])->name('guide');
 
     // Staff-only dry run of a reference form, opened in a new tab from the
     // form builder — see ⚡reference-form-preview.
