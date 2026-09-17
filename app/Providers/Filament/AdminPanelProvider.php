@@ -100,6 +100,10 @@ class AdminPanelProvider extends PanelProvider
             )
             ->renderHook(
                 PanelsRenderHook::GLOBAL_SEARCH_AFTER,
+                fn () => view('filament.user-guide-icon'),
+            )
+            ->renderHook(
+                PanelsRenderHook::GLOBAL_SEARCH_AFTER,
                 fn () => view('filament.high-priority-todo-notifications-topbar'),
             )
             ->renderHook(
