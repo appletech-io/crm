@@ -36,6 +36,13 @@ class VacancyForm
             ->components([
                 Tabs::make('Tabs')
                     ->tabs([
+                        Tab::make('Applicants')
+                            ->schema([
+                                LivewireComponent::make(VacancyApplicantsBoard::class)
+                                    ->key('vacancy-applicants-board')
+                                    ->hidden(fn (?Model $record): bool => $record === null),
+                            ]),
+
                         Tab::make('Details')
                             ->schema([
                                 Section::make('Vacancy Details')
@@ -212,13 +219,6 @@ class VacancyForm
                                             ->visible(fn (?Vacancy $record): bool => $record === null)
                                             ->columnSpanFull(),
                                     ]),
-                            ]),
-
-                        Tab::make('Applicants')
-                            ->schema([
-                                LivewireComponent::make(VacancyApplicantsBoard::class)
-                                    ->key('vacancy-applicants-board')
-                                    ->hidden(fn (?Model $record): bool => $record === null),
                             ]),
 
                         Tab::make('Matches')
