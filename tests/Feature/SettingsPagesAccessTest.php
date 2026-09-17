@@ -31,12 +31,24 @@ test('an admin with an active industry can access every settings page', function
     }
 });
 
-test('a non-admin cannot access any settings page, even with an active industry', function () {
+test('a consultant can access Client and Candidate Settings (for their pools), but not Job Settings', function () {
     $consultant = User::factory()->create();
     $consultant->assignRole('consultant');
     $this->actingAs($consultant);
     Cache::put("user.{$consultant->id}.active_industry", $this->industry->slug);
     Cache::put("user.{$consultant->id}.active_industry_id", $this->industry->id);
+
+    expect(ClientSettings::canAccess())->toBeTrue();
+    expect(CandidateSettings::canAccess())->toBeTrue();
+    expect(JobSettings::canAccess())->toBeFalse();
+});
+
+test('a resourcer cannot access any settings page, even with an active industry', function () {
+    $resourcer = User::factory()->create();
+    $resourcer->assignRole('resourcer');
+    $this->actingAs($resourcer);
+    Cache::put("user.{$resourcer->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$resourcer->id}.active_industry_id", $this->industry->id);
 
     foreach (settingsPages() as $page) {
         expect($page::canAccess())->toBeFalse();

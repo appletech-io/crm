@@ -36,7 +36,7 @@ class ActionResource extends Resource
     public static function canViewAny(): bool
     {
         return active_industry() !== null
-            && auth()->user()?->hasAnyRole(['admin', 'site_admin', 'consultant', 'compliance']);
+            && auth()->user()?->hasAnyRole(['admin', 'site_admin']);
     }
 
     public static function canCreate(): bool
