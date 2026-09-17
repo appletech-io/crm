@@ -10,6 +10,7 @@ use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Schemas\Components\Component;
 use Filament\Support\Enums\Width;
 
 class EditVacancy extends EditRecord
@@ -32,6 +33,25 @@ class EditVacancy extends EditRecord
     public function getMaxContentWidth(): Width
     {
         return Width::Full;
+    }
+
+    /**
+     * No Save/Cancel bar while the board is the active view — drag-and-drop
+     * on it saves immediately on its own, so there's nothing for those
+     * buttons to do there. They come back once viewingDetails is toggled on,
+     * where they're editing real form fields that do need an explicit save.
+     *
+     * Overriding getFormActions() itself doesn't work for this: Filament
+     * bakes its return value into the page's schema once, at build time, so
+     * it never re-evaluates after the initial render. visible() on the
+     * returned component, on the other hand, is a closure Filament re-checks
+     * on every render — the same mechanism the board/Tabs toggle already
+     * relies on — so that's what actually needs to change here.
+     */
+    public function getFormActionsContentComponent(): Component
+    {
+        return parent::getFormActionsContentComponent()
+            ->visible(fn (): bool => $this->viewingDetails);
     }
 
     protected function getHeaderActions(): array
