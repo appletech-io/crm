@@ -271,15 +271,72 @@
             </section>
 
             {{-- ============================================================ --}}
-            <section id="pools-catalogues" class="scroll-mt-8 space-y-4">
+            <section id="pools-catalogues" class="scroll-mt-8 space-y-6">
                 <h2 class="text-2xl font-bold text-gray-950 dark:text-white">Pools, Skills, Job Titles &amp; Qualifications</h2>
-                <ul class="list-disc space-y-2 pl-6">
-                    <li><strong>Candidate Pools</strong> — your own (or a company-wide) groupings of candidates, e.g. "shortlisted for BlueWave Digital" or "Available Now". Used to filter the Job Pipeline's Candidates step and for bulk actions like emailing or adding to a job.</li>
-                    <li><strong>Client Pools</strong> — the equivalent for clients; a client's primary pool is what actually controls which consultant sees them day-to-day.</li>
-                    <li><strong>Skills</strong> — tags on a candidate's profile, organised into top-level and child skills, used for matching and search.</li>
-                    <li><strong>Job Titles</strong> — your company's role catalogue. Drives default pay/charge rates, which compliance items apply (generic sectors), and job-matching.</li>
-                    <li><strong>Qualifications</strong> — (Education) the qualification catalogue and which job titles each one permits a candidate to work.</li>
-                </ul>
+
+                <div class="space-y-2">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Candidate Pools (your own shortlists)</h3>
+                    <p>
+                        A named grouping of candidates you build yourself, e.g. "Shortlisted for BlueWave
+                        Digital" or "Available Now" — separate from the automatic client pools below.
+                    </p>
+                    <p><strong>How to build one:</strong> on the Education/Healthcare Candidates table, tick
+                        the candidates you want, then use the <em>Add to Pool</em> bulk action above the
+                        table. Pick an existing pool, or create a new one on the spot by typing its name —
+                        admins get an extra <em>Company Pool</em> toggle there to make it visible to every
+                        consultant instead of just you.</p>
+                    <p><strong>How to use one:</strong> open the Job Pipeline page and pick the pool from the
+                        dropdown at the top — the Candidates step (and the Jobs step too, if the pool is a
+                        client's) narrows to just that pool. You can also email everyone in a pool at once
+                        from <em>Candidate Settings → Candidate Pools → (open a pool) → Send Email</em>.</p>
+                    <p><strong>Who can see one:</strong> a private pool is yours only; a Company Pool is
+                        visible to every consultant working that sector.</p>
+                </div>
+
+                <div class="space-y-2">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Client Pools (your own client portfolio)</h3>
+                    <p>
+                        This is a different thing from a client's own candidate pool below, despite the
+                        similar name — a Client Pool holds <em>clients</em>, and it's what actually controls
+                        which clients you can see day-to-day.
+                    </p>
+                    <p><strong>How it's set:</strong> every consultant automatically has one primary Client
+                        Pool per sector. A client lands in it the moment you set that client's
+                        <em>Consultant</em> field (on the client's own Edit page) to you — there's no
+                        separate pool-membership step to do by hand. Reassign that field to someone else
+                        and the client moves to their pool instead, immediately.</p>
+                    <p><strong>Seeing every client anyway:</strong> an admin can toggle <em>Show All
+                        Clients</em> on the Clients list to browse outside their own pool; a non-admin only
+                        ever sees clients assigned to them.</p>
+                    <p>You can also build extra, named Client Pools of your own (e.g. a marketing-campaign
+                        list) from <em>Client Settings → Client Pools → New Pool</em> — these are private to
+                        you and have to be populated by hand from the pool's own page.</p>
+                </div>
+
+                <div class="space-y-2">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">A client's own candidate pool</h3>
+                    <p>
+                        Every client gets one automatically the moment they're added — this is what shows up
+                        on their own portal as <em>My Candidates</em> (see below), not something on the
+                        Candidate Pools list you'd normally open yourself.
+                    </p>
+                    <p><strong>How candidates get into it:</strong> automatically, the moment you book that
+                        candidate for that client — nothing to do by hand.</p>
+                    <p><strong>How candidates get removed:</strong> automatically, if the client rates a
+                        booking with that candidate below 3 stars from their own portal.</p>
+                    <p><strong>Who can see it:</strong> the client themselves, and only the consultant who
+                        currently owns that client (per the Client Pool section above) — it won't appear for
+                        any other consultant on the Candidate Pools list or the Job Pipeline's pool dropdown.</p>
+                </div>
+
+                <div class="space-y-2">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Skills, Job Titles &amp; Qualifications</h3>
+                    <ul class="list-disc space-y-2 pl-6">
+                        <li><strong>Skills</strong> — tags on a candidate's profile, organised into top-level and child skills, used for matching and search. Manage the catalogue from <em>Candidate Settings → Skills</em>; attach them to a candidate from the Skills field on their own profile.</li>
+                        <li><strong>Job Titles</strong> — your company's role catalogue, managed from <em>Candidate Settings → Job Titles</em>. Drives default pay/charge rates, which compliance items apply (generic sectors), and job-matching — set a candidate's or vacancy's job title from their own edit page to pull all of that in.</li>
+                        <li><strong>Qualifications</strong> — (Education) the qualification catalogue, managed from <em>Candidate Settings → Qualifications</em>, plus which job titles each one permits a candidate to work (<em>Allowed Job Titles</em>).</li>
+                    </ul>
+                </div>
             </section>
 
             {{-- ============================================================ --}}
@@ -292,18 +349,21 @@
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Client portal</h3>
                 <p>
                     A client contact can approve or dispute each booked day (<em>My Bookings</em>), see
-                    candidates they've booked and rated well with a one-click <em>Request Booking</em>
-                    (<em>My Candidates</em>), and rate candidates from bookings in the last month.
+                    candidates that client has ever booked and not rated poorly, with a one-click
+                    <em>Request Booking</em> (<em>My Candidates</em> — see that client's own candidate pool
+                    in the Pools section above), and rate candidates from bookings in the last month.
                 </p>
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Candidate portal</h3>
                 <p>
-                    A candidate can set their availability, see their own compliance checklist, and upload
-                    documents (CV, photo, DBS, etc.) that feed straight into that checklist.
+                    A candidate can see their own compliance checklist and upload documents (CV, photo,
+                    DBS, etc.) that feed straight into that checklist, plus set their availability. This is
+                    available for every sector, not just Education — a generic-sector candidate's checklist
+                    is resolved from their job title's compliance requirements instead of a fixed list.
                 </p>
                 <x-guide.callout>
-                    The candidate portal is currently only available for Education candidates. Healthcare
-                    and generic-sector candidates don't have a self-service login yet — manage their
-                    compliance and documents on their behalf from the main Candidates area instead.
+                    The Availability tab only shows for a candidate whose sector has Bookings switched on
+                    (see Settings below) — a Perm-only candidate never needs it, but still gets their own
+                    Documents/Compliance checklist regardless.
                 </x-guide.callout>
             </section>
 
@@ -340,15 +400,26 @@
                 <h2 class="text-2xl font-bold text-gray-950 dark:text-white">Settings</h2>
                 <p>Each settings area is a landing page of cards linking to the actual configuration:</p>
                 <ul class="list-disc space-y-2 pl-6">
-                    <li><strong>Job Settings</strong> — Job Statuses (your pipeline stages, drag to reorder, plus automations for moving jobs between statuses automatically).</li>
-                    <li><strong>Client Settings</strong> — Contact Job Titles, Client Types, Client Pools.</li>
-                    <li><strong>Candidate Settings</strong> — Skills, Candidate Statuses (with their own automations), Candidate Pools, Job Titles, Qualifications and their job-title mapping, Reference Forms, Sample Profiles.</li>
-                    <li><strong>Compliance Settings</strong> — generic sectors only: Compliance Items and which job titles require each one.</li>
+                    <li><strong>Job Settings</strong> — Job Statuses (your pipeline stages, drag to reorder, plus automations for moving jobs between statuses automatically). Admin only.</li>
+                    <li><strong>Client Settings</strong> — Contact Job Titles and Client Types (admin only), plus Client Pools, which every consultant can see (their own extra pools — see the Pools section above).</li>
+                    <li><strong>Candidate Settings</strong> — Skills, Candidate Statuses (with their own automations), Job Titles, Qualifications and their job-title mapping, Reference Forms, Sample Profiles (all admin only, Reference Forms also compliance), plus Candidate Pools, which every consultant can see.</li>
+                    <li><strong>Compliance Settings</strong> — generic sectors only: Compliance Items and which job titles require each one. Admin only.</li>
                 </ul>
                 <p>
                     Admin-only areas also include Team &amp; Roles (staff and permissions), Candidate &amp;
-                    Client Logins (portal access), Email Templates, and — for multi-company setups — Site
-                    Settings.
+                    Client Logins (portal access), Email Templates, Actions (automation rules), and — for
+                    multi-company setups — Site Settings.
+                </p>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Sector Features (Bookings &amp; Perm)</h3>
+                <p>
+                    A company edit page's <em>Features</em> tab has two switches per sector: <strong>Uses
+                    Bookings</strong> and <strong>Uses Perm</strong>. Turn Bookings off for a sector that
+                    only ever places permanent/contract roles, and that sector loses the booking form,
+                    Availability, Run Payroll, Invoicing, Revenue &amp; Margin reporting, the Candidates
+                    list's Search tab, and the client portal entirely. Turn Perm off for a
+                    temp/day-booking-only sector, and it loses Job Pipeline, Jobs, and Vacancy/Placement
+                    reporting. Both on together shows everything, plus a toggle on the Dashboard to flip
+                    between the two home-screen views, remembered per user.
                 </p>
             </section>
 

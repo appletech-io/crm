@@ -3,6 +3,8 @@
 use App\Actions\Bookings\BookingCreated;
 use App\Filament\Client\Pages\MyCandidates;
 use App\Filament\Client\Pages\RateBookings;
+use App\Filament\Resources\CandidatePools\CandidatePoolResource;
+use App\Filament\Widgets\JobPipelineFlow;
 use App\Models\Booking;
 use App\Models\Client;
 use App\Models\ClientContact;
@@ -12,6 +14,7 @@ use App\Models\Industry;
 use App\Models\JobTitle;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 
@@ -180,4 +183,72 @@ test('the my candidates page renders at its own url', function () {
         ->assertOk()
         ->assertSee('My Candidates')
         ->assertSee('Jane Doe');
+});
+
+test('a client pool is only visible on the candidate pools list to the consultant who owns that client', function () {
+    $owningConsultant = User::factory()->create(['company_id' => $this->company->id]);
+    $owningConsultant->assignRole('consultant');
+
+    $otherConsultant = User::factory()->create(['company_id' => $this->company->id]);
+    $otherConsultant->assignRole('consultant');
+
+    $this->client->update(['consultant_id' => $owningConsultant->id]);
+    $pool = $this->client->candidatePool->fresh();
+
+    $this->actingAs($owningConsultant);
+    Cache::put("user.{$owningConsultant->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$owningConsultant->id}.active_industry_id", $this->industry->id);
+    expect(CandidatePoolResource::getEloquentQuery()->find($pool->id))->not->toBeNull();
+
+    $this->actingAs($otherConsultant);
+    Cache::put("user.{$otherConsultant->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$otherConsultant->id}.active_industry_id", $this->industry->id);
+    expect(CandidatePoolResource::getEloquentQuery()->find($pool->id))->toBeNull();
+});
+
+test('reassigning a client to a different consultant immediately changes who can see its pool', function () {
+    $firstConsultant = User::factory()->create(['company_id' => $this->company->id]);
+    $firstConsultant->assignRole('consultant');
+
+    $secondConsultant = User::factory()->create(['company_id' => $this->company->id]);
+    $secondConsultant->assignRole('consultant');
+
+    $this->client->update(['consultant_id' => $firstConsultant->id]);
+    $pool = $this->client->candidatePool->fresh();
+
+    $this->actingAs($firstConsultant);
+    Cache::put("user.{$firstConsultant->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$firstConsultant->id}.active_industry_id", $this->industry->id);
+    expect(CandidatePoolResource::getEloquentQuery()->find($pool->id))->not->toBeNull();
+
+    $this->client->update(['consultant_id' => $secondConsultant->id]);
+
+    // Still resolved live via the relationship — no stale user_id to fix up.
+    expect(CandidatePoolResource::getEloquentQuery()->find($pool->id))->toBeNull();
+
+    $this->actingAs($secondConsultant);
+    Cache::put("user.{$secondConsultant->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$secondConsultant->id}.active_industry_id", $this->industry->id);
+    expect(CandidatePoolResource::getEloquentQuery()->find($pool->id))->not->toBeNull();
+});
+
+test('the Job Pipeline pool dropdown only offers a client pool to the consultant who owns that client', function () {
+    $owningConsultant = User::factory()->create(['company_id' => $this->company->id]);
+    $owningConsultant->assignRole('consultant');
+
+    $otherConsultant = User::factory()->create(['company_id' => $this->company->id]);
+    $otherConsultant->assignRole('consultant');
+
+    $this->client->update(['consultant_id' => $owningConsultant->id]);
+    $pool = $this->client->candidatePool->fresh();
+
+    $this->actingAs($owningConsultant);
+    Cache::put("user.{$owningConsultant->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$owningConsultant->id}.active_industry_id", $this->industry->id);
+    expect((new JobPipelineFlow)->poolOptions())->toHaveKey($pool->id);
+
+    $this->actingAs($otherConsultant);
+    Cache::put("user.{$otherConsultant->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$otherConsultant->id}.active_industry_id", $this->industry->id);
+    expect((new JobPipelineFlow)->poolOptions())->not->toHaveKey($pool->id);
 });

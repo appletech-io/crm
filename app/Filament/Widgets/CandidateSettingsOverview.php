@@ -10,7 +10,6 @@ use App\Filament\Resources\QualificationJobTitles\QualificationJobTitleResource;
 use App\Filament\Resources\Qualifications\QualificationResource;
 use App\Filament\Resources\ReferenceForms\ReferenceFormResource;
 use App\Filament\Resources\SampleProfiles\SampleProfileResource;
-use App\Models\CandidatePool;
 use App\Models\CandidateSkill;
 use App\Models\CandidateStatus;
 use App\Models\JobTitle;
@@ -39,14 +38,9 @@ class CandidateSettingsOverview extends StatsOverviewWidget
      */
     protected function getStats(): array
     {
-        $poolsCount = CandidatePool::query()
-            ->where('company_id', Auth::user()->company_id)
-            ->where('industry_id', active_industry_id())
-            ->where(fn ($q) => $q
-                ->where('user_id', Auth::id())
-                ->orWhere(fn ($q) => $q->where('company_pool', true)->whereNull('user_id'))
-            )
-            ->count();
+        // Reuses the resource's own query rather than duplicating its
+        // visibility rules here — see CandidatePoolResource::getEloquentQuery().
+        $poolsCount = CandidatePoolResource::getEloquentQuery()->count();
 
         $poolStat = Stat::make('Candidate Pools', $poolsCount)
             ->description('Your pools and company pools')

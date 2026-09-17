@@ -2,8 +2,11 @@
 
 use App\Filament\Resources\Clients\ClientResource;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
+use App\Models\Candidate;
 use App\Models\Client;
 use App\Models\EducationCandidate;
+use App\Models\HealthcareCandidate;
+use App\Models\Industry;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Filament\Livewire\GlobalSearch;
@@ -72,10 +75,11 @@ test('a client can be found in global search by a contacts email', function () {
     expect($titles)->toContain($client->name);
 });
 
-test('a candidate can be found in global search by mobile number', function () {
+test('a candidate can be found in global search by mobile number, and their full name is shown', function () {
     $candidate = EducationCandidate::factory()->create([
         'company_id' => $this->company->id,
         'first_name' => 'Stephen',
+        'last_name' => 'Fry',
         'mobile' => '07700900123',
     ]);
 
@@ -86,13 +90,14 @@ test('a candidate can be found in global search by mobile number', function () {
 
     $titles = $results->getCategories()->flatten()->pluck('title');
 
-    expect($titles)->toContain($candidate->first_name);
+    expect($titles)->toContain('Stephen Fry');
 });
 
-test('a candidate can be found in global search by email', function () {
+test('a candidate can be found in global search by email, and their full name is shown', function () {
     $candidate = EducationCandidate::factory()->create([
         'company_id' => $this->company->id,
         'first_name' => 'Stephen',
+        'last_name' => 'Fry',
         'email' => 'stephen@example.com',
     ]);
 
@@ -103,5 +108,65 @@ test('a candidate can be found in global search by email', function () {
 
     $titles = $results->getCategories()->flatten()->pluck('title');
 
-    expect($titles)->toContain($candidate->first_name);
+    expect($titles)->toContain('Stephen Fry');
+});
+
+test('a candidate can be found in global search by last name', function () {
+    $candidate = EducationCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Stephen',
+        'last_name' => 'Fry',
+    ]);
+
+    $results = Livewire::test(GlobalSearch::class)
+        ->set('search', 'Fry')
+        ->instance()
+        ->getResults();
+
+    $titles = $results->getCategories()->flatten()->pluck('title');
+
+    expect($titles)->toContain('Stephen Fry');
+});
+
+test('a healthcare candidate shows their full name in global search', function () {
+    Cache::put("user.{$this->user->id}.active_industry", 'healthcare');
+
+    $candidate = HealthcareCandidate::factory()->create([
+        'company_id' => $this->company->id,
+        'first_name' => 'Alice',
+        'last_name' => 'Nightingale',
+        'email' => 'alice.nightingale@example.com',
+    ]);
+
+    $results = Livewire::test(GlobalSearch::class)
+        ->set('search', 'alice.nightingale@example.com')
+        ->instance()
+        ->getResults();
+
+    $titles = $results->getCategories()->flatten()->pluck('title');
+
+    expect($titles)->toContain('Alice Nightingale');
+});
+
+test('a generic candidate shows their full name in global search', function () {
+    $genericIndustry = Industry::factory()->create(['slug' => 'generic']);
+    Cache::put("user.{$this->user->id}.active_industry", 'generic');
+    Cache::put("user.{$this->user->id}.active_industry_id", $genericIndustry->id);
+
+    $candidate = Candidate::factory()->create([
+        'company_id' => $this->company->id,
+        'industry_id' => $genericIndustry->id,
+        'first_name' => 'Robin',
+        'last_name' => 'Shaw',
+        'email' => 'robin.shaw@example.com',
+    ]);
+
+    $results = Livewire::test(GlobalSearch::class)
+        ->set('search', 'robin.shaw@example.com')
+        ->instance()
+        ->getResults();
+
+    $titles = $results->getCategories()->flatten()->pluck('title');
+
+    expect($titles)->toContain('Robin Shaw');
 });

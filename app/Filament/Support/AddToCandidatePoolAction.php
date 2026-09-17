@@ -2,6 +2,7 @@
 
 namespace App\Filament\Support;
 
+use App\Filament\Resources\CandidatePools\CandidatePoolResource;
 use App\Models\CandidatePool;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
@@ -72,14 +73,13 @@ class AddToCandidatePoolAction
             });
     }
 
+    /**
+     * Reuses the resource's own query rather than duplicating its
+     * visibility rules here — see CandidatePoolResource::getEloquentQuery().
+     */
     private static function availablePools(): Collection
     {
-        return CandidatePool::query()
-            ->where('industry_id', active_industry_id())
-            ->where(fn ($query) => $query
-                ->where('user_id', Auth::id())
-                ->orWhere(fn ($q) => $q->where('company_pool', true)->whereNull('user_id'))
-            )
+        return CandidatePoolResource::getEloquentQuery()
             ->orderBy('name')
             ->get();
     }
