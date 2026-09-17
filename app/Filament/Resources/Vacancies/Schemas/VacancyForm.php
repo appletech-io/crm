@@ -34,15 +34,30 @@ class VacancyForm
         return $schema
             ->columns(1)
             ->components([
-                Tabs::make('Tabs')
-                    ->tabs([
-                        Tab::make('Applicants')
-                            ->schema([
-                                LivewireComponent::make(VacancyApplicantsBoard::class)
-                                    ->key('vacancy-applicants-board')
-                                    ->hidden(fn (?Model $record): bool => $record === null),
-                            ]),
+                // The default, full-screen view for an existing vacancy — no
+                // tab chrome at all, just the board. EditVacancy's header
+                // button toggles $livewire->viewingDetails to swap over to
+                // the Tabs below instead. Never shown on the create form,
+                // since there's no vacancy yet for the board to belong to.
+                // CSS-hidden (extraAttributes) rather than Filament-hidden
+                // (visible()) for the viewingDetails half of this, since the
+                // board holds no schema-bound fields of its own — unlike the
+                // Tabs below, which do, and can't use visible() for the same
+                // toggle without their fields silently failing to save.
+                LivewireComponent::make(VacancyApplicantsBoard::class)
+                    ->key('vacancy-applicants-board')
+                    ->hidden(fn (?Model $record): bool => $record === null)
+                    ->extraAttributes(fn ($livewire): array => ($livewire->viewingDetails ?? false) ? ['class' => 'hidden'] : []),
 
+                // Always Filament-"visible" (and therefore always dehydrated
+                // and saved) regardless of which view is showing — only
+                // CSS-hidden while the board is what's on screen. Using
+                // visible()/hidden() here instead would make Filament skip
+                // extracting this schema's state on save whenever the board
+                // was the active view, silently dropping any Details changes.
+                Tabs::make('Tabs')
+                    ->extraAttributes(fn (?Model $record, $livewire): array => ($record !== null && ! ($livewire->viewingDetails ?? false)) ? ['class' => 'hidden'] : [])
+                    ->tabs([
                         Tab::make('Details')
                             ->schema([
                                 Section::make('Vacancy Details')

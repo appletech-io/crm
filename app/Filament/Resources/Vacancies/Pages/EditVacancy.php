@@ -17,10 +17,17 @@ class EditVacancy extends EditRecord
     protected static string $resource = VacancyResource::class;
 
     /**
+     * Toggled by the header button below to swap between the full-screen
+     * Applicants board (the default landing view — see VacancyForm) and the
+     * Details/Matches/Activity tabs. Page-level UI state rather than form
+     * data, so it lives here rather than as a field in the schema.
+     */
+    public bool $viewingDetails = false;
+
+    /**
      * Full width, same as the standalone Job Pipeline page — the
-     * Applicants board (now this page's default tab) is a kanban that
-     * wants the room, not the narrower width a plain settings form is
-     * happy with.
+     * Applicants board is a kanban that wants the room, not the narrower
+     * width a plain settings form is happy with. Applies to both views.
      */
     public function getMaxContentWidth(): Width
     {
@@ -30,6 +37,11 @@ class EditVacancy extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('toggleDetailsView')
+                ->label(fn (): string => $this->viewingDetails ? 'Back to Board' : 'Details / Matches / Activity')
+                ->icon(fn (): string => $this->viewingDetails ? 'heroicon-o-arrow-left' : 'heroicon-o-adjustments-horizontal')
+                ->color('gray')
+                ->action(fn () => $this->viewingDetails = ! $this->viewingDetails),
             Action::make('runMatch')
                 ->label('Run Match')
                 ->icon('heroicon-o-sparkles')
