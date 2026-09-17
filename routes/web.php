@@ -44,6 +44,8 @@ Route::livewire('/application/{token}', 'application.verify-application')->name(
 Route::livewire('/application/{token}/form', 'application.application-form')->name('application.form');
 Route::livewire('/application/healthcare/{token}', 'application.healthcare-verify-application')->name('application.healthcare.verify');
 Route::livewire('/application/healthcare/{token}/form', 'application.healthcare-application-form')->name('application.healthcare.form');
+Route::livewire('/application/candidate/{token}', 'application.candidate-verify-application')->name('application.candidate.verify');
+Route::livewire('/application/candidate/{token}/form', 'application.candidate-application-form')->name('application.candidate.form');
 
 // Exposed to public routes for referees completing a candidate reference
 Route::livewire('/reference/{token}', 'reference.verify-reference')->name('reference.verify');

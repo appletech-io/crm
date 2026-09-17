@@ -17,6 +17,8 @@ class CandidateApplication extends Model
     protected function casts(): array
     {
         return [
+            'expires_on' => 'date',
+            'email_verified' => 'boolean',
             'completed_at' => 'datetime',
         ];
     }
