@@ -9,16 +9,6 @@
             No Job Statuses have been configured for this industry yet — add some under Settings &rarr; Job Statuses to build this board.
         </div>
     @else
-        <div class="mb-3 flex justify-end">
-            <x-filament::button
-                icon="heroicon-o-user-plus"
-                size="sm"
-                wire:click="mountAction('addCandidate')"
-            >
-                Add Candidate
-            </x-filament::button>
-        </div>
-
         <div
             x-data="{
                 init() {
@@ -48,9 +38,21 @@
                                 {{ $status->name }}
                             </x-filament::badge>
 
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                {{ $applications->count() }}
-                            </span>
+                            <div class="flex items-center gap-3">
+                                @if ($loop->first)
+                                    <button
+                                        type="button"
+                                        wire:click="mountAction('addCandidate')"
+                                        class="text-xs font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                    >
+                                        + Candidate
+                                    </button>
+                                @endif
+
+                                <span class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                    {{ $applications->count() }}
+                                </span>
+                            </div>
                         </div>
 
                         <div
