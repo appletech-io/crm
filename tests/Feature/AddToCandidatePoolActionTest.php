@@ -5,6 +5,7 @@ use App\Filament\Resources\HealthcareCandidates\Pages\ListHealthcareCandidates;
 use App\Filament\Support\AddToCandidatePoolAction;
 use App\Models\CandidatePool;
 use App\Models\CandidateStatus;
+use App\Models\Client;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use App\Models\Industry;
@@ -173,6 +174,52 @@ test('creating a new private pool inline scopes it to the current user and indus
         ->and($pool->industry_id)->toBe($this->industry->id)
         ->and($pool->user_id)->toBe($this->user->id)
         ->and($pool->company_pool)->toBeFalsy();
+});
+
+test('the pool select only offers a client pool to the consultant who owns that client', function () {
+    $owningConsultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $otherConsultant = User::factory()->create(['company_id' => $this->user->company_id]);
+
+    $client = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $owningConsultant->id,
+    ]);
+    $clientPool = $client->candidatePool;
+
+    $this->actingAs($owningConsultant);
+    Cache::put("user.{$owningConsultant->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$owningConsultant->id}.active_industry_id", $this->industry->id);
+    expect(candidatePoolSelectFor(EducationCandidate::class)->getOptions())->toHaveKey($clientPool->id);
+
+    $this->actingAs($otherConsultant);
+    Cache::put("user.{$otherConsultant->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$otherConsultant->id}.active_industry_id", $this->industry->id);
+    expect(candidatePoolSelectFor(EducationCandidate::class)->getOptions())->not->toHaveKey($clientPool->id);
+});
+
+test('adding candidates to a client pool you do not own does nothing', function () {
+    $owningConsultant = User::factory()->create(['company_id' => $this->user->company_id]);
+    $otherConsultant = User::factory()->create(['company_id' => $this->user->company_id]);
+
+    $client = Client::factory()->create([
+        'company_id' => $this->user->company_id,
+        'industry_id' => $this->industry->id,
+        'consultant_id' => $owningConsultant->id,
+    ]);
+    $clientPool = $client->candidatePool;
+
+    $candidate = EducationCandidate::factory()->create(['company_id' => $this->user->company_id]);
+
+    $this->actingAs($otherConsultant);
+    Cache::put("user.{$otherConsultant->id}.active_industry", $this->industry->slug);
+    Cache::put("user.{$otherConsultant->id}.active_industry_id", $this->industry->id);
+
+    Livewire::test(ListEducationCandidates::class)
+        ->set('activeSection', 'all')
+        ->callTableBulkAction('addToPool', [$candidate], data: ['candidate_pool_id' => $clientPool->id]);
+
+    expect($clientPool->candidatesOfType(EducationCandidate::class)->pluck('id')->all())->toBe([]);
 });
 
 test('creating a new company pool inline leaves it unowned so every consultant can see it', function () {
