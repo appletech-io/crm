@@ -61,13 +61,24 @@ class CandidatePoolResource extends Resource
         ];
     }
 
+    /**
+     * A client's own pool (client_id set — see EnsureClientCandidatePool)
+     * is only visible to the consultant who currently owns that client,
+     * resolved live via the relationship rather than a denormalized column
+     * on the pool itself, so a later consultant reassignment (see
+     * SyncClientConsultantPool) is reflected immediately without needing
+     * to keep a second copy in sync. A genuine company-wide pool
+     * (company_pool = true, no client_id) stays visible to everyone, same
+     * as before.
+     */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
             ->where('industry_id', active_industry_id())
             ->where(fn (Builder $query) => $query
                 ->where('user_id', Auth::id())
-                ->orWhere(fn (Builder $q) => $q->where('company_pool', true)->whereNull('user_id'))
+                ->orWhere(fn (Builder $q) => $q->where('company_pool', true)->whereNull('user_id')->whereNull('client_id'))
+                ->orWhereHas('client', fn (Builder $q) => $q->where('consultant_id', Auth::id()))
             );
     }
 }
