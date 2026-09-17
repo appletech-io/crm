@@ -94,7 +94,7 @@ test('moving a candidate further along updates the vacancy status again', functi
     expect($this->vacancy->fresh()->job_status_id)->toBe($this->placed->id);
 });
 
-test('deleting the furthest-along candidate falls back to the next-furthest remaining one', function () {
+test('deleting the furthest-along candidate does not change the vacancy status', function () {
     $furthest = VacancyApplication::create([
         'vacancy_id' => $this->vacancy->id,
         'candidate_type' => Candidate::class,
@@ -102,18 +102,31 @@ test('deleting the furthest-along candidate falls back to the next-furthest rema
         'job_status_id' => $this->placed->id,
     ]);
 
-    VacancyApplication::create([
-        'vacancy_id' => $this->vacancy->id,
-        'candidate_type' => Candidate::class,
-        'candidate_id' => makeCandidate()->id,
-        'job_status_id' => $this->interview1->id,
-    ]);
-
     expect($this->vacancy->fresh()->job_status_id)->toBe($this->placed->id);
 
     $furthest->delete();
 
-    expect($this->vacancy->fresh()->job_status_id)->toBe($this->interview1->id);
+    expect($this->vacancy->fresh()->job_status_id)->toBe($this->placed->id);
+});
+
+test('a new application defaulting to the first stage never regresses an already-advanced vacancy', function () {
+    VacancyApplication::create([
+        'vacancy_id' => $this->vacancy->id,
+        'candidate_type' => Candidate::class,
+        'candidate_id' => makeCandidate()->id,
+        'job_status_id' => $this->interview2->id,
+    ]);
+
+    expect($this->vacancy->fresh()->job_status_id)->toBe($this->interview2->id);
+
+    // Leaves job_status_id unset, so creating() defaults it to the first stage.
+    VacancyApplication::create([
+        'vacancy_id' => $this->vacancy->id,
+        'candidate_type' => Candidate::class,
+        'candidate_id' => makeCandidate()->id,
+    ]);
+
+    expect($this->vacancy->fresh()->job_status_id)->toBe($this->interview2->id);
 });
 
 test('a vacancy with no applications keeps whatever status it was given', function () {

@@ -36,47 +36,43 @@ class VacancyApplicationObserver
 
     public function saved(VacancyApplication $application): void
     {
-        $this->syncVacancyToFurthestCandidate($application->vacancy_id);
-    }
-
-    public function deleted(VacancyApplication $application): void
-    {
-        $this->syncVacancyToFurthestCandidate($application->vacancy_id);
+        $this->advanceVacancyIfFurtherAlong($application);
     }
 
     /**
-     * A vacancy's own status isn't tracked separately from where its
-     * candidates actually are — it always matches whichever candidate has
-     * progressed furthest through the pipeline (by JobStatus::sort_order),
-     * so "Interview Stage 2" on the Job Pipeline reflects a real job the
-     * moment any candidate reaches it, rather than needing someone to also
-     * update the vacancy's own status by hand. Resolved without the company
-     * global scopes for the same reason as creating() above.
+     * If this candidate now sits at a later pipeline stage than the
+     * vacancy's own current status, the vacancy moves up to match — never
+     * backward, so an earlier-stage candidate (new, or moved back) never
+     * regresses a job that's already moved on. Resolved without the
+     * company global scopes for the same reason as creating() above.
      */
-    private function syncVacancyToFurthestCandidate(int $vacancyId): void
+    private function advanceVacancyIfFurtherAlong(VacancyApplication $application): void
     {
-        $vacancy = Vacancy::withoutGlobalScope('company')->find($vacancyId);
+        if (! $application->job_status_id) {
+            return;
+        }
+
+        $vacancy = Vacancy::withoutGlobalScope('company')->find($application->vacancy_id);
 
         if (! $vacancy) {
             return;
         }
 
-        $applicationStatusIds = VacancyApplication::query()
-            ->where('vacancy_id', $vacancyId)
-            ->whereNotNull('job_status_id')
-            ->pluck('job_status_id');
+        $sortOrders = JobStatus::withoutGlobalScope('company')
+            ->whereIn('id', array_filter([$application->job_status_id, $vacancy->job_status_id]))
+            ->pluck('sort_order', 'id');
 
-        if ($applicationStatusIds->isEmpty()) {
+        $candidateSortOrder = $sortOrders[$application->job_status_id] ?? null;
+        $vacancySortOrder = $sortOrders[$vacancy->job_status_id] ?? null;
+
+        if ($candidateSortOrder === null) {
             return;
         }
 
-        $furthestStatusId = JobStatus::withoutGlobalScope('company')
-            ->whereIn('id', $applicationStatusIds)
-            ->orderByDesc('sort_order')
-            ->value('id');
-
-        if ($furthestStatusId && $furthestStatusId !== $vacancy->job_status_id) {
-            $vacancy->update(['job_status_id' => $furthestStatusId]);
+        if ($vacancySortOrder !== null && $candidateSortOrder <= $vacancySortOrder) {
+            return;
         }
+
+        $vacancy->update(['job_status_id' => $application->job_status_id]);
     }
 }
