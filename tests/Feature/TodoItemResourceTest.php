@@ -666,3 +666,38 @@ test('the link to field is hidden on edit when linked to a reference, but the re
         ->assertFormFieldIsHidden('model_type')
         ->assertSee(trim("{$candidate->first_name} {$candidate->last_name}"));
 });
+
+test('the tabs badge shows how many outstanding to-dos exist per priority, and All shows the total', function () {
+    TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'high']);
+    TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'high']);
+    TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'medium']);
+    // Completed — should not count toward any badge.
+    TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'high', 'completed_at' => now()]);
+
+    $tabs = Livewire::test(ListTodoItems::class)->instance()->getTabs();
+
+    expect($tabs['all']->getBadge())->toBe('3')
+        ->and($tabs['high']->getBadge())->toBe('2')
+        ->and($tabs['medium']->getBadge())->toBe('1')
+        ->and($tabs['low']->getBadge())->toBe('0');
+});
+
+test('the tab badges only count the current user\'s own to-dos', function () {
+    $otherUser = User::factory()->create(['company_id' => $this->company->id]);
+    TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'high']);
+    TodoItem::factory()->create(['user_id' => $otherUser->id, 'priority' => 'high']);
+
+    $tabs = Livewire::test(ListTodoItems::class)->instance()->getTabs();
+
+    expect($tabs['high']->getBadge())->toBe('1');
+});
+
+test('selecting a priority tab only shows to-dos of that priority', function () {
+    $high = TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'high', 'name' => 'High priority item']);
+    $low = TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'low', 'name' => 'Low priority item']);
+
+    Livewire::test(ListTodoItems::class)
+        ->set('activeTab', 'high')
+        ->assertCanSeeTableRecords([$high])
+        ->assertCanNotSeeTableRecords([$low]);
+});
