@@ -59,14 +59,7 @@
 
         <div class="flex justify-end">
             <div class="w-full max-w-56">
-                <x-filament::input.wrapper>
-                    <x-filament::input.select wire:model.live="poolId">
-                        <option value="">All candidates</option>
-                        @foreach ($this->poolOptions() as $id => $name)
-                            <option value="{{ $id }}">{{ $name }}</option>
-                        @endforeach
-                    </x-filament::input.select>
-                </x-filament::input.wrapper>
+                {{ $this->form }}
             </div>
         </div>
 
