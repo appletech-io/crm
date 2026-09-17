@@ -6,11 +6,13 @@ use App\Filament\Widgets\GenericConsultantKpiOverview;
 use App\Filament\Widgets\ItPlacementsOverview;
 
 /**
- * Used for any industry that has Bookings toggled off (see
- * active_industry_uses_bookings()) — every widget here is Vacancy/
- * Application/Placement-derived instead of the booking-based figures
- * (Gross Profit, candidate days out, rebook rate, booking-day leaderboard)
- * a bookings-enabled industry's dashboard shows.
+ * The "Perm" dashboard — used for any industry that has Bookings toggled
+ * off (see active_industry_uses_bookings()), and also directly selectable
+ * via the Dashboard's header toggle when a sector has both Bookings and
+ * Perm switched on (see Dashboard::resolveForBothEnabled()). Every widget
+ * here is Vacancy/Application/Placement-derived instead of the
+ * booking-based figures (Gross Profit, candidate days out, rebook rate,
+ * booking-day leaderboard) a bookings-enabled industry's dashboard shows.
  */
 class NoBookingsDashboard implements DashboardInterface
 {

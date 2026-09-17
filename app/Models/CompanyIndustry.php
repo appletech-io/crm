@@ -7,10 +7,10 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
 
 /**
  * The company_industry pivot, promoted to a real model so its own
- * uses_bookings flag (App\Filament\Resources\Companies\Schemas\CompanyForm)
- * can be edited per row via a Repeater — a plain BelongsToMany's
- * pivotData() only supports one uniform value across every selected
- * record in a single save, not one that differs per industry.
+ * uses_bookings/uses_perm flags (App\Filament\Resources\Companies\Schemas\
+ * CompanyFeaturesForm) can be edited per row via a Repeater — a plain
+ * BelongsToMany's pivotData() only supports one uniform value across every
+ * selected record in a single save, not one that differs per industry.
  */
 class CompanyIndustry extends Pivot
 {
@@ -22,6 +22,7 @@ class CompanyIndustry extends Pivot
     {
         return [
             'uses_bookings' => 'boolean',
+            'uses_perm' => 'boolean',
         ];
     }
 
@@ -33,5 +34,39 @@ class CompanyIndustry extends Pivot
     public function industry(): BelongsTo
     {
         return $this->belongsTo(Industry::class);
+    }
+
+    /**
+     * Whether the given company has Bookings switched on for the given
+     * industry — the single source of truth every access gate in the app
+     * should call through, whether resolved from the staff session cache
+     * (see active_industry_uses_bookings()) or directly from a candidate's
+     * or client's own company/industry, which have no such cache.
+     */
+    public static function usesBookings(?int $companyId, ?int $industryId): bool
+    {
+        return static::feature('uses_bookings', $companyId, $industryId);
+    }
+
+    public static function usesPerm(?int $companyId, ?int $industryId): bool
+    {
+        return static::feature('uses_perm', $companyId, $industryId);
+    }
+
+    /**
+     * Fails open (true) when there's no company/industry to check, or no
+     * matching row — a data gap should never silently hide a feature that's
+     * meant to be on.
+     */
+    private static function feature(string $column, ?int $companyId, ?int $industryId): bool
+    {
+        if (! $companyId || ! $industryId) {
+            return true;
+        }
+
+        return static::query()
+            ->where('company_id', $companyId)
+            ->where('industry_id', $industryId)
+            ->value($column) ?? true;
     }
 }

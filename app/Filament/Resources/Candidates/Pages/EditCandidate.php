@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Candidates\Pages;
 
 use App\Filament\Concerns\HasPayrollProviderErrorAlert;
 use App\Filament\Resources\Candidates\CandidateResource;
+use App\Filament\Resources\Candidates\Pages\Concerns\HasCandidateStatusSubheading;
 use App\Filament\Resources\Candidates\Schemas\CandidateComplianceForm;
 use App\Jobs\SyncPayrollProviderRecord;
 use App\Models\Candidate;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\Auth;
 
 class EditCandidate extends EditRecord
 {
+    use HasCandidateStatusSubheading;
     use HasPayrollProviderErrorAlert;
 
     protected static string $resource = CandidateResource::class;

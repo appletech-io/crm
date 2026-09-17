@@ -30,7 +30,9 @@ class VacancyResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return active_industry() !== null && ! (auth()->user()?->isComplianceOnly() ?? false);
+        return active_industry() !== null
+            && ! (auth()->user()?->isComplianceOnly() ?? false)
+            && active_industry_uses_perm();
     }
 
     public static function form(Schema $schema): Schema

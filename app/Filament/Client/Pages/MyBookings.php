@@ -9,6 +9,7 @@ use App\Models\Booking;
 use App\Models\BookingDay;
 use App\Models\Client;
 use App\Models\Company;
+use App\Models\CompanyIndustry;
 use App\Services\Booking\TimesheetPeriod;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -38,6 +39,19 @@ class MyBookings extends Page implements HasTable
     protected static ?string $title = 'My Bookings';
 
     protected static ?int $navigationSort = 1;
+
+    /**
+     * A client portal login has no active-industry session cache the way a
+     * staff login does (see RequestCandidateBookingAction's own note on
+     * this) — resolved directly from the client's own company/industry
+     * instead of active_industry_uses_bookings().
+     */
+    public static function canAccess(): bool
+    {
+        $client = Auth::user()?->client();
+
+        return $client && CompanyIndustry::usesBookings($client->company_id, $client->industry_id);
+    }
 
     public function mount(): void
     {

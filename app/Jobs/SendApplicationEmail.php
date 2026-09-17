@@ -6,6 +6,8 @@ use App\Enums\ActivityType;
 use App\Enums\EmailProvider;
 use App\Exceptions\Mail\MicrosoftGraphThrottledException;
 use App\Jobs\Concerns\ThrottlesMicrosoftGraphMail;
+use App\Models\Candidate;
+use App\Models\CandidateApplication;
 use App\Models\Company;
 use App\Models\EducationApplication;
 use App\Models\EducationCandidate;
@@ -46,18 +48,18 @@ class SendApplicationEmail implements ShouldQueue
     }
 
     /**
-     * Handles both Education and Healthcare candidates — the two sides only
-     * differ in which industry their template/route belongs to, both
-     * resolved dynamically below rather than needing two near-identical job
-     * classes.
+     * Handles Education, Healthcare, and generic Candidates — the sides only
+     * differ in which industry their template/route belongs to, resolved
+     * dynamically below rather than needing near-identical job classes per
+     * candidate type.
      *
      * $createdByUserId must be captured by the caller at dispatch time (e.g.
      * auth()->id()) — this job runs on a queue worker with no session, so
      * auth() inside handle() would always resolve to null.
      */
     public function __construct(
-        public readonly EducationCandidate|HealthcareCandidate $candidate,
-        public readonly EducationApplication|HealthcareApplication $application,
+        public readonly EducationCandidate|HealthcareCandidate|Candidate $candidate,
+        public readonly EducationApplication|HealthcareApplication|CandidateApplication $application,
         public readonly ?int $createdByUserId = null,
     ) {}
 
@@ -66,7 +68,7 @@ class SendApplicationEmail implements ShouldQueue
      */
     public function handle(): void
     {
-        $industryId = Industry::where('slug', $this->industrySlug())->value('id');
+        $industryId = $this->industryId();
 
         $template = EmailTemplate::query()
             ->where('company_id', $this->candidate->company_id)
@@ -112,6 +114,22 @@ class SendApplicationEmail implements ShouldQueue
         }
     }
 
+    /**
+     * A generic Candidate carries its own industry_id directly, since
+     * Industry::slugForCandidateModel() can only resolve to one industry per
+     * model and several generic-industry slugs (e.g. "generic", "it") can
+     * share the Candidate model — reading the candidate's own column avoids
+     * that ambiguity entirely.
+     */
+    private function industryId(): ?int
+    {
+        if ($this->candidate instanceof Candidate) {
+            return $this->candidate->industry_id;
+        }
+
+        return Industry::where('slug', $this->industrySlug())->value('id');
+    }
+
     private function industrySlug(): string
     {
         return Industry::slugForCandidateModel($this->candidate::class) ?? 'education';
@@ -121,6 +139,7 @@ class SendApplicationEmail implements ShouldQueue
     {
         return match ($this->candidate::class) {
             HealthcareCandidate::class => 'application.healthcare.form',
+            Candidate::class => 'application.candidate.form',
             default => 'application.form',
         };
     }

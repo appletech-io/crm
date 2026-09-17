@@ -83,8 +83,22 @@ class ListEducationCandidates extends ListRecords implements HasForms
 
         $this->weekStart = now()->startOfWeek(CarbonImmutable::MONDAY)->toDateString();
 
+        if (! $this->searchTabVisible()) {
+            $this->activeSection = 'all';
+        }
+
         $this->form->fill(['radius_miles' => 10]);
         $this->search();
+    }
+
+    /**
+     * The "Search" tab is a booking availability-search grid — meaningless
+     * (and hidden) for a sector with Bookings switched off, which only ever
+     * sees the plain "All Candidates" list.
+     */
+    public function searchTabVisible(): bool
+    {
+        return active_industry_uses_bookings();
     }
 
     public function updatedActiveSection(): void

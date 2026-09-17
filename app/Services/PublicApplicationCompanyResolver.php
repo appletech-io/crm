@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CandidateApplication;
 use App\Models\CandidateReference;
 use App\Models\Company;
 use App\Models\EducationApplication;
@@ -32,6 +33,7 @@ class PublicApplicationCompanyResolver
 
         return EducationApplication::where('token', $token)->first()?->educationCandidate?->company
             ?? HealthcareApplication::where('token', $token)->first()?->candidate?->company
+            ?? CandidateApplication::where('token', $token)->first()?->candidate?->company
             ?? CandidateReference::where('token', $token)->first()?->candidate?->company;
     }
 

@@ -20,7 +20,7 @@ class ClientSettings extends Page
 
     public static function canAccess(): bool
     {
-        return active_industry() !== null && (auth()->user()?->hasRole('admin') ?? false);
+        return active_industry() !== null && (auth()->user()?->hasAnyRole(['admin', 'consultant']) ?? false);
     }
 
     public function getWidgets(): array

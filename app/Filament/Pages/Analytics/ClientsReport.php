@@ -38,22 +38,37 @@ class ClientsReport extends Page implements HasTable
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->hasRole('admin') ?? false;
+        return auth()->user()?->hasAnyRole(['admin', 'consultant']) ?? false;
     }
 
     /** @return array<string, int|string> */
     public function stats(): array
     {
-        $bookingTotals = BookingRevenuePeriodCalculator::totals($this->periodStart(), $this->periodEnd(), $this->filterConsultantId());
-        $placementTotals = PlacementPeriodCalculator::totals($this->periodStart(), $this->periodEnd(), $this->filterConsultantId());
+        $stats = ['Clients active' => $this->rows()->count()];
 
-        return [
-            'Clients active' => $this->rows()->count(),
-            'Booking revenue' => '£'.number_format($bookingTotals['revenue'], 2),
-            'Booking margin' => '£'.number_format($bookingTotals['margin'], 2),
-            'Placements' => $placementTotals['count'],
-            'Placement value' => '£'.number_format($placementTotals['value'], 2),
-        ];
+        if ($this->includeBookingStats()) {
+            $bookingTotals = BookingRevenuePeriodCalculator::totals($this->periodStart(), $this->periodEnd(), $this->filterConsultantId());
+            $stats['Booking revenue'] = '£'.number_format($bookingTotals['revenue'], 2);
+            $stats['Booking margin'] = '£'.number_format($bookingTotals['margin'], 2);
+        }
+
+        if ($this->includePlacementStats()) {
+            $placementTotals = PlacementPeriodCalculator::totals($this->periodStart(), $this->periodEnd(), $this->filterConsultantId());
+            $stats['Placements'] = $placementTotals['count'];
+            $stats['Placement value'] = '£'.number_format($placementTotals['value'], 2);
+        }
+
+        return $stats;
+    }
+
+    private function includeBookingStats(): bool
+    {
+        return active_industry_uses_bookings();
+    }
+
+    private function includePlacementStats(): bool
+    {
+        return active_industry_uses_perm();
     }
 
     public function table(Table $table): Table
@@ -72,12 +87,12 @@ class ClientsReport extends Page implements HasTable
             ->columns([
                 TextColumn::make('clientName')->label('Client'),
                 TextColumn::make('consultantName')->label('Consultant'),
-                TextColumn::make('bookings')->label('Bookings')->alignEnd(),
-                TextColumn::make('revenue')->label('Revenue')->formatStateUsing(fn (float $state): string => '£'.number_format($state, 2))->alignEnd(),
-                TextColumn::make('margin')->label('Margin')->formatStateUsing(fn (float $state): string => '£'.number_format($state, 2))->alignEnd()->weight('bold'),
-                TextColumn::make('placements')->label('Placements')->alignEnd(),
-                TextColumn::make('placementValue')->label('Placement Value')->formatStateUsing(fn (float $state): string => '£'.number_format($state, 2))->alignEnd(),
-                TextColumn::make('activeVacancies')->label('Open Vacancies')->alignEnd(),
+                TextColumn::make('bookings')->label('Bookings')->alignEnd()->visible($this->includeBookingStats()),
+                TextColumn::make('revenue')->label('Revenue')->formatStateUsing(fn (float $state): string => '£'.number_format($state, 2))->alignEnd()->visible($this->includeBookingStats()),
+                TextColumn::make('margin')->label('Margin')->formatStateUsing(fn (float $state): string => '£'.number_format($state, 2))->alignEnd()->weight('bold')->visible($this->includeBookingStats()),
+                TextColumn::make('placements')->label('Placements')->alignEnd()->visible($this->includePlacementStats()),
+                TextColumn::make('placementValue')->label('Placement Value')->formatStateUsing(fn (float $state): string => '£'.number_format($state, 2))->alignEnd()->visible($this->includePlacementStats()),
+                TextColumn::make('activeVacancies')->label('Open Vacancies')->alignEnd()->visible($this->includePlacementStats()),
             ])
             ->filters([
                 Filter::make('period')
@@ -101,6 +116,7 @@ class ClientsReport extends Page implements HasTable
                 SelectFilter::make('consultant_id')
                     ->label('Consultant')
                     ->placeholder('All Consultants')
+                    ->visible(fn (): bool => auth()->user()?->isAdmin() ?? false)
                     ->options(fn (): array => User::role('consultant')
                         ->whereHas('industries', fn ($query) => $query->where('industries.id', active_industry_id()))
                         ->orderBy('name')
@@ -117,15 +133,23 @@ class ClientsReport extends Page implements HasTable
         $end = $this->periodEnd();
         $consultantId = $this->filterConsultantId();
 
-        $revenueRows = BookingRevenuePeriodCalculator::byClient($start, $end, $consultantId)->keyBy('clientId');
-        $placementRows = PlacementPeriodCalculator::byClient($start, $end, $consultantId)->keyBy('clientId');
+        $revenueRows = $this->includeBookingStats()
+            ? BookingRevenuePeriodCalculator::byClient($start, $end, $consultantId)->keyBy('clientId')
+            : collect();
+
+        $placementRows = $this->includePlacementStats()
+            ? PlacementPeriodCalculator::byClient($start, $end, $consultantId)->keyBy('clientId')
+            : collect();
 
         $clientIds = $revenueRows->keys()->merge($placementRows->keys())->unique()->values();
 
         $clients = Client::query()
             ->whereIn('id', $clientIds)
             ->with('consultant')
-            ->withCount(['vacancies as active_vacancies_count' => fn (Builder $query) => $query->whereHas('jobStatus', fn (Builder $q) => $q->where('is_filled_status', false))])
+            ->when(
+                $this->includePlacementStats(),
+                fn (Builder $query) => $query->withCount(['vacancies as active_vacancies_count' => fn (Builder $q) => $q->whereHas('jobStatus', fn (Builder $q) => $q->where('is_filled_status', false))])
+            )
             ->get()
             ->keyBy('id');
 
@@ -162,8 +186,19 @@ class ClientsReport extends Page implements HasTable
         return Carbon::parse($this->getTableFilterState('period')['until'] ?? now()->toDateString());
     }
 
+    /**
+     * A non-admin only ever sees their own figures here — the Consultant
+     * filter is hidden from them, so this ignores whatever's in table
+     * filter state and forces their own id instead.
+     */
     private function filterConsultantId(): ?int
     {
+        $user = auth()->user();
+
+        if ($user && ! $user->isAdmin()) {
+            return $user->id;
+        }
+
         $value = $this->getTableFilterState('consultant_id')['value'] ?? null;
 
         return $value ? (int) $value : null;

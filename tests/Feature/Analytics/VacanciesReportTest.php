@@ -33,12 +33,64 @@ test('a site admin cannot access the vacancies report', function () {
     expect(VacanciesReport::canAccess())->toBeFalse();
 });
 
-test('a non-admin cannot access the vacancies report', function () {
+test('a consultant can access the vacancies report, seeing only their own data', function () {
     $consultant = User::factory()->create();
     $consultant->assignRole('consultant');
     $this->actingAs($consultant);
 
+    expect(VacanciesReport::canAccess())->toBeTrue();
+});
+
+test('a resourcer cannot access the vacancies report', function () {
+    $resourcer = User::factory()->create();
+    $resourcer->assignRole('resourcer');
+    $this->actingAs($resourcer);
+
     expect(VacanciesReport::canAccess())->toBeFalse();
+});
+
+test('a consultant only sees their own vacancies, and the consultant filter is hidden', function () {
+    $consultant = User::factory()->create();
+    $consultant->assignRole('consultant');
+    $this->actingAs($consultant);
+
+    $industry = Industry::factory()->create(['slug' => 'education']);
+    Cache::put("user.{$consultant->id}.active_industry", 'education');
+    Cache::put("user.{$consultant->id}.active_industry_id", $industry->id);
+
+    $company = $consultant->company;
+    $otherConsultant = User::factory()->create(['company_id' => $company->id]);
+    $otherConsultant->assignRole('consultant');
+    $client = Client::factory()->create(['company_id' => $company->id, 'industry_id' => $industry->id]);
+
+    $ownVacancy = Vacancy::factory()->create([
+        'company_id' => $company->id,
+        'industry_id' => $industry->id,
+        'client_id' => $client->id,
+        'consultant_id' => $consultant->id,
+    ]);
+
+    $othersVacancy = Vacancy::factory()->create([
+        'company_id' => $company->id,
+        'industry_id' => $industry->id,
+        'client_id' => $client->id,
+        'consultant_id' => $otherConsultant->id,
+    ]);
+
+    Livewire::test(VacanciesReport::class)
+        ->assertSuccessful()
+        ->assertTableFilterHidden('consultant_id')
+        ->assertCanSeeTableRecords([$ownVacancy])
+        ->assertCanNotSeeTableRecords([$othersVacancy]);
+
+    $admin = User::factory()->create(['company_id' => $company->id]);
+    $admin->assignRole('admin');
+    $this->actingAs($admin);
+    Cache::put("user.{$admin->id}.active_industry", 'education');
+    Cache::put("user.{$admin->id}.active_industry_id", $industry->id);
+
+    Livewire::test(VacanciesReport::class)
+        ->assertTableFilterVisible('consultant_id');
 });
 
 test('it renders successfully and totals open and filled vacancies', function () {

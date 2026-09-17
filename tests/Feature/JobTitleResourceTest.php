@@ -57,7 +57,7 @@ test('site_admin can access job titles resource', function () {
     Livewire::test(ListJobTitles::class)->assertSuccessful();
 });
 
-test('client settings page is accessible to an admin with an active industry, but not to a consultant', function () {
+test('client settings page is accessible to an admin with an active industry, and also to a consultant (for their client pools)', function () {
     expect(ClientSettings::canAccess())->toBeTrue();
 
     $consultant = User::factory()->create(['company_id' => $this->company->id]);
@@ -68,7 +68,7 @@ test('client settings page is accessible to an admin with an active industry, bu
     Cache::put("user.{$consultant->id}.active_industry", $this->industry->slug);
     Cache::put("user.{$consultant->id}.active_industry_id", $this->industry->id);
 
-    expect(ClientSettings::canAccess())->toBeFalse();
+    expect(ClientSettings::canAccess())->toBeTrue();
 });
 
 test('can create a job title', function () {

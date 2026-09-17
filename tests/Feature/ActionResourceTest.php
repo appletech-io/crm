@@ -41,7 +41,7 @@ test('list page renders for admins', function () {
     Livewire::test(ListActions::class)->assertSuccessful();
 });
 
-test('consultants and compliance can view, create and edit actions', function () {
+test('consultants and compliance cannot access the actions resource at all', function () {
     $action = Action::factory()->create([
         'company_id' => $this->company->id,
         'industry_id' => $this->industry->id,
@@ -57,10 +57,11 @@ test('consultants and compliance can view, create and edit actions', function ()
         Cache::put("user.{$user->id}.active_industry", $this->industry->slug);
         Cache::put("user.{$user->id}.active_industry_id", $this->industry->id);
 
-        Livewire::test(ListActions::class)->assertSuccessful();
-
-        $this->get('/crm/actions/create')->assertOk();
-        $this->get("/crm/actions/{$action->getRouteKey()}/edit")->assertOk();
+        // Resource-level 403s (canViewAny) are caught by the app's global
+        // exception handler and redirected to /crm.
+        $this->get('/crm/actions')->assertRedirect('/crm');
+        $this->get('/crm/actions/create')->assertRedirect('/crm');
+        $this->get("/crm/actions/{$action->getRouteKey()}/edit")->assertRedirect('/crm');
     }
 });
 

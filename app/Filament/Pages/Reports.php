@@ -50,7 +50,7 @@ class Reports extends BaseDashboard
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->hasRole('admin') ?? false;
+        return auth()->user()?->hasAnyRole(['admin', 'consultant']) ?? false;
     }
 
     public function getTitle(): string
@@ -83,6 +83,7 @@ class Reports extends BaseDashboard
             Select::make('consultant_id')
                 ->label('Consultant')
                 ->placeholder('All Consultants')
+                ->visible(fn (): bool => auth()->user()?->isAdmin() ?? false)
                 ->options(fn (): array => User::role('consultant')
                     ->whereHas('industries', fn ($query) => $query->where('industries.id', active_industry_id()))
                     ->orderBy('name')

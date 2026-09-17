@@ -38,7 +38,7 @@ class CandidatesReport extends Page implements HasTable
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->hasRole('admin') ?? false;
+        return auth()->user()?->hasAnyRole(['admin', 'consultant']) ?? false;
     }
 
     /** @return class-string<Model>|null */
@@ -53,7 +53,7 @@ class CandidatesReport extends Page implements HasTable
     {
         $modelClass = $this->candidateModelClass();
 
-        return $modelClass && method_exists($modelClass, 'bookings');
+        return $modelClass && method_exists($modelClass, 'bookings') && active_industry_uses_bookings();
     }
 
     /** @return array<string, int|string> */
@@ -129,6 +129,7 @@ class CandidatesReport extends Page implements HasTable
                 SelectFilter::make('consultant_id')
                     ->label('Consultant')
                     ->placeholder('All Consultants')
+                    ->visible(fn (): bool => auth()->user()?->isAdmin() ?? false)
                     ->options(fn (): array => User::role('consultant')
                         ->whereHas('industries', fn ($query) => $query->where('industries.id', active_industry_id()))
                         ->orderBy('name')

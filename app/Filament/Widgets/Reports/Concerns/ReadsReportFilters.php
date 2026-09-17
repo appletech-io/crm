@@ -22,8 +22,20 @@ trait ReadsReportFilters
         return Carbon::parse($this->pageFilters['end_date'] ?? now()->toDateString());
     }
 
+    /**
+     * A non-admin only ever sees their own figures here — the Consultant
+     * filter itself is hidden from them (see Reports::filtersForm()), so
+     * this ignores whatever's in page filter state and forces their own id
+     * instead of trusting a value they can't actually control.
+     */
     protected function filterConsultantId(): ?int
     {
+        $user = auth()->user();
+
+        if ($user && ! $user->isAdmin()) {
+            return $user->id;
+        }
+
         $value = $this->pageFilters['consultant_id'] ?? null;
 
         return $value ? (int) $value : null;

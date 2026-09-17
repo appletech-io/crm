@@ -4,6 +4,7 @@ namespace App\Actions\Applications;
 
 use App\Actions\References\ResendReferenceRequestEmail;
 use App\Jobs\SendApplicationEmail;
+use App\Models\Candidate;
 use App\Models\EducationCandidate;
 use App\Models\HealthcareCandidate;
 use Illuminate\Support\Str;
@@ -18,7 +19,7 @@ class ResendApplicationEmail
 {
     use AsAction;
 
-    public function handle(EducationCandidate|HealthcareCandidate $candidate): void
+    public function handle(EducationCandidate|HealthcareCandidate|Candidate $candidate): void
     {
         $application = $candidate->application;
 

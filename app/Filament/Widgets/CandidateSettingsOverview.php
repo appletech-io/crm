@@ -28,18 +28,17 @@ class CandidateSettingsOverview extends StatsOverviewWidget
 
     protected ?string $pollingInterval = null;
 
+    /**
+     * Most of these are company-wide config resources (admin/site_admin
+     * only, Reference Forms also compliance — see each resource's own
+     * canViewAny()); Candidate Pools is always the viewer's own data, and
+     * CandidatePoolResource itself has no role restriction. A consultant or
+     * compliance user reaching this page (see CandidateSettings::canAccess())
+     * only sees the stats they can actually open, rather than a card that
+     * 403s when clicked.
+     */
     protected function getStats(): array
     {
-        $skillsCount = CandidateSkill::query()
-            ->where('company_id', Auth::user()->company_id)
-            ->where('industry_id', active_industry_id())
-            ->count();
-
-        $statusesCount = CandidateStatus::query()
-            ->where('company_id', Auth::user()->company_id)
-            ->where('industry_id', active_industry_id())
-            ->count();
-
         $poolsCount = CandidatePool::query()
             ->where('company_id', Auth::user()->company_id)
             ->where('industry_id', active_industry_id())
@@ -49,79 +48,103 @@ class CandidateSettingsOverview extends StatsOverviewWidget
             )
             ->count();
 
-        $jobTitlesCount = JobTitle::query()
-            ->where('company_id', Auth::user()->company_id)
-            ->where('industry_id', active_industry_id())
-            ->count();
+        $poolStat = Stat::make('Candidate Pools', $poolsCount)
+            ->description('Your pools and company pools')
+            ->descriptionIcon('heroicon-m-rectangle-stack')
+            ->color('primary')
+            ->url(CandidatePoolResource::getUrl('index'));
 
-        $qualificationsCount = Qualification::query()
-            ->where('company_id', Auth::user()->company_id)
-            ->where('industry_id', active_industry_id())
-            ->count();
+        $isAdmin = Auth::user()?->hasAnyRole(['admin', 'site_admin']) ?? false;
 
-        $qualificationJobTitlesCount = QualificationJobTitle::query()
-            ->where('company_id', Auth::user()->company_id)
-            ->where('industry_id', active_industry_id())
-            ->count();
+        $stats = [];
 
-        $referenceFormsCount = ReferenceForm::query()
-            ->where('company_id', Auth::user()->company_id)
-            ->where('industry_id', active_industry_id())
-            ->count();
+        if ($isAdmin) {
+            $skillsCount = CandidateSkill::query()
+                ->where('company_id', Auth::user()->company_id)
+                ->where('industry_id', active_industry_id())
+                ->count();
 
-        $sampleProfilesCount = SampleProfile::query()
-            ->where('company_id', Auth::user()->company_id)
-            ->where('industry_id', active_industry_id())
-            ->count();
-
-        return [
-            Stat::make('Skills', $skillsCount)
+            $stats[] = Stat::make('Skills', $skillsCount)
                 ->description('Candidate skills configured')
                 ->descriptionIcon('heroicon-m-sparkles')
                 ->color('primary')
-                ->url(CandidateSkillResource::getUrl('index')),
+                ->url(CandidateSkillResource::getUrl('index'));
 
-            Stat::make('Candidate Statuses', $statusesCount)
+            $statusesCount = CandidateStatus::query()
+                ->where('company_id', Auth::user()->company_id)
+                ->where('industry_id', active_industry_id())
+                ->count();
+
+            $stats[] = Stat::make('Candidate Statuses', $statusesCount)
                 ->description('Statuses and automations configured')
                 ->descriptionIcon('heroicon-m-tag')
                 ->color('primary')
-                ->url(CandidateStatusResource::getUrl('index')),
+                ->url(CandidateStatusResource::getUrl('index'));
+        }
 
-            Stat::make('Candidate Pools', $poolsCount)
-                ->description('Your pools and company pools')
-                ->descriptionIcon('heroicon-m-rectangle-stack')
-                ->color('primary')
-                ->url(CandidatePoolResource::getUrl('index')),
+        $stats[] = $poolStat;
 
-            Stat::make('Job Titles', $jobTitlesCount)
+        if ($isAdmin) {
+            $jobTitlesCount = JobTitle::query()
+                ->where('company_id', Auth::user()->company_id)
+                ->where('industry_id', active_industry_id())
+                ->count();
+
+            $stats[] = Stat::make('Job Titles', $jobTitlesCount)
                 ->description('Job titles configured')
                 ->descriptionIcon('heroicon-m-briefcase')
                 ->color('primary')
-                ->url(JobTitleResource::getUrl('index')),
+                ->url(JobTitleResource::getUrl('index'));
 
-            Stat::make('Qualifications', $qualificationsCount)
+            $qualificationsCount = Qualification::query()
+                ->where('company_id', Auth::user()->company_id)
+                ->where('industry_id', active_industry_id())
+                ->count();
+
+            $stats[] = Stat::make('Qualifications', $qualificationsCount)
                 ->description('Qualifications configured')
                 ->descriptionIcon('heroicon-m-academic-cap')
                 ->color('primary')
-                ->url(QualificationResource::getUrl('index')),
+                ->url(QualificationResource::getUrl('index'));
 
-            Stat::make('Allowed Job Titles', $qualificationJobTitlesCount)
+            $qualificationJobTitlesCount = QualificationJobTitle::query()
+                ->where('company_id', Auth::user()->company_id)
+                ->where('industry_id', active_industry_id())
+                ->count();
+
+            $stats[] = Stat::make('Allowed Job Titles', $qualificationJobTitlesCount)
                 ->description('Job titles allowed per qualification')
                 ->descriptionIcon('heroicon-m-academic-cap')
                 ->color('primary')
-                ->url(QualificationJobTitleResource::getUrl('index')),
+                ->url(QualificationJobTitleResource::getUrl('index'));
+        }
 
-            Stat::make('Reference Forms', $referenceFormsCount)
+        if ($isAdmin || (Auth::user()?->hasRole('compliance') ?? false)) {
+            $referenceFormsCount = ReferenceForm::query()
+                ->where('company_id', Auth::user()->company_id)
+                ->where('industry_id', active_industry_id())
+                ->count();
+
+            $stats[] = Stat::make('Reference Forms', $referenceFormsCount)
                 ->description('Reference form builders configured')
                 ->descriptionIcon('heroicon-m-document-text')
                 ->color('primary')
-                ->url(ReferenceFormResource::getUrl('index')),
+                ->url(ReferenceFormResource::getUrl('index'));
+        }
 
-            Stat::make('Sample Profiles', $sampleProfilesCount.' / '.SampleProfileResource::MAX_PER_SECTOR)
+        if ($isAdmin) {
+            $sampleProfilesCount = SampleProfile::query()
+                ->where('company_id', Auth::user()->company_id)
+                ->where('industry_id', active_industry_id())
+                ->count();
+
+            $stats[] = Stat::make('Sample Profiles', $sampleProfilesCount.' / '.SampleProfileResource::MAX_PER_SECTOR)
                 ->description('Style references for AI-generated candidate profiles')
                 ->descriptionIcon('heroicon-m-sparkles')
                 ->color('primary')
-                ->url(SampleProfileResource::getUrl('index')),
-        ];
+                ->url(SampleProfileResource::getUrl('index'));
+        }
+
+        return $stats;
     }
 }
