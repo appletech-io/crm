@@ -377,6 +377,25 @@ test('selecting the jobs step clears the status filter', function () {
         ->assertSet('selectedStatusId', null);
 });
 
+test('the pool select is searchable', function () {
+    Livewire::test(JobPipelineFlow::class)
+        ->assertFormFieldExists('poolId', fn ($field): bool => $field->isSearchable());
+});
+
+test('picking a pool through the form field sets poolId and triggers updatedPoolId', function () {
+    $pool = CandidatePool::create([
+        'company_id' => $this->company->id,
+        'industry_id' => $this->industry->id,
+        'user_id' => $this->admin->id,
+        'name' => 'Cover Teachers',
+    ]);
+
+    Livewire::test(JobPipelineFlow::class)
+        ->fillForm(['poolId' => $pool->id])
+        ->assertSet('poolId', $pool->id)
+        ->assertSet('viewingCandidates', true);
+});
+
 test('the pool options only include pools visible to the current user', function () {
     $ownPool = CandidatePool::create([
         'company_id' => $this->company->id,

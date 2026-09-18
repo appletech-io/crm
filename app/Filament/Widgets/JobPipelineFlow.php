@@ -15,6 +15,10 @@ use App\Models\Industry;
 use App\Models\JobStatus;
 use App\Models\Vacancy;
 use App\Models\VacancyApplication;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Concerns\InteractsWithForms;
+use Filament\Forms\Contracts\HasForms;
+use Filament\Schemas\Schema;
 use Filament\Widgets\Widget;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -28,8 +32,10 @@ use Livewire\Attributes\On;
  * sort_order. Clicking the "Jobs" step or any status step filters the
  * vacancy list rendered inline underneath, without leaving the dashboard.
  */
-class JobPipelineFlow extends Widget
+class JobPipelineFlow extends Widget implements HasForms
 {
+    use InteractsWithForms;
+
     protected string $view = 'filament.widgets.job-pipeline-flow';
 
     protected int|string|array $columnSpan = 'full';
@@ -49,6 +55,36 @@ class JobPipelineFlow extends Widget
     public int $jobsLimit = self::LOAD_INCREMENT;
 
     public int $candidatesLimit = self::LOAD_INCREMENT;
+
+    public function mount(): void
+    {
+        $this->form->fill();
+    }
+
+    /**
+     * A standalone searchable Select for poolId alone — no statePath()
+     * wrapper, so it reads/writes the public $poolId property directly,
+     * exactly like the plain wire:model.live select it replaces. Kept as
+     * the canonical form() so {{ $this->form }} gets Filament's normal
+     * schema caching/reactivity rather than re-evaluating on every render.
+     */
+    public function form(Schema $schema): Schema
+    {
+        return $schema->components([
+            Select::make('poolId')
+                ->label('Pool')
+                ->hiddenLabel()
+                ->placeholder('All candidates')
+                ->searchable()
+                ->live()
+                ->options(fn (): array => $this->poolOptions())
+                // The Select's own state update doesn't go through
+                // Livewire's updated{Property}() lifecycle the way a plain
+                // wire:model.live select did, so updatedPoolId() is called
+                // explicitly here to keep that behaviour.
+                ->afterStateUpdated(fn () => $this->updatedPoolId()),
+        ]);
+    }
 
     public function selectStatus(?int $statusId): void
     {
