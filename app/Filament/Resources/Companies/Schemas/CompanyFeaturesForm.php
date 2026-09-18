@@ -22,7 +22,7 @@ class CompanyFeaturesForm
         return $schema
             ->components([
                 Section::make('Sector Features')
-                    ->description('Turn Bookings off for a sector that only ever places permanent or contract roles, or turn Perm off for a sector that only does temp/day bookings — this hides the respective features (Bookings/Run Payroll/Timesheets/Availability, or Job Pipeline/Jobs/Vacancy reporting) for it.')
+                    ->description('Turn Bookings off for a sector that only ever places permanent or contract roles, or turn Perm off for a sector that only does temp/day bookings — this hides the respective features (Bookings/Run Payroll/Timesheets/Availability, or Job Pipeline/Jobs/Vacancy reporting) for it. Complex Booking adds Sleep-In/Waking Night shift types to the booking form, for sectors (e.g. healthcare) that need flat overnight allowances and a separate night-hours rate — off by default for every sector until switched on here.')
                     ->schema([
                         Repeater::make('companyIndustries')
                             ->relationship()
@@ -31,7 +31,7 @@ class CompanyFeaturesForm
                             ->addable(false)
                             ->deletable(false)
                             ->reorderable(false)
-                            ->columns(3)
+                            ->columns(4)
                             ->schema([
                                 Select::make('industry_id')
                                     ->label('Sector')
@@ -44,6 +44,9 @@ class CompanyFeaturesForm
                                 Toggle::make('uses_perm')
                                     ->label('Uses Perm')
                                     ->default(true),
+                                Toggle::make('complex_booking')
+                                    ->label('Complex Booking')
+                                    ->default(false),
                             ]),
                     ]),
             ]);

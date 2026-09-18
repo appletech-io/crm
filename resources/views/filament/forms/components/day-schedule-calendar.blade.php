@@ -22,7 +22,7 @@
             },
 
             get hoursDays() {
-                return this.days.filter((day) => day.period === 'hours' && ! day.cancelled);
+                return this.days.filter((day) => (day.period === 'hours' || day.period === 'waking_night') && ! day.cancelled);
             },
 
             get calendarMonths() {
@@ -116,7 +116,7 @@
                     return 'N/A';
                 }
 
-                return { full_day: 'Full', am: 'AM', pm: 'PM', hours: 'Hrs' }[day.period] ?? day.period;
+                return { full_day: 'Full', am: 'AM', pm: 'PM', hours: 'Hrs', sleep_in: 'Sleep', waking_night: 'Wake' }[day.period] ?? day.period;
             },
 
             cellClasses(day) {
@@ -135,6 +135,8 @@
                     am: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
                     pm: 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300',
                     hours: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300',
+                    sleep_in: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300',
+                    waking_night: 'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300',
                 };
 
                 return `${ring} ${colors[day.period] ?? 'bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-gray-300'}`;
@@ -212,6 +214,14 @@
                             <span class="h-3 w-3 rounded bg-orange-100 dark:bg-orange-500/20"></span> Hours
                         </span>
                     @endif
+                    @if ($isComplexBookingEnabled())
+                        <span class="flex items-center gap-1">
+                            <span class="h-3 w-3 rounded bg-indigo-100 dark:bg-indigo-500/20"></span> Sleep-In
+                        </span>
+                        <span class="flex items-center gap-1">
+                            <span class="h-3 w-3 rounded bg-teal-100 dark:bg-teal-500/20"></span> Waking Night
+                        </span>
+                    @endif
                     <span class="flex items-center gap-1">
                         <span class="h-3 w-3 rounded bg-gray-200 dark:bg-white/10"></span> N/A
                     </span>
@@ -257,6 +267,14 @@
                             Set Hours
                         </button>
                     @endif
+                    @if ($isComplexBookingEnabled())
+                        <button type="button" x-on:click="applyPeriod('sleep_in')" :disabled="disabled || selected.length === 0" class="rounded-full bg-indigo-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
+                            Set Sleep-In
+                        </button>
+                        <button type="button" x-on:click="applyPeriod('waking_night')" :disabled="disabled || selected.length === 0" class="rounded-full bg-teal-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
+                            Set Waking Night
+                        </button>
+                    @endif
                     <button type="button" x-on:click="applyCancelled(true)" :disabled="disabled || selected.length === 0" class="rounded-full bg-gray-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40">
                         Set N/A
                     </button>
@@ -265,10 +283,10 @@
                     </button>
                 </div>
 
-                @if ($isHoursEnabled())
+                @if ($isHoursEnabled() || $isComplexBookingEnabled())
                     <template x-if="hoursDays.length > 0">
                         <div class="flex flex-col gap-2 border-t border-gray-100 pt-3 dark:border-white/10">
-                            <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Times for Hours days</p>
+                            <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Times for Hours/Waking Night days</p>
 
                             <template x-for="day in hoursDays" :key="day.date">
                                 <div class="flex items-center gap-3 text-sm">

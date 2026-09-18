@@ -31,7 +31,8 @@ class RunSqlQuery implements Tool
             'averages, group-by breakdowns, joins across bookings/clients/candidates/vacancies). The snapshot has '.
             "fourteen tables:\n".
             'bookings(id, candidate_name, client_name, job_title, status, start_date, end_date, day_rate, '.
-            "day_charge_rate, half_day_rate, half_day_charge_rate, hourly_rate, hourly_charge_rate, consultant_name)\n".
+            'day_charge_rate, half_day_rate, half_day_charge_rate, hourly_rate, hourly_charge_rate, sleep_in_rate, '.
+            "sleep_in_charge_rate, waking_night_rate, waking_night_charge_rate, consultant_name)\n".
             'booking_days(id, booking_id, date, period, candidate_name, client_name, job_title, consultant_name, '.
             "status, pay_rate, charge_rate, margin)\n".
             "clients(id, name, client_type, city, county, postcode, consultant_name)\n".

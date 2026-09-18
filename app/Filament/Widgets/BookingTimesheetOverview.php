@@ -112,6 +112,8 @@ class BookingTimesheetOverview extends BaseWidget
             BookingDayPeriod::FullDay => (float) ($booking->day_rate ?? 0),
             BookingDayPeriod::Am, BookingDayPeriod::Pm => (float) ($booking->half_day_rate ?? 0),
             BookingDayPeriod::Hours => (float) ($booking->hourly_rate ?? 0) * static::hoursFor($day),
+            BookingDayPeriod::SleepIn => (float) ($booking->sleep_in_rate ?? 0),
+            BookingDayPeriod::WakingNight => (float) ($booking->waking_night_rate ?? 0) * static::hoursFor($day),
         };
     }
 
@@ -121,6 +123,8 @@ class BookingTimesheetOverview extends BaseWidget
             BookingDayPeriod::FullDay => (float) ($booking->day_charge_rate ?? 0),
             BookingDayPeriod::Am, BookingDayPeriod::Pm => (float) ($booking->half_day_charge_rate ?? 0),
             BookingDayPeriod::Hours => (float) ($booking->hourly_charge_rate ?? 0) * static::hoursFor($day),
+            BookingDayPeriod::SleepIn => (float) ($booking->sleep_in_charge_rate ?? 0),
+            BookingDayPeriod::WakingNight => (float) ($booking->waking_night_charge_rate ?? 0) * static::hoursFor($day),
         };
     }
 

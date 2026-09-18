@@ -792,7 +792,7 @@ class ListHealthcareCandidates extends ListRecords implements HasForms
 
         $hasAm = $periods->contains(BookingDayPeriod::Am);
         $hasPm = $periods->contains(BookingDayPeriod::Pm);
-        $hasFullCoverage = $periods->contains(fn (BookingDayPeriod $period): bool => in_array($period, [BookingDayPeriod::FullDay, BookingDayPeriod::Hours], true));
+        $hasFullCoverage = $periods->contains(fn (BookingDayPeriod $period): bool => in_array($period, [BookingDayPeriod::FullDay, BookingDayPeriod::Hours, BookingDayPeriod::SleepIn, BookingDayPeriod::WakingNight], true));
 
         return match (true) {
             $hasFullCoverage || ($hasAm && $hasPm) => 'full',

@@ -159,6 +159,19 @@ test('dayPay computes full day, half day, and hourly rates correctly', function 
         ->and(BookingTimesheetOverview::dayPay($booking, $hours))->toBe(80.0);
 });
 
+test('dayPay computes Sleep-In as a flat allowance and Waking Night as hourly', function () {
+    $booking = Booking::factory()->make([
+        'sleep_in_rate' => 45,
+        'waking_night_rate' => 15,
+    ]);
+
+    $sleepIn = new BookingDay(['period' => BookingDayPeriod::SleepIn]);
+    $wakingNight = new BookingDay(['period' => BookingDayPeriod::WakingNight, 'time_from' => '20:00', 'time_to' => '23:00']);
+
+    expect(BookingTimesheetOverview::dayPay($booking, $sleepIn))->toBe(45.0)
+        ->and(BookingTimesheetOverview::dayPay($booking, $wakingNight))->toBe(45.0);
+});
+
 test('dayCharge and dayMargin compute full day, half day, and hourly rates correctly', function () {
     $booking = Booking::factory()->make([
         'day_rate' => 100,

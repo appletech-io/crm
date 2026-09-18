@@ -66,6 +66,11 @@ class ClientContact extends Model
         return $this->belongsTo(ClientContactJobTitle::class);
     }
 
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(ClientLocation::class);
+    }
+
     public function users(): HasMany
     {
         return $this->hasMany(User::class);

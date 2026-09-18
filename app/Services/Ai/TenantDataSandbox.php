@@ -99,11 +99,15 @@ class TenantDataSandbox
             half_day_charge_rate REAL,
             hourly_rate REAL,
             hourly_charge_rate REAL,
+            sleep_in_rate REAL,
+            sleep_in_charge_rate REAL,
+            waking_night_rate REAL,
+            waking_night_charge_rate REAL,
             consultant_name TEXT
         )');
 
         $statement = $pdo->prepare(
-            'INSERT INTO bookings VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO bookings VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
 
         Booking::query()
@@ -127,6 +131,10 @@ class TenantDataSandbox
                     $booking->half_day_charge_rate,
                     $booking->hourly_rate,
                     $booking->hourly_charge_rate,
+                    $booking->sleep_in_rate,
+                    $booking->sleep_in_charge_rate,
+                    $booking->waking_night_rate,
+                    $booking->waking_night_charge_rate,
                     $booking->consultant?->name,
                 ]);
             });

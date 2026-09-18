@@ -121,6 +121,14 @@ class ClientForm
                                             ->label('Mobile')
                                             ->tel()
                                             ->maxLength(255),
+                                        Select::make('location_id')
+                                            ->label('Location')
+                                            ->helperText('Save a new location on the Locations tab first, then it will be selectable here.')
+                                            ->options(fn (Get $get): array => collect($get('../../locations') ?? [])
+                                                ->filter(fn (array $location): bool => filled($location['id'] ?? null))
+                                                ->pluck('name', 'id')
+                                                ->all())
+                                            ->searchable(),
                                         Toggle::make('wants_portal_access')
                                             ->label('Create User Account')
                                             ->helperText(fn (Get $get): string => filled($get('id'))
@@ -201,6 +209,41 @@ class ClientForm
 
                                         return $roles->isNotEmpty() ? "{$name} — {$roles->implode(', ')}" : $name;
                                     })
+                                    ->collapsible()
+                                    ->collapsed()
+                                    ->columnSpanFull(),
+                            ]),
+
+                        Tab::make('Locations')
+                            ->schema([
+                                Repeater::make('locations')
+                                    ->relationship()
+                                    ->hiddenLabel()
+                                    ->schema([
+                                        TextInput::make('name')
+                                            ->required()
+                                            ->maxLength(255),
+                                        TextInput::make('phone')
+                                            ->label('Phone')
+                                            ->tel()
+                                            ->maxLength(255),
+                                        TextInput::make('address')
+                                            ->maxLength(255)
+                                            ->columnSpanFull(),
+                                        TextInput::make('city')
+                                            ->maxLength(255),
+                                        TextInput::make('county')
+                                            ->maxLength(255),
+                                        TextInput::make('postcode')
+                                            ->maxLength(255),
+                                        Toggle::make('is_default')
+                                            ->label('Default Location')
+                                            ->helperText('Pulled through automatically when this client is selected on a booking.')
+                                            ->live()
+                                            ->columnSpanFull(),
+                                    ])
+                                    ->columns(2)
+                                    ->itemLabel(fn (array $state): ?string => filled($state['name'] ?? null) ? $state['name'] : 'Location')
                                     ->collapsible()
                                     ->collapsed()
                                     ->columnSpanFull(),

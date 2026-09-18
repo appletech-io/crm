@@ -41,6 +41,10 @@ class Booking extends Model
             'hourly_charge_rate' => Money::class,
             'day_charge_rate' => Money::class,
             'half_day_charge_rate' => Money::class,
+            'sleep_in_rate' => Money::class,
+            'sleep_in_charge_rate' => Money::class,
+            'waking_night_rate' => Money::class,
+            'waking_night_charge_rate' => Money::class,
             'disputed_at' => 'datetime',
             'candidate_rating' => 'integer',
             'candidate_rated_at' => 'datetime',
@@ -178,6 +182,11 @@ class Booking extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(ClientLocation::class);
     }
 
     public function candidate(): MorphTo

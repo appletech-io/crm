@@ -29,7 +29,9 @@ class BookingDayPeriods
 
     private static function totalHours(BookingDay $dayPeriod): ?float
     {
-        if ($dayPeriod->period !== BookingDayPeriod::Hours || ! $dayPeriod->time_from || ! $dayPeriod->time_to) {
+        $isHourly = in_array($dayPeriod->period, [BookingDayPeriod::Hours, BookingDayPeriod::WakingNight], true);
+
+        if (! $isHourly || ! $dayPeriod->time_from || ! $dayPeriod->time_to) {
             return null;
         }
 
@@ -59,7 +61,9 @@ class BookingDayPeriods
 
         $from = Carbon::parse($dayPeriod->time_from)->format('H:i');
 
-        if ($dayPeriod->period === BookingDayPeriod::Hours && $dayPeriod->time_to) {
+        $isHourly = in_array($dayPeriod->period, [BookingDayPeriod::Hours, BookingDayPeriod::WakingNight], true);
+
+        if ($isHourly && $dayPeriod->time_to) {
             return $from.' - '.Carbon::parse($dayPeriod->time_to)->format('H:i');
         }
 
@@ -75,12 +79,16 @@ class BookingDayPeriods
                 BookingDayPeriod::Am->value => $booking->half_day_charge_rate,
                 BookingDayPeriod::Pm->value => $booking->half_day_charge_rate,
                 BookingDayPeriod::Hours->value => $booking->hourly_charge_rate,
+                BookingDayPeriod::SleepIn->value => $booking->sleep_in_charge_rate,
+                BookingDayPeriod::WakingNight->value => $booking->waking_night_charge_rate,
             ]
             : [
                 BookingDayPeriod::FullDay->value => $booking->day_rate,
                 BookingDayPeriod::Am->value => $booking->half_day_rate,
                 BookingDayPeriod::Pm->value => $booking->half_day_rate,
                 BookingDayPeriod::Hours->value => $booking->hourly_rate,
+                BookingDayPeriod::SleepIn->value => $booking->sleep_in_rate,
+                BookingDayPeriod::WakingNight->value => $booking->waking_night_rate,
             ];
     }
 }

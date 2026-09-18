@@ -150,6 +150,16 @@ class Client extends Model
         return $this->hasOne(ClientContact::class)->where('main_contact', true);
     }
 
+    public function locations(): HasMany
+    {
+        return $this->hasMany(ClientLocation::class);
+    }
+
+    public function defaultLocation(): HasOne
+    {
+        return $this->hasOne(ClientLocation::class)->where('is_default', true);
+    }
+
     public function bookingContact(): ?ClientContact
     {
         return $this->contacts()->where('booking_contact', true)->first() ?? $this->mainContact;
