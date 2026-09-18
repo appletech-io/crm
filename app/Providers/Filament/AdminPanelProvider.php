@@ -26,6 +26,7 @@ use App\Http\Middleware\EnsureAccountSetupIsComplete;
 use App\Http\Middleware\SetActiveIndustry;
 use App\Models\Industry;
 use Filament\Actions\Action;
+use Filament\Enums\DatabaseNotificationsPosition;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -55,6 +56,12 @@ class AdminPanelProvider extends PanelProvider
             ->login(false)
             ->authGuard('web')
             ->sidebarCollapsibleOnDesktop()
+            // Positioned in the sidebar (bottom-left, near the account menu)
+            // rather than the default topbar spot — replaces the old
+            // ad-hoc "High Priority To-Dos" topbar dropdown with Filament's
+            // native slide-over, which supports per-notification actions
+            // (see TodoItemObserver::created()).
+            ->databaseNotifications(position: DatabaseNotificationsPosition::Sidebar)
             ->colors([
                 'primary' => Color::Green,
                 'red' => Color::Red,
@@ -103,10 +110,6 @@ class AdminPanelProvider extends PanelProvider
                 fn () => view('filament.user-guide-icon'),
             )
             ->renderHook(
-                PanelsRenderHook::GLOBAL_SEARCH_AFTER,
-                fn () => view('filament.high-priority-todo-notifications-topbar'),
-            )
-            ->renderHook(
                 PanelsRenderHook::PAGE_HEADER_HEADING_BEFORE,
                 fn () => view('filament.candidate-header-photo'),
                 scopes: [EditEducationCandidate::class, EditHealthcareCandidate::class],
@@ -118,6 +121,10 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::BODY_END,
                 fn () => view('filament.sidebar-hover-expand'),
+            )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn () => view('filament.todo-item-notification-listener'),
             )
             ->navigationGroups([
                 NavigationGroup::make('Analytics'),
