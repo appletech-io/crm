@@ -184,6 +184,11 @@ class Booking extends Model
         return $this->belongsTo(Client::class);
     }
 
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(ClientLocation::class);
+    }
+
     public function candidate(): MorphTo
     {
         return $this->morphTo();

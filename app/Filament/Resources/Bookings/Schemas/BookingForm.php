@@ -11,6 +11,7 @@ use App\Filament\Widgets\BookingTimesheetOverview;
 use App\Models\Booking;
 use App\Models\BookingDay;
 use App\Models\Client;
+use App\Models\ClientLocation;
 use App\Models\Industry;
 use App\Models\JobTitle;
 use App\Models\PayRate;
@@ -114,7 +115,19 @@ class BookingForm
                         ->searchable()
                         ->preload()
                         ->live()
-                        ->afterStateUpdated(fn (Set $set, Get $get) => static::applyDefaultRates($set, $get)),
+                        ->afterStateUpdated(function (Set $set, Get $get): void {
+                            static::applyDefaultRates($set, $get);
+                            static::applyDefaultLocation($set, $get);
+                        }),
+                    Select::make('location_id')
+                        ->label('Location')
+                        ->options(fn (Get $get): array => ClientLocation::query()
+                            ->where('client_id', $get('client_id'))
+                            ->pluck('name', 'id')
+                            ->toArray()
+                        )
+                        ->searchable()
+                        ->live(),
                     Select::make('job_title_id')
                         ->label('Job Title')
                         ->options(fn (): array => JobTitle::query()
@@ -708,6 +721,20 @@ class BookingForm
         foreach ($rates as $key => $value) {
             $set($key, $value);
         }
+    }
+
+    /**
+     * Always resets location_id to the newly-selected client's default
+     * location (or null if it has none) — never leaves a previous client's
+     * location lingering after switching clients.
+     */
+    protected static function applyDefaultLocation(Set $set, Get $get): void
+    {
+        $clientId = $get('client_id');
+
+        $set('location_id', filled($clientId)
+            ? ClientLocation::query()->where('client_id', $clientId)->where('is_default', true)->value('id')
+            : null);
     }
 
     /** @return array<string, mixed> */
