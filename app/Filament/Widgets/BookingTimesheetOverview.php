@@ -139,6 +139,19 @@ class BookingTimesheetOverview extends BaseWidget
             return 0.0;
         }
 
-        return round(abs(Carbon::parse($day->time_from)->diffInMinutes(Carbon::parse($day->time_to))) / 60, 2);
+        // time_from/time_to are plain TIME values with no date, so Carbon
+        // anchors both to today. A shift that crosses midnight (the common
+        // case for Waking Night, e.g. 22:00 -> 07:00) would otherwise diff
+        // to its 24-hour complement — roll $to to the next day whenever
+        // it's earlier than $from so the result reflects the actual elapsed
+        // time.
+        $from = Carbon::parse($day->time_from);
+        $to = Carbon::parse($day->time_to);
+
+        if ($to->lessThan($from)) {
+            $to->addDay();
+        }
+
+        return round($from->diffInMinutes($to) / 60, 2);
     }
 }

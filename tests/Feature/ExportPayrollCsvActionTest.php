@@ -226,6 +226,36 @@ test('a Sleep-In day renders its own Session label and flat rate rather than thr
         ->and($row['Charge Rate'])->toBe('65');
 });
 
+test('an overnight Hours session reports its actual elapsed hours, not the 24-hour complement', function () {
+    $company = Company::factory()->create();
+    $client = Client::factory()->create(['company_id' => $company->id]);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $company->id]);
+
+    $booking = Booking::factory()->create([
+        'company_id' => $company->id,
+        'client_id' => $client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'hourly_rate' => 15.00,
+        'hourly_charge_rate' => 22.00,
+    ]);
+
+    // 22:00 -> 07:00 is a 9-hour shift; time_from/time_to have no date
+    // component, so naively diffing them same-day would give 15 hours
+    // (24 - 9) instead.
+    $dayPeriod = $booking->dayPeriods()->create([
+        'company_id' => $company->id,
+        'date' => now()->toDateString(),
+        'period' => BookingDayPeriod::Hours,
+        'time_from' => '22:00',
+        'time_to' => '07:00',
+    ]);
+
+    $row = csvRowFor($dayPeriod->fresh());
+
+    expect($row['Hours'])->toBe('9');
+});
+
 test('the export csv button shows on the run payroll page regardless of whether the company has a payroll provider configured', function () {
     $companyWithoutProvider = Company::factory()->create(['payroll_provider' => null]);
     $companyWithProvider = Company::factory()->create(['payroll_provider' => Integration::Evertime->value]);

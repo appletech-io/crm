@@ -172,6 +172,21 @@ test('dayPay computes Sleep-In as a flat allowance and Waking Night as hourly', 
         ->and(BookingTimesheetOverview::dayPay($booking, $wakingNight))->toBe(45.0);
 });
 
+test('dayPay/dayCharge compute the real elapsed hours for a Waking Night shift crossing midnight', function () {
+    $booking = Booking::factory()->make([
+        'waking_night_rate' => 15,
+        'waking_night_charge_rate' => 22,
+    ]);
+
+    // 22:00 -> 07:00 is a 9-hour shift; time_from/time_to have no date
+    // component, so naively diffing them same-day would give 15 hours
+    // (24 - 9) instead.
+    $wakingNight = new BookingDay(['period' => BookingDayPeriod::WakingNight, 'time_from' => '22:00', 'time_to' => '07:00']);
+
+    expect(BookingTimesheetOverview::dayPay($booking, $wakingNight))->toBe(135.0)
+        ->and(BookingTimesheetOverview::dayCharge($booking, $wakingNight))->toBe(198.0);
+});
+
 test('dayCharge and dayMargin compute full day, half day, and hourly rates correctly', function () {
     $booking = Booking::factory()->make([
         'day_rate' => 100,
