@@ -99,6 +99,8 @@ class BookingDay extends Model
             BookingDayPeriod::Hours => $this->booking->hourly_charge_rate,
             BookingDayPeriod::Am, BookingDayPeriod::Pm => $this->booking->half_day_charge_rate,
             BookingDayPeriod::FullDay => $this->booking->day_charge_rate,
+            BookingDayPeriod::SleepIn => $this->booking->sleep_in_charge_rate,
+            BookingDayPeriod::WakingNight => $this->booking->waking_night_charge_rate,
         };
     }
 
@@ -113,6 +115,8 @@ class BookingDay extends Model
             BookingDayPeriod::Hours => $this->booking->hourly_rate,
             BookingDayPeriod::Am, BookingDayPeriod::Pm => $this->booking->half_day_rate,
             BookingDayPeriod::FullDay => $this->booking->day_rate,
+            BookingDayPeriod::SleepIn => $this->booking->sleep_in_rate,
+            BookingDayPeriod::WakingNight => $this->booking->waking_night_rate,
         };
     }
 

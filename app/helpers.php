@@ -72,3 +72,24 @@ if (! function_exists('active_industry_uses_perm')) {
         return CompanyIndustry::usesPerm($user->company_id, active_industry_id());
     }
 }
+
+if (! function_exists('active_industry_uses_complex_booking')) {
+    /**
+     * Whether the current user's active industry, for their own company,
+     * has Complex Booking (Sleep-In/Waking Night shift types) switched on —
+     * an opt-in flag, unlike active_industry_uses_bookings()/_perm(), so
+     * this defaults to false (fails closed) when there's no user, no active
+     * industry, or no matching row — a data gap must never silently reveal
+     * booking-form complexity nobody enabled.
+     */
+    function active_industry_uses_complex_booking(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return CompanyIndustry::usesComplexBooking($user->company_id, active_industry_id());
+    }
+}

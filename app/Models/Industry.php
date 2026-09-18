@@ -81,7 +81,7 @@ class Industry extends Model
     {
         return $this->belongsToMany(Company::class, 'company_industry')
             ->using(CompanyIndustry::class)
-            ->withPivot(['uses_bookings', 'uses_perm']);
+            ->withPivot(['uses_bookings', 'uses_perm', 'complex_booking']);
     }
 
     public function users(): BelongsToMany

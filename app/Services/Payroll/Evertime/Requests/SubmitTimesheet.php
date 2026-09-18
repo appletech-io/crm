@@ -6,6 +6,7 @@ use App\Enums\BookingDayPeriod;
 use App\Models\Booking;
 use App\Models\BookingDay;
 use App\Services\Payroll\Evertime\EvertimeClient;
+use App\Services\Payroll\Exceptions\PayrollProviderException;
 use Illuminate\Support\Collection;
 
 /** POST /timesheets */
@@ -48,6 +49,21 @@ class SubmitTimesheet
     /** @return array<string, mixed> */
     private function timeEntryFor(BookingDay $day): array
     {
+        // Sleep-In/Waking Night have no Evertime RateId configured yet for
+        // any company — Evertime's own "Rates" tab only has STD/STH/OT/EXP/
+        // MIL set up. Rather than silently submitting these against the
+        // wrong RateId (and therefore the wrong pay/charge figures), this
+        // fails loudly: caught by SendTimesheetToPayrollProvider, recorded
+        // as a ProviderError, and surfaced on Run Payroll's "Payroll
+        // Provider Errors" panel. Replace this with a real RateId mapping
+        // once Evertime support has confirmed the new rate codes.
+        if (in_array($day->period, [BookingDayPeriod::SleepIn, BookingDayPeriod::WakingNight], true)) {
+            throw new PayrollProviderException(
+                "No Evertime rate code is configured yet for a {$day->period->label()} day.",
+                ["No Evertime rate code is configured yet for a {$day->period->label()} day."],
+            );
+        }
+
         if ($day->period === BookingDayPeriod::Hours) {
             // Confirmed live: Start/End times are only accepted against a
             // rate whose RateType is genuinely "Timesheet Hours" — sending

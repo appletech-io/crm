@@ -74,6 +74,31 @@ test('the service generates a pdf and stores it under the candidate bookings fol
     expect(substr(file_get_contents($absolute), 0, 4))->toBe('%PDF');
 });
 
+test('the service generates a pdf for a booking with a Sleep-In or Waking Night day without throwing', function () {
+    $this->booking->update(['sleep_in_rate' => 45, 'waking_night_rate' => 15]);
+
+    $this->booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => now()->toDateString(),
+        'period' => BookingDayPeriod::SleepIn,
+    ]);
+
+    $this->booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => now()->addDay()->toDateString(),
+        'period' => BookingDayPeriod::WakingNight,
+        'time_from' => '20:00',
+        'time_to' => '23:00',
+    ]);
+
+    $path = app(BookingConfirmationPdfService::class)->generate($this->booking->fresh());
+
+    Storage::disk('local')->assertExists($path);
+
+    $absolute = Storage::disk('local')->path($path);
+    expect(substr(file_get_contents($absolute), 0, 4))->toBe('%PDF');
+});
+
 test('the pdf merges in the dbs front, back, and safeguarding certificate when present', function () {
     $this->candidate->documents()->create([
         'document_type' => DocumentType::DbsFront,

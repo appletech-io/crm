@@ -268,6 +268,33 @@ test('a 422 validation error from the provider is recorded and does not throw', 
         ->and($booking->dayPeriods()->first()->sent_to_provider_at)->toBeNull();
 });
 
+test('a Sleep-In or Waking Night day fails loudly rather than submitting to the wrong Evertime rate code', function () {
+    Http::fake(['*' => Http::response(['HasErrors' => false, 'Errors' => []], 200)]);
+
+    $company = fakeEvertimeCompany();
+    $booking = makePayrollBooking($company, [
+        'sleep_in_rate' => 4500,
+        'sleep_in_charge_rate' => 6500,
+    ]);
+
+    $booking->dayPeriods()->create([
+        'company_id' => $company->id,
+        'date' => now()->addDay()->toDateString(),
+        'period' => BookingDayPeriod::SleepIn->value,
+        'payroll_confirmation_sent_at' => now(),
+        'approved_at' => now(),
+    ]);
+
+    $booking->update(['status' => BookingStatus::Approved]);
+
+    $providerError = ProviderError::where('booking_id', $booking->id)->first();
+
+    expect($providerError)->not->toBeNull()
+        ->and($providerError->errors)->toBe(['No Evertime rate code is configured yet for a Sleep-In day.']);
+
+    Http::assertNotSent(fn ($request) => str_ends_with($request->url(), '/timesheets'));
+});
+
 test('a 200 response with HasErrors is recorded and does not throw', function () {
     Http::fake(['*' => Http::response([
         'HasErrors' => true,

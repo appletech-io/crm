@@ -248,17 +248,18 @@ class BookingForm
                         ->hiddenLabel()
                         ->live()
                         ->dehydrated(false)
+                        ->complexBookingEnabled(fn (): bool => active_industry_uses_complex_booking())
                         ->rule(function (Get $get, ?Booking $record): Closure {
                             return function (string $attribute, mixed $value, Closure $fail) use ($get, $record): void {
                                 $missingTimes = collect($value ?? [])
                                     ->reject(fn (array $entry): bool => $entry['cancelled'] ?? false)
-                                    ->filter(fn (array $entry): bool => ($entry['period'] ?? null) === BookingDayPeriod::Hours->value)
+                                    ->filter(fn (array $entry): bool => in_array($entry['period'] ?? null, [BookingDayPeriod::Hours->value, BookingDayPeriod::WakingNight->value], true))
                                     ->filter(fn (array $entry): bool => blank($entry['time_from'] ?? null) || blank($entry['time_to'] ?? null));
 
                                 if ($missingTimes->isNotEmpty()) {
                                     $dates = $missingTimes->pluck('date')->map(fn (string $date): string => Carbon::parse($date)->format('jS M Y'))->implode(', ');
 
-                                    $fail("Enter a from and to time for these Hours days: {$dates}.");
+                                    $fail("Enter a from and to time for these Hours/Waking Night days: {$dates}.");
                                 }
 
                                 $candidateModelClass = Industry::candidateModelForSlug(active_industry() ?? '');
@@ -344,6 +345,24 @@ class BookingForm
                                 ->minValue(0)
                                 ->live(onBlur: true)
                                 ->visible(fn (Get $get): bool => static::hourlyRateVisible($get)),
+                            TextInput::make('sleep_in_rate')
+                                ->label('Sleep-In Pay Rate')
+                                ->helperText('A flat allowance for the night, not per hour.')
+                                ->numeric()
+                                ->prefix('£')
+                                ->step(0.01)
+                                ->minValue(0)
+                                ->live(onBlur: true)
+                                ->visible(fn (Get $get): bool => static::sleepInRateVisible($get)),
+                            TextInput::make('waking_night_rate')
+                                ->label('Waking Night Pay Rate')
+                                ->helperText('Per hour — distinct from the daytime Hourly Pay Rate.')
+                                ->numeric()
+                                ->prefix('£')
+                                ->step(0.01)
+                                ->minValue(0)
+                                ->live(onBlur: true)
+                                ->visible(fn (Get $get): bool => static::wakingNightRateVisible($get)),
                         ]),
                     Grid::make(3)
                         ->schema([
@@ -382,6 +401,26 @@ class BookingForm
                                 ->minValue(0)
                                 ->live(onBlur: true)
                                 ->visible(fn (Get $get): bool => static::hourlyRateVisible($get)),
+                            TextInput::make('sleep_in_charge_rate')
+                                ->label('Sleep-In Charge Rate')
+                                ->helperText('A flat allowance for the night, not per hour.')
+                                ->required(fn (?Booking $record): bool => ! static::isSettled($record))
+                                ->numeric()
+                                ->prefix('£')
+                                ->step(0.01)
+                                ->minValue(0)
+                                ->live(onBlur: true)
+                                ->visible(fn (Get $get): bool => static::sleepInRateVisible($get)),
+                            TextInput::make('waking_night_charge_rate')
+                                ->label('Waking Night Charge Rate')
+                                ->helperText('Per hour — distinct from the daytime Hourly Charge Rate.')
+                                ->required(fn (?Booking $record): bool => ! static::isSettled($record))
+                                ->numeric()
+                                ->prefix('£')
+                                ->step(0.01)
+                                ->minValue(0)
+                                ->live(onBlur: true)
+                                ->visible(fn (Get $get): bool => static::wakingNightRateVisible($get)),
                         ]),
                 ]),
 
@@ -463,6 +502,8 @@ class BookingForm
         return match ($period) {
             BookingDayPeriod::Hours->value => 'hourly_charge_rate',
             BookingDayPeriod::Am->value, BookingDayPeriod::Pm->value => 'half_day_charge_rate',
+            BookingDayPeriod::SleepIn->value => 'sleep_in_charge_rate',
+            BookingDayPeriod::WakingNight->value => 'waking_night_charge_rate',
             default => 'day_charge_rate',
         };
     }
@@ -539,6 +580,8 @@ class BookingForm
             BookingDayPeriod::Am->value => (float) ($get('half_day_rate') ?? 0),
             BookingDayPeriod::Pm->value => (float) ($get('half_day_rate') ?? 0),
             BookingDayPeriod::Hours->value => (float) ($get('hourly_rate') ?? 0),
+            BookingDayPeriod::SleepIn->value => (float) ($get('sleep_in_rate') ?? 0),
+            BookingDayPeriod::WakingNight->value => (float) ($get('waking_night_rate') ?? 0),
         ];
 
         $chargeRates = [
@@ -546,6 +589,8 @@ class BookingForm
             BookingDayPeriod::Am->value => (float) ($get('half_day_charge_rate') ?? 0),
             BookingDayPeriod::Pm->value => (float) ($get('half_day_charge_rate') ?? 0),
             BookingDayPeriod::Hours->value => (float) ($get('hourly_charge_rate') ?? 0),
+            BookingDayPeriod::SleepIn->value => (float) ($get('sleep_in_charge_rate') ?? 0),
+            BookingDayPeriod::WakingNight->value => (float) ($get('waking_night_charge_rate') ?? 0),
         ];
 
         return collect($get('day_periods') ?? [])
@@ -553,7 +598,7 @@ class BookingForm
             ->filter(fn (array $entry): bool => filled($entry['period'] ?? null))
             ->map(function (array $entry) use ($payRates, $chargeRates): array {
                 $period = $entry['period'];
-                $units = $period === BookingDayPeriod::Hours->value
+                $units = in_array($period, [BookingDayPeriod::Hours->value, BookingDayPeriod::WakingNight->value], true)
                     ? static::entryHours($entry)
                     : 1.0;
 
@@ -577,6 +622,8 @@ class BookingForm
             BookingDayPeriod::Am->value => 'AM',
             BookingDayPeriod::Pm->value => 'PM',
             BookingDayPeriod::Hours->value => 'Hours',
+            BookingDayPeriod::SleepIn->value => 'Sleep-In',
+            BookingDayPeriod::WakingNight->value => 'Waking Night',
         ];
 
         return static::activeDayAmounts($get)
@@ -644,6 +691,16 @@ class BookingForm
         return $periods->contains(BookingDayPeriod::Hours->value);
     }
 
+    protected static function sleepInRateVisible(Get $get): bool
+    {
+        return active_industry_uses_complex_booking() && static::activePeriods($get)->contains(BookingDayPeriod::SleepIn->value);
+    }
+
+    protected static function wakingNightRateVisible(Get $get): bool
+    {
+        return active_industry_uses_complex_booking() && static::activePeriods($get)->contains(BookingDayPeriod::WakingNight->value);
+    }
+
     protected static function applyDefaultRates(Set $set, Get $get): void
     {
         $rates = static::defaultRates($get('candidate_id'), $get('client_id'), $get('job_title_id'));
@@ -696,6 +753,10 @@ class BookingForm
             'day_charge_rate' => $booking->day_charge_rate,
             'half_day_charge_rate' => $booking->half_day_charge_rate,
             'hourly_charge_rate' => $booking->hourly_charge_rate,
+            'sleep_in_rate' => $booking->sleep_in_rate,
+            'sleep_in_charge_rate' => $booking->sleep_in_charge_rate,
+            'waking_night_rate' => $booking->waking_night_rate,
+            'waking_night_charge_rate' => $booking->waking_night_charge_rate,
         ];
     }
 

@@ -199,6 +199,33 @@ test('a cancelled day has no pay or charge rate in its row', function () {
         ->and($row['Charge Rate'])->toBe('');
 });
 
+test('a Sleep-In day renders its own Session label and flat rate rather than throwing', function () {
+    $company = Company::factory()->create();
+    $client = Client::factory()->create(['company_id' => $company->id]);
+    $candidate = EducationCandidate::factory()->create(['company_id' => $company->id]);
+
+    $booking = Booking::factory()->create([
+        'company_id' => $company->id,
+        'client_id' => $client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => EducationCandidate::class,
+        'sleep_in_rate' => 45.00,
+        'sleep_in_charge_rate' => 65.00,
+    ]);
+
+    $dayPeriod = $booking->dayPeriods()->create([
+        'company_id' => $company->id,
+        'date' => now()->toDateString(),
+        'period' => BookingDayPeriod::SleepIn,
+    ]);
+
+    $row = csvRowFor($dayPeriod->fresh());
+
+    expect($row['Session'])->toBe('Sleep-In')
+        ->and($row['Pay Rate'])->toBe('45')
+        ->and($row['Charge Rate'])->toBe('65');
+});
+
 test('the export csv button shows on the run payroll page regardless of whether the company has a payroll provider configured', function () {
     $companyWithoutProvider = Company::factory()->create(['payroll_provider' => null]);
     $companyWithProvider = Company::factory()->create(['payroll_provider' => Integration::Evertime->value]);

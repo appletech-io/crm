@@ -8,6 +8,8 @@ enum BookingDayPeriod: string
     case Pm = 'pm';
     case FullDay = 'full_day';
     case Hours = 'hours';
+    case SleepIn = 'sleep_in';
+    case WakingNight = 'waking_night';
 
     public function label(): string
     {
@@ -16,6 +18,8 @@ enum BookingDayPeriod: string
             self::Pm => 'PM',
             self::FullDay => 'Full Day',
             self::Hours => 'Hours',
+            self::SleepIn => 'Sleep-In',
+            self::WakingNight => 'Waking Night',
         };
     }
 

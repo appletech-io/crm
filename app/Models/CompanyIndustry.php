@@ -23,6 +23,7 @@ class CompanyIndustry extends Pivot
         return [
             'uses_bookings' => 'boolean',
             'uses_perm' => 'boolean',
+            'complex_booking' => 'boolean',
         ];
     }
 
@@ -54,19 +55,32 @@ class CompanyIndustry extends Pivot
     }
 
     /**
-     * Fails open (true) when there's no company/industry to check, or no
-     * matching row — a data gap should never silently hide a feature that's
-     * meant to be on.
+     * Unlike usesBookings()/usesPerm(), this fails closed (false) — it gates
+     * brand-new booking-form complexity (Sleep-In/Waking Night shift types)
+     * that must never silently appear anywhere a data gap exists, rather
+     * than existing behaviour that should stay on by default.
      */
-    private static function feature(string $column, ?int $companyId, ?int $industryId): bool
+    public static function usesComplexBooking(?int $companyId, ?int $industryId): bool
+    {
+        return static::feature('complex_booking', $companyId, $industryId, default: false);
+    }
+
+    /**
+     * Fails open (true) by default when there's no company/industry to
+     * check, or no matching row — a data gap should never silently hide a
+     * feature that's meant to be on. Pass default: false for an opt-in flag
+     * (see usesComplexBooking()) where a data gap must never silently
+     * reveal something nobody enabled.
+     */
+    private static function feature(string $column, ?int $companyId, ?int $industryId, bool $default = true): bool
     {
         if (! $companyId || ! $industryId) {
-            return true;
+            return $default;
         }
 
         return static::query()
             ->where('company_id', $companyId)
             ->where('industry_id', $industryId)
-            ->value($column) ?? true;
+            ->value($column) ?? $default;
     }
 }
