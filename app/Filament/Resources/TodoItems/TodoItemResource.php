@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\TodoItems;
 
+use App\Enums\TodoPriority;
 use App\Filament\Resources\TodoItems\Pages\CreateTodoItem;
 use App\Filament\Resources\TodoItems\Pages\EditTodoItem;
 use App\Filament\Resources\TodoItems\Pages\ListTodoItems;
@@ -53,6 +54,25 @@ class TodoItemResource extends Resource
     {
         return parent::getEloquentQuery()
             ->where('user_id', auth()->id());
+    }
+
+    /**
+     * Medium/Low outstanding to-dos only — High priority already surfaces
+     * via the database notifications bell, so this badge would double it up.
+     */
+    public static function getNavigationBadge(): ?string
+    {
+        $count = static::getEloquentQuery()
+            ->whereNull('completed_at')
+            ->whereIn('priority', [TodoPriority::Medium, TodoPriority::Low])
+            ->count();
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'gray';
     }
 
     public static function getPages(): array
