@@ -77,3 +77,10 @@ test('completing an already-complete todo via the listener is a no-op', function
 
     expect($todoItem->fresh()->completed_at->equalTo($originalCompletedAt))->toBeTrue();
 });
+
+test('the topbar notifications bell overrides Filament\'s default badge color to danger (red)', function () {
+    $override = resource_path('views/vendor/filament-panels/components/topbar/database-notifications-trigger.blade.php');
+
+    expect(file_exists($override))->toBeTrue()
+        ->and(file_get_contents($override))->toContain('badge-color="danger"');
+});
