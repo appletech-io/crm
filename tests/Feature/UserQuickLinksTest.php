@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Users\GenerateDefaultQuickLinks;
+use App\Filament\Resources\Clients\ClientResource;
 use App\Filament\Resources\EducationCandidates\EducationCandidateResource;
 use App\Filament\Resources\HealthcareCandidates\HealthcareCandidateResource;
 use App\Filament\Resources\UserQuickLinks\Pages\CreateUserQuickLink;
@@ -138,6 +139,42 @@ test('a new quick link is automatically owned by the current user', function () 
         ->assertHasNoFormErrors();
 
     expect(UserQuickLink::where('label', 'Referral Form')->first()->user_id)->toBe($this->user->id);
+});
+
+test('picking a page from the quick pick list fills in the label, icon and link fields', function () {
+    Livewire::test(CreateUserQuickLink::class)
+        ->set('data.quick_pick', ClientResource::getUrl('index'))
+        ->assertSet('data.label', 'Clients')
+        ->assertSet('data.icon', 'heroicon-o-building-library')
+        ->assertSet('data.url', ClientResource::getUrl('index'));
+});
+
+test('the quick pick field is not itself persisted onto the record', function () {
+    Livewire::test(CreateUserQuickLink::class)
+        ->set('data.quick_pick', ClientResource::getUrl('index'))
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $quickLink = UserQuickLink::where('label', 'Clients')->first();
+
+    expect($quickLink)->not->toBeNull()
+        ->and($quickLink->url)->toBe(ClientResource::getUrl('index'));
+});
+
+test('the quick pick options only offer pages the current user can access', function () {
+    CompanyIndustry::where('company_id', $this->company->id)
+        ->where('industry_id', $this->education->id)
+        ->update(['uses_perm' => false]);
+
+    $options = Livewire::test(CreateUserQuickLink::class)
+        ->instance()
+        ->form
+        ->getComponent('quick_pick')
+        ->getOptions();
+
+    expect($options)->not->toContain('Job Pipeline')
+        ->not->toContain('Vacancies')
+        ->toContain('Candidates');
 });
 
 test('the create action is hidden once a user already has the maximum of 6 quick links', function () {
