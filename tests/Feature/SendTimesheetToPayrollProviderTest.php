@@ -463,12 +463,23 @@ test('the client contact who actually approved the days is registered and used a
     // A contact existing on the client isn't enough on its own — Evertime
     // checks ApproverContactId against the placement's own registered
     // Primary/Secondary approver, so the portal approver must also be
-    // registered there before the timesheet is submitted.
+    // registered there before the timesheet is submitted. It's sent as
+    // Primary, not Secondary — Evertime silently ignores
+    // SecondayApproverContactId on an already-existing placement (confirmed
+    // live), so only Primary actually ends up matching.
     Http::assertSent(fn ($request) => str_ends_with($request->url(), '/placements')
-        && ($request->data()['SecondayApproverContactId'] ?? null) === "CONTACT-{$approverContact->id}");
+        && $request->data()['PrimaryApproverContactId'] === "CONTACT-{$approverContact->id}"
+        // InvoiceContactId stays the client's own default contact — the
+        // approver of a given week's hours shouldn't become the invoice
+        // recipient.
+        && $request->data()['InvoiceContactId'] === "CONTACT-{$booking->client->mainContact->id}"
+        // Still sent best-effort as Secondary too, in case Evertime ever
+        // starts honouring it on an update — harmless either way since
+        // Primary is what actually has to be (and is) correct.
+        && ($request->data()['SecondayApproverContactId'] ?? null) === "CONTACT-{$booking->client->mainContact->id}");
 });
 
-test('the placement is not re-sent with a secondary approver when no portal approver was recorded', function () {
+test('the placement is not re-sent with a different primary approver when no portal approver was recorded', function () {
     Http::fake(['*' => Http::response(['HasErrors' => false, 'Errors' => []], 200)]);
 
     $company = fakeEvertimeCompany();
@@ -476,7 +487,12 @@ test('the placement is not re-sent with a secondary approver when no portal appr
 
     $booking->update(['status' => BookingStatus::Approved]);
 
+    // No portal approver recorded, so approverContactFor() falls back to the
+    // client's own default contact — every /placements call (both the one
+    // from booking creation and any later one) should register that same
+    // contact as Primary, never a distinct Secondary.
     Http::assertSent(fn ($request) => str_ends_with($request->url(), '/placements')
+        && $request->data()['PrimaryApproverContactId'] === "CONTACT-{$booking->client->mainContact->id}"
         && ! array_key_exists('SecondayApproverContactId', $request->data()));
 });
 

@@ -131,10 +131,27 @@ class EvertimeProvider implements PayrollTimesheetProvider
         return (new GetConsultant($this->client))->handle($consultantId);
     }
 
-    public function upsertPlacement(Booking $booking, ?ClientContact $secondaryApprover = null): void
+    /**
+     * $approver — whoever actually approved this placement's timesheet days,
+     * when known — becomes the placement's PrimaryApproverContactId, not its
+     * secondary. Confirmed live: POSTing /placements for an
+     * already-existing PlacementId with a SecondayApproverContactId set
+     * (alone, or alongside a changed Primary) is accepted with no error, but
+     * a follow-up GET shows Secondary never actually gets persisted —
+     * LastUpdated doesn't even move — while Primary does. Since Evertime
+     * then validates a submitted timesheet's ApproverContactId against
+     * whichever of Primary/Secondary is actually registered, sending the
+     * real approver as Secondary silently never works for a placement that
+     * already exists (i.e. any booking beyond its very first submission).
+     * InvoiceContactId stays pinned to the client's own default contact
+     * regardless — the approver of a given week's hours shouldn't become
+     * who invoices go to.
+     */
+    public function upsertPlacement(Booking $booking, ?ClientContact $approver = null): void
     {
         $client = $booking->client;
-        $contact = $this->defaultContact($client);
+        $defaultContact = $this->defaultContact($client);
+        $primaryContact = $approver ?? $defaultContact;
 
         (new UpsertPlacement($this->client))->handle(
             $booking,
@@ -142,9 +159,10 @@ class EvertimeProvider implements PayrollTimesheetProvider
             $this->candidateId($booking->candidate),
             $this->clientId($client),
             $this->locationId($client),
-            $this->contactId($contact, $client),
+            $this->contactId($defaultContact, $client),
+            $this->contactId($primaryContact, $client),
             $booking->consultant ? $this->consultantId($booking->consultant) : null,
-            $secondaryApprover && $secondaryApprover->isNot($contact) ? $this->contactId($secondaryApprover, $client) : null,
+            $defaultContact && $defaultContact->isNot($primaryContact) ? $this->contactId($defaultContact, $client) : null,
         );
     }
 
