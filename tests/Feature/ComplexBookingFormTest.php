@@ -129,6 +129,40 @@ test('a booking can be created with Sleep-In and Waking Night periods and their 
         ->and($booking->dayPeriods()->where('period', 'waking_night')->exists())->toBeTrue();
 });
 
+test('a Waking Night shift that crosses midnight is costed on its real elapsed hours, not the 24-hour complement', function () {
+    CompanyIndustry::where('company_id', $this->user->company_id)
+        ->where('industry_id', $this->industry->id)
+        ->update(['complex_booking' => true]);
+
+    Livewire::test(CreateBooking::class)
+        ->fillForm([
+            'client_id' => $this->client->id,
+            'candidate_id' => $this->candidate->id,
+            'candidate_type' => HealthcareCandidate::class,
+            'job_title_id' => $this->jobTitle->id,
+            'start_date' => '2026-09-01',
+            'end_date' => '2026-09-01',
+        ])
+        ->fillForm([
+            'day_periods' => [
+                ['date' => '2026-09-01', 'period' => 'waking_night', 'time_from' => '22:00', 'time_to' => '07:00'],
+            ],
+        ])
+        ->fillForm([
+            'waking_night_rate' => 15,
+            'waking_night_charge_rate' => 22,
+        ])
+        // 22:00 -> 07:00 is a real 9-hour shift: 9 x £15 = £135 pay,
+        // 9 x £22 = £198 charge — not the 24-hour complement (15 hours,
+        // £225/£330) a naive same-day diff would give.
+        ->assertSee('£135.00')
+        ->assertSee('£198.00')
+        ->assertDontSee('£225.00')
+        ->assertDontSee('£330.00')
+        ->call('create')
+        ->assertHasNoFormErrors();
+});
+
 test('defaultRates() prefills Sleep-In and Waking Night rates from the candidate/client rate cards only when complex_booking is on', function () {
     PayRate::create([
         'company_id' => $this->user->company_id,
