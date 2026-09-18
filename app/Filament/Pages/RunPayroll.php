@@ -11,6 +11,7 @@ use App\Models\Booking;
 use App\Models\BookingDay;
 use App\Models\Client;
 use App\Models\Company;
+use App\Models\ProviderError;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Notifications\Notification;
@@ -287,5 +288,30 @@ class RunPayroll extends Page implements HasTable
             ->whereNull('cancelled_at')
             ->whereNotNull('payroll_confirmation_sent_at')
             ->exists();
+    }
+
+    public function hasPayrollProviderConfigured(): bool
+    {
+        return $this->periodCompany()->payrollProvider() !== null;
+    }
+
+    /**
+     * Placement/timesheet send failures for this company's payroll
+     * provider (see SendTimesheetToPayrollProvider) — shown here so a
+     * booking stuck outside payroll is immediately visible, rather than
+     * something staff only discover by opening it. Not scoped to the
+     * currently viewed period: a booking can still be failing to send days
+     * approved weeks ago, and that shouldn't quietly drop out of view just
+     * because payroll has since moved on to a later period.
+     *
+     * @return Collection<int, ProviderError>
+     */
+    public function bookingProviderErrors(): Collection
+    {
+        return ProviderError::query()
+            ->whereNotNull('booking_id')
+            ->with(['booking.client'])
+            ->latest('updated_at')
+            ->get();
     }
 }

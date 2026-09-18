@@ -2,16 +2,20 @@
 
 use App\Enums\BookingDayPeriod;
 use App\Enums\BookingStatus;
+use App\Enums\Integration;
 use App\Filament\Pages\RunPayroll;
+use App\Filament\Resources\Bookings\BookingResource;
 use App\Jobs\SendPayrollConfirmationEmail;
 use App\Models\Booking;
 use App\Models\Client;
 use App\Models\EducationCandidate;
 use App\Models\JobTitle;
+use App\Models\ProviderError;
 use App\Models\User;
 use App\Services\Booking\TimesheetPeriod;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 
@@ -374,4 +378,73 @@ test('two clients in the same period each get their own badge, independent of th
 
     expect($html)->toContain('Fully approved')
         ->and($html)->toContain('Bookings to confirm');
+});
+
+test('the provider errors section is hidden when the company has no payroll provider configured', function () {
+    Livewire::test(RunPayroll::class)
+        ->assertDontSee('Payroll Provider Errors');
+});
+
+test('the provider errors section shows a reassuring message when the company has a provider but no errors', function () {
+    $this->company->update(['payroll_provider' => Integration::Evertime->value]);
+
+    Livewire::test(RunPayroll::class)
+        ->assertSee('Payroll Provider Errors')
+        ->assertSee('No placements or timesheets are currently failing to send.');
+});
+
+test('a booking-related provider error is listed with the client name, the error message and a link to the booking', function () {
+    Http::fake(['*' => Http::response(['HasErrors' => false, 'Errors' => []], 200)]);
+
+    $this->company->update(['payroll_provider' => Integration::Evertime->value]);
+
+    $booking = createPayrollBooking($this->user, $this->jobTitle, $this->periodStart->toDateString());
+
+    ProviderError::create([
+        'company_id' => $this->company->id,
+        'booking_id' => $booking->id,
+        'provider' => Integration::Evertime->value,
+        'errors' => ['The ApproverContactId value \'CONTACT-1\' does not match the Primary or Secondary Approver for PlacementId \'BOOKING-1\'.'],
+    ]);
+
+    Livewire::test(RunPayroll::class)
+        ->assertSee("Booking #{$booking->id} — {$booking->client->name}")
+        ->assertSee('The ApproverContactId value')
+        ->assertSeeHtml(BookingResource::getUrl('edit', ['record' => $booking->id]));
+});
+
+test('a provider error with no booking_id (a candidate or client sync failure) is not shown here', function () {
+    Http::fake(['*' => Http::response(['HasErrors' => false, 'Errors' => []], 200)]);
+
+    $this->company->update(['payroll_provider' => Integration::Evertime->value]);
+
+    ProviderError::create([
+        'company_id' => $this->company->id,
+        'client_id' => Client::factory()->create(['company_id' => $this->company->id])->id,
+        'provider' => Integration::Evertime->value,
+        'errors' => ['The supplied VatCode of \'Standard\' is invalid.'],
+    ]);
+
+    Livewire::test(RunPayroll::class)
+        ->assertSee('No placements or timesheets are currently failing to send.')
+        ->assertDontSee('The supplied VatCode');
+});
+
+test('a provider error from an earlier period still shows on the current period\'s page', function () {
+    Http::fake(['*' => Http::response(['HasErrors' => false, 'Errors' => []], 200)]);
+
+    $this->company->update(['payroll_provider' => Integration::Evertime->value]);
+
+    $earlierPeriod = TimesheetPeriod::next($this->company, $this->periodStart->copy()->subMonths(3));
+    $booking = createPayrollBooking($this->user, $this->jobTitle, $earlierPeriod['start']->toDateString());
+
+    ProviderError::create([
+        'company_id' => $this->company->id,
+        'booking_id' => $booking->id,
+        'provider' => Integration::Evertime->value,
+        'errors' => ['Some earlier failure.'],
+    ]);
+
+    Livewire::test(RunPayroll::class)
+        ->assertSee('Some earlier failure.');
 });
