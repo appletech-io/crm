@@ -140,6 +140,8 @@ class VettingSteps
                 'day_rate' => $item['day_rate'] ?? null,
                 'half_day_rate' => $item['half_day_rate'] ?? null,
                 'hourly_rate' => $item['hourly_rate'] ?? null,
+                'sleep_in_rate' => $item['sleep_in_rate'] ?? null,
+                'waking_night_rate' => $item['waking_night_rate'] ?? null,
             ];
 
             if (str_starts_with($key, 'record-')) {
@@ -251,6 +253,26 @@ class VettingSteps
                             ->minValue(0)
                             ->rule('regex:/^\d+(\.\d{1,2})?$/')
                             ->validationMessages(['regex' => 'Please enter a valid monetary amount.']),
+                        TextInput::make('sleep_in_rate')
+                            ->label('Sleep-In Rate')
+                            ->helperText('A flat allowance for the night, not per hour.')
+                            ->numeric()
+                            ->prefix('£')
+                            ->step(0.01)
+                            ->minValue(0)
+                            ->rule('regex:/^\d+(\.\d{1,2})?$/')
+                            ->validationMessages(['regex' => 'Please enter a valid monetary amount.'])
+                            ->visible(fn (): bool => active_industry_uses_complex_booking()),
+                        TextInput::make('waking_night_rate')
+                            ->label('Waking Night Rate')
+                            ->helperText('Per hour — distinct from the daytime Hourly Rate.')
+                            ->numeric()
+                            ->prefix('£')
+                            ->step(0.01)
+                            ->minValue(0)
+                            ->rule('regex:/^\d+(\.\d{1,2})?$/')
+                            ->validationMessages(['regex' => 'Please enter a valid monetary amount.'])
+                            ->visible(fn (): bool => active_industry_uses_complex_booking()),
                     ])
                     ->columns(3)
                     ->itemLabel(fn (?array $state): ?string => filled($state['job_title_id'] ?? null)

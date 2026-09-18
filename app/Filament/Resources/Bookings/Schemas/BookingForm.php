@@ -753,6 +753,11 @@ class BookingForm
             $rates['day_rate'] = $payRate?->day_rate;
             $rates['half_day_rate'] = $payRate?->half_day_rate;
             $rates['hourly_rate'] = $payRate?->hourly_rate;
+
+            if (active_industry_uses_complex_booking()) {
+                $rates['sleep_in_rate'] = $payRate?->sleep_in_rate;
+                $rates['waking_night_rate'] = $payRate?->waking_night_rate;
+            }
         }
 
         if (filled($clientId) && filled($jobTitleId)) {
@@ -765,6 +770,11 @@ class BookingForm
             $rates['day_charge_rate'] = $chargeRate?->day_rate;
             $rates['half_day_charge_rate'] = $chargeRate?->half_day_rate;
             $rates['hourly_charge_rate'] = $chargeRate?->hourly_rate;
+
+            if (active_industry_uses_complex_booking()) {
+                $rates['sleep_in_charge_rate'] = $chargeRate?->sleep_in_rate;
+                $rates['waking_night_charge_rate'] = $chargeRate?->waking_night_rate;
+            }
         }
 
         return $rates;

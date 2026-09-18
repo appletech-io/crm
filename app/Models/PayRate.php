@@ -25,6 +25,8 @@ class PayRate extends Model
             'hourly_rate' => Money::class,
             'day_rate' => Money::class,
             'half_day_rate' => Money::class,
+            'sleep_in_rate' => Money::class,
+            'waking_night_rate' => Money::class,
         ];
     }
 

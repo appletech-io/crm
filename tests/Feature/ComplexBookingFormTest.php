@@ -1,12 +1,14 @@
 <?php
 
 use App\Filament\Resources\Bookings\Pages\CreateBooking;
+use App\Filament\Resources\Bookings\Schemas\BookingForm;
 use App\Models\Booking;
 use App\Models\Client;
 use App\Models\CompanyIndustry;
 use App\Models\HealthcareCandidate;
 use App\Models\Industry;
 use App\Models\JobTitle;
+use App\Models\PayRate;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Cache;
@@ -125,4 +127,44 @@ test('a booking can be created with Sleep-In and Waking Night periods and their 
         ->and($booking->waking_night_rate)->toBe(15.0)
         ->and($booking->dayPeriods()->where('period', 'sleep_in')->exists())->toBeTrue()
         ->and($booking->dayPeriods()->where('period', 'waking_night')->exists())->toBeTrue();
+});
+
+test('defaultRates() prefills Sleep-In and Waking Night rates from the candidate/client rate cards only when complex_booking is on', function () {
+    PayRate::create([
+        'company_id' => $this->user->company_id,
+        'model_type' => HealthcareCandidate::class,
+        'model_id' => $this->candidate->id,
+        'job_title_id' => $this->jobTitle->id,
+        'hourly_rate' => 12,
+        'sleep_in_rate' => 45,
+        'waking_night_rate' => 15,
+    ]);
+
+    PayRate::create([
+        'company_id' => $this->user->company_id,
+        'model_type' => Client::class,
+        'model_id' => $this->client->id,
+        'job_title_id' => $this->jobTitle->id,
+        'hourly_rate' => 18,
+        'sleep_in_rate' => 65,
+        'waking_night_rate' => 22,
+    ]);
+
+    $ratesWithFlagOff = BookingForm::defaultRates($this->candidate->id, $this->client->id, $this->jobTitle->id);
+
+    expect($ratesWithFlagOff)->not->toHaveKey('sleep_in_rate')
+        ->and($ratesWithFlagOff)->not->toHaveKey('waking_night_rate')
+        ->and($ratesWithFlagOff)->not->toHaveKey('sleep_in_charge_rate')
+        ->and($ratesWithFlagOff)->not->toHaveKey('waking_night_charge_rate');
+
+    CompanyIndustry::where('company_id', $this->user->company_id)
+        ->where('industry_id', $this->industry->id)
+        ->update(['complex_booking' => true]);
+
+    $ratesWithFlagOn = BookingForm::defaultRates($this->candidate->id, $this->client->id, $this->jobTitle->id);
+
+    expect($ratesWithFlagOn['sleep_in_rate'])->toEqual(45.0)
+        ->and($ratesWithFlagOn['waking_night_rate'])->toEqual(15.0)
+        ->and($ratesWithFlagOn['sleep_in_charge_rate'])->toEqual(65.0)
+        ->and($ratesWithFlagOn['waking_night_charge_rate'])->toEqual(22.0);
 });

@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Resources\EducationCandidates\Pages\EditEducationCandidate;
+use App\Models\CompanyIndustry;
 use App\Models\EducationCandidate;
 use App\Models\Industry;
 use App\Models\JobTitle;
@@ -18,13 +19,14 @@ beforeEach(function () {
     $this->user->assignRole('admin');
     $this->actingAs($this->user);
 
-    $industry = Industry::factory()->create(['slug' => 'education']);
+    $this->industry = Industry::factory()->create(['slug' => 'education']);
+    $this->user->company->industries()->attach($this->industry->id);
     Cache::put("user.{$this->user->id}.active_industry", 'education');
-    Cache::put("user.{$this->user->id}.active_industry_id", $industry->id);
+    Cache::put("user.{$this->user->id}.active_industry_id", $this->industry->id);
 
     $this->jobTitle = JobTitle::factory()->create([
         'company_id' => $this->user->company_id,
-        'industry_id' => $industry->id,
+        'industry_id' => $this->industry->id,
     ]);
 });
 
@@ -114,4 +116,79 @@ test('the same job title cannot be added twice for a candidate', function () {
         ->assertHasFormErrors();
 
     expect(PayRate::where('model_id', $candidate->id)->count())->toBe(0);
+});
+
+test('Sleep-In and Waking Night rate fields are hidden on the Pay Rates tab when complex_booking is off', function () {
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertDontSee('Sleep-In Rate')
+        ->assertDontSee('Waking Night Rate');
+});
+
+test('Sleep-In and Waking Night rates can be set per job title once complex_booking is on', function () {
+    CompanyIndustry::where('company_id', $this->user->company_id)
+        ->where('industry_id', $this->industry->id)
+        ->update(['complex_booking' => true]);
+
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->assertSee('Sleep-In Rate')
+        ->assertSee('Waking Night Rate')
+        ->fillForm([
+            'phone' => '07700900000',
+            'mobile' => '07700900001',
+            'payRates' => [
+                'item-1' => [
+                    'job_title_id' => $this->jobTitle->id,
+                    'hourly_rate' => '12.50',
+                    'sleep_in_rate' => '45.00',
+                    'waking_night_rate' => '18.00',
+                ],
+            ],
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $payRate = PayRate::where('model_id', $candidate->id)
+        ->where('model_type', EducationCandidate::class)
+        ->first();
+
+    expect($payRate->sleep_in_rate)->toEqual(45.0)
+        ->and($payRate->waking_night_rate)->toEqual(18.0);
+});
+
+test('a Sleep-In/Waking Night rate entered while complex_booking was on survives an unrelated edit after it is switched off', function () {
+    CompanyIndustry::where('company_id', $this->user->company_id)
+        ->where('industry_id', $this->industry->id)
+        ->update(['complex_booking' => true]);
+
+    $candidate = EducationCandidate::factory()->create(['company_id' => null]);
+
+    PayRate::create([
+        'company_id' => $this->user->company_id,
+        'model_type' => EducationCandidate::class,
+        'model_id' => $candidate->id,
+        'job_title_id' => $this->jobTitle->id,
+        'hourly_rate' => 12.50,
+        'sleep_in_rate' => 45.00,
+        'waking_night_rate' => 18.00,
+    ]);
+
+    CompanyIndustry::where('company_id', $this->user->company_id)
+        ->where('industry_id', $this->industry->id)
+        ->update(['complex_booking' => false]);
+
+    Livewire::test(EditEducationCandidate::class, ['record' => $candidate->getRouteKey()])
+        ->fillForm(['phone' => '07700900002', 'mobile' => '07700900003'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $payRate = PayRate::where('model_id', $candidate->id)
+        ->where('model_type', EducationCandidate::class)
+        ->first();
+
+    expect($payRate->sleep_in_rate)->toEqual(45.0)
+        ->and($payRate->waking_night_rate)->toEqual(18.0);
 });
