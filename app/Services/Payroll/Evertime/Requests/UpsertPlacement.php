@@ -16,7 +16,8 @@ class UpsertPlacement
         string $candidateId,
         string $clientId,
         string $locationId,
-        string $contactId,
+        string $invoiceContactId,
+        string $primaryApproverContactId,
         ?string $consultantId,
         ?string $secondaryApproverContactId = null,
     ): void {
@@ -36,14 +37,19 @@ class UpsertPlacement
             'InvoiceLocationId' => $locationId,
             // Docs mark this optional, but the live account rejects
             // placement creation ("No InvoiceContactId specified") without
-            // it — reuse the same contact already registered on the client.
-            'InvoiceContactId' => $contactId,
+            // it — always the client's own default/billing contact,
+            // regardless of who approves any given period's timesheet.
+            'InvoiceContactId' => $invoiceContactId,
             // A contact existing on the client isn't enough on its own — the
             // timesheet's ApproverContactId/ApproverClientContactId must be
             // an active contact specifically associated to *this placement*
             // ("An active client contact was not found... associated to
-            // PlacementId..."), so it needs registering here too.
-            'PrimaryApproverContactId' => $contactId,
+            // PlacementId..."), so it needs registering here too. This is
+            // deliberately whoever actually approved these days when known
+            // (falling back to the client's default contact otherwise) — see
+            // EvertimeProvider::upsertPlacement() for why the approver must
+            // be Primary rather than Secondary.
+            'PrimaryApproverContactId' => $primaryApproverContactId,
             'WorkLocationId' => $locationId,
             'InvoiceFrequency' => 'Weekly',
             'TimesheetFrequency' => 'Weekly',
