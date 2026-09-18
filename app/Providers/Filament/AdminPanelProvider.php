@@ -109,7 +109,7 @@ class AdminPanelProvider extends PanelProvider
                 fn () => view('filament.user-guide-icon'),
             )
             ->renderHook(
-                PanelsRenderHook::GLOBAL_SEARCH_AFTER,
+                PanelsRenderHook::GLOBAL_SEARCH_BEFORE,
                 fn () => view('filament.todo-priority-quick-links'),
             )
             ->renderHook(
