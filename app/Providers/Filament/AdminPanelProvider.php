@@ -109,6 +109,10 @@ class AdminPanelProvider extends PanelProvider
                 fn () => view('filament.user-guide-icon'),
             )
             ->renderHook(
+                PanelsRenderHook::GLOBAL_SEARCH_AFTER,
+                fn () => view('filament.todo-priority-quick-links'),
+            )
+            ->renderHook(
                 PanelsRenderHook::PAGE_HEADER_HEADING_BEFORE,
                 fn () => view('filament.candidate-header-photo'),
                 scopes: [EditEducationCandidate::class, EditHealthcareCandidate::class],
