@@ -8,6 +8,7 @@ use App\Filament\Resources\TodoItems\Pages\CreateTodoItem;
 use App\Filament\Resources\TodoItems\Pages\EditTodoItem;
 use App\Filament\Resources\TodoItems\Pages\ListTodoItems;
 use App\Filament\Resources\TodoItems\Schemas\TodoItemForm;
+use App\Filament\Resources\TodoItems\TodoItemResource;
 use App\Filament\Resources\Vacancies\VacancyResource;
 use App\Filament\Support\TodoLinkedRecord;
 use App\Models\Booking;
@@ -696,6 +697,30 @@ test('the tab badges only count the current user\'s own to-dos', function () {
     $tabs = Livewire::test(ListTodoItems::class)->instance()->getTabs();
 
     expect($tabs['high']->getBadge())->toBe('1');
+});
+
+test('the sidebar navigation badge counts only outstanding Medium and Low to-dos', function () {
+    TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'high']);
+    TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'medium']);
+    TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'low']);
+    TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'low']);
+    // Completed — should not count.
+    TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'low', 'completed_at' => now()]);
+
+    expect(TodoItemResource::getNavigationBadge())->toBe('3');
+});
+
+test('the sidebar navigation badge is null when there are no outstanding Medium or Low to-dos', function () {
+    TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'high']);
+
+    expect(TodoItemResource::getNavigationBadge())->toBeNull();
+});
+
+test('the sidebar navigation badge only counts the current user\'s own to-dos', function () {
+    $otherUser = User::factory()->create(['company_id' => $this->company->id]);
+    TodoItem::factory()->create(['user_id' => $otherUser->id, 'priority' => 'low']);
+
+    expect(TodoItemResource::getNavigationBadge())->toBeNull();
 });
 
 test('selecting a priority tab only shows to-dos of that priority', function () {
