@@ -23,6 +23,7 @@ use App\Filament\Pages\ViewPayroll;
 use App\Filament\Resources\EducationCandidates\Pages\EditEducationCandidate;
 use App\Filament\Resources\HealthcareCandidates\Pages\EditHealthcareCandidate;
 use App\Http\Middleware\EnsureAccountSetupIsComplete;
+use App\Http\Middleware\EnsureDefaultQuickLinksExist;
 use App\Http\Middleware\SetActiveIndustry;
 use App\Models\Industry;
 use Filament\Actions\Action;
@@ -109,7 +110,11 @@ class AdminPanelProvider extends PanelProvider
                 fn () => view('filament.user-guide-icon'),
             )
             ->renderHook(
-                PanelsRenderHook::GLOBAL_SEARCH_AFTER,
+                PanelsRenderHook::GLOBAL_SEARCH_BEFORE,
+                fn () => view('filament.user-quick-links'),
+            )
+            ->renderHook(
+                PanelsRenderHook::GLOBAL_SEARCH_BEFORE,
                 fn () => view('filament.todo-priority-quick-links'),
             )
             ->renderHook(
@@ -176,6 +181,7 @@ class AdminPanelProvider extends PanelProvider
                 Authenticate::class,
                 EnsureAccountSetupIsComplete::class,
                 SetActiveIndustry::class,
+                EnsureDefaultQuickLinksExist::class,
             ])
             // Only resolvable once a user is authenticated — the login
             // screen itself, reached before we know who's signing in, still

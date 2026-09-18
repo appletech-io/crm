@@ -40,6 +40,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
  * @property string|null $remember_token
+ * @property Carbon|null $quick_links_seeded_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -64,6 +65,7 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
             'password' => 'hashed',
             'password_changed_at' => 'datetime',
             'requires_account_setup' => 'boolean',
+            'quick_links_seeded_at' => 'datetime',
         ];
     }
 
@@ -102,6 +104,11 @@ class User extends Authenticatable implements FilamentUser, PasskeyUser
     public function kpiTargets(): HasMany
     {
         return $this->hasMany(ConsultantKpiTarget::class);
+    }
+
+    public function quickLinks(): HasMany
+    {
+        return $this->hasMany(UserQuickLink::class)->orderBy('position');
     }
 
     public function kpiTargetFor(?int $industryId): ?ConsultantKpiTarget
