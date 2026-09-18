@@ -56,12 +56,11 @@ class AdminPanelProvider extends PanelProvider
             ->login(false)
             ->authGuard('web')
             ->sidebarCollapsibleOnDesktop()
-            // Positioned in the sidebar (bottom-left, near the account menu)
-            // rather than the default topbar spot — replaces the old
-            // ad-hoc "High Priority To-Dos" topbar dropdown with Filament's
-            // native slide-over, which supports per-notification actions
-            // (see TodoItemObserver::created()).
-            ->databaseNotifications(position: DatabaseNotificationsPosition::Sidebar)
+            // Topbar (top-right, next to search/theme toggle) — replaces
+            // the old ad-hoc "High Priority To-Dos" topbar dropdown with
+            // Filament's native slide-over, which supports per-notification
+            // actions (see TodoItemObserver::created()).
+            ->databaseNotifications(position: DatabaseNotificationsPosition::Topbar)
             ->colors([
                 'primary' => Color::Green,
                 'red' => Color::Red,
