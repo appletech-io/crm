@@ -390,8 +390,8 @@ test('users only see their own todo items', function () {
     $otherUser = User::factory()->create(['company_id' => $this->company->id]);
     $otherUser->assignRole('consultant');
 
-    $mine = TodoItem::factory()->create(['user_id' => $this->user->id, 'name' => 'My task']);
-    $theirs = TodoItem::factory()->create(['user_id' => $otherUser->id, 'name' => 'Their task']);
+    $mine = TodoItem::factory()->create(['user_id' => $this->user->id, 'name' => 'My task', 'priority' => 'high']);
+    $theirs = TodoItem::factory()->create(['user_id' => $otherUser->id, 'name' => 'Their task', 'priority' => 'high']);
 
     Livewire::test(ListTodoItems::class)
         ->assertCanSeeTableRecords([$mine])
@@ -408,7 +408,7 @@ test('cannot view or edit another users todo item', function () {
 });
 
 test('a todo item can be marked complete and reopened', function () {
-    $todoItem = TodoItem::factory()->create(['user_id' => $this->user->id]);
+    $todoItem = TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'high']);
 
     expect($todoItem->isComplete())->toBeFalse();
 
@@ -428,8 +428,8 @@ test('a todo item can be marked complete and reopened', function () {
 });
 
 test('the list only shows outstanding todo items by default', function () {
-    $outstanding = TodoItem::factory()->create(['user_id' => $this->user->id, 'completed_at' => null]);
-    $completed = TodoItem::factory()->create(['user_id' => $this->user->id, 'completed_at' => now()]);
+    $outstanding = TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'high', 'completed_at' => null]);
+    $completed = TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'high', 'completed_at' => now()]);
 
     Livewire::test(ListTodoItems::class)
         ->assertCanSeeTableRecords([$outstanding])
@@ -437,8 +437,8 @@ test('the list only shows outstanding todo items by default', function () {
 });
 
 test('filtering to completed shows completed todo items and hides outstanding ones', function () {
-    $outstanding = TodoItem::factory()->create(['user_id' => $this->user->id, 'completed_at' => null]);
-    $completed = TodoItem::factory()->create(['user_id' => $this->user->id, 'completed_at' => now()]);
+    $outstanding = TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'high', 'completed_at' => null]);
+    $completed = TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'high', 'completed_at' => now()]);
 
     Livewire::test(ListTodoItems::class)
         ->filterTable('completed_at', true)
@@ -447,7 +447,7 @@ test('filtering to completed shows completed todo items and hides outstanding on
 });
 
 test('there is no delete action on the todo list or its rows', function () {
-    $todoItem = TodoItem::factory()->create(['user_id' => $this->user->id]);
+    $todoItem = TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'high']);
 
     Livewire::test(ListTodoItems::class)
         ->assertTableBulkActionDoesNotExist('delete')
@@ -667,7 +667,7 @@ test('the link to field is hidden on edit when linked to a reference, but the re
         ->assertSee(trim("{$candidate->first_name} {$candidate->last_name}"));
 });
 
-test('the tabs badge shows how many outstanding to-dos exist per priority, and All shows the total', function () {
+test('the tabs badge shows how many outstanding to-dos exist per priority, with no All tab', function () {
     TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'high']);
     TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'high']);
     TodoItem::factory()->create(['user_id' => $this->user->id, 'priority' => 'medium']);
@@ -676,10 +676,16 @@ test('the tabs badge shows how many outstanding to-dos exist per priority, and A
 
     $tabs = Livewire::test(ListTodoItems::class)->instance()->getTabs();
 
-    expect($tabs['all']->getBadge())->toBe('3')
+    expect($tabs)->not->toHaveKey('all')
+        ->and(array_keys($tabs))->toBe(['high', 'medium', 'low'])
         ->and($tabs['high']->getBadge())->toBe('2')
         ->and($tabs['medium']->getBadge())->toBe('1')
         ->and($tabs['low']->getBadge())->toBe('0');
+});
+
+test('the High tab is selected by default', function () {
+    Livewire::test(ListTodoItems::class)
+        ->assertSet('activeTab', 'high');
 });
 
 test('the tab badges only count the current user\'s own to-dos', function () {

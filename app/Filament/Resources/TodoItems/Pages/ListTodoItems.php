@@ -22,19 +22,16 @@ class ListTodoItems extends ListRecords
     }
 
     /**
-     * One tab per priority, badged with how many of the user's own to-dos
-     * are still outstanding in that priority — mirrors the count-per-tab
-     * pattern (e.g. Filament's own demo Orders page) rather than one long
-     * table with a priority column to scan.
+     * One tab per priority, High to Low, badged with how many of the
+     * user's own to-dos are still outstanding in that priority — no "All"
+     * tab, so the highest priority is what lands by default rather than
+     * everything unsorted.
      *
      * @return array<string, Tab>
      */
     public function getTabs(): array
     {
-        return [
-            'all' => Tab::make('All')
-                ->badge($this->outstandingCount()),
-        ] + collect(TodoPriority::cases())
+        return collect([TodoPriority::High, TodoPriority::Medium, TodoPriority::Low])
             ->mapWithKeys(fn (TodoPriority $priority): array => [
                 $priority->value => Tab::make($priority->label())
                     ->modifyQueryUsing(fn (Builder $query) => $query->where('priority', $priority))
