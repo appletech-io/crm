@@ -8,6 +8,7 @@ use App\Models\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class BookingDay extends Model
 {
@@ -128,5 +129,26 @@ class BookingDay extends Model
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by_user_id');
+    }
+
+    public function careLog(): HasOne
+    {
+        return $this->hasOne(CareLog::class);
+    }
+
+    /**
+     * A shift this candidate needs to log care activity for: it isn't
+     * cancelled, its date has arrived (the whole shift — even an overnight
+     * one running past midnight — is attributed to this single date, see
+     * BookingForm::hoursBetween()), and no CareLog exists for it yet.
+     *
+     * Relies on the caller eager-loading careLog (e.g. ->with('careLog'))
+     * to avoid an N+1 query per row when listing many days.
+     */
+    public function needsCareLog(): bool
+    {
+        return ! $this->isCancelled()
+            && $this->date->lte(now()->startOfDay())
+            && $this->careLog === null;
     }
 }

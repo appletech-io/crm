@@ -24,6 +24,7 @@ class CompanyIndustry extends Pivot
             'uses_bookings' => 'boolean',
             'uses_perm' => 'boolean',
             'complex_booking' => 'boolean',
+            'care_logging' => 'boolean',
         ];
     }
 
@@ -63,6 +64,16 @@ class CompanyIndustry extends Pivot
     public static function usesComplexBooking(?int $companyId, ?int $industryId): bool
     {
         return static::feature('complex_booking', $companyId, $industryId, default: false);
+    }
+
+    /**
+     * Same fail-closed reasoning as usesComplexBooking() — care logging is a
+     * per-shift compliance requirement that only applies once a site admin
+     * has deliberately switched it on for a company+industry.
+     */
+    public static function usesCareLogging(?int $companyId, ?int $industryId): bool
+    {
+        return static::feature('care_logging', $companyId, $industryId, default: false);
     }
 
     /**

@@ -93,3 +93,25 @@ if (! function_exists('active_industry_uses_complex_booking')) {
         return CompanyIndustry::usesComplexBooking($user->company_id, active_industry_id());
     }
 }
+
+if (! function_exists('active_industry_uses_care_logging')) {
+    /**
+     * Whether the current user's active industry, for their own company,
+     * has Care Logging (per-shift candidate activity logs) switched on —
+     * an opt-in flag, same fail-closed reasoning as
+     * active_industry_uses_complex_booking(). Only valid for a staff (admin
+     * panel) login — the candidate portal has no active-industry session
+     * cache, so it calls CompanyIndustry::usesCareLogging() directly with
+     * the candidate's own company_id/industry_id instead.
+     */
+    function active_industry_uses_care_logging(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return CompanyIndustry::usesCareLogging($user->company_id, active_industry_id());
+    }
+}

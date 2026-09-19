@@ -22,7 +22,7 @@ class CompanyFeaturesForm
         return $schema
             ->components([
                 Section::make('Sector Features')
-                    ->description('Turn Bookings off for a sector that only ever places permanent or contract roles, or turn Perm off for a sector that only does temp/day bookings — this hides the respective features (Bookings/Run Payroll/Timesheets/Availability, or Job Pipeline/Jobs/Vacancy reporting) for it. Complex Booking adds Sleep-In/Waking Night shift types to the booking form, for sectors (e.g. healthcare) that need flat overnight allowances and a separate night-hours rate — off by default for every sector until switched on here.')
+                    ->description('Turn Bookings off for a sector that only ever places permanent or contract roles, or turn Perm off for a sector that only does temp/day bookings — this hides the respective features (Bookings/Run Payroll/Timesheets/Availability, or Job Pipeline/Jobs/Vacancy reporting) for it. Complex Booking adds Sleep-In/Waking Night shift types to the booking form, for sectors (e.g. healthcare) that need flat overnight allowances and a separate night-hours rate. Care Logging adds a per-shift activity log candidates fill in on their portal (and consultants can review), for sectors that need a record of care given each shift. Both are off by default for every sector until switched on here.')
                     ->schema([
                         Repeater::make('companyIndustries')
                             ->relationship()
@@ -31,7 +31,7 @@ class CompanyFeaturesForm
                             ->addable(false)
                             ->deletable(false)
                             ->reorderable(false)
-                            ->columns(4)
+                            ->columns(5)
                             ->schema([
                                 Select::make('industry_id')
                                     ->label('Sector')
@@ -46,6 +46,9 @@ class CompanyFeaturesForm
                                     ->default(true),
                                 Toggle::make('complex_booking')
                                     ->label('Complex Booking')
+                                    ->default(false),
+                                Toggle::make('care_logging')
+                                    ->label('Care Logging')
                                     ->default(false),
                             ]),
                     ]),
