@@ -23,20 +23,20 @@ beforeEach(function () {
     $this->candidate = HealthcareCandidate::factory()->create(['company_id' => $this->company->id]);
 });
 
-function makeLoggedShift(Booking $booking, array $overrides = []): CareLog
+function makeLoggedShift(Booking $booking, array $dayOverrides = [], array $careLogOverrides = []): CareLog
 {
     $day = $booking->dayPeriods()->create(array_merge([
         'company_id' => $booking->company_id,
         'date' => now()->subDay()->toDateString(),
         'period' => BookingDayPeriod::FullDay,
-    ], $overrides));
+    ], $dayOverrides));
 
-    return CareLog::factory()->create([
+    return CareLog::factory()->create(array_merge([
         'company_id' => $booking->company_id,
         'booking_day_id' => $day->id,
         'wellbeing' => Wellbeing::Good->value,
         'care_provided' => 'Assisted with daily routine.',
-    ]);
+    ], $careLogOverrides));
 }
 
 test('scoped to a booking, it only shows that booking\'s care logs', function () {
@@ -100,6 +100,23 @@ test('a different candidate\'s care logs never show up on this candidate\'s hist
     Livewire::test(CareLogHistory::class, ['record' => $otherCandidate])
         ->assertSuccessful()
         ->assertSee('No care logs yet.');
+});
+
+test('the Issue Flagged column is visible on the history table', function () {
+    $booking = Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $this->candidate->id,
+        'candidate_type' => HealthcareCandidate::class,
+    ]);
+    makeLoggedShift($booking, [], [
+        'incidents_occurred' => true,
+        'incident_details' => 'Candidate reported a fall, no injury.',
+    ]);
+
+    Livewire::test(CareLogHistory::class, ['record' => $booking])
+        ->assertSuccessful()
+        ->assertSee('Issue Flagged');
 });
 
 test('with no record bound, it shows an empty state rather than every log', function () {

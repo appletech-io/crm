@@ -17,13 +17,19 @@ class CareLogsQuickLink extends StatsOverviewWidget
     /** @return array<Stat> */
     protected function getStats(): array
     {
-        $count = CareLogsOverview::outstandingCount();
+        $outstanding = CareLogsOverview::outstandingCount();
+        $flagged = CareLogsOverview::flaggedIssuesCount();
 
         return [
-            Stat::make('Outstanding Care Logs', (string) $count)
-                ->description($count > 0 ? 'Shifts still needing a candidate log' : 'All shifts logged')
+            Stat::make('Outstanding Care Logs', (string) $outstanding)
+                ->description($outstanding > 0 ? 'Shifts still needing a candidate log' : 'All shifts logged')
                 ->descriptionIcon('heroicon-o-clipboard-document-list')
-                ->color($count > 0 ? 'danger' : 'success')
+                ->color($outstanding > 0 ? 'danger' : 'success')
+                ->url(CareLogsOverview::getUrl()),
+            Stat::make('Issues Raised', (string) $flagged)
+                ->description($flagged > 0 ? 'Logged shifts with an issue flagged' : 'No issues flagged')
+                ->descriptionIcon('heroicon-o-exclamation-triangle')
+                ->color($flagged > 0 ? 'danger' : 'success')
                 ->url(CareLogsOverview::getUrl()),
         ];
     }
@@ -31,6 +37,6 @@ class CareLogsQuickLink extends StatsOverviewWidget
     /** @return int | array<string, ?int> | null */
     protected function getColumns(): int|array|null
     {
-        return 1;
+        return 2;
     }
 }

@@ -53,8 +53,15 @@ class CareLogHistory extends TableWidget
                     ->formatStateUsing(fn (Wellbeing $state): string => $state->label())
                     ->color(fn (Wellbeing $state): string => $state->color()),
                 IconColumn::make('incidents_occurred')
-                    ->label('Incidents')
-                    ->boolean(),
+                    ->label('Issue Flagged')
+                    ->boolean()
+                    // IconColumn::boolean()'s defaults (true = success,
+                    // false = danger) are backwards for this field — a
+                    // flagged issue is the bad outcome, not the good one.
+                    ->trueIcon('heroicon-o-exclamation-triangle')
+                    ->trueColor('danger')
+                    ->falseIcon('heroicon-o-check-circle')
+                    ->falseColor('success'),
                 IconColumn::make('medication_administered')
                     ->label('Medication')
                     ->boolean(),

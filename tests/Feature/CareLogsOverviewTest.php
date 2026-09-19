@@ -233,6 +233,166 @@ test('outstandingCount and the nav badge only count non-cancelled, past-dated, u
         ->and(CareLogsOverview::getNavigationBadge())->toBe('1');
 });
 
+test('the Issue column badges a flagged log, a clean log, and an unlogged shift differently', function () {
+    enableOverviewCareLogging();
+
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->company->id]);
+    $booking = Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => HealthcareCandidate::class,
+    ]);
+
+    $flaggedDay = $booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => now()->subDays(3)->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+    CareLog::factory()->create([
+        'company_id' => $this->company->id,
+        'booking_day_id' => $flaggedDay->id,
+        'incidents_occurred' => true,
+        'incident_details' => 'Candidate reported a fall, no injury.',
+    ]);
+
+    $cleanDay = $booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => now()->subDays(2)->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+    CareLog::factory()->create([
+        'company_id' => $this->company->id,
+        'booking_day_id' => $cleanDay->id,
+        'incidents_occurred' => false,
+    ]);
+
+    Livewire::test(CareLogsOverview::class)
+        ->assertSee('Flagged')
+        ->assertSee('None');
+});
+
+test('the Issue Raised filter isolates flagged logs from clean ones', function () {
+    enableOverviewCareLogging();
+
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->company->id]);
+    $booking = Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => HealthcareCandidate::class,
+    ]);
+
+    $flaggedDay = $booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => now()->subDays(3)->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+    CareLog::factory()->create([
+        'company_id' => $this->company->id,
+        'booking_day_id' => $flaggedDay->id,
+        'incidents_occurred' => true,
+        'incident_details' => 'Candidate reported a fall, no injury.',
+    ]);
+
+    $cleanDay = $booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => now()->subDays(2)->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+    CareLog::factory()->create([
+        'company_id' => $this->company->id,
+        'booking_day_id' => $cleanDay->id,
+        'incidents_occurred' => false,
+    ]);
+
+    Livewire::test(CareLogsOverview::class)
+        ->filterTable('issue_flagged', true)
+        ->assertCanSeeTableRecords([$flaggedDay])
+        ->assertCanNotSeeTableRecords([$cleanDay]);
+
+    Livewire::test(CareLogsOverview::class)
+        ->filterTable('issue_flagged', false)
+        ->assertCanSeeTableRecords([$cleanDay])
+        ->assertCanNotSeeTableRecords([$flaggedDay]);
+});
+
+test('flaggedIssuesCount only counts logged shifts with an incident, not outstanding or clean ones', function () {
+    enableOverviewCareLogging();
+
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->company->id]);
+    $booking = Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => HealthcareCandidate::class,
+    ]);
+
+    // Flagged.
+    $flaggedDay = $booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => now()->subDays(3)->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+    CareLog::factory()->create([
+        'company_id' => $this->company->id,
+        'booking_day_id' => $flaggedDay->id,
+        'incidents_occurred' => true,
+        'incident_details' => 'Candidate reported a fall, no injury.',
+    ]);
+
+    // Logged, but clean — not counted.
+    $cleanDay = $booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => now()->subDays(2)->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+    CareLog::factory()->create([
+        'company_id' => $this->company->id,
+        'booking_day_id' => $cleanDay->id,
+        'incidents_occurred' => false,
+    ]);
+
+    // Outstanding, unlogged — not counted (nothing to flag yet).
+    $booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => now()->subDay()->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+
+    expect(CareLogsOverview::flaggedIssuesCount())->toBe(1);
+});
+
+test('the View Log modal badges an issue as Flagged in red and shows its details', function () {
+    enableOverviewCareLogging();
+
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->company->id]);
+    $booking = Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $this->client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => HealthcareCandidate::class,
+    ]);
+
+    $flaggedDay = $booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => now()->subDay()->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+    CareLog::factory()->create([
+        'company_id' => $this->company->id,
+        'booking_day_id' => $flaggedDay->id,
+        'incidents_occurred' => true,
+        'incident_details' => 'Candidate reported a fall, no injury.',
+    ]);
+
+    Livewire::test(CareLogsOverview::class)
+        ->mountTableAction('viewLog', $flaggedDay)
+        ->assertSee('Issue Raised')
+        ->assertSee('Flagged')
+        ->assertSee('Candidate reported a fall, no injury.');
+});
+
 test('a different company\'s shifts never appear on this overview', function () {
     enableOverviewCareLogging();
 
