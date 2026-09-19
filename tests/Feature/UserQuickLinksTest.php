@@ -7,6 +7,7 @@ use App\Filament\Resources\HealthcareCandidates\HealthcareCandidateResource;
 use App\Filament\Resources\UserQuickLinks\Pages\CreateUserQuickLink;
 use App\Filament\Resources\UserQuickLinks\Pages\ListUserQuickLinks;
 use App\Filament\Resources\UserQuickLinks\UserQuickLinkResource;
+use App\Filament\Support\QuickLinkCatalog;
 use App\Models\Company;
 use App\Models\CompanyIndustry;
 use App\Models\Industry;
@@ -75,6 +76,32 @@ test('healthcare defaults drop Bookings when Bookings is off', function () {
 
     expect(collect(GenerateDefaultQuickLinks::run())->pluck('label')->all())
         ->toBe(['Vacancies', 'Candidates', 'Clients', 'Reports', 'My To-Dos']);
+});
+
+test('healthcare quick links never include Care Logs when care_logging is off', function () {
+    Cache::put("user.{$this->user->id}.active_industry", $this->healthcare->slug);
+    Cache::put("user.{$this->user->id}.active_industry_id", $this->healthcare->id);
+
+    expect(collect(GenerateDefaultQuickLinks::run())->pluck('label')->all())
+        ->not->toContain('Care Logs');
+});
+
+test('healthcare quick links include Care Logs once care_logging is on, pushing My To-Dos out of the default 6', function () {
+    Cache::put("user.{$this->user->id}.active_industry", $this->healthcare->slug);
+    Cache::put("user.{$this->user->id}.active_industry_id", $this->healthcare->id);
+
+    CompanyIndustry::where('company_id', $this->company->id)
+        ->where('industry_id', $this->healthcare->id)
+        ->update(['care_logging' => true]);
+
+    // The full catalog now has 7 entries for healthcare — one more than
+    // GenerateDefaultQuickLinks::run()'s default cap of 6 — so the last one
+    // (My To-Dos) doesn't make the auto-seeded starter set. Still available
+    // to add manually via the quick link picker.
+    expect(collect(QuickLinkCatalog::availableForCurrentUser())->pluck('label')->all())
+        ->toBe(['Bookings', 'Vacancies', 'Candidates', 'Care Logs', 'Clients', 'Reports', 'My To-Dos'])
+        ->and(collect(GenerateDefaultQuickLinks::run())->pluck('label')->all())
+        ->toBe(['Bookings', 'Vacancies', 'Candidates', 'Care Logs', 'Clients', 'Reports']);
 });
 
 test('defaults fall back to a generic set with no active industry', function () {

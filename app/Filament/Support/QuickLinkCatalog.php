@@ -3,6 +3,7 @@
 namespace App\Filament\Support;
 
 use App\Actions\Users\GenerateDefaultQuickLinks;
+use App\Filament\Pages\CareLogsOverview;
 use App\Filament\Pages\JobPipeline;
 use App\Filament\Pages\Reports;
 use App\Filament\Resources\Bookings\BookingResource;
@@ -37,6 +38,7 @@ class QuickLinkCatalog
             $candidates->push(['label' => 'Bookings', 'icon' => 'heroicon-o-calendar-days', 'url' => fn () => BookingResource::getUrl('index'), 'canAccess' => fn () => BookingResource::canViewAny()]);
             $candidates->push(['label' => 'Vacancies', 'icon' => 'heroicon-o-building-office-2', 'url' => fn () => VacancyResource::getUrl('index'), 'canAccess' => fn () => VacancyResource::canViewAny()]);
             $candidates->push(['label' => 'Candidates', 'icon' => 'heroicon-o-heart', 'url' => fn () => HealthcareCandidateResource::getUrl('index'), 'canAccess' => fn () => HealthcareCandidateResource::canViewAny()]);
+            $candidates->push(['label' => 'Care Logs', 'icon' => 'heroicon-o-clipboard-document-list', 'url' => fn () => CareLogsOverview::getUrl(), 'canAccess' => fn () => CareLogsOverview::canAccess()]);
         }
 
         $candidates->push(['label' => 'Clients', 'icon' => 'heroicon-o-building-library', 'url' => fn () => ClientResource::getUrl('index'), 'canAccess' => fn () => ClientResource::canViewAny()]);
