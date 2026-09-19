@@ -3,6 +3,7 @@
 use App\Enums\BookingDayPeriod;
 use App\Filament\Widgets\CareLogsQuickLink;
 use App\Models\Booking;
+use App\Models\CareLog;
 use App\Models\Client;
 use App\Models\Company;
 use App\Models\HealthcareCandidate;
@@ -27,12 +28,14 @@ beforeEach(function () {
     Cache::put("user.{$this->admin->id}.active_industry_id", $this->industry->id);
 });
 
-test('it shows a success message with no outstanding care logs', function () {
+test('it shows a success message with no outstanding care logs or flagged issues', function () {
     Livewire::test(CareLogsQuickLink::class)
         ->assertSuccessful()
         ->assertSee('Outstanding Care Logs')
+        ->assertSee('Issues Raised')
         ->assertSee('0')
-        ->assertSee('All shifts logged');
+        ->assertSee('All shifts logged')
+        ->assertSee('No issues flagged');
 });
 
 test('it shows the outstanding count and a warning message once shifts need logging', function () {
@@ -54,4 +57,32 @@ test('it shows the outstanding count and a warning message once shifts need logg
         ->assertSuccessful()
         ->assertSee('1')
         ->assertSee('Shifts still needing a candidate log');
+});
+
+test('it shows the flagged issue count and a warning message once a candidate raises one', function () {
+    $client = Client::factory()->create(['company_id' => $this->company->id]);
+    $candidate = HealthcareCandidate::factory()->create(['company_id' => $this->company->id]);
+    $booking = Booking::factory()->create([
+        'company_id' => $this->company->id,
+        'client_id' => $client->id,
+        'candidate_id' => $candidate->id,
+        'candidate_type' => HealthcareCandidate::class,
+    ]);
+    $day = $booking->dayPeriods()->create([
+        'company_id' => $this->company->id,
+        'date' => now()->subDay()->toDateString(),
+        'period' => BookingDayPeriod::FullDay,
+    ]);
+    CareLog::factory()->create([
+        'company_id' => $this->company->id,
+        'booking_day_id' => $day->id,
+        'incidents_occurred' => true,
+        'incident_details' => 'Candidate reported a fall, no injury.',
+    ]);
+
+    Livewire::test(CareLogsQuickLink::class)
+        ->assertSuccessful()
+        ->assertSee('Issues Raised')
+        ->assertSee('1')
+        ->assertSee('Logged shifts with an issue flagged');
 });

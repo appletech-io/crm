@@ -13,6 +13,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -83,6 +84,16 @@ class CareLogsOverview extends Page implements HasTable
                         $record->needsCareLog() => 'danger',
                         default => 'gray',
                     }),
+                TextColumn::make('issue_flagged')
+                    ->label('Issue')
+                    ->badge()
+                    ->getStateUsing(fn (BookingDay $record): ?string => match (true) {
+                        $record->careLog === null => null,
+                        $record->careLog->incidents_occurred => 'Flagged',
+                        default => 'None',
+                    })
+                    ->placeholder('—')
+                    ->color(fn (BookingDay $record): string => $record->careLog?->incidents_occurred ? 'danger' : 'success'),
                 TextColumn::make('careLog.submitted_at')
                     ->label('Logged At')
                     ->dateTime('j M Y, g:ia')
@@ -104,6 +115,15 @@ class CareLogsOverview extends Page implements HasTable
                             default => $query,
                         };
                     }),
+                TernaryFilter::make('issue_flagged')
+                    ->label('Issue Raised')
+                    ->trueLabel('Flagged')
+                    ->falseLabel('No issue')
+                    ->queries(
+                        true: fn (Builder $query): Builder => $query->whereHas('careLog', fn ($query) => $query->where('incidents_occurred', true)),
+                        false: fn (Builder $query): Builder => $query->whereHas('careLog', fn ($query) => $query->where('incidents_occurred', false)),
+                        blank: fn (Builder $query): Builder => $query,
+                    ),
             ])
             ->recordActions([
                 Action::make('viewLog')
@@ -119,12 +139,17 @@ class CareLogsOverview extends Page implements HasTable
                             ->badge()
                             ->state($record->careLog->wellbeing->label())
                             ->color($record->careLog->wellbeing->color()),
+                        TextEntry::make('issue_flagged')
+                            ->label('Issue Raised')
+                            ->badge()
+                            ->state($record->careLog->incidents_occurred ? 'Flagged' : 'None')
+                            ->color($record->careLog->incidents_occurred ? 'danger' : 'success'),
                         TextEntry::make('care_provided')
                             ->label('Care Provided')
                             ->state($record->careLog->care_provided)
                             ->columnSpanFull(),
                         TextEntry::make('incidents')
-                            ->label('Incidents')
+                            ->label('Issue Details')
                             ->state($record->careLog->incidents_occurred ? $record->careLog->incident_details : 'None reported')
                             ->columnSpanFull(),
                         TextEntry::make('medication')
@@ -148,6 +173,17 @@ class CareLogsOverview extends Page implements HasTable
             ->whereNull('cancelled_at')
             ->where('date', '<=', now()->toDateString())
             ->whereDoesntHave('careLog')
+            ->count();
+    }
+
+    /**
+     * Logged shifts where the candidate flagged an issue — distinct from
+     * outstandingCount(), which is about shifts with no log at all yet.
+     */
+    public static function flaggedIssuesCount(): int
+    {
+        return static::shiftsQuery()
+            ->whereHas('careLog', fn ($query) => $query->where('incidents_occurred', true))
             ->count();
     }
 
