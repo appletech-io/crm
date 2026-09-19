@@ -8,6 +8,7 @@ use App\Enums\Integration;
 use App\Enums\PaymentMethod;
 use App\Filament\Forms\Components\DayScheduleCalendar;
 use App\Filament\Widgets\BookingTimesheetOverview;
+use App\Filament\Widgets\CareLogHistory;
 use App\Models\Booking;
 use App\Models\BookingDay;
 use App\Models\Client;
@@ -80,6 +81,14 @@ class BookingForm
                             ->schema([
                                 LivewireComponent::make(BookingTimesheetOverview::class)
                                     ->key('booking-timesheet-overview')
+                                    ->hidden(fn (?Model $record): bool => $record === null),
+                            ]),
+
+                        Tab::make('Care Logs')
+                            ->visible(fn (): bool => active_industry_uses_care_logging())
+                            ->schema([
+                                LivewireComponent::make(CareLogHistory::class)
+                                    ->key('booking-care-log-history')
                                     ->hidden(fn (?Model $record): bool => $record === null),
                             ]),
                     ]),

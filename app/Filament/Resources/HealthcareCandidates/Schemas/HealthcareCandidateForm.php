@@ -16,6 +16,7 @@ use App\Filament\Widgets\CandidateActivityTimeline;
 use App\Filament\Widgets\CandidateAvailabilityCalendar;
 use App\Filament\Widgets\CandidateBookingsTable;
 use App\Filament\Widgets\CandidateDocumentManager;
+use App\Filament\Widgets\CareLogHistory;
 use App\Jobs\GenerateCandidateProfile;
 use App\Jobs\GenerateFormattedCv;
 use App\Models\CandidateDocument;
@@ -114,6 +115,14 @@ class HealthcareCandidateForm
                             ->schema([
                                 LivewireComponent::make(CandidateBookingsTable::class)
                                     ->key('candidate-bookings-table'),
+                            ]),
+
+                        Tab::make('Care Logs')
+                            ->visible(fn (): bool => active_industry_uses_care_logging())
+                            ->schema([
+                                LivewireComponent::make(CareLogHistory::class)
+                                    ->key('candidate-care-log-history')
+                                    ->hidden(fn (?HealthcareCandidate $record): bool => $record === null),
                             ]),
 
                         Tab::make('Personal Details')
